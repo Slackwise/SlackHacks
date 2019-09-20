@@ -36,6 +36,12 @@ end
 
 addon.bindings = {
   global = {
+    {"W",                     "command",  "MOVEFORWARD"},
+    {"A",                     "command",  "STRAFELEFT"},
+    {"S",                     "command",  "MOVEBACKWARD"},
+    {"D",                     "command",  "STRAFERIGHT"},
+    {"ALT-A",                 "command",  "TURNLEFT"},
+    {"ALT-D",                 "command",  "TURNRIGHT"},
     {"F1",                    "command",  "ACTIONBUTTON1"},
     {"F2",                    "command",  "ACTIONBUTTON2"},
     {"F3",                    "command",  "ACTIONBUTTON3"},
