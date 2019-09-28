@@ -95,6 +95,7 @@ addon.bindings = {
     {"CTRL-S",                "command",  "NONE"},
     {"ALT-F",                 "command",  "FOCUSTARGET"},
     {"G",                     "spell",    "Heart Essence"},
+    {"CTRL-G",                "item",     "Net-O-Matic 5000"},
     {"CTRL-H",                "command",  "TOGGLEUI"},
     {"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
     {"ALT-C",                 "command",  "TOGGLECHARACTER0"},
