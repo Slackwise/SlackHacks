@@ -1,4 +1,4 @@
-## Interface: 80200
+## Interface: 90001
 ## Title: Slackwow
 ## Notes: Personal tweaks for the Blizzard default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
