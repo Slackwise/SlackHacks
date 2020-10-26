@@ -22,9 +22,11 @@ function addon:SetBindings()
     addon.SetBinding(binding)
   end
 
-  local class = string.lower(select(2, UnitClass("player")))
+  local class = select(2, UnitClass("player"))
   local game = addon.GetGameType()
-  for _, binding in ipairs(addon.bindings[game][class]) do
+  local spec = strupper(select(2, GetSpecializationInfo(GetSpecialization())))
+
+  for _, binding in ipairs(addon.bindings[game][class][spec]) do
     addon.SetBinding(binding)
   end
   
@@ -34,7 +36,7 @@ function addon:SetBindings()
     SaveBindings(2)
   end
   
-  print(game .. " " .. class .. " binding presets loaded!")
+  print(game .. " " .. spec .. " " .. class .. " binding presets loaded!")
 end
 
 addon.bindings = {
@@ -139,60 +141,62 @@ addon.bindings = {
     {"SHIFT-MOUSEWHEELUP",    "command",  "NONE"},
     {"SHIFT-MOUSEWHEELDOWN",  "command",  "NONE"}
   },
-  retail = {
-    hunter = {
-      {"F8",                        "spell",     "Call Pet 1"},
-      {"F9",                        "spell",     "Call Pet 2"},
-      {"F10",                       "spell",     "Call Pet 3"},
-      {"F11",                       "spell",     "Call Pet 4"},
-      {"F12",                       "spell",     "Call Pet 5"},
-      {"`",                         "macro",     "Stop"},
-      {"1",                         "macro",     "DOT"},
-      {"2",                         "spell",     "Sniper Shot"},
-      {"3",                         "spell",     "Multi-Shot"},
-      {"SHIFT-3",                   "spell",     "Barrage"},
-      {"CTRL-3",                    "spell",     "Volley"},
-      {"4",                         "spell",     "Arcane Shot"},
-      {"SHIFT-4",                   "spell",     "Aimed Shot"},
-      {"CTRL-4",                    "spell",     "Double Tap"},
-      {"5",                         "spell",     "Kill Shot"},
-      {"SHIFT-5",                   "spell",     "Tranquilizing Shot"},
-      {"CTRL-5",                    "spell",     "Hunter's Mark"},
-      {"Q",                         "macro",     "PetControl"},
-      {"CTRL-Q",                    "macro",     "PetSpecial"},
-      {"CTRL-SHIFT-Q",              "macro",     "PetMove"},
-      {"ALT-CTRL-Q",                "macro",     "PetToggle"},
-      {"ALT-SHIFT-Q",               "spell",     "Play Dead"},
-      {"E",                         "spell",     "Bursting Shot"},
-      {"ALT-E",                     "macro",     "MD"},
-      {"ALT-CTRL-E",                "macro",     "ChainEagle"},
-      {"R",                         "spell",     "Steady Shot"},
-      {"SHIFT-R",                   "spell",     "Rapid Fire"},
-      {"CTRL-R",                    "macro",     "Trueshot!"},
-      {"T",                         "macro",     "T"},
-      {"ALT-CTRL-S",                "spell",     "Survey"},
-      {"F",                         "spell",     "Wing Clip"}, --Auto-maps to "Concussive Shot" in MM spec
-      {"SHIFT-F",                   "spell",     "Scatter Shot"},
-      {"CTRL-F",                    "spell",     "Counter Shot"},
-      {"ALT-CTRL-F",                "spell",     "Scare Beast"},
-      {"Z",                         "spell",     "Camouflage"},
-      {"SHIFT-Z",                   "spell",     "Aspect of the Chameleon"},
-      {"CTRL-Z",                    "spell",     "Feign Death"},
-      {"ALT-Z",                     "macro",     "Peace"},
-      {"V",                         "macro",     "Vitality"},
-      {"SHIFT-V",                   "spell",     "Survival of the Fittest"},
-      {"CTRL-V",                    "spell",     "Aspect of the Turtle"},
-      {"C",                         "spell",     "Aspect of the Cheetah"},
-      {"SHIFT-C",                   "macro",     "Call"},
-      {"CTRL-C",                    "spell",     "Gladiator's Medallion"},
-      {"B",                         "spell",     "Fetch"},
-      {"CTRL-SPACE",                "spell",     "Disengage"},
-      {"BUTTON4",                   "macro",     "Mouse4"},
-      {"BUTTON5",                   "macro",     "PetMove"},
+  RETAIL = {
+    HUNTER = {
+      MARKSMANSHIP = {
+        {"F8",                        "spell",     "Call Pet 1"},
+        {"F9",                        "spell",     "Call Pet 2"},
+        {"F10",                       "spell",     "Call Pet 3"},
+        {"F11",                       "spell",     "Call Pet 4"},
+        {"F12",                       "spell",     "Call Pet 5"},
+        {"`",                         "macro",     "Stop"},
+        {"1",                         "macro",     "DOT"},
+        {"2",                         "spell",     "Sniper Shot"},
+        {"3",                         "spell",     "Multi-Shot"},
+        {"SHIFT-3",                   "spell",     "Barrage"},
+        {"CTRL-3",                    "spell",     "Volley"},
+        {"4",                         "spell",     "Arcane Shot"},
+        {"SHIFT-4",                   "spell",     "Aimed Shot"},
+        {"CTRL-4",                    "spell",     "Double Tap"},
+        {"5",                         "spell",     "Kill Shot"},
+        {"SHIFT-5",                   "spell",     "Tranquilizing Shot"},
+        {"CTRL-5",                    "spell",     "Hunter's Mark"},
+        {"Q",                         "macro",     "PetControl"},
+        {"CTRL-Q",                    "macro",     "PetSpecial"},
+        {"CTRL-SHIFT-Q",              "macro",     "PetMove"},
+        {"ALT-CTRL-Q",                "macro",     "PetToggle"},
+        {"ALT-SHIFT-Q",               "spell",     "Play Dead"},
+        {"E",                         "spell",     "Bursting Shot"},
+        {"ALT-E",                     "macro",     "MD"},
+        {"ALT-CTRL-E",                "macro",     "ChainEagle"},
+        {"R",                         "spell",     "Steady Shot"},
+        {"SHIFT-R",                   "spell",     "Rapid Fire"},
+        {"CTRL-R",                    "macro",     "Trueshot!"},
+        {"T",                         "macro",     "T"},
+        {"ALT-CTRL-S",                "spell",     "Survey"},
+        {"F",                         "spell",     "Wing Clip"}, --Auto-maps to "Concussive Shot" in MM spec
+        {"SHIFT-F",                   "spell",     "Scatter Shot"},
+        {"CTRL-F",                    "spell",     "Counter Shot"},
+        {"ALT-CTRL-F",                "spell",     "Scare Beast"},
+        {"Z",                         "spell",     "Camouflage"},
+        {"SHIFT-Z",                   "spell",     "Aspect of the Chameleon"},
+        {"CTRL-Z",                    "spell",     "Feign Death"},
+        {"ALT-Z",                     "macro",     "Peace"},
+        {"V",                         "macro",     "Vitality"},
+        {"SHIFT-V",                   "spell",     "Survival of the Fittest"},
+        {"CTRL-V",                    "spell",     "Aspect of the Turtle"},
+        {"C",                         "spell",     "Aspect of the Cheetah"},
+        {"SHIFT-C",                   "macro",     "Call"},
+        {"CTRL-C",                    "spell",     "Gladiator's Medallion"},
+        {"B",                         "spell",     "Fetch"},
+        {"CTRL-SPACE",                "spell",     "Disengage"},
+        {"BUTTON4",                   "macro",     "Mouse4"},
+        {"BUTTON5",                   "macro",     "PetMove"},
+      }
     }
   },
-  classic = {
-    hunter = {
+  CLASSIC = {
+    HUNTER = {
       {"1",                         "macro",     "Attack"},
       {"2",                         "spell",     "Kill Command"},
       {"3",                         "spell",     "Multi-Shot"},

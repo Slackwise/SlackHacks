@@ -40,9 +40,9 @@ end
 
 function addon:GetGameType()
   if addon.IsClassic() then
-    return "classic"
+    return "CLASSIC"
   else
-    return "retail"
+    return "RETAIL"
   end
 end
 
