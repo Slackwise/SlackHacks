@@ -7,8 +7,13 @@ local db
 local db_defaults = {
 }
 
---BINDINGS
+--[[
+  General API Documentation:
+  https://wow.gamepedia.com/World_of_Warcraft_API)
+  https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
+]]--
 
+--Event Handlers
 function addon:OnInitialize()
   self.db = LibStub("AceDB-3.0"):New("SlackwowDB", db_defaults, true)
   db = self.db.profile
