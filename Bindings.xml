@@ -1,2 +1,5 @@
 <Bindings>
+    <Binding name="SLACKWOW_RESTART_SOUND" description="Restart Sound" header="SLACKWOW" category="ADDONS">
+        Sound_GameSystem_RestartSoundSystem()
+	</Binding>
 </Bindings>

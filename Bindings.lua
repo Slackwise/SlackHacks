@@ -1,5 +1,8 @@
 local addon = _G.Slackwow
 
+BINDING_HEADER_SLACKWOW = "Slackwow"
+BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
+
 addon.bindingFunctions = {
   ["command"] = SetBinding,
   ["spell"]   = SetBindingSpell,
@@ -112,6 +115,7 @@ addon.bindings = {
     {"SHIFT-B",               "command",  "OPENALLBAGS"},
     {"CTRL-M",                "command",  "TOGGLEMUSIC"},
     {"ALT-M",                 "command",  "TOGGLESOUND"},
+    {"ALT-CTRL-M",            "command",  "SLACKWOW_RESTART_SOUND"},
     {"SHIFT-UP",              "command",  "NONE"},
     {"SHIFT-DOWN",            "command",  "NONE"},
     {"SHIFT-ENTER",           "command",  "REPLY"},
