@@ -60,6 +60,7 @@ addon.bindings = {
     {"F11",                   "command",  "ACTIONBUTTON11"},
     {"F12",                   "command",  "ACTIONBUTTON12"},
     {"`",                     "command",  "NONE"},
+    {"ALT-`",                 "spell",    "Auto Attack"},
     {"1",                     "command",  "NONE"},
     {"2",                     "command",  "NONE"},
     {"3",                     "command",  "NONE"},
