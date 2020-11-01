@@ -15,8 +15,13 @@ function addon.SetBinding(binding)
   addon.bindingFunctions[type](key, name)
 end
 
+function addon.UnbindUnwantedDefaults()
+  SetBinding("SHIFT-T");
+end
+
 function addon:SetBindings()
   LoadBindings(DEFAULT_BINDINGS)
+  addon.UnbindUnwantedDefaults()
 
   for _, binding in ipairs(addon.bindings.global) do
     addon.SetBinding(binding)
@@ -59,8 +64,6 @@ addon.bindings = {
     {"F10",                   "command",  "ACTIONBUTTON10"},
     {"F11",                   "command",  "ACTIONBUTTON11"},
     {"F12",                   "command",  "ACTIONBUTTON12"},
-    {"`",                     "command",  "NONE"},
-    {"ALT-`",                 "spell",    "Auto Attack"},
     {"1",                     "command",  "NONE"},
     {"2",                     "command",  "NONE"},
     {"3",                     "command",  "NONE"},
@@ -111,6 +114,7 @@ addon.bindings = {
     {"CTRL-X",                "macro",    "MountPassenger"},
     {"CTRL-SHIFT-X",          "macro",    "MountYak"},
     {"ALT-X",                 "command",  "TOGGLESHEATH"},
+    {"ALT-CTRL-X",            "command",  "TOGGLERUN"},
     {"V",                     "command",  "NONE"},
     {"SHIFT-V",               "command",  "NONE"},
     {"CTRL-V",                "command",  "NONE"},
@@ -150,7 +154,7 @@ addon.bindings = {
         {"F10",                       "spell",     "Call Pet 3"},
         {"F11",                       "spell",     "Call Pet 4"},
         {"F12",                       "spell",     "Call Pet 5"},
-        {"`",                         "macro",     "Stop"},
+        {"`",                         "macro",     "*"},
         {"1",                         "macro",     "DOT"},
         {"2",                         "spell",     "Sniper Shot"},
         {"3",                         "spell",     "Multi-Shot"},
@@ -173,7 +177,7 @@ addon.bindings = {
         {"R",                         "spell",     "Steady Shot"},
         {"SHIFT-R",                   "spell",     "Rapid Fire"},
         {"CTRL-R",                    "macro",     "Trueshot!"},
-        {"T",                         "macro",     "T"},
+        {"T",                         "macro",     "Traps"},
         {"ALT-CTRL-S",                "spell",     "Survey"},
         {"F",                         "spell",     "Wing Clip"}, --Auto-maps to "Concussive Shot" in MM spec
         {"SHIFT-F",                   "spell",     "Scatter Shot"},
@@ -191,8 +195,8 @@ addon.bindings = {
         {"CTRL-C",                    "spell",     "Gladiator's Medallion"},
         {"B",                         "spell",     "Fetch"},
         {"CTRL-SPACE",                "spell",     "Disengage"},
-        {"BUTTON4",                   "macro",     "Mouse4"},
-        {"BUTTON5",                   "macro",     "PetMove"},
+        {"BUTTON4",                   "macro",     "MouseTraps"},
+        {"BUTTON5",                   "macro",     "MousePetAttack"},
       }
     }
   },
