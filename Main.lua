@@ -51,13 +51,13 @@ function addon:SetMaxCameraDistance()
 end
 
 function addon:SellGreyItems()
-	for bag = 0, NUM_BAG_SLOTS do
-		for slot = 0, GetContainerNumSlots(bag) do
-			local link = GetContainerItemLink(bag, slot)
-			if link and select(3, GetItemInfo(link)) == 0 then
-				UseContainerItem(bag, slot)
-			end
-		end
+  for bag = 0, NUM_BAG_SLOTS do
+    for slot = 0, GetContainerNumSlots(bag) do
+      local link = GetContainerItemLink(bag, slot)
+      if link and select(3, GetItemInfo(link)) == 0 then
+        UseContainerItem(bag, slot)
+      end
+    end
   end
 end
 
