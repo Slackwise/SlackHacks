@@ -30,6 +30,7 @@ function addon:OnDisable()
 end
 
 function addon:MERCHANT_SHOW()
+  addon:RepairAllItems()
   addon:SellGreyItems()
 end
 
@@ -48,6 +49,12 @@ end
 
 function addon:SetMaxCameraDistance()
   SetCVar("cameraDistanceMaxZoomFactor", 2.6)
+end
+
+function addon:RepairAllItems()
+  if CanMerchantRepair() then
+    RepairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
+  end
 end
 
 function addon:SellGreyItems()
