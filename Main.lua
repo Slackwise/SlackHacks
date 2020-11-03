@@ -1,8 +1,8 @@
 --INITIALIZE
-local addon = LibStub("AceAddon-3.0"):NewAddon(
+local self = LibStub("AceAddon-3.0"):NewAddon(
 	"Slackwow", "AceConsole-3.0", "AceEvent-3.0")
-addon.config = LibStub("AceConfig-3.0")
-_G.Slackwow = addon
+self.config = LibStub("AceConfig-3.0")
+_G.Slackwow = self
 
 local db
 local dbDefaults = {
@@ -15,7 +15,7 @@ local dbDefaults = {
 ]]--
 
 --Event Handlers
-function addon:OnInitialize()
+function self:OnInitialize()
 	self.db = LibStub("AceDB-3.0"):New("SlackwowDB", dbDefaults, true)
 	db = self.db.profile
 	self.config:RegisterOptionsTable("Slackwow", self.options, "slackwow")
@@ -23,19 +23,19 @@ function addon:OnInitialize()
 	self:SetMaxCameraDistance()
 end
 
-function addon:OnEnable()
+function self:OnEnable()
 	self:RegisterEvent("MERCHANT_SHOW")
 end
 
-function addon:OnDisable()
+function self:OnDisable()
 end
 
-function addon:MERCHANT_SHOW()
+function self:MERCHANT_SHOW()
 	self:RepairAllItems()
 	self:SellGreyItems()
 end
 
-function addon:IsRetail()
+function self:IsRetail()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
 		return true
@@ -44,7 +44,7 @@ function addon:IsRetail()
 	end
 end
 
-function addon:IsClassic()
+function self:IsClassic()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
 		return true
@@ -53,7 +53,7 @@ function addon:IsClassic()
 	end
 end
 
-function addon:GetGameType()
+function self:GetGameType()
 	if self:IsRetail() then
 		return "RETAIL"
 	elseif self:IsClassic() then
@@ -63,17 +63,17 @@ function addon:GetGameType()
 	end
 end
 
-function addon:SetMaxCameraDistance()
+function self:SetMaxCameraDistance()
 	SetCVar("cameraDistanceMaxZoomFactor", 2.6)
 end
 
-function addon:RepairAllItems()
+function self:RepairAllItems()
 	if CanMerchantRepair() then
 		RepairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
 	end
 end
 
-function addon:SellGreyItems()
+function self:SellGreyItems()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 0, GetContainerNumSlots(bag) do
 			local link = GetContainerItemLink(bag, slot)
@@ -84,12 +84,12 @@ function addon:SellGreyItems()
 	end
 end
 
-addon.notActuallyFlyableZones = {
+self.notActuallyFlyableZones = {
 	continents = {},
 	zones = {}
 }
 
-function addon:Mount()  
+function self:Mount()  
 	if IsMounted() then
 		Dismount()
 		return
@@ -108,19 +108,19 @@ function addon:Mount()
 	IsSubmerged()
 end
 
-function addon:GetCurrentContinent()
+function self:GetCurrentContinent()
 
 end
 
-function addon:GetCurrentZone()
+function self:GetCurrentZone()
 
 end
 
-function addon:IsNonFlyableContinent()
+function self:IsNonFlyableContinent()
 
 end
 
-function addon:IsNonFlyableZone()
+function self:IsNonFlyableZone()
 
 end
 
@@ -128,7 +128,7 @@ end
 -- @param map - The map to start at.
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
 -- @return UiMapDetails
-function addon:FindParentMapByType(map, uiMapType)
+function self:FindParentMapByType(map, uiMapType)
 	 
 end
 
