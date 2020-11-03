@@ -2,6 +2,7 @@ local addon = _G.Slackwow
 
 BINDING_HEADER_SLACKWOW = "Slackwow"
 BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
+BINDING_NAME_SLACKWOW_RELOADUI = "Reload UI"
 
 addon.bindingFunctions = {
   ["command"] = SetBinding,
@@ -46,6 +47,7 @@ end
 
 addon.bindings = {
   global = {
+    {"ALT-CTRL-END",          "command",  "SLACKWOW_RELOADUI"},
     {"W",                     "command",  "MOVEFORWARD"},
     {"A",                     "command",  "STRAFELEFT"},
     {"S",                     "command",  "MOVEBACKWARD"},
