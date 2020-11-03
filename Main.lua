@@ -99,19 +99,19 @@ function self:GetCurrentMap()
 end
 
 function self:GetCurrentContinent()
-	return self:FindParentMapByType(GetCurrentMap(), Enum.UIMapType.Continent)
+	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Continent)
 end
 
 function self:GetCurrentZone()
-	return self:FindParentMapByType(GetCurrentMap(), Enum.UIMapType.Zone)
+	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Zone)
 end
 
 function self:IsNonFlyableContinent()
-	return not not self.notActuallyFlyableMaps.continents[GetCurrentContinent().mapID]
+	return not not self.notActuallyFlyableMaps.continents[self:GetCurrentContinent().mapID]
 end
 
 function self:IsNonFlyableZone()
-	return not not self.notActuallyFlyableMaps.zones[GetCurrentZone().mapID]
+	return not not self.notActuallyFlyableMaps.zones[self:GetCurrentZone().mapID]
 end
 
 --- Recursively search up the map hierarchy to find a specific map type.
@@ -122,7 +122,7 @@ function self:FindParentMapByType(map, uiMapType)
 	if map.mapType == uiMapType or map.mapType == Enum.UIMapType.Cosmic then
 		return map
 	else
-		self:FindParentMapByType(C_Map.GetMapInfo(map).parentMapID)
+		self:FindParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
 	end 
 end
 
@@ -143,15 +143,14 @@ function self:Mount()
 		return
 	end
 
-	if IsOutdoors() and (not IsFlyableArea() or self:IsNonFlyableContinent() or self:IsNonFlyableZone()) then
-		-- Mount ground mount
-		C_MountJournal.SummonByID(self.mounts.RAPTOR)
-	elseif IsOutdoors() and IsSubmerged() then
+	if IsOutdoors() and not IsControlKeyDown() and (IsFlyableArea() or not (self:IsNonFlyableContinent() or self:IsNonFlyableZone())) then
+		C_MountJournal.SummonByID(self.mounts.PHOENIX)
+	elseif IsOutdoors() and IsSubmerged() and not IsControlKeyDown() then
 		-- Mount water mount
 		C_MountJournal.SummonByID(self.mounts.TURTLE)
 	elseif IsOutdoors() then
-		-- Assume you can fly!
-		C_MountJournal.SummonByID(self.mounts.PHOENIX)
+		-- Mount ground mount
+		C_MountJournal.SummonByID(self.mounts.RAPTOR)
 	end
 end
 
