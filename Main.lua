@@ -4,9 +4,7 @@ local Self = LibStub("AceAddon-3.0"):NewAddon(
 Self.config = LibStub("AceConfig-3.0")
 _G.Slackwow = Self
 
-local db
-local dbDefaults = {
-}
+Self.dbDefaults = {}
 
 --[[
 	General API Documentation:
@@ -16,8 +14,7 @@ local dbDefaults = {
 
 --Event Handlers
 function Self:OnInitialize()
-	self.db = LibStub("AceDB-3.0"):New("SlackwowDB", dbDefaults, true)
-	db = self.db.profile
+	self.db = LibStub("AceDB-3.0"):New("SlackwowDB", self.dbDefaults, true)
 	self.config:RegisterOptionsTable("Slackwow", self.options, "slackwow")
 
 	self:SetMaxCameraDistance()
