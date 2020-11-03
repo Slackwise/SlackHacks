@@ -126,9 +126,9 @@ function Self:IsNonFlyableZone()
 end
 
 Self.mounts = {
-	['RAPTOR'] 		= 110,
-	['PHOENIX'] 	= 183,
-	['TURTLE'] 		= 312,
+	['RAPTOR']    = 110,
+	['PHOENIX']   = 183,
+	['TURTLE']    = 312,
 }
 
 function Self:Mount()  
