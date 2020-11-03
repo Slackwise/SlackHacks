@@ -142,7 +142,7 @@ function Self:Mount()
 		return
 	end
 
-	if IsOutDoors then
+	if IsOutdoors() then
 		if not IsControlKeyDown() and (IsFlyableArea() or not (self:IsNonFlyableContinent() or self:IsNonFlyableZone())) then
 			-- Summon flying mount
 			C_MountJournal.SummonByID(self.mounts.PHOENIX)
