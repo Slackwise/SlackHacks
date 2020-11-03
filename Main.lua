@@ -84,9 +84,52 @@ function self:SellGreyItems()
 	end
 end
 
-self.notActuallyFlyableZones = {
-	continents = {},
-	zones = {}
+self.notActuallyFlyableMaps = {
+	continents = {
+		905,	-- Argus
+	},
+	zones = {
+		--94,		-- Eversong Woods
+		--97,		-- Azuremyst Isle
+	}
+}
+
+function self:GetCurrentMap()
+	return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
+end
+
+function self:GetCurrentContinent()
+	return self:FindParentMapByType(GetCurrentMap(), Enum.UIMapType.Continent)
+end
+
+function self:GetCurrentZone()
+	return self:FindParentMapByType(GetCurrentMap(), Enum.UIMapType.Zone)
+end
+
+function self:IsNonFlyableContinent()
+	return not not self.notActuallyFlyableMaps.continents[GetCurrentContinent()]
+end
+
+function self:IsNonFlyableZone()
+	return not not self.notActuallyFlyableMaps.zones[GetCurrentZone()]
+end
+
+--- Recursively search up the map hierarchy to find a specific map type.
+-- @param map - The map to start at.
+-- @param upMapType - An Enum.UIMapType of the map you're trying to find.
+-- @return UiMapDetails
+function self:FindParentMapByType(map, uiMapType)
+	if map.mapType == uiMapType or map.mapType == Enum.UIMapType.Cosmic then
+		return map
+	else
+		self:FindParentMapByType(C_Map.GetMapInfo(map).parentMapID)
+	end 
+end
+
+self.mounts = {
+	['RAPTOR'] 		= 110,
+	['PHOENIX'] 	= 193,
+	['TURTLE'] 		= 312,
 }
 
 function self:Mount()  
@@ -100,37 +143,18 @@ function self:Mount()
 		return
 	end
 
-	--if IsOutdoors() and IsFlyableArea() and not in self.notActuallyFlyableZones
-
-	IsOutdoors()
-	IsFlying()
-	IsFlyableArea()
-	IsSubmerged()
+	if IsOutdoors() and (not IsFlyableArea() or self:IsNonFlyableContinent() or self:IsNonFlyableZone()) then
+		-- Mount ground mount
+		C_MountJournal.SummonByID(self.mounts.RAPTOR)
+	elseif IsOutdoors() and IsSubmerged() then
+		-- Mount water mount
+		C_MountJournal.SummonByID(self.mounts.TURTLE)
+	elseif IsOutdoors() then
+		-- Assume you can fly!
+		C_MountJournal.SummonByID(self.mounts.PHOENIX)
+	end
 end
 
-function self:GetCurrentContinent()
-
-end
-
-function self:GetCurrentZone()
-
-end
-
-function self:IsNonFlyableContinent()
-
-end
-
-function self:IsNonFlyableZone()
-
-end
-
---- Recursively search up the map hierarchy to find a specific map type.
--- @param map - The map to start at.
--- @param upMapType - An Enum.UIMapType of the map you're trying to find.
--- @return UiMapDetails
-function self:FindParentMapByType(map, uiMapType)
-	 
-end
 
 --[[
 local function events:PLAYER_EQUIPMENT_CHANGED(slot, hasItem)

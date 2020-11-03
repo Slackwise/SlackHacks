@@ -4,6 +4,7 @@ local self = _G.Slackwow
 BINDING_HEADER_SLACKWOW = "Slackwow"
 BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKWOW_RELOADUI = "Reload UI"
+BINDING_NAME_SLACKWOW_MOUNT = "Mount"
 
 self.bindingFunctions = {
 	["command"] = SetBinding,
@@ -130,7 +131,8 @@ self.bindings = {
 		{"SHIFT-DOWN",            "command",  "NONE"},
 		{"SHIFT-ENTER",           "command",  "REPLY"},
 		{"CTRL-ENTER",            "command",  "REPLY2"},
-		{"SHIFT-SPACE",           "macro",    "Mount"},
+		--{"SHIFT-SPACE",           "macro",    "Mount"},
+		{"SHIFT-SPACE",           "command",  "SLACKWOW_MOUNT"},
 		{"SHIFT-HOME",            "command",  "SETVIEW1"},
 		{"HOME",                  "command",  "SETVIEW2"},
 		{"END",                   "command",  "SETVIEW3"},
@@ -174,6 +176,7 @@ self.bindings = {
 				{"CTRL-SHIFT-Q",              "macro",     "PetMove"},
 				{"ALT-CTRL-Q",                "macro",     "PetToggle"},
 				{"ALT-SHIFT-Q",               "spell",     "Play Dead"},
+				{"ALT-CTRL-SHIFT-Q",          "spell",     "Eyes of the Beast"},
 				{"E",                         "spell",     "Bursting Shot"},
 				{"ALT-E",                     "macro",     "MD"},
 				{"ALT-CTRL-E",                "macro",     "ChainEagle"},

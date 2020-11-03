@@ -5,4 +5,7 @@
 		<Binding name="SLACKWOW_RESTART_SOUND" description="Restart Sound" category="ADDONS">
 			Sound_GameSystem_RestartSoundSystem()
 	</Binding>
+	<Binding name="SLACKWOW_MOUNT" description="Mount" category="ADDONS">
+			Slackwow:Mount()
+	</Binding>
 </Bindings>
