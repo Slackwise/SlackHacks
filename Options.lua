@@ -1,5 +1,5 @@
-local addon = _G.Slackwow
-addon.options = {
+local Self = _G.Slackwow
+Self.options = {
   type = "group",
   args = {
     general = {
@@ -11,8 +11,8 @@ addon.options = {
           name = "Enabled",
           desc = "Enable/disable this addon",
           type = "toggle",
-          get = function() return addon:IsEnabled() end,
-          set = function() if addon:IsEnabled() then addon:Disable() else addon:Enable() end end,
+          get = function() return Self:IsEnabled() end,
+          set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
         }
       }
     },
@@ -20,7 +20,7 @@ addon.options = {
       type = "execute",
       name = "Set Bindings",
       desc = "Set binding presets for current character's class and spec.",
-      func = function() addon:SetBindings() end
+      func = function() Self:SetBindings() end
     }
   }
 }

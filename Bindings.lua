@@ -1,28 +1,28 @@
 
-local self = _G.Slackwow
+local Self = _G.Slackwow
 
 BINDING_HEADER_SLACKWOW = "Slackwow"
 BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKWOW_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKWOW_MOUNT = "Mount"
 
-self.bindingFunctions = {
+Self.bindingFunctions = {
 	["command"] = SetBinding,
 	["spell"]   = SetBindingSpell,
 	["macro"]   = SetBindingMacro,
 	["item"]    = SetBindingItem
 }
 
-function self:SetBinding(binding)
+function Self:SetBinding(binding)
 	local key, type, name = unpack(binding)
 	self.bindingFunctions[type](key, name)
 end
 
-function self:UnbindUnwantedDefaults()
+function Self:UnbindUnwantedDefaults()
 	SetBinding("SHIFT-T")
 end
 
-function self:SetBindings()
+function Self:SetBindings()
 	LoadBindings(DEFAULT_BINDINGS)
 	self:UnbindUnwantedDefaults()
 
@@ -47,7 +47,7 @@ function self:SetBindings()
 	print(game .. " " .. spec .. " " .. class .. " binding presets loaded!")
 end
 
-self.bindings = {
+Self.bindings = {
 	global = {
 		{"ALT-CTRL-END",          "command",  "SLACKWOW_RELOADUI"},
 		{"W",                     "command",  "MOVEFORWARD"},
