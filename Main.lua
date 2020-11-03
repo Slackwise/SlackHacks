@@ -101,9 +101,8 @@ Self.notActuallyFlyableMaps = {
 function Self:FindParentMapByType(map, uiMapType)
 	if map.mapType == uiMapType or map.mapType == Enum.UIMapType.Cosmic then
 		return map
-	else
-		return self:FindParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
 	end 
+	return self:FindParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
 end
 
 function Self:GetCurrentMap()
@@ -143,13 +142,14 @@ function Self:Mount()
 		return
 	end
 
-	if IsOutdoors() and not IsControlKeyDown() and (IsFlyableArea() or not (self:IsNonFlyableContinent() or self:IsNonFlyableZone())) then
-		-- Summon flying mount
-		C_MountJournal.SummonByID(self.mounts.PHOENIX)
-	elseif IsOutdoors() and IsSubmerged() and not IsControlKeyDown() then
-		-- Summon water mount
-		C_MountJournal.SummonByID(self.mounts.TURTLE)
-	elseif IsOutdoors() then
+	if IsOutDoors then
+		if not IsControlKeyDown() and (IsFlyableArea() or not (self:IsNonFlyableContinent() or self:IsNonFlyableZone())) then
+			-- Summon flying mount
+			C_MountJournal.SummonByID(self.mounts.PHOENIX)
+		elseif IsSubmerged() and not IsControlKeyDown() then
+			-- Summon water mount
+			C_MountJournal.SummonByID(self.mounts.TURTLE)
+		end
 		-- Summon ground mount
 		C_MountJournal.SummonByID(self.mounts.RAPTOR)
 	end
