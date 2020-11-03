@@ -35,16 +35,31 @@ function addon:MERCHANT_SHOW()
 	self:SellGreyItems()
 end
 
-function addon:IsClassic()
-	-- #TODO: Find the most foolproof way to check if we're in Classic
-	return not SaveBindings -- Renamed to AttemptToSaveBindings: https://wow.gamepedia.com/API_SaveBindings
+function addon.IsRetail()
+	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
+	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+		return true
+	else
+		return false
+	end
+end
+
+function addon.IsClassic()
+	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
+	if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
+		return true
+	else
+		return false
+	end
 end
 
 function addon:GetGameType()
-	if self.IsClassic() then
-		return "CLASSIC"
-	else
+	if self.IsRetail() then
 		return "RETAIL"
+	elseif self.IsClassic() then
+		return "CLASSIC"
+  else
+		return "UNKNOWN" -- Uh oh
 	end
 end
 
