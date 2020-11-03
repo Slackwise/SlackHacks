@@ -12,32 +12,32 @@ addon.bindingFunctions = {
 	["item"]    = SetBindingItem
 }
 
-function addon.SetBinding(binding)
+function addon:SetBinding(binding)
 	local key, type, name = unpack(binding)
 	self.bindingFunctions[type](key, name)
 end
 
-function addon.UnbindUnwantedDefaults()
-	SetBinding("SHIFT-T");
+function addon:UnbindUnwantedDefaults()
+	SetBinding("SHIFT-T")
 end
 
 function addon:SetBindings()
 	LoadBindings(DEFAULT_BINDINGS)
-	self.UnbindUnwantedDefaults()
+	self:UnbindUnwantedDefaults()
 
 	for _, binding in ipairs(self.bindings.global) do
-		self.SetBinding(binding)
+		self:SetBinding(binding)
 	end
 
 	local class = select(2, UnitClass("player"))
-	local game = self.GetGameType()
+	local game = self:GetGameType()
 	local spec = strupper(select(2, GetSpecializationInfo(GetSpecialization())))
 
 	for _, binding in ipairs(self.bindings[game][class][spec]) do
-		self.SetBinding(binding)
+		self:SetBinding(binding)
 	end
 	
-	if self.IsClassic() then
+	if self:IsClassic() then
 		AttemptToSaveBindings(2)
 	else
 		SaveBindings(2)

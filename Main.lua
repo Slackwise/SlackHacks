@@ -20,7 +20,7 @@ function addon:OnInitialize()
 	db = self.db.profile
 	self.config:RegisterOptionsTable("Slackwow", self.options, "slackwow")
 
-	self.SetMaxCameraDistance()
+	self:SetMaxCameraDistance()
 end
 
 function addon:OnEnable()
@@ -35,7 +35,7 @@ function addon:MERCHANT_SHOW()
 	self:SellGreyItems()
 end
 
-function addon.IsRetail()
+function addon:IsRetail()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
 		return true
@@ -44,7 +44,7 @@ function addon.IsRetail()
 	end
 end
 
-function addon.IsClassic()
+function addon:IsClassic()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
 		return true
@@ -54,9 +54,9 @@ function addon.IsClassic()
 end
 
 function addon:GetGameType()
-	if self.IsRetail() then
+	if self:IsRetail() then
 		return "RETAIL"
-	elseif self.IsClassic() then
+	elseif self:IsClassic() then
 		return "CLASSIC"
   else
 		return "UNKNOWN" -- Uh oh
@@ -100,7 +100,7 @@ function addon:Mount()
 		return
 	end
 
-	if IsOutdoors() and IsFlyableArea() and not in self.notActuallyFlyableZones
+	--if IsOutdoors() and IsFlyableArea() and not in self.notActuallyFlyableZones
 
 	IsOutdoors()
 	IsFlying()

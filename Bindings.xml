@@ -2,7 +2,7 @@
 	<Binding name="SLACKWOW_RELOADUI" description="Reload UI" header="SLACKWOW" category="ADDONS">
 		ReloadUI()
 	</Binding>
-		<Binding name="SLACKWOW_RESTART_SOUND" description="Restart Sound" header="SLACKWOW" category="ADDONS">
+		<Binding name="SLACKWOW_RESTART_SOUND" description="Restart Sound" category="ADDONS">
 			Sound_GameSystem_RestartSoundSystem()
 	</Binding>
 </Bindings>

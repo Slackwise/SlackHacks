@@ -19,8 +19,8 @@ addon.options = {
     bind = {
       type = "execute",
       name = "Set Bindings",
-      desc = "Set binding presets for current character's class.",
-      func = addon.SetBindings
+      desc = "Set binding presets for current character's class and spec.",
+      func = function() addon:SetBindings() end
     }
   }
 }
