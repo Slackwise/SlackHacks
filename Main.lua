@@ -1,8 +1,8 @@
 --INITIALIZE
-local self = LibStub("AceAddon-3.0"):NewAddon(
+local Self = LibStub("AceAddon-3.0"):NewAddon(
 	"Slackwow", "AceConsole-3.0", "AceEvent-3.0")
-self.config = LibStub("AceConfig-3.0")
-_G.Slackwow = self
+Self.config = LibStub("AceConfig-3.0")
+_G.Slackwow = Self
 
 local db
 local dbDefaults = {
@@ -15,7 +15,7 @@ local dbDefaults = {
 ]]--
 
 --Event Handlers
-function self:OnInitialize()
+function Self:OnInitialize()
 	self.db = LibStub("AceDB-3.0"):New("SlackwowDB", dbDefaults, true)
 	db = self.db.profile
 	self.config:RegisterOptionsTable("Slackwow", self.options, "slackwow")
@@ -23,19 +23,19 @@ function self:OnInitialize()
 	self:SetMaxCameraDistance()
 end
 
-function self:OnEnable()
+function Self:OnEnable()
 	self:RegisterEvent("MERCHANT_SHOW")
 end
 
-function self:OnDisable()
+function Self:OnDisable()
 end
 
-function self:MERCHANT_SHOW()
+function Self:MERCHANT_SHOW()
 	self:RepairAllItems()
 	self:SellGreyItems()
 end
 
-function self:IsRetail()
+function Self:IsRetail()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
 		return true
@@ -44,7 +44,7 @@ function self:IsRetail()
 	end
 end
 
-function self:IsClassic()
+function Self:IsClassic()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
 		return true
@@ -53,7 +53,7 @@ function self:IsClassic()
 	end
 end
 
-function self:GetGameType()
+function Self:GetGameType()
 	if self:IsRetail() then
 		return "RETAIL"
 	elseif self:IsClassic() then
@@ -63,17 +63,17 @@ function self:GetGameType()
 	end
 end
 
-function self:SetMaxCameraDistance()
+function Self:SetMaxCameraDistance()
 	SetCVar("cameraDistanceMaxZoomFactor", 2.6)
 end
 
-function self:RepairAllItems()
+function Self:RepairAllItems()
 	if CanMerchantRepair() then
 		RepairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
 	end
 end
 
-function self:SellGreyItems()
+function Self:SellGreyItems()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 0, GetContainerNumSlots(bag) do
 			local link = GetContainerItemLink(bag, slot)
@@ -84,7 +84,7 @@ function self:SellGreyItems()
 	end
 end
 
-self.notActuallyFlyableMaps = {
+Self.notActuallyFlyableMaps = {
 	continents = {
 		905,	-- Argus
 	},
@@ -94,45 +94,45 @@ self.notActuallyFlyableMaps = {
 	}
 }
 
-function self:GetCurrentMap()
-	return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
-end
-
-function self:GetCurrentContinent()
-	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Continent)
-end
-
-function self:GetCurrentZone()
-	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Zone)
-end
-
-function self:IsNonFlyableContinent()
-	return not not self.notActuallyFlyableMaps.continents[self:GetCurrentContinent().mapID]
-end
-
-function self:IsNonFlyableZone()
-	return not not self.notActuallyFlyableMaps.zones[self:GetCurrentZone().mapID]
-end
-
 --- Recursively search up the map hierarchy to find a specific map type.
 -- @param map - The map to start at.
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
 -- @return UiMapDetails
-function self:FindParentMapByType(map, uiMapType)
+function Self:FindParentMapByType(map, uiMapType)
 	if map.mapType == uiMapType or map.mapType == Enum.UIMapType.Cosmic then
 		return map
 	else
-		self:FindParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
+		return self:FindParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
 	end 
 end
 
-self.mounts = {
+function Self:GetCurrentMap()
+	return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
+end
+
+function Self:GetCurrentContinent()
+	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Continent)
+end
+
+function Self:GetCurrentZone()
+	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Zone)
+end
+
+function Self:IsNonFlyableContinent()
+	return not not tContains(self.notActuallyFlyableMaps.continents, self:GetCurrentContinent().mapID)
+end
+
+function Self:IsNonFlyableZone()
+	return not not tContains(self.notActuallyFlyableMaps.zones, self:GetCurrentZone().mapID)
+end
+
+Self.mounts = {
 	['RAPTOR'] 		= 110,
-	['PHOENIX'] 	= 193,
+	['PHOENIX'] 	= 183,
 	['TURTLE'] 		= 312,
 }
 
-function self:Mount()  
+function Self:Mount()  
 	if IsMounted() then
 		Dismount()
 		return
@@ -144,12 +144,13 @@ function self:Mount()
 	end
 
 	if IsOutdoors() and not IsControlKeyDown() and (IsFlyableArea() or not (self:IsNonFlyableContinent() or self:IsNonFlyableZone())) then
+		-- Summon flying mount
 		C_MountJournal.SummonByID(self.mounts.PHOENIX)
 	elseif IsOutdoors() and IsSubmerged() and not IsControlKeyDown() then
-		-- Mount water mount
+		-- Summon water mount
 		C_MountJournal.SummonByID(self.mounts.TURTLE)
 	elseif IsOutdoors() then
-		-- Mount ground mount
+		-- Summon ground mount
 		C_MountJournal.SummonByID(self.mounts.RAPTOR)
 	end
 end
