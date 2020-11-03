@@ -107,11 +107,11 @@ function self:GetCurrentZone()
 end
 
 function self:IsNonFlyableContinent()
-	return not not self.notActuallyFlyableMaps.continents[GetCurrentContinent()]
+	return not not self.notActuallyFlyableMaps.continents[GetCurrentContinent().mapID]
 end
 
 function self:IsNonFlyableZone()
-	return not not self.notActuallyFlyableMaps.zones[GetCurrentZone()]
+	return not not self.notActuallyFlyableMaps.zones[GetCurrentZone().mapID]
 end
 
 --- Recursively search up the map hierarchy to find a specific map type.
