@@ -125,7 +125,7 @@ function Self:PrintDebugMapInfo()
 	local map = self:GetCurrentMap()
 	local zone = self:GetCurrentZone()
 	local continent = self:GetCurrentContinent()
-	local parentMap = C_Map.GetMapInfo(map.parentMapID))
+	local parentMap = C_Map.GetMapInfo(map.parentMapID)
 	print("MapID: " .. map.mapID)
 	print("===============================")
 	print(map.name .. ", " .. parentMap.name)
@@ -136,8 +136,9 @@ function Self:PrintDebugMapInfo()
 	print("parentMapID: " .. map.parentMapID)
 	print("mapType: "     .. map.mapType)
 	print("Outdoor: "     .. IsOutdoors())
-	print("Flyable: "     .. IsFlyableArea())
 	print("Submerged: "   .. IsSubmerged())
+	print("Flyable: "     .. IsFlyableArea())
+	print("ActuallyFlyable: " .. IsActuallyFlyableArea())
 	print("===============================")
 end
 
@@ -146,6 +147,23 @@ Self.mounts = {
 	['PHOENIX']   = 183,
 	['TURTLE']    = 312,
 }
+
+Self.mountsByType = {
+	['GROUND'] = Self.mounts.RAPTOR,
+	['FLYING'] = Self.mounts.PHOENIX,
+	['WATER']  = Self.mounts.TURTLE,
+}
+
+function Self:MountByType(type)
+	C_MountJournal.SummonByID(self.mountsByType[type])
+end
+
+function Self:IsAlternativeMountRequested()
+	if IsControlKeyDown() then
+		return true
+	end
+	return false
+end
 
 function Self:Mount()  
 	if IsMounted() then
@@ -159,15 +177,22 @@ function Self:Mount()
 	end
 
 	if IsOutdoors() then
-		if Self:IsActuallyFlyableArea() and not IsSubmerged() then
-			-- Summon flying mount
-			C_MountJournal.SummonByID(self.mounts.PHOENIX)
-		elseif IsSubmerged() then
-			-- Summon water mount
-			C_MountJournal.SummonByID(self.mounts.TURTLE)
+		if Self:IsActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
+			if Self:IsAlternativeMountRequested() then -- But we may want to show off our ground mount
+				Self:MountByType("GROUND")
+			end
+			Self:MountByType("FLYING")
+		elseif IsSubmerged() then -- Summon water mount
+			if Self:IsAlternativeMountRequested() then -- But we may want to fly out of the water
+				Self:MountByType("FLYING")
+			end
+			Self:MountByType("WATER")
+		else -- Summon ground mount
+			if Self:IsAlternativeMountRequested() then -- But we may want to show off our flying mount
+				Self:MountByType("FLYING")
+			end
+			Self:MountByType("GROUND")
 		end
-		-- Summon ground mount
-		C_MountJournal.SummonByID(self.mounts.RAPTOR)
 	end
 end
 
