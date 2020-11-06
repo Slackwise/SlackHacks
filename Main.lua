@@ -81,16 +81,6 @@ function Self:SellGreyItems()
 	end
 end
 
-Self.notActuallyFlyableMaps = {
-	continents = {
-		905,	-- Argus
-	},
-	zones = {
-		--94,		-- Eversong Woods
-		--97,		-- Azuremyst Isle
-	}
-}
-
 --- Recursively search up the map hierarchy to find a specific map type.
 -- @param map - The map to start at.
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
@@ -114,12 +104,41 @@ function Self:GetCurrentZone()
 	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Zone)
 end
 
-function Self:IsNonFlyableContinent()
-	return not not tContains(self.notActuallyFlyableMaps.continents, self:GetCurrentContinent().mapID)
+Self.notActuallyFlyableMaps = {
+	continents = {
+		905,	-- Argus
+	},
+	zones = {
+	}
+}
+
+function Self:IsActuallyFlyableArea()
+	local listedContinent = tContains(self.notActuallyFlyableMaps.continents, self:GetCurrentContinent().mapID)
+	local listedZone      = tContains(self.notActuallyFlyableMaps.zones,      self:GetCurrentZone().mapID)
+	if listedContinent or listedZone then
+		return false
+	end
+	return IsFlyableArea()
 end
 
-function Self:IsNonFlyableZone()
-	return not not tContains(self.notActuallyFlyableMaps.zones, self:GetCurrentZone().mapID)
+function Self:PrintDebugMapInfo()
+	local map = self:GetCurrentMap()
+	local zone = self:GetCurrentZone()
+	local continent = self:GetCurrentContinent()
+	local parentMap = C_Map.GetMapInfo(map.parentMapID))
+	print("MapID: " .. map.mapID)
+	print("===============================")
+	print(map.name .. ", " .. parentMap.name)
+	print("Zone: "      .. zone.name)
+	print("Continent: " .. continent.name)
+	print("-------------------------------")
+	print("mapID: "       .. map.mapID)
+	print("parentMapID: " .. map.parentMapID)
+	print("mapType: "     .. map.mapType)
+	print("Outdoor: "     .. IsOutdoors())
+	print("Flyable: "     .. IsFlyableArea())
+	print("Submerged: "   .. IsSubmerged())
+	print("===============================")
 end
 
 Self.mounts = {
@@ -140,10 +159,10 @@ function Self:Mount()
 	end
 
 	if IsOutdoors() then
-		if not IsControlKeyDown() and (IsFlyableArea() or not (self:IsNonFlyableContinent() or self:IsNonFlyableZone())) then
+		if Self:IsActuallyFlyableArea() and not IsSubmerged() then
 			-- Summon flying mount
 			C_MountJournal.SummonByID(self.mounts.PHOENIX)
-		elseif IsSubmerged() and not IsControlKeyDown() then
+		elseif IsSubmerged() then
 			-- Summon water mount
 			C_MountJournal.SummonByID(self.mounts.TURTLE)
 		end
