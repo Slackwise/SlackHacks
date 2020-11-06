@@ -3,8 +3,9 @@
 ## Notes: Personal tweaks for the Blizzard default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
 ## Version: 0.1
-## X-Website: http://slackwise.net/projects/Slackwise
-## X-Feedback: contact@slackwise.net
+## X-Website: https://github.com/Slackwise/Slackwow
+## X-Feedback: https://github.com/Slackwise
+## SavedVariables: SlackwowDB
 embeds.xml
 Main.lua
 Bindings.lua
