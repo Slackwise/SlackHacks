@@ -113,10 +113,14 @@ Self.notActuallyFlyableMaps = {
 }
 
 function Self:IsActuallyFlyableArea()
-	local listedContinent = tContains(self.notActuallyFlyableMaps.continents, self:GetCurrentContinent().mapID)
-	local listedZone      = tContains(self.notActuallyFlyableMaps.zones,      self:GetCurrentZone().mapID)
-	if listedContinent or listedZone then
+	local listedNonFlyableContinent = not not tContains(self.notActuallyFlyableMaps.continents, self:GetCurrentContinent().mapID)
+	local listedNonFlyableZone      = not not tContains(self.notActuallyFlyableMaps.zones,      self:GetCurrentZone().mapID)
+	if listedNonFlyableContinent or listedNonFlyableZone then
 		return false
+	else
+		if not IsFlyableArea() then -- Lawl, game thinks it isn't flyable but it most likely is!
+			return true
+		end
 	end
 	return IsFlyableArea()
 end
@@ -138,7 +142,7 @@ function Self:PrintDebugMapInfo()
 	print("Outdoor: "     .. tostring(IsOutdoors()))
 	print("Submerged: "   .. tostring(IsSubmerged()))
 	print("Flyable: "     .. tostring(IsFlyableArea()))
-	print("ActuallyFlyable: " .. tostring(Self:IsActuallyFlyableArea()))
+	print("ActuallyFlyable: " .. tostring(self:IsActuallyFlyableArea()))
 	print("===============================")
 end
 
@@ -159,10 +163,7 @@ function Self:MountByType(type)
 end
 
 function Self:IsAlternativeMountRequested()
-	if IsControlKeyDown() then
-		return true
-	end
-	return false
+	return IsControlKeyDown()
 end
 
 function Self:Mount()  
@@ -177,21 +178,21 @@ function Self:Mount()
 	end
 
 	if IsOutdoors() then
-		if Self:IsActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
-			if Self:IsAlternativeMountRequested() then -- But we may want to show off our ground mount
-				Self:MountByType("GROUND")
+		if self:IsActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
+			if self:IsAlternativeMountRequested() then -- But we may want to show off our ground mount
+				self:MountByType("GROUND")
 			end
-			Self:MountByType("FLYING")
+			self:MountByType("FLYING")
 		elseif IsSubmerged() then -- Summon water mount
-			if Self:IsAlternativeMountRequested() then -- But we may want to fly out of the water
-				Self:MountByType("FLYING")
+			if self:IsAlternativeMountRequested() then -- But we may want to fly out of the water
+				self:MountByType("FLYING")
 			end
-			Self:MountByType("WATER")
+			self:MountByType("WATER")
 		else -- Summon ground mount
-			if Self:IsAlternativeMountRequested() then -- But we may want to show off our flying mount
-				Self:MountByType("FLYING")
+			if self:IsAlternativeMountRequested() then -- But we may want to show off our flying mount
+				self:MountByType("FLYING")
 			end
-			Self:MountByType("GROUND")
+			self:MountByType("GROUND")
 		end
 	end
 end
