@@ -1,5 +1,6 @@
-local Self = _G.Slackwow
-Self.options = {
+setfenv(1, _G.Slackwow)
+
+options = {
   type = "group",
   args = {
     general = {
@@ -20,7 +21,7 @@ Self.options = {
       type = "execute",
       name = "Set Bindings",
       desc = "Set binding presets for current character's class and spec.",
-      func = function() Self:SetBindings() end
+      func = function() setBindings() end
     }
   }
 }

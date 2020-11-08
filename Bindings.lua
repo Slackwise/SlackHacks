@@ -1,44 +1,43 @@
-
-local Self = _G.Slackwow
+setfenv(1, _G.Slackwow)
 
 BINDING_HEADER_SLACKWOW = "Slackwow"
 BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKWOW_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKWOW_MOUNT = "Mount"
 
-Self.bindingFunctions = {
+bindingFunctions = {
 	["command"] = SetBinding,
 	["spell"]   = SetBindingSpell,
 	["macro"]   = SetBindingMacro,
 	["item"]    = SetBindingItem
 }
 
-function Self:SetBinding(binding)
+function setBinding(binding)
 	local key, type, name = unpack(binding)
-	self.bindingFunctions[type](key, name)
+	bindingFunctions[type](key, name)
 end
 
-function Self:UnbindUnwantedDefaults()
+function unbindUnwantedDefaults()
 	SetBinding("SHIFT-T")
 end
 
-function Self:SetBindings()
+function setBindings()
 	LoadBindings(DEFAULT_BINDINGS)
-	self:UnbindUnwantedDefaults()
+	unbindUnwantedDefaults()
 
-	for _, binding in ipairs(self.bindings.global) do
-		self:SetBinding(binding)
+	for _, binding in ipairs(bindings.global) do
+		setBinding(binding)
 	end
 
 	local class = select(2, UnitClass("player"))
-	local game = self:GetGameType()
+	local game = getGameType()
 	local spec = strupper(select(2, GetSpecializationInfo(GetSpecialization())))
 
-	for _, binding in ipairs(self.bindings[game][class][spec]) do
-		self:SetBinding(binding)
+	for _, binding in ipairs(bindings[game][class][spec]) do
+		setBinding(binding)
 	end
 	
-	if self:IsClassic() then
+	if isClassic() then
 		AttemptToSaveBindings(2)
 	else
 		SaveBindings(2)
@@ -47,7 +46,7 @@ function Self:SetBindings()
 	print(game .. " " .. spec .. " " .. class .. " binding presets loaded!")
 end
 
-Self.bindings = {
+bindings = {
 	global = {
 		{"ALT-CTRL-END",          "command",  "SLACKWOW_RELOADUI"},
 		{"W",                     "command",  "MOVEFORWARD"},

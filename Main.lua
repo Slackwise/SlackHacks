@@ -1,10 +1,16 @@
 --INITIALIZE
 local Self = LibStub("AceAddon-3.0"):NewAddon(
-	"Slackwow", "AceConsole-3.0", "AceEvent-3.0")
+	"Slackwow",
+	"AceConsole-3.0",
+	"AceEvent-3.0"
+)
 Self.config = LibStub("AceConfig-3.0")
 _G.Slackwow = Self
+Self.Self = Self
+setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
+setfenv(1, Self) -- Namespace local to addon
 
-Self.dbDefaults = {}
+dbDefaults = {}
 
 --[[
 	General API Documentation:
@@ -14,10 +20,10 @@ Self.dbDefaults = {}
 
 --Event Handlers
 function Self:OnInitialize()
-	self.db = LibStub("AceDB-3.0"):New("SlackwowDB", self.dbDefaults, true)
-	self.config:RegisterOptionsTable("Slackwow", self.options, "slackwow")
+	db = LibStub("AceDB-3.0"):New("SlackwowDB", dbDefaults, true)
+	config:RegisterOptionsTable("Slackwow", options, "slackwow")
 
-	self:SetMaxCameraDistance()
+	setMaxCameraDistance()
 end
 
 function Self:OnEnable()
@@ -28,11 +34,11 @@ function Self:OnDisable()
 end
 
 function Self:MERCHANT_SHOW()
-	self:RepairAllItems()
-	self:SellGreyItems()
+	repairAllItems()
+	sellGreyItems()
 end
 
-function Self:IsRetail()
+function isRetail()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
 		return true
@@ -41,7 +47,7 @@ function Self:IsRetail()
 	end
 end
 
-function Self:IsClassic()
+function isClassic()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
 		return true
@@ -50,27 +56,27 @@ function Self:IsClassic()
 	end
 end
 
-function Self:GetGameType()
-	if self:IsRetail() then
+function getGameType()
+	if isRetail() then
 		return "RETAIL"
-	elseif self:IsClassic() then
+	elseif isClassic() then
 		return "CLASSIC"
   else
 		return "UNKNOWN" -- Uh oh
 	end
 end
 
-function Self:SetMaxCameraDistance()
+function setMaxCameraDistance()
 	SetCVar("cameraDistanceMaxZoomFactor", 2.6)
 end
 
-function Self:RepairAllItems()
+function repairAllItems()
 	if CanMerchantRepair() then
-		RepairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
+		repairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
 	end
 end
 
-function Self:SellGreyItems()
+function sellGreyItems()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 0, GetContainerNumSlots(bag) do
 			local link = GetContainerItemLink(bag, slot)
@@ -85,26 +91,26 @@ end
 -- @param map - The map to start at.
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
 -- @return UiMapDetails
-function Self:FindParentMapByType(map, uiMapType)
+function findParentMapByType(map, uiMapType)
 	if map.mapType == uiMapType or map.mapType == Enum.UIMapType.Cosmic then
 		return map
 	end 
-	return self:FindParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
+	return findParentMapByType(C_Map.GetMapInfo(map.parentMapID), uiMapType)
 end
 
-function Self:GetCurrentMap()
+function getCurrentMap()
 	return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
 end
 
-function Self:GetCurrentContinent()
-	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Continent)
+function getCurrentContinent()
+	return findParentMapByType(getCurrentMap(), Enum.UIMapType.Continent)
 end
 
-function Self:GetCurrentZone()
-	return self:FindParentMapByType(self:GetCurrentMap(), Enum.UIMapType.Zone)
+function getCurrentZone()
+	return findParentMapByType(getCurrentMap(), Enum.UIMapType.Zone)
 end
 
-Self.notActuallyFlyableMaps = {
+notActuallyFlyableMaps = {
 	continents = {
 		905,	-- Argus
 	},
@@ -112,9 +118,9 @@ Self.notActuallyFlyableMaps = {
 	}
 }
 
-function Self:IsActuallyFlyableArea()
-	local listedNonFlyableContinent = not not tContains(self.notActuallyFlyableMaps.continents, self:GetCurrentContinent().mapID)
-	local listedNonFlyableZone      = not not tContains(self.notActuallyFlyableMaps.zones,      self:GetCurrentZone().mapID)
+function isActuallyFlyableArea()
+	local listedNonFlyableContinent = not not tContains(notActuallyFlyableMaps.continents, getCurrentContinent().mapID)
+	local listedNonFlyableZone      = not not tContains(notActuallyFlyableMaps.zones,      getCurrentZone().mapID)
 	if listedNonFlyableContinent or listedNonFlyableZone then
 		return false
 	else
@@ -125,10 +131,10 @@ function Self:IsActuallyFlyableArea()
 	return IsFlyableArea()
 end
 
-function Self:PrintDebugMapInfo()
-	local map = self:GetCurrentMap()
-	local zone = self:GetCurrentZone()
-	local continent = self:GetCurrentContinent()
+function printDebugMapInfo()
+	local map = getCurrentMap()
+	local zone = getCurrentZone()
+	local continent = getCurrentContinent()
 	local parentMap = C_Map.GetMapInfo(map.parentMapID)
 	print("MapID: " .. map.mapID)
 	print("===============================")
@@ -142,31 +148,31 @@ function Self:PrintDebugMapInfo()
 	print("Outdoor: "     .. tostring(IsOutdoors()))
 	print("Submerged: "   .. tostring(IsSubmerged()))
 	print("Flyable: "     .. tostring(IsFlyableArea()))
-	print("ActuallyFlyable: " .. tostring(self:IsActuallyFlyableArea()))
+	print("ActuallyFlyable: " .. tostring(isActuallyFlyableArea()))
 	print("===============================")
 end
 
-Self.mounts = {
+mounts = {
 	['RAPTOR']    = 110,
 	['PHOENIX']   = 183,
 	['TURTLE']    = 312,
 }
 
-Self.mountsByType = {
-	['GROUND'] = Self.mounts.RAPTOR,
-	['FLYING'] = Self.mounts.PHOENIX,
-	['WATER']  = Self.mounts.TURTLE,
+mountsByType = {
+	['GROUND'] = mounts.RAPTOR,
+	['FLYING'] = mounts.PHOENIX,
+	['WATER']  = mounts.TURTLE,
 }
 
-function Self:MountByType(type)
-	C_MountJournal.SummonByID(self.mountsByType[type])
+function mountByType(type)
+	C_MountJournal.SummonByID(mountsByType[type])
 end
 
-function Self:IsAlternativeMountRequested()
+function isAlternativeMountRequested()
 	return IsControlKeyDown()
 end
 
-function Self:Mount()  
+function mount()  
 	if IsMounted() then
 		Dismount()
 		return
@@ -178,28 +184,28 @@ function Self:Mount()
 	end
 
 	if IsOutdoors() then
-		if self:IsActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
-			if self:IsAlternativeMountRequested() then -- But we may want to show off our ground mount
-				self:MountByType("GROUND")
+		if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
+			if isAlternativeMountRequested() then -- But we may want to show off our ground mount
+				mountByType("GROUND")
 			end
-			self:MountByType("FLYING")
+			mountByType("FLYING")
 		elseif IsSubmerged() then -- Summon water mount
-			if self:IsAlternativeMountRequested() then -- But we may want to fly out of the water
-				self:MountByType("FLYING")
+			if isAlternativeMountRequested() then -- But we may want to fly out of the water
+				mountByType("FLYING")
 			end
-			self:MountByType("WATER")
+			mountByType("WATER")
 		else -- Summon ground mount
-			if self:IsAlternativeMountRequested() then -- But we may want to show off our flying mount
-				self:MountByType("FLYING")
+			if isAlternativeMountRequested() then -- But we may want to show off our flying mount
+				mountByType("FLYING")
 			end
-			self:MountByType("GROUND")
+			mountByType("GROUND")
 		end
 	end
 end
 
 
---[[
-local function events:PLAYER_EQUIPMENT_CHANGED(slot, hasItem)
+--[[ -- TODO: Update broken fishing pole right-click handler
+function events:PLAYER_EQUIPMENT_CHANGED(slot, hasItem)
 	if InCombat() then return
 	if select(6, GetItemInfo(GetInventoryItemID("player", slot))) == "Fishing Poles" then
 		--Right-click to cast.

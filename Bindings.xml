@@ -6,6 +6,6 @@
 			Sound_GameSystem_RestartSoundSystem()
 	</Binding>
 	<Binding name="SLACKWOW_MOUNT" description="Mount" category="ADDONS">
-			Slackwow:Mount()
+			Slackwow.mount()
 	</Binding>
 </Bindings>
