@@ -72,7 +72,7 @@ end
 
 function repairAllItems()
 	if CanMerchantRepair() then
-		repairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
+		RepairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
 	end
 end
 
