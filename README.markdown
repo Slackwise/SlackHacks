@@ -1,6 +1,12 @@
-Slackwow
+SlackUI
 =========
-A collection of personal tweaks to the standard Blizzard UI.
+Contrasting TukUI / ElvUI, I am creating a project to update the UI holistically,
+but I will be using Blizzard's textures and aesthetics rather than redesigning everything,
+making only minor tweaks adding the tiny features we all crave, all of them optional.
+
+A true *minimalist* approach.
+
+P.S. This project is still **PRE-ALPHA**  and mostly a collection of personal tweaks to the standard Blizzard UI.
 
 
 Why is this on GitHub...?

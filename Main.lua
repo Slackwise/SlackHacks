@@ -1,11 +1,11 @@
 --INITIALIZE
 local Self = LibStub("AceAddon-3.0"):NewAddon(
-	"Slackwow",
+	"SlackUI",
 	"AceConsole-3.0",
 	"AceEvent-3.0"
 )
 Self.config = LibStub("AceConfig-3.0")
-_G.Slackwow = Self
+_G.SlackUI = Self
 Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
 setfenv(1, Self) -- Namespace local to addon
@@ -20,8 +20,8 @@ dbDefaults = {}
 
 --Event Handlers
 function Self:OnInitialize()
-	db = LibStub("AceDB-3.0"):New("SlackwowDB", dbDefaults, true)
-	config:RegisterOptionsTable("Slackwow", options, "slackwow")
+	db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
+	config:RegisterOptionsTable("SlackUI", options, "slackwow")
 
 	setMaxCameraDistance()
 end

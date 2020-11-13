@@ -1,11 +1,11 @@
 ## Interface: 90001
-## Title: Slackwow
-## Notes: Personal tweaks for the Blizzard default UI.
+## Title: SlackUI
+## Notes: A compilation of minimalistic tweaks to the default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
-## Version: 0.1
-## X-Website: https://github.com/Slackwise/Slackwow
+## Version: 0.2
+## X-Website: https://github.com/Slackwise/SlackUI
 ## X-Feedback: https://github.com/Slackwise
-## SavedVariables: SlackwowDB
+## SavedVariables: SlackUIDB
 embeds.xml
 Main.lua
 Bindings.lua

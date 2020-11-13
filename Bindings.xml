@@ -1,11 +1,11 @@
 <Bindings>
-	<Binding name="SLACKWOW_RELOADUI" description="Reload UI" header="SLACKWOW" category="ADDONS">
+	<Binding name="SLACKUI_RELOADUI" description="Reload UI" header="SLACKUI" category="ADDONS">
 		ReloadUI()
 	</Binding>
-		<Binding name="SLACKWOW_RESTART_SOUND" description="Restart Sound" category="ADDONS">
+		<Binding name="SLACKUI_RESTART_SOUND" description="Restart Sound" category="ADDONS">
 			Sound_GameSystem_RestartSoundSystem()
 	</Binding>
-	<Binding name="SLACKWOW_MOUNT" description="Mount" category="ADDONS">
-			Slackwow.mount()
+	<Binding name="SLACKUI_MOUNT" description="Mount" category="ADDONS">
+			SlackUI.mount()
 	</Binding>
 </Bindings>

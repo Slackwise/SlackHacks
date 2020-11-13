@@ -1,4 +1,4 @@
-setfenv(1, _G.Slackwow)
+setfenv(1, _G.SlackUI)
 
 options = {
   type = "group",

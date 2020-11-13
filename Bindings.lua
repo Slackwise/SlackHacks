@@ -1,9 +1,9 @@
-setfenv(1, _G.Slackwow)
+setfenv(1, _G.SlackUI)
 
-BINDING_HEADER_SLACKWOW = "Slackwow"
-BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
-BINDING_NAME_SLACKWOW_RELOADUI = "Reload UI"
-BINDING_NAME_SLACKWOW_MOUNT = "Mount"
+BINDING_HEADER_SLACKUI = "SlackUI"
+BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
+BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
+BINDING_NAME_SLACKUI_MOUNT = "Mount"
 
 bindingType = {
 	DEFAULT_BINDINGS   = 0,
@@ -63,7 +63,7 @@ end
 
 bindings = {
 	global = {
-		{"ALT-CTRL-END",          "command",  "SLACKWOW_RELOADUI"},
+		{"ALT-CTRL-END",          "command",  "SLACKUI_RELOADUI"},
 		{"W",                     "command",  "MOVEFORWARD"},
 		{"A",                     "command",  "STRAFELEFT"},
 		{"S",                     "command",  "MOVEBACKWARD"},
@@ -140,13 +140,13 @@ bindings = {
 		{"SHIFT-B",               "command",  "OPENALLBAGS"},
 		{"CTRL-M",                "command",  "TOGGLEMUSIC"},
 		{"ALT-M",                 "command",  "TOGGLESOUND"},
-		{"ALT-CTRL-M",            "command",  "SLACKWOW_RESTART_SOUND"},
+		{"ALT-CTRL-M",            "command",  "SLACKUI_RESTART_SOUND"},
 		{"SHIFT-UP",              "command",  "NONE"},
 		{"SHIFT-DOWN",            "command",  "NONE"},
 		{"SHIFT-ENTER",           "command",  "REPLY"},
 		{"CTRL-ENTER",            "command",  "REPLY2"},
 		--{"SHIFT-SPACE",           "macro",    "Mount"},
-		{"SHIFT-SPACE",           "command",  "SLACKWOW_MOUNT"},
+		{"SHIFT-SPACE",           "command",  "SLACKUI_MOUNT"},
 		{"SHIFT-HOME",            "command",  "SETVIEW1"},
 		{"HOME",                  "command",  "SETVIEW2"},
 		{"END",                   "command",  "SETVIEW3"},
