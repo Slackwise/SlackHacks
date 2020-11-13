@@ -21,7 +21,7 @@ dbDefaults = {}
 --Event Handlers
 function Self:OnInitialize()
 	db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
-	config:RegisterOptionsTable("SlackUI", options, "slackwow")
+	config:RegisterOptionsTable("SlackUI", options, "slack")
 
 	setMaxCameraDistance()
 end
