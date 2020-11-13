@@ -5,6 +5,13 @@ BINDING_NAME_SLACKWOW_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKWOW_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKWOW_MOUNT = "Mount"
 
+bindingType = {
+	DEFAULT_BINDINGS   = 0,
+	ACCOUNT_BINDINGS   = 1,
+	CHARACTER_BINDINGS = 2
+}
+
+
 bindingFunctions = {
 	["command"] = SetBinding,
 	["spell"]   = SetBindingSpell,
@@ -22,28 +29,36 @@ function unbindUnwantedDefaults()
 end
 
 function setBindings()
-	LoadBindings(DEFAULT_BINDINGS)
+	if not isTester() then
+		print("[WIP Feature] Binding system is still in progress. Will not perform any binds, don't worry.")
+		return
+	end
+
+	LoadBindings(bindingType.DEFAULT_BINDINGS)
 	unbindUnwantedDefaults()
 
 	for _, binding in ipairs(bindings.global) do
 		setBinding(binding)
 	end
 
-	local class = select(2, UnitClass("player"))
-	local game = getGameType()
-	local spec = strupper(select(2, GetSpecializationInfo(GetSpecialization())))
+	local class = getClassName()
+	local game  = getGameType()
 
-	for _, binding in ipairs(bindings[game][class][spec]) do
-		setBinding(binding)
-	end
-	
-	if isClassic() then
-		AttemptToSaveBindings(2)
+	if isRetail() then
+		local spec = getSpecName()
+		for _, binding in ipairs(bindings[game][class][spec]) do
+			setBinding(binding)
+		end
+		SaveBindings(bindingType.CHARACTER_BINDINGS) 
+		print(spec .. " " .. class .. " binding presets loaded!")
 	else
-		SaveBindings(2)
+		-- Respecing isn't free in Classic, so skip that sub-table
+		for _, binding in ipairs(bindings[game][class]) do
+			setBinding(binding)
+		end
+		AttemptToSaveBindings(bindingType.CHARACTER_BINDINGS)
+		print(class .. " binding presets loaded!")
 	end
-	
-	print(game .. " " .. spec .. " " .. class .. " binding presets loaded!")
 end
 
 bindings = {
@@ -160,6 +175,7 @@ bindings = {
 				{"F12",                       "spell",     "Call Pet 5"},
 				{"`",                         "macro",     "*"},
 				{"1",                         "macro",     "DOT"},
+				{"ALT-1",                     "spell",     "Hunter's Mark"},
 				{"2",                         "spell",     "Sniper Shot"},
 				{"3",                         "spell",     "Multi-Shot"},
 				{"SHIFT-3",                   "spell",     "Barrage"},
@@ -169,7 +185,6 @@ bindings = {
 				{"CTRL-4",                    "spell",     "Double Tap"},
 				{"5",                         "spell",     "Kill Shot"},
 				{"SHIFT-5",                   "spell",     "Tranquilizing Shot"},
-				{"CTRL-5",                    "spell",     "Hunter's Mark"},
 				{"Q",                         "macro",     "PetControl"},
 				{"CTRL-Q",                    "macro",     "PetSpecial"},
 				{"CTRL-SHIFT-Q",              "macro",     "PetMove"},

@@ -38,6 +38,22 @@ function Self:MERCHANT_SHOW()
 	sellGreyItems()
 end
 
+function getBnetName()
+	local battleTag   = select(2, BNGetInfo())
+	local name, idnum = strsplit('#', battleTag)
+	return name
+end
+
+function isSlackwise()
+	return getBnetName() == "Slackwise" or false
+end
+
+-- Gatekeeping new features with no UI
+function isTester()
+	-- Use a checkbox in settings later, probably, but right now it's just me
+	return isSlackwise()
+end
+
 function isRetail()
 	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
 	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
@@ -64,6 +80,14 @@ function getGameType()
   else
 		return "UNKNOWN" -- Uh oh
 	end
+end
+
+function getClassName()
+	return select(2, UnitClass("player"))
+end
+
+function getSpecName()
+	return strupper(select(2, GetSpecializationInfo(GetSpecialization())))
 end
 
 function setMaxCameraDistance()
