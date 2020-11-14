@@ -38,14 +38,12 @@ function Self:MERCHANT_SHOW()
 	sellGreyItems()
 end
 
-function getBnetName()
-	local battleTag   = select(2, BNGetInfo())
-	local name, idnum = strsplit('#', battleTag)
-	return name
+function getBattletag()
+	return select(2, BNGetInfo())
 end
 
 function isSlackwise()
-	return getBnetName() == "Slackwise" or false
+	return getBattletag() == "Slackwise#1121" or false
 end
 
 -- Gatekeeping new features with no UI
