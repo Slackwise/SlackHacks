@@ -132,6 +132,14 @@ function getCurrentZone()
 	return findParentMapByType(getCurrentMap(), Enum.UIMapType.Zone)
 end
 
+actuallyFlyableMaps = {
+	continents = {
+		619, -- Broken Isles
+	},
+	zones = {
+	}
+}
+
 notActuallyFlyableMaps = {
 	continents = {
 		905,	-- Argus
@@ -141,15 +149,26 @@ notActuallyFlyableMaps = {
 }
 
 function isActuallyFlyableArea()
-	local listedNonFlyableContinent = not not tContains(notActuallyFlyableMaps.continents, getCurrentContinent().mapID)
-	local listedNonFlyableZone      = not not tContains(notActuallyFlyableMaps.zones,      getCurrentZone().mapID)
-	if listedNonFlyableContinent or listedNonFlyableZone then
+	local continentID = getCurrentContinent().mapID
+	local zoneID 			= getCurrentZone().mapID
+
+	local listedFlyableContinent    = not not tContains(	   actuallyFlyableMaps.continents,  continentID  )
+	local listedFlyableZone         = not not tContains(	   actuallyFlyableMaps.zones,       zoneID       )
+
+	local listedNonFlyableContinent = not not tContains(	notActuallyFlyableMaps.continents,  continentID  )
+	local listedNonFlyableZone      = not not tContains(	notActuallyFlyableMaps.zones,       zoneID       )
+
+	local listedFlyable             = listedFlyableContinent    or listedFlyableZone
+	local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone
+
+	if listedNonFlyable then
 		return false
-	else
-		if not IsFlyableArea() then -- Lawl, game thinks it isn't flyable but it most likely is!
-			return true
-		end
 	end
+
+	if listedFlyable then
+		return true
+	end
+
 	return IsFlyableArea()
 end
 
@@ -161,8 +180,8 @@ function printDebugMapInfo()
 	print("MapID: " .. map.mapID)
 	print("===============================")
 	print(map.name .. ", " .. parentMap.name)
-	print("Zone: "      .. zone.name)
-	print("Continent: " .. continent.name)
+	print("Zone: "      .. zone.name .. " (" .. zone.mapID .. ')')
+	print("Continent: " .. continent.name .. " (" .. continent.mapID .. ')')
 	print("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
 	print("mapID: "       .. map.mapID)
 	print("parentMapID: " .. map.parentMapID)
