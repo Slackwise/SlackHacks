@@ -64,6 +64,7 @@ end
 bindings = {
 	global = {
 		{"ALT-CTRL-END",          "command",  "SLACKUI_RELOADUI"},
+		{"CTRL-`",                "command",  "FOCUSTARGET"},
 		{"W",                     "command",  "MOVEFORWARD"},
 		{"A",                     "command",  "STRAFELEFT"},
 		{"S",                     "command",  "MOVEBACKWARD"},
@@ -120,7 +121,6 @@ bindings = {
 		{"SHIFT-R",               "command",  "NONE"},
 		{"CTRL-R",                "command",  "NONE"},
 		{"CTRL-S",                "command",  "NONE"},
-		{"ALT-F",                 "command",  "FOCUSTARGET"},
 		{"G",                     "spell",    "Heart Essence"},
 		{"CTRL-G",                "item",     "Net-O-Matic 5000"},
 		{"CTRL-H",                "spell",    "Eternal Traveler's Hearthstone"},
@@ -175,7 +175,8 @@ bindings = {
 				{"F12",                       "spell",     "Call Pet 5"},
 				{"`",                         "macro",     "*"},
 				{"1",                         "macro",     "DOT"},
-				{"ALT-1",                     "spell",     "Hunter's Mark"},
+				{"ALT-1",                     "spell",     "MD"},
+				{"CTRL-1",                    "macro",     "Hunter's Mark"},
 				{"2",                         "spell",     "Sniper Shot"},
 				{"3",                         "spell",     "Multi-Shot"},
 				{"SHIFT-3",                   "spell",     "Barrage"},
