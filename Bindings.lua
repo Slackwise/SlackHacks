@@ -208,6 +208,7 @@ bindings = {
 				{"SHIFT-Z",                   "spell",     "Aspect of the Chameleon"},
 				{"CTRL-Z",                    "spell",     "Feign Death"},
 				{"ALT-Z",                     "macro",     "Shadowmeld"},
+				{"CTRL-SHIFT-Z",              "item",      "Potion of the Hidden Spirit"},
 				{"C",                         "spell",     "Aspect of the Cheetah"},
 				{"SHIFT-C",                   "macro",     "Call"},
 				{"CTRL-C",                    "spell",     "Gladiator's Medallion"},
