@@ -176,7 +176,7 @@ bindings = {
 				{"F12",                       "spell",     "Call Pet 5"},
 				{"`",                         "macro",     "*"},
 				{"1",                         "macro",     "DOT"},
-				{"ALT-1",                     "spell",     "MD"},
+				{"ALT-1",                     "macro",     "MD"},
 				{"CTRL-1",                    "spell",     "Hunter's Mark"},
 				{"3",                         "spell",     "Multi-Shot"},
 				{"SHIFT-3",                   "spell",     "Barrage"},
