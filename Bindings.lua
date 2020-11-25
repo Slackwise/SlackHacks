@@ -127,7 +127,7 @@ bindings = {
 		{"CTRL-H",                "spell",    "Eternal Traveler's Hearthstone"},
 		{"ALT-H",                 "command",  "TOGGLEUI"},
 		{"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
-		{"ALT-C",                 "command",  "TOGGLECHARACTER0"},
+		{"CTRL-B",                "command",  "TOGGLECHARACTER0"},
 		{"X",                     "command",  "SITORSTAND"},
 		{"SHIFT-X",               "macro",    "MountHarvester"},
 		{"CTRL-X",                "macro",    "MountPassenger"},
