@@ -177,7 +177,7 @@ bindings = {
 				{"`",                         "macro",     "*"},
 				{"1",                         "macro",     "DOT"},
 				{"ALT-1",                     "spell",     "MD"},
-				{"CTRL-1",                    "macro",     "Hunter's Mark"},
+				{"CTRL-1",                    "spell",     "Hunter's Mark"},
 				{"3",                         "spell",     "Multi-Shot"},
 				{"SHIFT-3",                   "spell",     "Barrage"},
 				{"CTRL-3",                    "spell",     "Volley"},
