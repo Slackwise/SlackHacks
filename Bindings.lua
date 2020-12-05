@@ -196,7 +196,7 @@ bindings = {
 				{"R",                         "spell",     "Steady Shot"},
 				{"SHIFT-R",                   "spell",     "Rapid Fire"},
 				{"CTRL-R",                    "macro",     "Trueshot!"},
-				{"ALT-R",                     "item",      "Potion of Spectral Agility"},
+				{"ALT-R",                     "item",      "Potion of Phantom Fire"},
 				{"T",                         "macro",     "Traps"},
 				{"ALT-CTRL-S",                "spell",     "Survey"},
 				{"F",                         "spell",     "Wing Clip"}, --Auto-maps to "Concussive Shot" in MM spec
