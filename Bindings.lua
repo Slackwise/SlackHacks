@@ -65,6 +65,7 @@ bindings = {
 	global = {
 		{"ALT-CTRL-END",          "command",  "SLACKUI_RELOADUI"},
 		{"CTRL-`",                "command",  "FOCUSTARGET"},
+		{"ALT-`",                 "command",  "INTERACTTARGET"},
 		{"W",                     "command",  "MOVEFORWARD"},
 		{"A",                     "command",  "STRAFELEFT"},
 		{"S",                     "command",  "MOVEBACKWARD"},
