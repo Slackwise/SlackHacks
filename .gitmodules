@@ -1,0 +1,3 @@
+[submodule "lamda"]
+	path = lamda
+	url = https://github.com/Slackwise/lamda.git
