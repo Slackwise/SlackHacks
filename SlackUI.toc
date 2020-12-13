@@ -6,6 +6,7 @@
 ## X-Website: https://github.com/Slackwise/SlackUI
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackUIDB
+lamda/dist/lamda.lua
 embeds.xml
 Main.lua
 Bindings.lua
