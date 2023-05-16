@@ -1,11 +1,12 @@
-## Interface: 90002
+## Interface: 100100
 ## Title: SlackUI
 ## Notes: A compilation of minimalistic tweaks to the default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
-## Version: 0.2
+## Version: 0.3
 ## X-Website: https://github.com/Slackwise/SlackUI
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackUIDB
+## RequiredDeps: Ace3
 lamda/dist/lamda.lua
 embeds.xml
 Main.lua
