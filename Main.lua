@@ -185,7 +185,7 @@ function printDebugMapInfo()
 	print("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
 	print("mapID: "       .. map.mapID)
 	print("parentMapID: " .. map.parentMapID)
-	print("mapType: "     .. map.mapType)
+	print("mapType: "     .. Enum.UIMapType[map.mapType] .. '('..map.mapType..')')
 	print("Outdoor: "     .. tostring(IsOutdoors()))
 	print("Submerged: "   .. tostring(IsSubmerged()))
 	print("Flyable: "     .. tostring(IsFlyableArea()))
