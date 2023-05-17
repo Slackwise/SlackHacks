@@ -100,10 +100,10 @@ end
 
 function sellGreyItems()
 	for bag = 0, NUM_BAG_SLOTS do
-		for slot = 0, GetContainerNumSlots(bag) do
-			local link = GetContainerItemLink(bag, slot)
+		for slot = 0, C_Container.GetContainerNumSlots(bag) do
+			local link = C_Container.GetContainerItemLink(bag, slot)
 			if link and select(3, GetItemInfo(link)) == 0 then
-				UseContainerItem(bag, slot)
+				C_Container.UseContainerItem(bag, slot)
 			end
 		end
 	end
