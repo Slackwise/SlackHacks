@@ -14,7 +14,7 @@ dbDefaults = {}
 
 --[[
 	General API Documentation:
-	https://wow.gamepedia.com/World_of_Warcraft_API)
+	https://wow.gamepedia.com/World_of_Warcraft_API
 	https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
 ]]--
 
@@ -28,6 +28,8 @@ end
 
 function Self:OnEnable()
 	self:RegisterEvent("MERCHANT_SHOW")
+	self:RegisterEvent("PLAYER_REGEN_ENABLED")
+	self:RegisterEvent("PLAYER_REGEN_DISABLED")
 end
 
 function Self:OnDisable()
@@ -35,7 +37,40 @@ end
 
 function Self:MERCHANT_SHOW()
 	repairAllItems()
-	sellGreyItems()
+	-- sellGreyItems()
+end
+
+function Self:PLAYER_REGEN_ENABLED() -- Out of combat
+	unbindDragonriding()
+end
+
+function Self:PLAYER_REGEN_DISABLED() -- In combat
+
+end
+
+function bindDragonriding()
+	if isDragonriding() and not InCombatLockdown() then
+		SetOverrideBindingSpell(Self.frame, true, "BUTTON3", "Skyward Ascent")
+		SetOverrideBindingSpell(Self.frame, true, "BUTTON4", "Surge Forward")
+	end 
+end
+
+function unbindDragonriding()
+	if not InCombatLockdown() then
+		clearOverrideBindings()
+	end
+end
+
+function clearOverrideBindings()
+	ClearOverrideBindings(Self.frame)
+end
+
+function isDragonriding()
+
+end
+
+local function inVehicle()
+	return UnitHasVehicleUI("player")
 end
 
 function getBattletag()
@@ -132,19 +167,19 @@ function getCurrentZone()
 	return findParentMapByType(getCurrentMap(), Enum.UIMapType.Zone)
 end
 
-actuallyFlyableMaps = {
-	continents = {
+ACTUALLY_FLYABLE_MAPS = {
+	CONTINENTS = {
 		619, -- Broken Isles
 	},
-	zones = {
+	ZONES = {
 	}
 }
 
-notActuallyFlyableMaps = {
-	continents = {
+NOT_ACTUALLY_FLYABLE_MAPS = {
+	CONTINENTS = {
 		905,	-- Argus
 	},
-	zones = {
+	ZONES = {
 	}
 }
 
@@ -152,11 +187,11 @@ function isActuallyFlyableArea()
 	local continentID = getCurrentContinent().mapID
 	local zoneID 			= getCurrentZone().mapID
 
-	local listedFlyableContinent    = not not tContains(	   actuallyFlyableMaps.continents,  continentID  )
-	local listedFlyableZone         = not not tContains(	   actuallyFlyableMaps.zones,       zoneID       )
+	local listedFlyableContinent    = not not tContains(	   ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continentID  )
+	local listedFlyableZone         = not not tContains(	   ACTUALLY_FLYABLE_MAPS.ZONES,       zoneID       )
 
-	local listedNonFlyableContinent = not not tContains(	notActuallyFlyableMaps.continents,  continentID  )
-	local listedNonFlyableZone      = not not tContains(	notActuallyFlyableMaps.zones,       zoneID       )
+	local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continentID  )
+	local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zoneID       )
 
 	local listedFlyable             = listedFlyableContinent    or listedFlyableZone
 	local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone
@@ -193,20 +228,29 @@ function printDebugMapInfo()
 	print("===============================")
 end
 
-mounts = {
-	['RAPTOR']    = 110,
-	['PHOENIX']   = 183,
-	['TURTLE']    = 312,
+MOUNT_IDS = {
+	["Swift Razzashi Raptor"] = 110,
+	["Ashes of Al'ar"]        = 183,
+	["Sea Turtle"]            = 312,
+	["Renewed Proto-Drake"]   = 1589
 }
 
-mountsByType = {
-	['GROUND'] = mounts.RAPTOR,
-	['FLYING'] = mounts.PHOENIX,
-	['WATER']  = mounts.TURTLE,
+MOUNT_FAVORITES = {
+	['RAPTOR']    = MOUNT_IDS["Swift Razzashi Raptor"],
+	['PHOENIX']   = MOUNT_IDS["Ashes of Al'ar"],
+	['TURTLE']    = MOUNT_IDS["Sea Turtle"],
+	['DRAGON']    = MOUNT_IDS["Renewed Proto-Drake"]
 }
 
-function mountByType(type)
-	C_MountJournal.SummonByID(mountsByType[type])
+MOUNTS_BY_USAGE = {
+	['GROUND'] = MOUNT_FAVORITES.RAPTOR,
+	['FLYING'] = MOUNT_FAVORITES.PHOENIX,
+	['WATER']  = MOUNT_FAVORITES.TURTLE,
+	['DRAGON'] = MOUNT_FAVORITES.DRAGON -- Dragonriding
+}
+
+function mountByUsage(type)
+	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[type])
 end
 
 function isAlternativeMountRequested()
@@ -227,19 +271,26 @@ function mount()
 	if IsOutdoors() then
 		if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
 			if isAlternativeMountRequested() then -- But we may want to show off our ground mount
-				mountByType("GROUND")
+				mountByUsage("GROUND")
 			end
-			mountByType("FLYING")
+			mountByUsage("FLYING")
+		elseif IsAdvancedFlyableArea() and IsOutdoors() and not IsSubmerged() then -- Summon dragonriding mount
+			if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
+				mountByUsage("FLYING")
+			elseif isAlternativeMountRequested() then
+				mountByUsage("GROUND")
+			end
+			mountByUsage("DRAGON")
 		elseif IsSubmerged() then -- Summon water mount
 			if isAlternativeMountRequested() then -- But we may want to fly out of the water
-				mountByType("FLYING")
+				mountByUsage("FLYING")
 			end
-			mountByType("WATER")
+			mountByUsage("WATER")
 		else -- Summon ground mount
 			if isAlternativeMountRequested() then -- But we may want to show off our flying mount
-				mountByType("FLYING")
+				mountByUsage("FLYING")
 			end
-			mountByType("GROUND")
+			mountByUsage("GROUND")
 		end
 	end
 end
