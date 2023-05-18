@@ -228,7 +228,7 @@ function printDebugMapInfo()
 	print("===============================")
 end
 
-MOUNT_IDS = {
+MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID
 	["Swift Razzashi Raptor"] = 110,
 	["Ashes of Al'ar"]        = 183,
 	["Sea Turtle"]            = 312,
@@ -274,7 +274,7 @@ function mount()
 				mountByUsage("GROUND")
 			end
 			mountByUsage("FLYING")
-		elseif IsAdvancedFlyableArea() and IsOutdoors() and not IsSubmerged() then -- Summon dragonriding mount
+		elseif IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
 			if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
 				mountByUsage("FLYING")
 			elseif isAlternativeMountRequested() then
