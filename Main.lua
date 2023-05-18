@@ -5,6 +5,7 @@ local Self = LibStub("AceAddon-3.0"):NewAddon(
 	"AceEvent-3.0"
 )
 Self.config = LibStub("AceConfig-3.0")
+Self.frame = CreateFrame("Frame", "SlackUI")
 _G.SlackUI = Self
 Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
@@ -30,43 +31,72 @@ function Self:OnEnable()
 	self:RegisterEvent("MERCHANT_SHOW")
 	self:RegisterEvent("PLAYER_REGEN_ENABLED")
 	self:RegisterEvent("PLAYER_REGEN_DISABLED")
+	self:RegisterEvent("UNIT_AURA")
+	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 end
 
 function Self:OnDisable()
 end
 
-function Self:MERCHANT_SHOW()
+function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
+	handleDragonriding()
+end
+
+function Self:MERCHANT_SHOW(eventName)
 	repairAllItems()
 	-- sellGreyItems()
 end
 
-function Self:PLAYER_REGEN_ENABLED() -- Out of combat
-	unbindDragonriding()
+function Self:PLAYER_REGEN_ENABLED(eventName) -- Out of combat
+	handleDragonriding()
 end
 
-function Self:PLAYER_REGEN_DISABLED() -- In combat
+function Self:PLAYER_REGEN_DISABLED(eventName) -- In combat
 
+end
+
+function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.fandom.com/wiki/UNIT_AURA
+	if unitTarget == "player" then
+		handleDragonriding()
+	end
+end
+
+function handleDragonriding()
+	if not InCombatLockdown() then
+		if not IsMounted() and not isDragonriding() then
+			unbindDragonriding()
+		elseif IsMounted() and isDragonriding() then
+			bindDragonriding()
+		end
+	end
 end
 
 function bindDragonriding()
-	if isDragonriding() and not InCombatLockdown() then
+	if not InCombatLockdown() then
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON3", "Skyward Ascent")
-		SetOverrideBindingSpell(Self.frame, true, "BUTTON4", "Surge Forward")
+		SetOverrideBindingSpell(Self.frame, true, "BUTTON5", "Surge Forward")
+		print("Dragonriding keys BOUND")
 	end 
 end
 
 function unbindDragonriding()
 	if not InCombatLockdown() then
-		clearOverrideBindings()
+		ClearOverrideBindings(Self.frame)
+		print("Dragonriding keybinds CLEARED")
 	end
 end
 
-function clearOverrideBindings()
-	ClearOverrideBindings(Self.frame)
-end
-
 function isDragonriding()
-
+  local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
+  if IsMounted() then
+    for _, mountId in ipairs(dragonridingSpellIds) do
+      local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
+      if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
+				return true
+      end
+    end
+  end
+	return false
 end
 
 local function inVehicle()
@@ -249,8 +279,11 @@ MOUNTS_BY_USAGE = {
 	['DRAGON'] = MOUNT_FAVORITES.DRAGON -- Dragonriding
 }
 
-function mountByUsage(type)
-	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[type])
+function mountByUsage(usage)
+	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[usage])
+	if usage == "DRAGON" then
+		bindDragonriding()
+	end
 end
 
 function isAlternativeMountRequested()
