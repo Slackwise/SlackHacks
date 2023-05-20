@@ -126,21 +126,7 @@ function unbindDragonriding()
 	end
 end
 
-isDragonridingFlag = nil
-function isDragonriding(dragonriding)
-	if dragonriding ~= nil then
-		isDragonridingFlag = dragonriding
-		return dragonRidingFlag
-	end
-
-	if isDragonridingFlag == nil then
-		isDragonridingFlag = isCurrentlyDragonriding()
-	end
-	
-	return isDragonridingFlag
-end
-
-function isCurrentlyDragonriding()
+function isDragonriding()
 	log("Checking if dragonriding...")
 	local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
 	if IsMounted() then
@@ -309,11 +295,6 @@ MOUNTS_BY_USAGE = {
 
 function mountByUsage(usage)
 	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[usage])
-	if usage == "DRAGON" then
-		isDragonriding(true)
-	else
-		isDragonriding(false)
-	end
 end
 
 function isAlternativeMountRequested()
@@ -323,7 +304,6 @@ end
 function mount()  
 	if IsMounted() then
 		Dismount()
-		isDragonriding(false)
 		return
 	end
 
