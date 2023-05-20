@@ -11,7 +11,13 @@ Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
 setfenv(1, Self) -- Namespace local to addon
 
-dbDefaults = {}
+addonName, addonTable = ...
+
+dbDefaults = {
+	profile = {
+		isDebugging = false
+	}
+}
 
 --[[
 	General API Documentation:
@@ -19,9 +25,35 @@ dbDefaults = {}
 	https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
 ]]--
 
+function isDebugging()
+	return SlackUIDB.isDebugging
+end
+
+COLOR_START = "\124c"
+COLOR_END   = "\124r"
+
+function color(color)
+	return function(text)
+		return COLOR_START .. "FF" .. color .. text .. COLOR_END
+	end
+end
+
+grey = color("AAAAAA")
+
+function log(message, ...)
+	if isDebugging() then
+		print(grey(date()) .. "  " .. message)
+		if arg then
+			for i, v in ipairs(arg) do
+				print("Arg " .. i .. " = " .. v)
+			end
+		end
+	end
+end
+
 --Event Handlers
 function Self:OnInitialize()
-	db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
+	Self.db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
 	config:RegisterOptionsTable("SlackUI", options, "slack")
 
 	setMaxCameraDistance()
@@ -76,7 +108,7 @@ function bindDragonriding()
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON3", "Skyward Ascent")
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON5", "Surge Forward")
 		isDragonridingBound = true
-		print("Dragonriding keys BOUND")
+		log("Dragonriding keys BOUND", "STRING HERE")
 	end 
 end
 
@@ -84,7 +116,7 @@ function unbindDragonriding()
 	if not InCombatLockdown() and isDragonridingBound then
 		ClearOverrideBindings(Self.frame)
 		isDragonridingBound = false
-		print("Dragonriding keybinds CLEARED")
+		log("Dragonriding keybinds CLEARED")
 	end
 end
 

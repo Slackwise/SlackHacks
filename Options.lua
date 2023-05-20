@@ -1,21 +1,22 @@
+local addonName, addonTable = ...
 setfenv(1, _G.SlackUI)
 
 options = {
   type = "group",
   args = {
-    general = {
-      type = "group",
-      name = "General Settings",
-      desc = "General settings for the entire addon.",
-      args = {
-        enable = {
-          name = "Enabled",
-          desc = "Enable/disable this addon",
-          type = "toggle",
-          get = function() return Self:IsEnabled() end,
-          set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
-        }
-      }
+    enable = {
+      name = "Enabled",
+      desc = "Enable/disable " .. addonName,
+      type = "toggle",
+      get = function() return Self:IsEnabled() end,
+      set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
+    },
+    debug = {
+      name = "Enable Debugging",
+      desc = "Enable debugging logs and stuff",
+      type = "toggle",
+      get = function() return SlackUIDB.isDebugging end,
+      set = function() SlackUIDB.isDebugging = not SlackUIDB.isDebugging end,
     },
     bind = {
       type = "execute",
