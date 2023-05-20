@@ -76,7 +76,7 @@ end
 
 function Self:MERCHANT_SHOW(eventName)
 	repairAllItems()
-	-- sellGreyItems()
+	sellGreyItems()
 end
 
 function Self:PLAYER_REGEN_ENABLED(eventName) -- Out of combat
@@ -174,11 +174,25 @@ function repairAllItems()
 	end
 end
 
+function canCollectTransmog(itemInfo) -- itemID, itemLink, or Name
+	local itemAppearanceID, sourceID  = C_TransmogCollection.GetItemInfo(itemInfo) -- https://wowpedia.fandom.com/wiki/API_C_TransmogCollection.GetItemInfo
+	if sourceID then
+		local categoryID, visualID, canEnchant, icon, isCollected, itemLink, transmogLink, unknown1, itemSubTypeIndex = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
+		-- local hasItemData, canCollect = C_TransmogCollection.PlayerCanCollectSource(sourceID)
+		return not isCollected
+	end
+	return false
+end
+
+ITEM_QUALITY_GREY = 0 
+
 function sellGreyItems()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 0, C_Container.GetContainerNumSlots(bag) do
 			local link = C_Container.GetContainerItemLink(bag, slot)
-			if link and select(3, GetItemInfo(link)) == 0 then
+			local itemName, itemLink, itemQuality = GetItemInfo(link)
+			local collectable = canCollectTransmog(itemLink)
+			if link and itemQuality == ITEM_QUALITY_GREY and not collectable then
 				C_Container.UseContainerItem(bag, slot)
 			end
 		end
