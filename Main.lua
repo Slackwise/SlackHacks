@@ -94,11 +94,8 @@ function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.f
 	end
 end
 
-function handleDragonriding(markDragonriding)
+function handleDragonriding()
 	if isTester() then
-		if markDragonriding ~= nil then
-			isDragonriding(markDragonriding)
-		end 
 		if isDragonriding() then
 			bindDragonriding()
 		else
@@ -129,7 +126,7 @@ end
 function isDragonriding()
 	log("Checking if dragonriding...")
 	local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
-	if IsMounted() then
+	if IsMounted() and IsAdvancedFlyableArea() then
 		for _, mountId in ipairs(dragonridingSpellIds) do
 			local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
 			if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
