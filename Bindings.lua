@@ -115,7 +115,7 @@ bindings = {
 		{"CTRL-R",                "command",  "NONE"},
 		{"CTRL-S",                "command",  "NONE"},
 		{"CTRL-G",                "item",     "Net-O-Matic 5000"},
-		{"CTRL-H",                "spell",    "Eternal Traveler's Hearthstone"},
+		{"CTRL-H",                "macro",    "HEARTH"},
 		{"ALT-H",                 "command",  "TOGGLEUI"},
 		{"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
 		{"CTRL-B",                "command",  "TOGGLECHARACTER0"},
