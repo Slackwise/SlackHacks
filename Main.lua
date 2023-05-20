@@ -62,44 +62,66 @@ function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.f
 end
 
 function handleDragonriding()
-	if not InCombatLockdown() then
-		if not IsMounted() and not isDragonriding() then
-			unbindDragonriding()
-		elseif IsMounted() and isDragonriding() then
-			bindDragonriding()
-		end
+	if isDragonriding() then
+		bindDragonriding()
+	else
+		unbindDragonriding()
 	end
 end
 
+isDragonridingBound = false
+
 function bindDragonriding()
-	if not InCombatLockdown() then
+	if not InCombatLockdown() and not isDragonridingBound then
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON3", "Skyward Ascent")
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON5", "Surge Forward")
+		isDragonridingBound = true
 		print("Dragonriding keys BOUND")
 	end 
 end
 
 function unbindDragonriding()
-	if not InCombatLockdown() then
+	if not InCombatLockdown() and isDragonridingBound then
 		ClearOverrideBindings(Self.frame)
+		isDragonridingBound = false
 		print("Dragonriding keybinds CLEARED")
 	end
 end
 
-function isDragonriding()
-  local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
-  if IsMounted() then
-    for _, mountId in ipairs(dragonridingSpellIds) do
-      local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
-      if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
+dragonridingFlag = nil
+function isDragonriding(dragonriding)
+	if dragonriding ~= nil then
+		dragonridingFlag = dragonriding
+	end
+
+	if IsMounted() and dragonridingFlag then
+		return true
+	end
+	
+	if not IsMounted() then
+		dragonridingFlag = false
+	elseif IsMounted() and isCurrentlyDragonriding() then
+		dragonridingFlag = true
+	end
+
+	return dragonridingFlag
+end
+
+function isCurrentlyDragonriding()
+	local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
+	if IsMounted() then
+		for _, mountId in ipairs(dragonridingSpellIds) do
+			local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
+			if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
 				return true
-      end
-    end
-  end
+			end
+		end
+	end
 	return false
 end
 
-local function inVehicle()
+
+function inVehicle()
 	return UnitHasVehicleUI("player")
 end
 
@@ -282,7 +304,8 @@ MOUNTS_BY_USAGE = {
 function mountByUsage(usage)
 	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[usage])
 	if usage == "DRAGON" then
-		bindDragonriding()
+		isDragonriding(true)
+		handleDragonriding()
 	end
 end
 
@@ -293,6 +316,8 @@ end
 function mount()  
 	if IsMounted() then
 		Dismount()
+		isDragonriding(false)
+		handleDragonriding()
 		return
 	end
 
