@@ -94,10 +94,12 @@ function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.f
 end
 
 function handleDragonriding()
-	if isDragonriding() then
-		bindDragonriding()
-	else
-		unbindDragonriding()
+	if isTester() then
+		if isDragonriding() then
+			bindDragonriding()
+		else
+			unbindDragonriding()
+		end
 	end
 end
 
@@ -108,7 +110,7 @@ function bindDragonriding()
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON3", "Skyward Ascent")
 		SetOverrideBindingSpell(Self.frame, true, "BUTTON5", "Surge Forward")
 		isDragonridingBound = true
-		log("Dragonriding keys BOUND", "STRING HERE")
+		log("Dragonriding keys BOUND")
 	end 
 end
 
@@ -116,7 +118,7 @@ function unbindDragonriding()
 	if not InCombatLockdown() and isDragonridingBound then
 		ClearOverrideBindings(Self.frame)
 		isDragonridingBound = false
-		log("Dragonriding keybinds CLEARED")
+		log("Dragonriding keys CLEARED")
 	end
 end
 
