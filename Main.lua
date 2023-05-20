@@ -29,10 +29,10 @@ end
 
 function Self:OnEnable()
 	self:RegisterEvent("MERCHANT_SHOW")
-	self:RegisterEvent("PLAYER_REGEN_ENABLED")
-	self:RegisterEvent("PLAYER_REGEN_DISABLED")
-	self:RegisterEvent("UNIT_AURA")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
+	self:RegisterEvent("UNIT_AURA")
+	self:RegisterEvent("PLAYER_REGEN_ENABLED")
+	-- self:RegisterEvent("PLAYER_REGEN_DISABLED")
 end
 
 function Self:OnDisable()
@@ -137,34 +137,6 @@ end
 function isTester()
 	-- Use a checkbox in settings later, probably, but right now it's just me
 	return isSlackwise()
-end
-
-function isRetail()
-	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
-	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
-		return true
-	else
-		return false
-	end
-end
-
-function isClassic()
-	-- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
-	if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
-		return true
-	else
-		return false
-	end
-end
-
-function getGameType()
-	if isRetail() then
-		return "RETAIL"
-	elseif isClassic() then
-		return "CLASSIC"
-  else
-		return "UNKNOWN" -- Uh oh
-	end
 end
 
 function getClassName()
