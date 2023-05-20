@@ -310,9 +310,9 @@ MOUNTS_BY_USAGE = {
 function mountByUsage(usage)
 	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[usage])
 	if usage == "DRAGON" then
-		handleDragonriding(true)
+		isDragonriding(true)
 	else
-		handleDragonriding(false)
+		isDragonriding(false)
 	end
 end
 
@@ -323,7 +323,7 @@ end
 function mount()  
 	if IsMounted() then
 		Dismount()
-		handleDragonriding(false)
+		isDragonriding(false)
 		return
 	end
 
