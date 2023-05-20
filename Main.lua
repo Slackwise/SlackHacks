@@ -89,12 +89,16 @@ end
 
 function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.fandom.com/wiki/UNIT_AURA
 	if unitTarget == "player" then
+		log("Aura handling dragonriding...")
 		handleDragonriding()
 	end
 end
 
-function handleDragonriding()
+function handleDragonriding(markDragonriding)
 	if isTester() then
+		if markDragonriding ~= nil then
+			isDragonriding(markDragonriding)
+		end 
 		if isDragonriding() then
 			bindDragonriding()
 		else
@@ -122,26 +126,22 @@ function unbindDragonriding()
 	end
 end
 
-dragonridingFlag = nil
+isDragonridingFlag = nil
 function isDragonriding(dragonriding)
 	if dragonriding ~= nil then
-		dragonridingFlag = dragonriding
+		isDragonridingFlag = dragonriding
+		return dragonRidingFlag
 	end
 
-	if IsMounted() and dragonridingFlag then
-		return true
+	if isDragonridingFlag == nil then
+		isDragonridingFlag = isCurrentlyDragonriding()
 	end
 	
-	if not IsMounted() then
-		dragonridingFlag = false
-	elseif IsMounted() and isCurrentlyDragonriding() then
-		dragonridingFlag = true
-	end
-
-	return dragonridingFlag
+	return isDragonridingFlag
 end
 
 function isCurrentlyDragonriding()
+	log("Checking if dragonriding...")
 	local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
 	if IsMounted() then
 		for _, mountId in ipairs(dragonridingSpellIds) do
@@ -310,8 +310,9 @@ MOUNTS_BY_USAGE = {
 function mountByUsage(usage)
 	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[usage])
 	if usage == "DRAGON" then
-		isDragonriding(true)
-		handleDragonriding()
+		handleDragonriding(true)
+	else
+		handleDragonriding(false)
 	end
 end
 
@@ -322,8 +323,7 @@ end
 function mount()  
 	if IsMounted() then
 		Dismount()
-		isDragonriding(false)
-		handleDragonriding()
+		handleDragonriding(false)
 		return
 	end
 
@@ -336,25 +336,34 @@ function mount()
 		if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
 			if isAlternativeMountRequested() then -- But we may want to show off our ground mount
 				mountByUsage("GROUND")
+				return
 			end
 			mountByUsage("FLYING")
+			return
 		elseif IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
 			if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
 				mountByUsage("FLYING")
+				return
 			elseif isAlternativeMountRequested() then
 				mountByUsage("GROUND")
+				return
 			end
 			mountByUsage("DRAGON")
+			return
 		elseif IsSubmerged() then -- Summon water mount
 			if isAlternativeMountRequested() then -- But we may want to fly out of the water
 				mountByUsage("FLYING")
+				return
 			end
 			mountByUsage("WATER")
+			return
 		else -- Summon ground mount
 			if isAlternativeMountRequested() then -- But we may want to show off our flying mount
 				mountByUsage("FLYING")
+				return
 			end
 			mountByUsage("GROUND")
+			return
 		end
 	end
 end
