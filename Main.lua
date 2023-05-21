@@ -190,10 +190,13 @@ function sellGreyItems()
 	for bag = 0, NUM_BAG_SLOTS do
 		for slot = 0, C_Container.GetContainerNumSlots(bag) do
 			local link = C_Container.GetContainerItemLink(bag, slot)
-			local itemName, itemLink, itemQuality = GetItemInfo(link)
-			local collectable = canCollectTransmog(itemLink)
-			if link and itemQuality == ITEM_QUALITY_GREY and not collectable then
-				C_Container.UseContainerItem(bag, slot)
+			if link then
+				local itemName, itemLink, itemQuality = GetItemInfo(link)
+				local collectable = canCollectTransmog(itemLink)
+				if itemQuality == ITEM_QUALITY_GREY and not collectable then
+					log("Grey Item to Sell: " .. tostring(itemName))
+					C_Container.UseContainerItem(bag, slot)
+				end
 			end
 		end
 	end
