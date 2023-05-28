@@ -290,14 +290,15 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID
 	["Swift Razzashi Raptor"] = 110,
 	["Ashes of Al'ar"]        = 183,
 	["Sea Turtle"]            = 312,
-	["Renewed Proto-Drake"]   = 1589
+	["Highland Drake"]        = 1563,
+	["Renewed Proto-Drake"]   = 1589,
 }
 
 MOUNT_FAVORITES = {
 	['RAPTOR']    = MOUNT_IDS["Swift Razzashi Raptor"],
 	['PHOENIX']   = MOUNT_IDS["Ashes of Al'ar"],
 	['TURTLE']    = MOUNT_IDS["Sea Turtle"],
-	['DRAGON']    = MOUNT_IDS["Renewed Proto-Drake"]
+	['DRAGON']    = MOUNT_IDS["Highland Drake"]
 }
 
 MOUNTS_BY_USAGE = {
@@ -346,7 +347,13 @@ function mount()
 			return
 		elseif IsSubmerged() then -- Summon water mount
 			if isAlternativeMountRequested() then -- But we may want to fly out of the water
-				mountByUsage("FLYING")
+				if IsAdvancedFlyableArea() then
+					mountByUsage("DRAGON")
+					return
+				else
+					mountByUsage("FLYING")
+					return
+				end
 				return
 			end
 			mountByUsage("WATER")
