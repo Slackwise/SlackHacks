@@ -292,24 +292,26 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID
 	["Sea Turtle"]            = 312,
 	["Highland Drake"]        = 1563,
 	["Renewed Proto-Drake"]   = 1589,
-}
-
-MOUNT_FAVORITES = {
-	['RAPTOR']    = MOUNT_IDS["Swift Razzashi Raptor"],
-	['PHOENIX']   = MOUNT_IDS["Ashes of Al'ar"],
-	['TURTLE']    = MOUNT_IDS["Sea Turtle"],
-	['DRAGON']    = MOUNT_IDS["Highland Drake"]
+	["Tyrael's Charger"]      = 439
 }
 
 MOUNTS_BY_USAGE = {
-	['GROUND'] = MOUNT_FAVORITES.RAPTOR,
-	['FLYING'] = MOUNT_FAVORITES.PHOENIX,
-	['WATER']  = MOUNT_FAVORITES.TURTLE,
-	['DRAGON'] = MOUNT_FAVORITES.DRAGON -- Dragonriding
+	HUNTER = {
+		['GROUND'] = MOUNT_IDS["Swift Razzashi Raptor"],
+		['FLYING'] = MOUNT_IDS["Ashes of Al'ar"],
+		['WATER']  = MOUNT_IDS["Sea Turtle"],
+		['DRAGON'] = MOUNT_IDS["Highland Drake"], -- Dragonriding
+	},
+	PALADIN = {
+		['GROUND'] = MOUNT_IDS["Tyrael's Charger"],
+		['FLYING'] = MOUNT_IDS["Tyrael's Charger"],
+		['WATER']  = MOUNT_IDS["Sea Turtle"],
+		['DRAGON'] = MOUNT_IDS["Highland Drake"], -- Dragonriding
+	}
 }
 
 function mountByUsage(usage)
-	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[usage])
+	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[getClassName()][usage])
 end
 
 function isAlternativeMountRequested()
