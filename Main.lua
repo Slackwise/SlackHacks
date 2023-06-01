@@ -108,8 +108,12 @@ isDragonridingBound = false
 
 function bindDragonriding()
 	if not InCombatLockdown() and not isDragonridingBound then
-		SetOverrideBindingSpell(Self.frame, true, "BUTTON3", "Skyward Ascent")
-		SetOverrideBindingSpell(Self.frame, true, "BUTTON5", "Surge Forward")
+		SetOverrideBindingSpell(Self.frame, true, "BUTTON3",       "Skyward Ascent")   -- Fly up
+		SetOverrideBindingSpell(Self.frame, true, "SHIFT-BUTTON3", "Surge Forward")    -- Fly forward
+		SetOverrideBindingSpell(Self.frame, true, "CTRL-BUTTON3",  "Whirling Surge")   -- Fly forward x3
+		SetOverrideBindingSpell(Self.frame, true, "X",             "Aerial Halt")      -- Brake
+		SetOverrideBindingSpell(Self.frame, true, "BUTTON5",       "Aerial Halt")      -- Brake
+		SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Bronze Timelock")  -- Rewind Time
 		isDragonridingBound = true
 		log("Dragonriding keys BOUND")
 	end 
