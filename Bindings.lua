@@ -297,6 +297,27 @@ bindings = {
 			{ "10", "command", "ACTIONBUTTON10" },
 			{ "11", "command", "ACTIONBUTTON11" },
 			{ "12", "command", "ACTIONBUTTON12" },
+			--------------------------------------
+   { "`",            "macro",    "CANCEL" },
+   { "1",            "spell",    "Word of Glory" },
+   { "2",            "spell",    "Flash of Light" },
+   { "SHIFT-2",      "spell",    "Holy Light" },
+   { "3",            "spell",    "Light of Dawn" },
+   { "4",            "macro",    "ShockHammer" },
+   { "SHIFT-4",      "spell",    "Holy Shock" },
+   { "5",            "spell",    "Hammer of Wrath" },
+   { "SHIFT-5",      "spell",    "Avenging Wrath" },
+   { "Q",            "spell",    "Shield of the Righteous" },
+   { "SHIFT-Q",      "spell",    "Blessing of Protection" },
+   { "E",            "spell",    "Crusader Strike" },
+   { "T",            "spell",    "Hand of Reckoning" },
+   { "F",            "spell",    "Rebuke" },
+   { "SHIFT-F",      "spell",    "Hammer of Justice" },
+   { "CTRL-F",       "spell",    "Blinding Light" },
+   { "C",            "spell",    "Consecration" },
+   { "CTRL-SPACE",   "spell",    "Divine Steed" },
+   { "CTRL-Z",       "macro",    "Rez" },
+   { "ALT-CTRL-Z",   "spell",    "Absolution" },
 		}
 	}
 }
