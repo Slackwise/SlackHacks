@@ -371,6 +371,7 @@ bindings = {
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
 			{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
+			{ "CTRL-C",     "macro",   "BELL_SELF" },
 			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
 
 			-- Vitality (Self-Heals/Protections)
