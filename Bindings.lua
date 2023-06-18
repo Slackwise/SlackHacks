@@ -358,6 +358,7 @@ bindings = {
 			{ "G",          "spell",   "Blessing of Sacrifice" },
 			{ "SHIFT-G",    "spell",   "Blessing of Protection" },
 			{ "CTRL-G",     "spell",   "Blessing of Freedom" },
+			{ "ALT-G",      "spell",   "Aura Mastery" },
 
 			-- Extras
 			{ "Z",                "macro",   "FREEDOM" },
@@ -370,7 +371,6 @@ bindings = {
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
 			{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
-			{ "CTRL-C",     "spell",   "Aura Mastery" },
 			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
 
 			-- Vitality (Self-Heals/Protections)
