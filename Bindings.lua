@@ -300,12 +300,14 @@ bindings = {
 
 			---------------------------------------------------
 
+			-- General
 			{ "F9",         "command", "SHAPESHIFTBUTTON1" },
 			{ "F10",        "command", "SHAPESHIFTBUTTON2" },
 			{ "F11",        "command", "SHAPESHIFTBUTTON3" },
 			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
 			{ "CTRL-SPACE", "spell",   "Divine Steed" },
 			{ "`",          "macro",   "STOP!" },
+
 			---------------------------------------------------
 
 			-- Quick Heals
