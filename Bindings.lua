@@ -324,14 +324,13 @@ bindings = {
 			{ "SHIFT-3",    "spell",   "Divine Toll" },
 			{ "BUTTON4",    "macro",   "LHAMMER_CURSOR" },
 
-			-- Ranged Attacks
-			{ "4",          "macro",   "SHOCK_JUDGMENT" },
-			{ "SHIFT-4",    "macro",   "Judgment" },
+			-- Spec Ranged Attack
+			{ "4",          "macro",   "SHOCK" },
 			{ "CTRL-4",     "spell",   "Divine Toll" },
 
-			-- Ranged Finishers
-			{ "5",          "spell",   "Hammer of Wrath" },
-			{ "SHIFT-5",    "spell",   "Avenging Wrath" },
+			-- Ranged Attacks
+			{ "5",          "spell",   "Judgment" },
+			{ "SHIFT-5",    "spell",   "Hammer of Wrath" },
 
 			---------------------------------------------------
 
