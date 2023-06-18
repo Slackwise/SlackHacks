@@ -313,6 +313,7 @@ bindings = {
 			-- Quick Heals
 			{ "1",          "spell",   "Word of Glory" },
 			{ "SHIFT-1",    "spell",   "Lay on Hands" },
+			{ "ALT-1",      "spell",   "Cleanse" },
 
 			-- Cast Heals
 			{ "2",          "spell",   "Holy Light" },
@@ -321,47 +322,42 @@ bindings = {
 
 			-- AoE Heals
 			{ "3",          "spell",   "Light of Dawn" },
-			{ "SHIFT-3",    "spell",   "Divine Toll" },
+			{ "SHIFT-3",    "macro",   "LHAMMER_TARGET" },
 			{ "BUTTON4",    "macro",   "LHAMMER_CURSOR" },
 
-			-- Spec Ranged Attack
-			{ "4",          "macro",   "SHOCK" },
-			{ "CTRL-4",     "spell",   "Divine Toll" },
-
 			-- Ranged Attacks
-			{ "5",          "spell",   "Judgment" },
-			{ "SHIFT-5",    "spell",   "Hammer of Wrath" },
+			{ "4",          "spell",   "Judgment" },
+			{ "5",          "spell",   "Hammer of Wrath" },
+			{ "SHIFT-5",    "macro",   "WINGS" },
 
 			---------------------------------------------------
 
-			-- Shield
+			-- Shield (Tanking)
 			{ "Q",          "spell",   "Shield of the Righteous" },
+			{ "ALT-T",      "spell",   "Hand of Reckoning" },
 
 			-- Sword
 			{ "E",          "spell",   "Crusader Strike" },
 
-			-- CC
-			{ "R",          "spell",   "Rebuke" },
-			{ "SHIFT-R",    "spell",   "Hammer of Justice" },
-			{ "CTRL-R",     "spell",   "Blinding Light" },
+			-- Spec Abilities
+			{ "R",          "macro",   "SHOCK" },
 
-			-- Utility (Targetted)
-			{ "T",          "spell",   "Cleanse" },
-			{ "SHIFT-T",    "spell",   "Hand of Reckoning" },
-			{ "CTRL-T",     "spell",   "Hand of Reckoning" },
+			-- Targetting
+			{ "T",          "macro",   "TARGET" },
+			{ "SHIFT-T",    "spell",   "Beacon of Faith" },
+			{ "CTRL-T",     "spell",   "Beacon of Light" },
 
 			---------------------------------------------------
 
-			-- Buffs/Protection
-			{ "F",          "spell",   "Blessing of Freedom" },
-			{ "SHIFT-F",    "spell",   "Blessing of Sacrifice" },
-			{ "CTRL-F",     "spell",   "Blessing of Protection" },
-			{ "ALT-F",      "spell",   "Beacon of Light" },
-			{ "ALT-CTRL-F", "spell",   "Beacon of Faith" },
+			-- CC
+			{ "F",          "spell",   "Rebuke" },
+			{ "SHIFT-F",    "spell",   "Hammer of Justice" },
+			{ "CTRL-F",     "spell",   "Blinding Light" },
 
-			-- Ultimates
-			{ "G",          "macro",   "WINGS" },
-			{ "SHIFT-G",    "spell",   "Divine Shield" },
+			-- Blessings
+			{ "G",          "spell",   "Blessing of Sacrifice" },
+			{ "SHIFT-G",    "spell",   "Blessing of Protection" },
+			{ "CTRL-G",     "spell",   "Blessing of Freedom" },
 
 			-- Extras
 			{ "Z",                "macro",   "FREEDOM" },
@@ -378,7 +374,7 @@ bindings = {
 			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
 
 			-- Vitality (Self-Heals/Protections)
-			{ "V",          "spell",   "Divine Protection" },
+			{ "V",          "macro",   "VITALITY" },
 			{ "SHIFT-V",    "spell",   "Divine Shield" },
 			{ "CTRL-V",     "macro",   "LAY_ON_SELF" },
 			{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
