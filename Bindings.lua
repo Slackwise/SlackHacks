@@ -297,27 +297,84 @@ bindings = {
 			{ "10", "command", "ACTIONBUTTON10" },
 			{ "11", "command", "ACTIONBUTTON11" },
 			{ "12", "command", "ACTIONBUTTON12" },
-			--------------------------------------
-   { "`",            "macro",    "CANCEL" },
-   { "1",            "spell",    "Word of Glory" },
-   { "2",            "spell",    "Flash of Light" },
-   { "SHIFT-2",      "spell",    "Holy Light" },
-   { "3",            "spell",    "Light of Dawn" },
-   { "4",            "macro",    "ShockHammer" },
-   { "SHIFT-4",      "spell",    "Holy Shock" },
-   { "5",            "spell",    "Hammer of Wrath" },
-   { "SHIFT-5",      "spell",    "Avenging Wrath" },
-   { "Q",            "spell",    "Shield of the Righteous" },
-   { "SHIFT-Q",      "spell",    "Blessing of Protection" },
-   { "E",            "spell",    "Crusader Strike" },
-   { "T",            "spell",    "Hand of Reckoning" },
-   { "F",            "spell",    "Rebuke" },
-   { "SHIFT-F",      "spell",    "Hammer of Justice" },
-   { "CTRL-F",       "spell",    "Blinding Light" },
-   { "C",            "spell",    "Consecration" },
-   { "CTRL-SPACE",   "spell",    "Divine Steed" },
-   { "CTRL-Z",       "macro",    "Rez" },
-   { "ALT-CTRL-Z",   "spell",    "Absolution" },
+
+			---------------------------------------------------
+
+			{ "F9",         "command", "SHAPESHIFTBUTTON1" },
+			{ "F10",        "command", "SHAPESHIFTBUTTON2" },
+			{ "F11",        "command", "SHAPESHIFTBUTTON3" },
+			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
+			{ "CTRL-SPACE", "spell",   "Divine Steed" },
+			{ "`",          "macro",   "STOP!" },
+			---------------------------------------------------
+
+			-- Quick Heals
+			{ "1",          "spell",   "Word of Glory" },
+			{ "SHIFT-1",    "spell",   "Lay on Hands" },
+
+			-- Cast Heals
+			{ "2",          "macro",   "CAST_HEAL" },
+
+			-- AoE Heals
+			{ "3",          "spell",   "Light of Dawn" },
+			{ "SHIFT-3",    "spell",   "Holy Prism" },
+
+			-- Ranged Attacks
+			{ "4",          "macro",   "ShockHammer" },
+			{ "SHIFT-4",    "macro",   "Judgment" },
+
+			-- Ranged Finishers
+			{ "5",          "spell",   "Hammer of Wrath" },
+			{ "SHIFT-5",    "spell",   "Avenging Wrath" },
+
+			---------------------------------------------------
+
+			-- Shield
+			{ "Q",          "spell",   "Shield of the Righteous" },
+
+			-- Sword
+			{ "E",          "spell",   "Crusader Strike" },
+
+			-- CC
+			{ "R",          "spell",   "Rebuke" },
+			{ "SHIFT-R",    "spell",   "Hammer of Justice" },
+			{ "CTRL-R",     "spell",   "Blinding Light" },
+
+			-- Utility (Targetted)
+			{ "T",          "spell",   "Cleanse" },
+			{ "SHIFT-T",    "spell",   "Hand of Reckoning" },
+			{ "CTRL-T",     "spell",   "Hand of Reckoning" },
+
+			---------------------------------------------------
+
+			-- Buffs/Protection
+			{ "F",          "spell",   "Blessing of Freedom" },
+			{ "SHIFT-F",    "spell",   "Blessing of Sacrifice" },
+			{ "CTRL-F",     "spell",   "Blessing of Protection" },
+			{ "ALT-F",      "spell",   "Beacon of Light" },
+
+			-- Ultimates
+			{ "G",          "spell",   "Avenging Wrath" },
+			{ "SHIFT-G",    "spell",   "Divine Shield" },
+
+			-- Extras
+			{ "Z",          "spell",   "Will to Survive" },
+			{ "SHIFT-Z",    "spell",   "PvP Trinket" },
+			{ "CTRL-Z",     "macro",   "Rez" },
+			{ "ALT-CTRL-Z", "spell",   "Absolution" },
+
+			-- AoE (emanating from me)
+			{ "C",          "spell",   "Consecration" },
+			{ "SHIFT-C",    "spell",   "Divine Toll" },
+			{ "CTRL-C",     "spell",   "Aura Mastery" },
+			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
+
+			-- Vitality (Self-Heals/Protections)
+			{ "V",          "spell",   "Divine Protection" },
+			{ "SHIFT-V",    "spell",   "Divine Shield" },
+			{ "CTRL-C",     "macro",   "LayOnSelf" },
+			{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
+			{ "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
 		}
 	}
 }
