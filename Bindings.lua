@@ -375,7 +375,7 @@ bindings = {
 			-- Vitality (Self-Heals/Protections)
 			{ "V",          "spell",   "Divine Protection" },
 			{ "SHIFT-V",    "spell",   "Divine Shield" },
-			{ "CTRL-C",     "macro",   "LAY_ON_SELF" },
+			{ "CTRL-V",     "macro",   "LAY_ON_SELF" },
 			{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
 			{ "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
 		}
