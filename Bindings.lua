@@ -361,7 +361,7 @@ bindings = {
 			{ "ALT-CTRL-F", "spell",   "Beacon of Faith" },
 
 			-- Ultimates
-			{ "G",          "spell",   "WINGS" },
+			{ "G",          "macro",   "WINGS" },
 			{ "SHIFT-G",    "spell",   "Divine Shield" },
 
 			-- Extras
