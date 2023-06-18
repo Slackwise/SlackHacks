@@ -355,16 +355,19 @@ bindings = {
 			{ "SHIFT-F",    "spell",   "Blessing of Sacrifice" },
 			{ "CTRL-F",     "spell",   "Blessing of Protection" },
 			{ "ALT-F",      "spell",   "Beacon of Light" },
+			{ "ALT-CTRL-F", "spell",   "Beacon of Faith" },
 
 			-- Ultimates
 			{ "G",          "spell",   "WINGS" },
 			{ "SHIFT-G",    "spell",   "Divine Shield" },
 
 			-- Extras
-			{ "Z",          "spell",   "Will to Survive" },
-			{ "SHIFT-Z",    "spell",   "PVP_TRINKET" },
-			{ "CTRL-Z",     "macro",   "REZ" },
-			{ "ALT-CTRL-Z", "spell",   "Absolution" },
+			{ "Z",                "macro",   "FREEDOM" },
+			{ "SHIFT-Z",          "spell",   "Will to Survive" },
+			{ "CTRL-Z",           "macro",   "REZ" },
+			{ "ALT-Z",            "macro",   "PVP_TRINKET" },
+			{ "ALT-CTRL-Z",       "macro",   "REZ" },
+			{ "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
 
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
