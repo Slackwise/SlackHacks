@@ -320,11 +320,13 @@ bindings = {
 
 			-- AoE Heals
 			{ "3",          "spell",   "Light of Dawn" },
-			{ "SHIFT-3",    "spell",   "Holy Prism" },
+			{ "SHIFT-3",    "spell",   "Divine Toll" },
+			{ "BUTTON4",    "macro",   "LHAMMER_CURSOR" },
 
 			-- Ranged Attacks
 			{ "4",          "macro",   "SHOCK_JUDGMENT" },
 			{ "SHIFT-4",    "macro",   "Judgment" },
+			{ "CTRL-4",     "spell",   "Divine Toll" },
 
 			-- Ranged Finishers
 			{ "5",          "spell",   "Hammer of Wrath" },
@@ -371,7 +373,7 @@ bindings = {
 
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
-			{ "SHIFT-C",    "spell",   "Divine Toll" },
+			{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
 			{ "CTRL-C",     "spell",   "Aura Mastery" },
 			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
 
