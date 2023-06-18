@@ -355,7 +355,7 @@ bindings = {
 			{ "ALT-F",      "spell",   "Beacon of Light" },
 
 			-- Ultimates
-			{ "G",          "spell",   "Avenging Wrath" },
+			{ "G",          "spell",   "WINGS" },
 			{ "SHIFT-G",    "spell",   "Divine Shield" },
 
 			-- Extras
