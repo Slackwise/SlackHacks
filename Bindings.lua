@@ -313,14 +313,15 @@ bindings = {
 			{ "SHIFT-1",    "spell",   "Lay on Hands" },
 
 			-- Cast Heals
-			{ "2",          "macro",   "CAST_HEAL" },
+			{ "2",          "spell",   "Holy Light" },
+			{ "SHIFT-2",    "spell",   "Flash of Light" },
 
 			-- AoE Heals
 			{ "3",          "spell",   "Light of Dawn" },
 			{ "SHIFT-3",    "spell",   "Holy Prism" },
 
 			-- Ranged Attacks
-			{ "4",          "macro",   "ShockHammer" },
+			{ "4",          "macro",   "SHOCK_JUDGMENT" },
 			{ "SHIFT-4",    "macro",   "Judgment" },
 
 			-- Ranged Finishers
@@ -359,8 +360,8 @@ bindings = {
 
 			-- Extras
 			{ "Z",          "spell",   "Will to Survive" },
-			{ "SHIFT-Z",    "spell",   "PvP Trinket" },
-			{ "CTRL-Z",     "macro",   "Rez" },
+			{ "SHIFT-Z",    "spell",   "PVP_TRINKET" },
+			{ "CTRL-Z",     "macro",   "REZ" },
 			{ "ALT-CTRL-Z", "spell",   "Absolution" },
 
 			-- AoE (emanating from me)
@@ -372,7 +373,7 @@ bindings = {
 			-- Vitality (Self-Heals/Protections)
 			{ "V",          "spell",   "Divine Protection" },
 			{ "SHIFT-V",    "spell",   "Divine Shield" },
-			{ "CTRL-C",     "macro",   "LayOnSelf" },
+			{ "CTRL-C",     "macro",   "LAY_ON_SELF" },
 			{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
 			{ "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
 		}
