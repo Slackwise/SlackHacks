@@ -37,16 +37,25 @@ function setBindings()
 	LoadBindings(bindingType.DEFAULT_BINDINGS)
 	unbindUnwantedDefaults()
 
-	for _, binding in ipairs(bindings.global) do
+	for _, binding in ipairs(bindings.GLOBAL) do
 		setBinding(binding)
 	end
 
 	local class = getClassName()
-	local spec = getSpecName()
-
-	if spec ~= "" then
-		for _, binding in ipairs(bindings[class][spec]) do
+	local classBindings = bindings[class].CLASS
+	if classBindings ~= nil then
+		for _, binding in ipairs(classBindings) do
 			setBinding(binding)
+		end
+	end
+
+	local spec = getSpecName()
+	if spec ~= "" then
+		local specBindings = bindings[class][spec]
+		if specBindings ~= nil then
+			for _, binding in ipairs(specBindings) do
+				setBinding(binding)
+			end
 		end
 	end
 	SaveBindings(bindingType.CHARACTER_BINDINGS)
@@ -54,7 +63,7 @@ function setBindings()
 end
 
 bindings = {
-	global = {
+	GLOBAL = {
 		{"ALT-CTRL-END",          "command",  "SLACKUI_RELOADUI"},
 		{"CTRL-`",                "command",  "FOCUSTARGET"},
 		{"ALT-`",                 "command",  "INTERACTTARGET"},
@@ -284,7 +293,7 @@ bindings = {
 		}
 	},
 	PALADIN = {
-		HOLY = {
+		CLASS = {
 			{ "1",  "command", "ACTIONBUTTON1" },
 			{ "2",  "command", "ACTIONBUTTON2" },
 			{ "3",  "command", "ACTIONBUTTON3" },
@@ -307,9 +316,8 @@ bindings = {
 			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
 			{ "CTRL-SPACE", "spell",   "Divine Steed" },
 			{ "`",          "macro",   "STOP!" },
-
-			---------------------------------------------------
-
+		},
+		HOLY = {
 			-- Quick Heals
 			{ "1",          "spell",   "Word of Glory" },
 			{ "SHIFT-1",    "spell",   "Lay on Hands" },
