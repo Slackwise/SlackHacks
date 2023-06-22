@@ -422,13 +422,10 @@ bindings = {
 			{ "R",          "spell",   "Blade of Justice" },
 
 			-- Targetting
-			{ "SHIFT-T",    "spell",   "Beacon of Faith" },
-			{ "CTRL-T",     "spell",   "Beacon of Light" },
 
 			---------------------------------------------------
 
 			-- Blessings
-			{ "ALT-G",      "spell",   "Aura Mastery" },
 
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Divine Storm" },
