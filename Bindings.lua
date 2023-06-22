@@ -362,6 +362,7 @@ bindings = {
 
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
+			{ "CTRL-C",     "macro",   "BELL_SELF" },
 			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
 
 			-- Vitality (Self-Heals/Protections)
@@ -386,6 +387,9 @@ bindings = {
 
 			---------------------------------------------------
 
+			-- Sword
+			{ "E",          "spell",   "Blade of Justice" },
+
 			-- Spec Abilities
 			{ "R",          "macro",   "SHOCK" },
 
@@ -404,7 +408,33 @@ bindings = {
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
 			{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
-			{ "CTRL-C",     "macro",   "BELL_SELF" },
+		},
+		RETRIBUTION = {
+			-- Quick Heals
+			{ "ALT-1",      "spell",   "Cleanse" },
+
+			-- AoE Heals
+			{ "3",          "spell",   "Wake of Ashes" },
+			{ "SHIFT-3",    "macro",   "RECKON_TARGET" },
+			{ "BUTTON4",    "macro",   "RECKON_CURSOR" },
+
+			---------------------------------------------------
+
+			-- Spec Abilities
+			{ "R",          "spell",   "Templar's Verdict" },
+
+			-- Targetting
+			{ "SHIFT-T",    "spell",   "Beacon of Faith" },
+			{ "CTRL-T",     "spell",   "Beacon of Light" },
+
+			---------------------------------------------------
+
+			-- Blessings
+			{ "ALT-G",      "spell",   "Aura Mastery" },
+
+			-- AoE (emanating from me)
+			{ "C",          "spell",   "Divine Storm" },
+			{ "SHIFT-C",    "spell",   "Shield of Vengeance" },
 		}
 	}
 }
