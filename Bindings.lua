@@ -387,9 +387,6 @@ bindings = {
 
 			---------------------------------------------------
 
-			-- Sword
-			{ "E",          "spell",   "Blade of Justice" },
-
 			-- Spec Abilities
 			{ "R",          "macro",   "SHOCK" },
 
@@ -420,8 +417,9 @@ bindings = {
 
 			---------------------------------------------------
 
-			-- Spec Abilities
-			{ "R",          "spell",   "Templar's Verdict" },
+			-- Sword
+			{ "Q",          "spell",   "Templar's Verdict" },
+			{ "R",          "spell",   "Blade of Justice" },
 
 			-- Targetting
 			{ "SHIFT-T",    "spell",   "Beacon of Faith" },
