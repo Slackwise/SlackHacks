@@ -316,6 +316,58 @@ bindings = {
 			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
 			{ "CTRL-SPACE", "spell",   "Divine Steed" },
 			{ "`",          "macro",   "STOP!" },
+
+			-- Quick Heals
+			{ "1",          "spell",   "Word of Glory" },
+
+			-- Cast Heals
+			{ "2",          "spell",   "Flash of Light" },
+
+			-- Ranged Attacks
+			{ "4",          "spell",   "Judgment" },
+			{ "5",          "spell",   "Hammer of Wrath" },
+			{ "SHIFT-5",    "macro",   "WINGS" },
+
+			---------------------------------------------------
+
+			-- Shield (Tanking)
+			{ "Q",          "spell",   "Shield of the Righteous" },
+			{ "ALT-T",      "spell",   "Hand of Reckoning" },
+
+			-- Sword
+			{ "E",          "spell",   "Crusader Strike" },
+
+			-- Targetting
+			{ "T",          "macro",   "TARGET" },
+
+			---------------------------------------------------
+
+			-- CC
+			{ "F",          "spell",   "Rebuke" },
+			{ "SHIFT-F",    "spell",   "Hammer of Justice" },
+
+			-- Blessings
+			{ "G",          "spell",   "Blessing of Sacrifice" },
+			{ "SHIFT-G",    "spell",   "Blessing of Protection" },
+			{ "CTRL-G",     "spell",   "Blessing of Freedom" },
+
+			-- Extras
+			{ "Z",                "macro",   "FREEDOM" },
+			{ "SHIFT-Z",          "spell",   "Will to Survive" },
+			{ "CTRL-Z",           "macro",   "REZ" },
+			{ "ALT-Z",            "macro",   "PVP_TRINKET" },
+			{ "ALT-CTRL-Z",       "macro",   "REZ" },
+			{ "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
+
+			-- AoE (emanating from me)
+			{ "C",          "spell",   "Consecration" },
+			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
+
+			-- Vitality (Self-Heals/Protections)
+			{ "V",          "macro",   "VITALITY" },
+			{ "SHIFT-V",    "spell",   "Divine Shield" },
+			{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
+			{ "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
 		},
 		HOLY = {
 			-- Quick Heals
