@@ -324,8 +324,8 @@ bindings = {
 			{ "ALT-1",      "spell",   "Cleanse" },
 
 			-- Cast Heals
-			{ "2",          "spell",   "Holy Light" },
-			{ "SHIFT-2",    "spell",   "Flash of Light" },
+			{ "2",          "spell",   "Flash of Light" },
+			{ "SHIFT-2",    "spell",   "Holy Light" },
 			{ "CTRL-2",     "spell",   "Divine Favor" },
 
 			-- AoE Heals
