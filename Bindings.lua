@@ -316,6 +316,7 @@ bindings = {
 			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
 			{ "CTRL-SPACE", "spell",   "Divine Steed" },
 			{ "`",          "macro",   "STOP!" },
+			{ "ALT-CTRL-SHIFT-S", "spell",   "Contemplation" },
 
 			-- Quick Heals
 			{ "1",          "spell",   "Word of Glory" },
@@ -406,11 +407,28 @@ bindings = {
 			{ "C",          "spell",   "Consecration" },
 			{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
 		},
-		RETRIBUTION = {
+		PROTECTION = {
 			-- Quick Heals
-			{ "ALT-1",      "spell",   "Cleanse" },
+			{ "ALT-1",      "spell",   "Cleanse Toxins" },
 
-			-- AoE Heals
+			---------------------------------------------------
+
+			-- Shield
+			{ "SHIFT-Q",    "spell",   "Bastion of Light" },
+
+			-- Attacks
+			{ "R",          "spell",   "Avenger's Shield" },
+
+			-- Targetting
+
+			---------------------------------------------------
+
+			-- Blessings
+
+			-- AoE (emanating from me)
+		},
+		RETRIBUTION = {
+			-- AoE
 			{ "3",          "spell",   "Wake of Ashes" },
 			{ "SHIFT-3",    "macro",   "RECKON_TARGET" },
 			{ "BUTTON4",    "macro",   "RECKON_CURSOR" },
