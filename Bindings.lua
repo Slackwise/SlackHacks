@@ -334,7 +334,7 @@ bindings = {
 
 			-- Shield (Tanking)
 			{ "Q",          "spell",   "Shield of the Righteous" },
-			{ "ALT-T",      "spell",   "Hand of Reckoning" },
+			{ "ALT-Q",      "spell",   "Hand of Reckoning" },
 
 			-- Sword
 			{ "E",          "spell",   "Crusader Strike" },
