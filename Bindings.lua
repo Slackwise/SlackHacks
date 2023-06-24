@@ -337,7 +337,7 @@ bindings = {
 			{ "ALT-Q",      "spell",   "Hand of Reckoning" },
 
 			-- Sword
-			{ "E",          "macro",   "ATTACK" },
+			{ "E",          "macro",   "ENGAGE" },
 
 			-- Targetting
 			{ "T",          "macro",   "TARGET" },
