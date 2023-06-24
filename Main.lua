@@ -65,6 +65,7 @@ function Self:OnEnable()
 	self:RegisterEvent("UNIT_AURA")
 	self:RegisterEvent("PLAYER_REGEN_ENABLED")
 	-- self:RegisterEvent("PLAYER_REGEN_DISABLED")
+	self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 end
 
 function Self:OnDisable()
@@ -85,6 +86,10 @@ end
 
 function Self:PLAYER_REGEN_DISABLED(eventName) -- In combat
 
+end
+
+function Self:ACTIVE_TALENT_GROUP_CHANGED(currentSpecID, previousSpecID)
+	setBindings()
 end
 
 function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.fandom.com/wiki/UNIT_AURA
