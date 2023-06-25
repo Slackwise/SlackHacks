@@ -320,7 +320,7 @@ bindings = {
 			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
 			{ "CTRL-SPACE", "spell",   "Divine Steed" },
 			{ "`",          "macro",   "STOP!" },
-			{ "ALT-CTRL-SHIFT-S", "spell",   "Contemplation" },
+			{ "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
 
 			-- Quick Heals
 			{ "1",          "spell",   "Word of Glory" },
