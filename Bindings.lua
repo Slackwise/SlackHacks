@@ -45,7 +45,9 @@ function setBindings()
 	local classBindings = bindings[class].CLASS
 	if classBindings ~= nil then
 		for _, binding in ipairs(classBindings) do
-			setBinding(binding)
+			if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
+				setBinding(binding)
+			end
 		end
 	end
 
@@ -54,7 +56,9 @@ function setBindings()
 		local specBindings = bindings[class][spec]
 		if specBindings ~= nil then
 			for _, binding in ipairs(specBindings) do
-				setBinding(binding)
+				if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
+					setBinding(binding)
+				end
 			end
 		end
 	end
