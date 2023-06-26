@@ -5,14 +5,14 @@ BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKUI_MOUNT = "Mount"
 
-bindingType = {
+BINDING_TYPE = {
 	DEFAULT_BINDINGS   = 0,
 	ACCOUNT_BINDINGS   = 1,
 	CHARACTER_BINDINGS = 2
 }
 
 
-bindingFunctions = {
+BINDINGS_FUNCTIONS = {
 	["command"] = SetBinding,
 	["spell"]   = SetBindingSpell,
 	["macro"]   = SetBindingMacro,
@@ -21,7 +21,7 @@ bindingFunctions = {
 
 function setBinding(binding)
 	local key, type, name = unpack(binding)
-	bindingFunctions[type](key, name)
+	BINDINGS_FUNCTIONS[type](key, name)
 end
 
 function unbindUnwantedDefaults()
@@ -34,18 +34,26 @@ function setBindings()
 		return
 	end
 
-	LoadBindings(bindingType.DEFAULT_BINDINGS)
+	LoadBindings(BINDING_TYPE.DEFAULT_BINDINGS)
 	unbindUnwantedDefaults()
 
-	for _, binding in ipairs(bindings.GLOBAL) do
+	-- Global bindings:
+	for _, binding in ipairs(BINDINGS.GLOBAL) do
 		setBinding(binding)
 	end
 
 	local class = getClassName()
-	local classBindings = bindings[class].CLASS
-	if classBindings ~= nil then
-		for _, binding in ipairs(classBindings) do
-			if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
+	local spec = getSpecName()
+	local bindings = BINDINGS[class]
+
+	if bindings.PRE_SCRIPT then
+		bindings.PRE_SCRIPT(spec)	
+	end
+
+	if bindings.CLASS ~= nil then
+		for _, binding in ipairs(bindings.CLASS) do
+			local key, type, name = unpack(binding)
+			if not (type == "spell" and not DoesSpellExist(name)) then
 				setBinding(binding)
 			end
 		end
@@ -53,7 +61,7 @@ function setBindings()
 
 	local spec = getSpecName()
 	if spec ~= "" then
-		local specBindings = bindings[class][spec]
+		local specBindings = bindings[spec]
 		if specBindings ~= nil then
 			for _, binding in ipairs(specBindings) do
 				if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
@@ -62,11 +70,16 @@ function setBindings()
 			end
 		end
 	end
-	SaveBindings(bindingType.CHARACTER_BINDINGS)
+
+	if bindings.POST_SCRIPT then
+		bindings.POST_SCRIPT()	
+	end
+
+	SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
 	print(spec .. " " .. class .. " binding presets loaded!")
 end
 
-bindings = {
+BINDINGS = {
 	GLOBAL = {
 		{"ALT-CTRL-END",          "command",  "SLACKUI_RELOADUI"},
 		{"CTRL-`",                "command",  "FOCUSTARGET"},
