@@ -463,6 +463,7 @@ BINDINGS = {
 			-- Blessings
 
 			-- AoE (emanating from me)
+			{ "C",         "spell",   "Divine Storm" },
 			{ "SHIFT-C",   "spell",   "Divine Storm" },
 			{ "CTRL-C",    "spell",   "Shield of Vengeance" },
 		},
