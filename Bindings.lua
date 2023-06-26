@@ -42,6 +42,7 @@ function setBindings()
 		setBinding(binding)
 	end
 
+	-- Class specific bindings:
 	local class = getClassName()
 	local spec = getSpecName()
 	local bindings = BINDINGS[class]
@@ -59,7 +60,6 @@ function setBindings()
 		end
 	end
 
-	local spec = getSpecName()
 	if spec ~= "" then
 		local specBindings = bindings[spec]
 		if specBindings ~= nil then
@@ -463,8 +463,13 @@ BINDINGS = {
 			-- Blessings
 
 			-- AoE (emanating from me)
-			{ "C",          "spell",   "Divine Storm" },
-			{ "SHIFT-C",    "spell",   "Shield of Vengeance" },
-		}
+			{ "SHIFT-C",   "spell",   "Divine Storm" },
+			{ "CTRL-C",    "spell",   "Shield of Vengeance" },
+		},
+		POST_SCRIPT = function(spec)
+			if DoesSpellExist("Consecration") then
+				SetBindingSpell("C", "Consecration")
+			end
+		end
 	}
 }
