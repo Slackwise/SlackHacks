@@ -211,6 +211,14 @@ function sellGreyItems()
 	end
 end
 
+function isSpellKnown(spellName)
+	local link, spellID = GetSpellLink(spellName)
+	if spellID then
+		return IsSpellKnown(spellID)
+	end
+	return false
+end
+
 --- Recursively search up the map hierarchy to find a specific map type.
 -- @param map - The map to start at.
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
