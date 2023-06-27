@@ -468,7 +468,7 @@ BINDINGS = {
 			{ "CTRL-C",    "spell",   "Shield of Vengeance" },
 		},
 		POST_SCRIPT = function(spec)
-			if DoesSpellExist("Consecration") then
+			if isSpellKnown("Consecration") then
 				SetBindingSpell("C", "Consecration")
 			end
 		end
