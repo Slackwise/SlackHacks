@@ -224,6 +224,9 @@ end
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
 -- @return UiMapDetails
 function findParentMapByType(map, uiMapType)
+	if not map then
+		return nil
+	end
 	if map.mapType == uiMapType or map.mapType == Enum.UIMapType.Cosmic then
 		return map
 	end 
@@ -234,12 +237,20 @@ function getCurrentMap()
 	return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
 end
 
-function getCurrentContinent()
-	return findParentMapByType(getCurrentMap(), Enum.UIMapType.Continent)
+function getCurrentContinentID()
+	local map getCurrentMap()
+	if map then
+		return findParentMapByType(map, Enum.UIMapType.Continent).mapID
+	end
+	return nil
 end
 
-function getCurrentZone()
-	return findParentMapByType(getCurrentMap(), Enum.UIMapType.Zone)
+function getCurrentZoneID()
+	local map getCurrentMap()
+	if map then
+		return findParentMapByType(map, Enum.UIMapType.Zone).mapID
+	end
+	return nil
 end
 
 ACTUALLY_FLYABLE_MAPS = {
@@ -259,8 +270,8 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
 }
 
 function isActuallyFlyableArea()
-	local continentID = getCurrentContinent().mapID
-	local zoneID 			= getCurrentZone().mapID
+	local continentID = getCurrentContinentID()
+	local zoneID 			= getCurrentZoneID()
 
 	local listedFlyableContinent    = not not tContains(	   ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continentID  )
 	local listedFlyableZone         = not not tContains(	   ACTUALLY_FLYABLE_MAPS.ZONES,       zoneID       )
@@ -364,7 +375,11 @@ function mount()
 				mountByUsage("GROUND")
 				return
 			end
-			mountByUsage("FLYING")
+			if IsInGroup() then
+				mountByUsage("FLYING_PASSENGER")
+			else
+				mountByUsage("FLYING")
+			end
 			return
 		elseif IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
 			if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
@@ -394,7 +409,11 @@ function mount()
 				mountByUsage("FLYING")
 				return
 			end
-			mountByUsage("GROUND")
+			if IsInGroup() then
+				mountByUsage("GROUND_PASSENGER")
+			else
+				mountByUsage("GROUND")
+			end
 			return
 		end
 	end
