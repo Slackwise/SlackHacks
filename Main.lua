@@ -331,6 +331,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
 	["Sandstone Drake"]              = 407,
 	["Sky Golem"]                    = 522,
 	["Grand Expedition Yak"]         = 460,
+	["Grotto Netherwing Drake"]      = 1744,
 }
 
 MOUNTS_BY_USAGE = {
@@ -338,7 +339,7 @@ MOUNTS_BY_USAGE = {
 		['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
 		['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
 		['WATER']             = MOUNT_IDS["Sea Turtle"],
-		['DRAGON']            = MOUNT_IDS["Highland Drake"], -- Dragonriding
+		['DRAGON']            = MOUNT_IDS["Grotto Netherwing Drake"], -- Dragonriding
 		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
 		['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
 		['GATHERING']         = MOUNT_IDS["Sky Golem"],
@@ -347,7 +348,7 @@ MOUNTS_BY_USAGE = {
 		['GROUND']            = MOUNT_IDS["Tyrael's Charger"],
 		['FLYING']            = MOUNT_IDS["Tyrael's Charger"],
 		['WATER']             = MOUNT_IDS["Sea Turtle"],
-		['DRAGON']            = MOUNT_IDS["Highland Drake"], -- Dragonriding
+		['DRAGON']            = MOUNT_IDS["Grotto Netherwing Drake"], -- Dragonriding
 		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
 		['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
 		['GATHERING']         = MOUNT_IDS["Sky Golem"],
