@@ -273,6 +273,10 @@ function isActuallyFlyableArea()
 	local continentID = getCurrentContinentID()
 	local zoneID 			= getCurrentZoneID()
 
+	if not continentID or not zoneID then
+		return false
+	end
+
 	local listedFlyableContinent    = not not tContains(	   ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continentID  )
 	local listedFlyableZone         = not not tContains(	   ACTUALLY_FLYABLE_MAPS.ZONES,       zoneID       )
 
