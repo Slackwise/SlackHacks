@@ -303,27 +303,38 @@ function printDebugMapInfo()
 	print("===============================")
 end
 
-MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID
-	["Swift Razzashi Raptor"] = 110,
-	["Ashes of Al'ar"]        = 183,
-	["Sea Turtle"]            = 312,
-	["Highland Drake"]        = 1563,
-	["Renewed Proto-Drake"]   = 1589,
-	["Tyrael's Charger"]      = 439
+MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
+	["Swift Razzashi Raptor"]        = 110,
+	["Ashes of Al'ar"]               = 183,
+	["Sea Turtle"]                   = 312,
+	["Highland Drake"]               = 1563,
+	["Renewed Proto-Drake"]          = 1589,
+	["Tyrael's Charger"]             = 439,
+	["Charger"]                      = 84,
+	["Highlord's Golden Charger"]    = 885,
+	["Mekgineer's Chopper"]          = 275,
+	["Sandstone Drake"]              = 407,
+	["Sky Golem"]                    = 522,
 }
 
 MOUNTS_BY_USAGE = {
 	HUNTER = {
-		['GROUND'] = MOUNT_IDS["Swift Razzashi Raptor"],
-		['FLYING'] = MOUNT_IDS["Ashes of Al'ar"],
-		['WATER']  = MOUNT_IDS["Sea Turtle"],
-		['DRAGON'] = MOUNT_IDS["Highland Drake"], -- Dragonriding
+		['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
+		['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+		['WATER']             = MOUNT_IDS["Sea Turtle"],
+		['DRAGON']            = MOUNT_IDS["Highland Drake"], -- Dragonriding
+		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
+		['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
+		['GATHERING']         = MOUNT_IDS["Sky Golem"],
 	},
 	PALADIN = {
-		['GROUND'] = MOUNT_IDS["Tyrael's Charger"],
-		['FLYING'] = MOUNT_IDS["Tyrael's Charger"],
-		['WATER']  = MOUNT_IDS["Sea Turtle"],
-		['DRAGON'] = MOUNT_IDS["Highland Drake"], -- Dragonriding
+		['GROUND']            = MOUNT_IDS["Tyrael's Charger"],
+		['FLYING']            = MOUNT_IDS["Tyrael's Charger"],
+		['WATER']             = MOUNT_IDS["Sea Turtle"],
+		['DRAGON']            = MOUNT_IDS["Highland Drake"], -- Dragonriding
+		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
+		['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
+		['GATHERING']         = MOUNT_IDS["Sky Golem"],
 	}
 }
 
