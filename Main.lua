@@ -315,6 +315,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
 	["Mekgineer's Chopper"]          = 275,
 	["Sandstone Drake"]              = 407,
 	["Sky Golem"]                    = 522,
+	["Grand Expedition Yak"]         = 460,
 }
 
 MOUNTS_BY_USAGE = {
