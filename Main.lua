@@ -345,8 +345,8 @@ MOUNTS_BY_USAGE = {
 		['GATHERING']         = MOUNT_IDS["Sky Golem"],
 	},
 	PALADIN = {
-		['GROUND']            = MOUNT_IDS["Tyrael's Charger"],
-		['FLYING']            = MOUNT_IDS["Tyrael's Charger"],
+		['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
+		['FLYING']            = MOUNT_IDS["Highlord's Golden Charger"],
 		['WATER']             = MOUNT_IDS["Sea Turtle"],
 		['DRAGON']            = MOUNT_IDS["Grotto Netherwing Drake"], -- Dragonriding
 		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
