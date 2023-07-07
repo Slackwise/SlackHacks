@@ -323,6 +323,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
 	["Ashes of Al'ar"]               = 183,
 	["Sea Turtle"]                   = 312,
 	["Highland Drake"]               = 1563,
+	["Winding Slitherdrake"]         = 1588,
 	["Renewed Proto-Drake"]          = 1589,
 	["Tyrael's Charger"]             = 439,
 	["Charger"]                      = 84,
