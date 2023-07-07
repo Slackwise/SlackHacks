@@ -319,19 +319,19 @@ function printDebugMapInfo()
 end
 
 MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
+	["Charger"]                      = 84,
 	["Swift Razzashi Raptor"]        = 110,
 	["Ashes of Al'ar"]               = 183,
+	["Mekgineer's Chopper"]          = 275,
 	["Sea Turtle"]                   = 312,
+	["Sandstone Drake"]              = 407,
+	["Tyrael's Charger"]             = 439,
+	["Grand Expedition Yak"]         = 460,
+	["Sky Golem"]                    = 522,
+	["Highlord's Golden Charger"]    = 885,
 	["Highland Drake"]               = 1563,
 	["Winding Slitherdrake"]         = 1588,
 	["Renewed Proto-Drake"]          = 1589,
-	["Tyrael's Charger"]             = 439,
-	["Charger"]                      = 84,
-	["Highlord's Golden Charger"]    = 885,
-	["Mekgineer's Chopper"]          = 275,
-	["Sandstone Drake"]              = 407,
-	["Sky Golem"]                    = 522,
-	["Grand Expedition Yak"]         = 460,
 	["Grotto Netherwing Drake"]      = 1744,
 }
 
