@@ -454,7 +454,8 @@ BINDINGS = {
 			---------------------------------------------------
 
 			-- Sword
-			{ "Q",          "spell",   "Templar's Verdict" },
+			{ "Q",          "macro",   "Q" },
+			{ "SHIFT-Q",    "spell",   "Templar's Verdict" },
 			{ "R",          "spell",   "Blade of Justice" },
 
 			-- Targetting
