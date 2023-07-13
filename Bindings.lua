@@ -333,6 +333,8 @@ BINDINGS = {
 			{ "F12",        "command", "SHAPESHIFTBUTTON4" },
 			{ "CTRL-SPACE", "spell",   "Divine Steed" },
 			{ "`",          "macro",   "STOP!" },
+			{ "BUTTON4",    "macro",   "MOUSE4" },
+			{ "BUTTON5",    "macro",   "MOUSE5" },
 			{ "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
 
 			-- Quick Heals
@@ -364,19 +366,17 @@ BINDINGS = {
 			-- CC
 			{ "F",          "spell",   "Rebuke" },
 			{ "SHIFT-F",    "spell",   "Hammer of Justice" },
-			{ "CTRL-F",     "spell",   "Blinding Light" },
+			{ "CTRL-F",     "spell",   "Repentance" },
 
-			-- Blessings
-			{ "G",          "spell",   "Blessing of Sacrifice" },
-			{ "SHIFT-G",    "spell",   "Blessing of Protection" },
-			{ "CTRL-G",     "spell",   "Blessing of Freedom" },
+			-- Ultimates (Big Cooldowns)
+			{ "G",          "macro",   "WINGS" },
 
 			-- Extras
-			{ "Z",                "macro",   "FREEDOM" },
-			{ "SHIFT-Z",          "spell",   "Will to Survive" },
-			{ "CTRL-Z",           "macro",   "REZ" },
-			{ "ALT-Z",            "macro",   "PVP_TRINKET" },
-			{ "ALT-CTRL-Z",       "macro",   "REZ" },
+			{ "Z",          "macro",   "FREEDOM" },
+			{ "SHIFT-Z",    "spell",   "Will to Survive" },
+			{ "CTRL-Z",     "macro",   "REZ" },
+			{ "ALT-Z",      "macro",   "PVP_TRINKET" },
+			{ "ALT-CTRL-Z", "macro",   "REZ" },
 
 			-- AoE (emanating from me)
 			{ "C",          "spell",   "Consecration" },
@@ -401,7 +401,6 @@ BINDINGS = {
 			-- AoE Heals
 			{ "3",          "spell",   "Light of Dawn" },
 			{ "SHIFT-3",    "macro",   "LHAMMER_TARGET" },
-			{ "BUTTON4",    "macro",   "LHAMMER_CURSOR" },
 
 			---------------------------------------------------
 
@@ -414,7 +413,9 @@ BINDINGS = {
 
 			---------------------------------------------------
 
-			-- Blessings
+			-- Ults (Big Cooldowns)
+			{ "SHIFT-G",    "spell",   "Daybreak" },
+			{ "CTRL-G",     "spell",   "Tyr's Deliverance" },
 			{ "ALT-G",      "spell",   "Aura Mastery" },
 
 			-- Extras
@@ -464,8 +465,8 @@ BINDINGS = {
 
 			-- AoE (emanating from me)
 			{ "C",         "spell",   "Divine Storm" },
-			{ "SHIFT-C",   "spell",   "Divine Storm" },
-			{ "CTRL-C",    "spell",   "Shield of Vengeance" },
+			{ "SHIFT-C",   "spell",   "Divine Storm" }, -- Can't cast BELL_SELF on self as Ret
+			{ "CiRL-C",    "spell",   "Shield of Vengeance" },
 		},
 		POST_SCRIPT = function(spec)
 			if isSpellKnown("Consecration") then
