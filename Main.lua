@@ -238,7 +238,7 @@ function getCurrentMap()
 end
 
 function getCurrentContinentID()
-	local map getCurrentMap()
+	local map = getCurrentMap()
 	if map then
 		return findParentMapByType(map, Enum.UIMapType.Continent).mapID
 	end
@@ -246,7 +246,7 @@ function getCurrentContinentID()
 end
 
 function getCurrentZoneID()
-	local map getCurrentMap()
+	local map = getCurrentMap()
 	if map then
 		return findParentMapByType(map, Enum.UIMapType.Zone).mapID
 	end
@@ -322,6 +322,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
 	["Charger"]                      = 84,
 	["Swift Razzashi Raptor"]        = 110,
 	["Ashes of Al'ar"]               = 183,
+	["Time-Lost Proto-Drake"]        = 265,
 	["Mekgineer's Chopper"]          = 275,
 	["Sea Turtle"]                   = 312,
 	["Sandstone Drake"]              = 407,
@@ -335,6 +336,16 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
 	["Grotto Netherwing Drake"]      = 1744,
 }
 
+MOUNT_SHORTNAMES = {
+	["RAPTOR"]      = MOUNT_IDS["Swift Razzashi Raptor"],
+	["TURTLE"]      = MOUNT_IDS["Sea Turtle"],
+	["PHOENIX"]     = MOUNT_IDS["Ashes of Al'ar"],
+	["TLPD"]        = MOUNT_IDS["Time-Lost Proto-Drake"],
+	["CHARGER"]     = MOUNT_IDS["Highlord's Golden Charger"],
+	["MOTORCYCLE"]  = MOUNT_IDS["Mekgineer's Chopper"],
+	["NETHERDRAKE"] = MOUNT_IDS["Grotto Netherwing Drake"],
+};
+
 MOUNTS_BY_USAGE = {
 	HUNTER = {
 		['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
@@ -344,6 +355,8 @@ MOUNTS_BY_USAGE = {
 		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
 		['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
 		['GATHERING']         = MOUNT_IDS["Sky Golem"],
+		['GROUND_SHOWOFF']    = MOUNT_SHORTNAMES["RAPTOR"],
+		['FLYING_SHOWOFF']    = MOUNT_SHORTNAMES["TLPD"],
 	},
 	PALADIN = {
 		['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
@@ -353,11 +366,21 @@ MOUNTS_BY_USAGE = {
 		['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
 		['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
 		['GATHERING']         = MOUNT_IDS["Sky Golem"],
+		['GROUND_SHOWOFF']    = MOUNT_SHORTNAMES["RAPTOR"],
+		['FLYING_SHOWOFF']    = MOUNT_SHORTNAMES["TLPD"],
 	}
 }
 
 function mountByUsage(usage)
 	C_MountJournal.SummonByID(MOUNTS_BY_USAGE[getClassName()][usage])
+end
+
+function mountByName(mountName)
+	C_MountJournal.SummonByID(MOUNT_IDS[mountName])
+end
+
+function mountByShortname(mountShortname)
+	C_MountJournal.SummonByID(MOUNT_SHORTNAMES[mountShortname])
 end
 
 function isAlternativeMountRequested()
@@ -377,22 +400,25 @@ function mount()
 
 	if IsOutdoors() then
 		if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
+			log("FLYING AREA")
 			if isAlternativeMountRequested() then -- But we may want to show off our ground mount
-				mountByUsage("GROUND")
+				mountByUsage("FLYING_SHOWOFF")
 				return
 			end
 			if IsInGroup() then
 				mountByUsage("FLYING_PASSENGER")
+				return
 			else
 				mountByUsage("FLYING")
+				return
 			end
 			return
 		elseif IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
 			if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
-				mountByUsage("FLYING")
+				mountByUsage("FLYING_SHOWOFF")
 				return
 			elseif isAlternativeMountRequested() then
-				mountByUsage("GROUND")
+				mountByUsage("GROUND_SHOWOFF")
 				return
 			end
 			mountByUsage("DRAGON")
@@ -411,16 +437,21 @@ function mount()
 			mountByUsage("WATER")
 			return
 		else -- Summon ground mount
-			if isAlternativeMountRequested() then -- But we may want to show off our flying mount
-				mountByUsage("FLYING")
+			if IsInGroup() then
+				if isAlternativeMountRequested() then -- But we may want to show off
+					mountByUsage("GROUND_SHOWOFF")
+					return
+				end
+				mountByUsage("GROUND_PASSENGER")
+				return
+			else
+				if isAlternativeMountRequested() then -- But we may want to show off
+					mountByUsage("GROUND_SHOWOFF")
+					return
+				end
+				mountByUsage("GROUND")
 				return
 			end
-			if IsInGroup() then
-				mountByUsage("GROUND_PASSENGER")
-			else
-				mountByUsage("GROUND")
-			end
-			return
 		end
 	end
 end
