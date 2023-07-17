@@ -448,7 +448,6 @@ BINDINGS = {
 		RETRIBUTION = {
 			-- AoE
 			{ "3",          "spell",   "Wake of Ashes" },
-			{ "SHIFT-3",    "macro",   "RECKON_TARGET" },
 			{ "BUTTON4",    "macro",   "RECKON_CURSOR" },
 
 			---------------------------------------------------
@@ -466,13 +465,8 @@ BINDINGS = {
 
 			-- AoE (emanating from me)
 			{ "C",         "spell",   "Divine Storm" },
-			{ "SHIFT-C",   "spell",   "Divine Storm" }, -- Can't cast BELL_SELF on self as Ret
+			{ "SHIFT-C",   "macro",   "RECKON_SELF" }, -- Can't cast BELL_SELF on self as Ret
 			{ "CiRL-C",    "spell",   "Shield of Vengeance" },
 		},
-		POST_SCRIPT = function(spec)
-			if isSpellKnown("Consecration") then
-				SetBindingSpell("C", "Consecration")
-			end
-		end
 	}
 }
