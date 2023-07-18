@@ -174,7 +174,8 @@ function getSpecName()
 end
 
 function setMaxCameraDistance()
-	SetCVar("cameraDistanceMaxZoomFactor", 2.6)
+	SetCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
+	SetCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
 end
 
 function repairAllItems()
