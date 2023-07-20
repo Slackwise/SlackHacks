@@ -466,7 +466,7 @@ BINDINGS = {
 			-- AoE (emanating from me)
 			{ "C",         "spell",   "Divine Storm" },
 			{ "SHIFT-C",   "macro",   "RECKON_SELF" }, -- Can't cast BELL_SELF on self as Ret
-			{ "CiRL-C",    "spell",   "Shield of Vengeance" },
+			{ "CTRL-C",    "spell",   "Shield of Vengeance" },
 		},
 	}
 }
