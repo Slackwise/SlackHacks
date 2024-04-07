@@ -1,4 +1,4 @@
-## Interface: 999999
+## Interface: 100206
 ## Title: SlackUI
 ## Notes: A compilation of minimalistic tweaks to the default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
