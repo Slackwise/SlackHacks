@@ -96,7 +96,7 @@ function setBindings()
 			bindings.POST_SCRIPT()	
 		end
 
-		AttemptToSaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
+		SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
 		print(class .. " binding presets loaded!")
 	else -- There are other game types like TBC and WOTLK classic, and who knows what else in the future...
 		print("Unknown game type! Cannot rebind.")
