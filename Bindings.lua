@@ -43,40 +43,64 @@ function setBindings()
 	end
 
 	-- Class specific bindings:
+	local game = getGameType()
 	local class = getClassName()
-	local spec = getSpecName()
-	local bindings = BINDINGS[class]
+	local bindings = BINDINGS[game][class]
 
-	if bindings.PRE_SCRIPT then
-		bindings.PRE_SCRIPT(spec)	
-	end
+	if isRetail() then
+		local spec = getSpecName()
 
-	if bindings.CLASS ~= nil then
-		for _, binding in ipairs(bindings.CLASS) do
+		if bindings.PRE_SCRIPT then
+			bindings.PRE_SCRIPT(spec)	
+		end
+
+		if bindings.CLASS ~= nil then
+			for _, binding in ipairs(bindings.CLASS) do
+				local key, type, name = unpack(binding)
+				if not (type == "spell" and not DoesSpellExist(name)) then
+					setBinding(binding)
+				end
+			end
+		end
+
+		if spec ~= "" then
+			local specBindings = bindings[spec]
+			if specBindings ~= nil then
+				for _, binding in ipairs(specBindings) do
+					if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
+						setBinding(binding)
+					end
+				end
+			end
+		end
+
+		if bindings.POST_SCRIPT then
+			bindings.POST_SCRIPT(spec)	
+		end
+
+		SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
+		print(spec .. " " .. class .. " binding presets loaded!")
+	elseif isClassic() then
+		if bindings.PRE_SCRIPT then
+			bindings.PRE_SCRIPT()	
+		end
+
+		for _, binding in ipairs(bindings) do
 			local key, type, name = unpack(binding)
 			if not (type == "spell" and not DoesSpellExist(name)) then
 				setBinding(binding)
 			end
 		end
-	end
 
-	if spec ~= "" then
-		local specBindings = bindings[spec]
-		if specBindings ~= nil then
-			for _, binding in ipairs(specBindings) do
-				if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
-					setBinding(binding)
-				end
-			end
+		if bindings.POST_SCRIPT then
+			bindings.POST_SCRIPT()	
 		end
-	end
 
-	if bindings.POST_SCRIPT then
-		bindings.POST_SCRIPT()	
+		AttemptToSaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
+		print(class .. " binding presets loaded!")
+	else -- There are other game types like TBC and WOTLK classic, and who knows what else in the future...
+		print("Unknown game type! Cannot rebind.")
 	end
-
-	SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
-	print(spec .. " " .. class .. " binding presets loaded!")
 end
 
 BINDINGS = {
@@ -136,6 +160,7 @@ BINDINGS = {
 		{"CTRL-0",                "command",  "NONE"},
 		{",",                     "command",  "NONE"},
 		{"ALT-CTRL-W",            "command",  "TOGGLEFOLLOW"},
+		{"E",                     "command",  "INTERACTTARGET"},
 		{"CTRL-E",                "command",  "EXTRAACTIONBUTTON1"},
 		{"SHIFT-R",               "command",  "NONE"},
 		{"CTRL-R",                "command",  "NONE"},
@@ -182,135 +207,297 @@ BINDINGS = {
 		{"SHIFT-MOUSEWHEELUP",    "command",  "NONE"},
 		{"SHIFT-MOUSEWHEELDOWN",  "command",  "NONE"}
 	},
-	HUNTER = {
-		MARKSMANSHIP = {
-			{ "F8",               "spell",   "Call Pet 1" },
-			{ "F9",               "spell",   "Call Pet 2" },
-			{ "F10",              "spell",   "Call Pet 3" },
-			{ "F11",              "spell",   "Call Pet 4" },
-			{ "F12",              "spell",   "Call Pet 5" },
-			{ "`",                "macro",   "*" },
-			{ "1",                "macro",   "Serpent Sting" },
-			{ "2",                "spell",   "Volley" },
-			{ "SHIFT-2",          "spell",   "Wild Spirits" },
-			{ "ALT-1",            "macro",   "MD" },
-			{ "CTRL-1",           "spell",   "Hunter's Mark" },
-			{ "3",                "spell",   "Multi-Shot" },
-			{ "SHIFT-3",          "spell",   "Barrage" },
-			{ "4",                "spell",   "Arcane Shot" },
-			{ "SHIFT-4",          "spell",   "Aimed Shot" },
-			{ "CTRL-4",           "spell",   "Double Tap" },
-			{ "5",                "spell",   "Kill Shot" },
-			{ "SHIFT-5",          "spell",   "Sniper Shot" },
-			{ "Q",                "macro",   "PetControl" },
-			{ "CTRL-Q",           "command", "BONUSACTIONBUTTON7" },        -- Pet Family Ability
-			{ "CTRL-SHIFT-Q",     "command", "BONUSACTIONBUTTON1" },        -- Pet Family Ability
-			{ "ALT-CTRL-Q",       "macro",   "PetToggle" },
-			{ "ALT-SHIFT-Q",      "spell",   "Play Dead" },
-			{ "ALT-CTRL-SHIFT-Q", "spell",   "Eyes of the Beast" },
-			{ "E",                "spell",   "Bursting Shot" },
-			{ "ALT-CTRL-E",       "macro",   "ChainEagle" },
-			{ "R",                "spell",   "Steady Shot" },
-			{ "SHIFT-R",          "spell",   "Rapid Fire" },
-			{ "CTRL-R",           "macro",   "Trueshot!" },
-			{ "ALT-R",            "item",    "Potion of Phantom Fire" },
-			{ "T",                "macro",   "Traps" },
-			{ "ALT-CTRL-S",       "spell",   "Survey" },
-			{ "F",                "spell",   "Wing Clip" },        --Auto-maps to "Concussive Shot" in MM spec
-			{ "SHIFT-F",          "spell",   "Scatter Shot" },
-			{ "CTRL-F",           "spell",   "Counter Shot" },
-			{ "ALT-F",            "spell",   "Tranquilizing Shot" },
-			{ "ALT-CTRL-F",       "spell",   "Scare Beast" },
-			{ "ALT-CTRL-SHIFT-F", "spell",   "Fireworks" },
-			{ "G",                "spell",   "Wild Spirits" },
-			{ "Z",                "spell",   "Camouflage" },
-			{ "SHIFT-Z",          "spell",   "Aspect of the Chameleon" },
-			{ "CTRL-Z",           "spell",   "Feign Death" },
-			{ "CTRL-SHIFT-Z",     "macro",   "Shadowmeld" },
-			{ "ALT-Z",            "item",    "Potion of the Hidden Spirit" },
-			{ "C",                "spell",   "Soulshape" },
-			{ "SHIFT-C",          "spell",   "Aspect of the Cheetah" },
-			{ "CTRL-C",           "macro",   "Call" },
-			{ "CTRL-SHIFT-C",     "item",    "Gladiator's Medallion" },
-			{ "ALT-C",            "item",    "Potion of the Psychopomp's Speed" },
-			{ "ALT-CTRL-C",       "macro",   "CallFocus" },
-			{ "V",                "spell",   "Exhilaration" },
-			{ "SHIFT-V",          "spell",   "Survival of the Fittest" },
-			{ "CTRL-V",           "spell",   "Aspect of the Turtle" },
-			{ "CTRL-SHIFT-V",     "item",    "Wildercloth Bandage" },
-			{ "ALT-V",            "macro",   "Vitality" },
-			{ "ALT-CTRL-V",       "macro",   "SurviveFocus" },
-			{ "B",                "spell",   "Fetch" },
-			{ "CTRL-SPACE",       "spell",   "Disengage" },
-			{ "BUTTON4",          "macro",   "MouseTraps" },
-			{ "BUTTON5",          "macro",   "MousePetAttack" },
+	RETAIL = {
+		HUNTER = {
+			MARKSMANSHIP = {
+				{ "F8",               "spell",   "Call Pet 1" },
+				{ "F9",               "spell",   "Call Pet 2" },
+				{ "F10",              "spell",   "Call Pet 3" },
+				{ "F11",              "spell",   "Call Pet 4" },
+				{ "F12",              "spell",   "Call Pet 5" },
+				{ "`",                "macro",   "*" },
+				{ "1",                "macro",   "Serpent Sting" },
+				{ "2",                "spell",   "Volley" },
+				{ "SHIFT-2",          "spell",   "Wild Spirits" },
+				{ "ALT-1",            "macro",   "MD" },
+				{ "CTRL-1",           "spell",   "Hunter's Mark" },
+				{ "3",                "spell",   "Multi-Shot" },
+				{ "SHIFT-3",          "spell",   "Barrage" },
+				{ "4",                "spell",   "Arcane Shot" },
+				{ "SHIFT-4",          "spell",   "Aimed Shot" },
+				{ "CTRL-4",           "spell",   "Double Tap" },
+				{ "5",                "spell",   "Kill Shot" },
+				{ "SHIFT-5",          "spell",   "Sniper Shot" },
+				{ "Q",                "macro",   "PetControl" },
+				{ "CTRL-Q",           "command", "BONUSACTIONBUTTON7" },        -- Pet Family Ability
+				{ "CTRL-SHIFT-Q",     "command", "BONUSACTIONBUTTON1" },        -- Pet Family Ability
+				{ "ALT-CTRL-Q",       "macro",   "PetToggle" },
+				{ "ALT-SHIFT-Q",      "spell",   "Play Dead" },
+				{ "ALT-CTRL-SHIFT-Q", "spell",   "Eyes of the Beast" },
+				{ "E",                "spell",   "Bursting Shot" },
+				{ "ALT-CTRL-E",       "macro",   "ChainEagle" },
+				{ "R",                "spell",   "Steady Shot" },
+				{ "SHIFT-R",          "spell",   "Rapid Fire" },
+				{ "CTRL-R",           "macro",   "Trueshot!" },
+				{ "ALT-R",            "item",    "Potion of Phantom Fire" },
+				{ "T",                "macro",   "Traps" },
+				{ "ALT-CTRL-S",       "spell",   "Survey" },
+				{ "F",                "spell",   "Wing Clip" },        --Auto-maps to "Concussive Shot" in MM spec
+				{ "SHIFT-F",          "spell",   "Scatter Shot" },
+				{ "CTRL-F",           "spell",   "Counter Shot" },
+				{ "ALT-F",            "spell",   "Tranquilizing Shot" },
+				{ "ALT-CTRL-F",       "spell",   "Scare Beast" },
+				{ "ALT-CTRL-SHIFT-F", "spell",   "Fireworks" },
+				{ "G",                "spell",   "Wild Spirits" },
+				{ "Z",                "spell",   "Camouflage" },
+				{ "SHIFT-Z",          "spell",   "Aspect of the Chameleon" },
+				{ "CTRL-Z",           "spell",   "Feign Death" },
+				{ "CTRL-SHIFT-Z",     "macro",   "Shadowmeld" },
+				{ "ALT-Z",            "item",    "Potion of the Hidden Spirit" },
+				{ "C",                "spell",   "Soulshape" },
+				{ "SHIFT-C",          "spell",   "Aspect of the Cheetah" },
+				{ "CTRL-C",           "macro",   "Call" },
+				{ "CTRL-SHIFT-C",     "item",    "Gladiator's Medallion" },
+				{ "ALT-C",            "item",    "Potion of the Psychopomp's Speed" },
+				{ "ALT-CTRL-C",       "macro",   "CallFocus" },
+				{ "V",                "spell",   "Exhilaration" },
+				{ "SHIFT-V",          "spell",   "Survival of the Fittest" },
+				{ "CTRL-V",           "spell",   "Aspect of the Turtle" },
+				{ "CTRL-SHIFT-V",     "item",    "Wildercloth Bandage" },
+				{ "ALT-V",            "macro",   "Vitality" },
+				{ "ALT-CTRL-V",       "macro",   "SurviveFocus" },
+				{ "B",                "spell",   "Fetch" },
+				{ "CTRL-SPACE",       "spell",   "Disengage" },
+				{ "BUTTON4",          "macro",   "MouseTraps" },
+				{ "BUTTON5",          "macro",   "MousePetAttack" },
+			},
+			SURVIVAL = {
+				{ "F8",               "spell",   "Call Pet 1" },
+				{ "F9",               "spell",   "Call Pet 2" },
+				{ "F10",              "spell",   "Call Pet 3" },
+				{ "F11",              "spell",   "Call Pet 4" },
+				{ "F12",              "spell",   "Call Pet 5" },
+				{ "`",                "macro",   "*" },
+				{ "1",                "macro",   "Serpent Sting" },
+				{ "2",                "spell",   "Kill Command" },
+				{ "SHIFT-2",          "spell",   "Wild Spirits" },
+				{ "ALT-1",            "macro",   "MD" },
+				{ "CTRL-1",           "spell",   "Hunter's Mark" },
+				{ "3",                "spell",   "Multi-Shot" },
+				{ "SHIFT-3",          "spell",   "Barrage" },
+				{ "4",                "spell",   "Shrapnel Bomb" },
+				{ "SHIFT-4",          "spell",   "Aimed Shot" },
+				{ "CTRL-4",           "spell",   "Double Tap" },
+				{ "5",                "spell",   "Kill Shot" },
+				{ "SHIFT-5",          "spell",   "Sniper Shot" },
+				{ "Q",                "macro",   "PetControl" },
+				{ "CTRL-Q",           "command", "BONUSACTIONBUTTON7" },        -- Pet Family Ability
+				{ "CTRL-SHIFT-Q",     "command", "BONUSACTIONBUTTON1" },        -- Pet Family Ability
+				{ "ALT-CTRL-Q",       "macro",   "PetToggle" },
+				{ "ALT-SHIFT-Q",      "spell",   "Play Dead" },
+				{ "ALT-CTRL-SHIFT-Q", "spell",   "Eyes of the Beast" },
+				{ "E",                "spell",   "Raptor Strike" },
+				{ "SHIFT-E",          "spell",   "Butchery" },
+				{ "ALT-CTRL-E",       "macro",   "ChainEagle" },
+				{ "R",                "spell",   "Harpoon" },
+				{ "SHIFT-R",          "spell",   "Rapid Fire" },
+				{ "CTRL-R",           "macro",   "Trueshot!" },
+				{ "ALT-R",            "item",    "Potion of Phantom Fire" },
+				{ "T",                "macro",   "Traps" },
+				{ "ALT-CTRL-S",       "spell",   "Survey" },
+				{ "F",                "spell",   "Wing Clip" },        --Auto-maps to "Concussive Shot" in MM spec
+				{ "SHIFT-F",          "spell",   "Scatter Shot" },
+				{ "CTRL-F",           "spell",   "Counter Shot" },
+				{ "ALT-F",            "spell",   "Tranquilizing Shot" },
+				{ "ALT-CTRL-F",       "spell",   "Scare Beast" },
+				{ "ALT-CTRL-SHIFT-F", "spell",   "Fireworks" },
+				{ "G",                "spell",   "Wild Spirits" },
+				{ "Z",                "spell",   "Camouflage" },
+				{ "SHIFT-Z",          "spell",   "Aspect of the Chameleon" },
+				{ "CTRL-Z",           "spell",   "Feign Death" },
+				{ "CTRL-SHIFT-Z",     "macro",   "Shadowmeld" },
+				{ "ALT-Z",            "item",    "Potion of the Hidden Spirit" },
+				{ "C",                "spell",   "Soulshape" },
+				{ "SHIFT-C",          "spell",   "Aspect of the Cheetah" },
+				{ "CTRL-C",           "macro",   "Call" },
+				{ "CTRL-SHIFT-C",     "item",    "Gladiator's Medallion" },
+				{ "ALT-C",            "item",    "Potion of the Psychopomp's Speed" },
+				{ "ALT-CTRL-C",       "macro",   "CallFocus" },
+				{ "V",                "spell",   "Exhilaration" },
+				{ "SHIFT-V",          "spell",   "Survival of the Fittest" },
+				{ "CTRL-V",           "spell",   "Aspect of the Turtle" },
+				{ "CTRL-SHIFT-V",     "item",    "Wildercloth Bandage" },
+				{ "ALT-V",            "macro",   "Vitality" },
+				{ "ALT-CTRL-V",       "macro",   "SurviveFocus" },
+				{ "B",                "spell",   "Fetch" },
+				{ "CTRL-SPACE",       "spell",   "Disengage" },
+				{ "BUTTON4",          "macro",   "MouseTraps" },
+				{ "BUTTON5",          "macro",   "MousePetAttack" },
+			}
 		},
-		SURVIVAL = {
-			{ "F8",               "spell",   "Call Pet 1" },
-			{ "F9",               "spell",   "Call Pet 2" },
-			{ "F10",              "spell",   "Call Pet 3" },
-			{ "F11",              "spell",   "Call Pet 4" },
-			{ "F12",              "spell",   "Call Pet 5" },
-			{ "`",                "macro",   "*" },
-			{ "1",                "macro",   "Serpent Sting" },
-			{ "2",                "spell",   "Kill Command" },
-			{ "SHIFT-2",          "spell",   "Wild Spirits" },
-			{ "ALT-1",            "macro",   "MD" },
-			{ "CTRL-1",           "spell",   "Hunter's Mark" },
-			{ "3",                "spell",   "Multi-Shot" },
-			{ "SHIFT-3",          "spell",   "Barrage" },
-			{ "4",                "spell",   "Shrapnel Bomb" },
-			{ "SHIFT-4",          "spell",   "Aimed Shot" },
-			{ "CTRL-4",           "spell",   "Double Tap" },
-			{ "5",                "spell",   "Kill Shot" },
-			{ "SHIFT-5",          "spell",   "Sniper Shot" },
-			{ "Q",                "macro",   "PetControl" },
-			{ "CTRL-Q",           "command", "BONUSACTIONBUTTON7" },        -- Pet Family Ability
-			{ "CTRL-SHIFT-Q",     "command", "BONUSACTIONBUTTON1" },        -- Pet Family Ability
-			{ "ALT-CTRL-Q",       "macro",   "PetToggle" },
-			{ "ALT-SHIFT-Q",      "spell",   "Play Dead" },
-			{ "ALT-CTRL-SHIFT-Q", "spell",   "Eyes of the Beast" },
-			{ "E",                "spell",   "Raptor Strike" },
-			{ "SHIFT-E",          "spell",   "Butchery" },
-			{ "ALT-CTRL-E",       "macro",   "ChainEagle" },
-			{ "R",                "spell",   "Harpoon" },
-			{ "SHIFT-R",          "spell",   "Rapid Fire" },
-			{ "CTRL-R",           "macro",   "Trueshot!" },
-			{ "ALT-R",            "item",    "Potion of Phantom Fire" },
-			{ "T",                "macro",   "Traps" },
-			{ "ALT-CTRL-S",       "spell",   "Survey" },
-			{ "F",                "spell",   "Wing Clip" },        --Auto-maps to "Concussive Shot" in MM spec
-			{ "SHIFT-F",          "spell",   "Scatter Shot" },
-			{ "CTRL-F",           "spell",   "Counter Shot" },
-			{ "ALT-F",            "spell",   "Tranquilizing Shot" },
-			{ "ALT-CTRL-F",       "spell",   "Scare Beast" },
-			{ "ALT-CTRL-SHIFT-F", "spell",   "Fireworks" },
-			{ "G",                "spell",   "Wild Spirits" },
-			{ "Z",                "spell",   "Camouflage" },
-			{ "SHIFT-Z",          "spell",   "Aspect of the Chameleon" },
-			{ "CTRL-Z",           "spell",   "Feign Death" },
-			{ "CTRL-SHIFT-Z",     "macro",   "Shadowmeld" },
-			{ "ALT-Z",            "item",    "Potion of the Hidden Spirit" },
-			{ "C",                "spell",   "Soulshape" },
-			{ "SHIFT-C",          "spell",   "Aspect of the Cheetah" },
-			{ "CTRL-C",           "macro",   "Call" },
-			{ "CTRL-SHIFT-C",     "item",    "Gladiator's Medallion" },
-			{ "ALT-C",            "item",    "Potion of the Psychopomp's Speed" },
-			{ "ALT-CTRL-C",       "macro",   "CallFocus" },
-			{ "V",                "spell",   "Exhilaration" },
-			{ "SHIFT-V",          "spell",   "Survival of the Fittest" },
-			{ "CTRL-V",           "spell",   "Aspect of the Turtle" },
-			{ "CTRL-SHIFT-V",     "item",    "Wildercloth Bandage" },
-			{ "ALT-V",            "macro",   "Vitality" },
-			{ "ALT-CTRL-V",       "macro",   "SurviveFocus" },
-			{ "B",                "spell",   "Fetch" },
-			{ "CTRL-SPACE",       "spell",   "Disengage" },
-			{ "BUTTON4",          "macro",   "MouseTraps" },
-			{ "BUTTON5",          "macro",   "MousePetAttack" },
+		PALADIN = {
+			CLASS = {
+				{ "1",  "command", "ACTIONBUTTON1" },
+				{ "2",  "command", "ACTIONBUTTON2" },
+				{ "3",  "command", "ACTIONBUTTON3" },
+				{ "4",  "command", "ACTIONBUTTON4" },
+				{ "5",  "command", "ACTIONBUTTON5" },
+				{ "6",  "command", "ACTIONBUTTON6" },
+				{ "7",  "command", "ACTIONBUTTON7" },
+				{ "8",  "command", "ACTIONBUTTON8" },
+				{ "9",  "command", "ACTIONBUTTON9" },
+				{ "10", "command", "ACTIONBUTTON10" },
+				{ "11", "command", "ACTIONBUTTON11" },
+				{ "12", "command", "ACTIONBUTTON12" },
+
+				---------------------------------------------------
+
+				-- General
+				{ "F9",         "command", "SHAPESHIFTBUTTON1" },
+				{ "F10",        "command", "SHAPESHIFTBUTTON2" },
+				{ "F11",        "command", "SHAPESHIFTBUTTON3" },
+				{ "F12",        "command", "SHAPESHIFTBUTTON4" },
+				{ "CTRL-SPACE", "spell",   "Divine Steed" },
+				{ "`",          "macro",   "STOP!" },
+				{ "BUTTON4",    "macro",   "MOUSE4" },
+				{ "BUTTON5",    "macro",   "MOUSE5" },
+				{ "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
+
+				-- Quick Heals
+				{ "1",          "spell",   "Word of Glory" },
+				{ "SHIFT-1",    "spell",   "Lay on Hands" },
+
+				-- Cast Heals
+				{ "2",          "spell",   "Flash of Light" },
+
+				-- Ranged Attacks
+				{ "4",          "spell",   "Judgment" },
+				{ "5",          "spell",   "Hammer of Wrath" },
+				{ "SHIFT-5",    "macro",   "WINGS" },
+
+				---------------------------------------------------
+
+				-- Shield (Tanking)
+				{ "Q",          "spell",   "Shield of the Righteous" },
+				{ "ALT-Q",      "spell",   "Hand of Reckoning" },
+
+				-- Sword
+				{ "E",          "macro",   "ENGAGE" },
+
+				-- Targetting
+				{ "T",          "macro",   "TARGET" },
+
+				---------------------------------------------------
+
+				-- CC
+				{ "F",          "spell",   "Rebuke" },
+				{ "SHIFT-F",    "spell",   "Hammer of Justice" },
+				{ "CTRL-F",     "spell",   "Repentance" },
+
+				-- Ultimates (Big Cooldowns)
+				{ "G",          "macro",   "WINGS" },
+
+				-- Extras
+				{ "Z",          "macro",   "FREEDOM" },
+				{ "SHIFT-Z",    "spell",   "Will to Survive" },
+				{ "CTRL-Z",     "macro",   "REZ" },
+				{ "ALT-Z",      "macro",   "PVP_TRINKET" },
+				{ "ALT-CTRL-Z", "macro",   "REZ" },
+
+				-- AoE (emanating from me)
+				{ "C",          "spell",   "Consecration" },
+				{ "CTRL-C",     "macro",   "BELL_SELF" },
+				{ "ALT-C",      "spell",   "Aerated Mana Potion" },
+
+				-- Vitality (Self-Heals/Protections)
+				{ "V",          "macro",   "VITALITY" },
+				{ "SHIFT-V",    "spell",   "Divine Shield" },
+				{ "CTRL-V",     "macro",   "LAY_ON_SELF" },
+				{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
+				{ "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
+			},
+			HOLY = {
+				-- Quick Heals
+				{ "ALT-1",      "spell",   "Cleanse" },
+
+				-- Cast Heals
+				{ "SHIFT-2",    "spell",   "Holy Light" },
+				{ "CTRL-2",     "spell",   "Divine Favor" },
+
+				-- AoE Heals
+				{ "3",          "spell",   "Light of Dawn" },
+				{ "SHIFT-3",    "macro",   "LHAMMER_TARGET" },
+
+				---------------------------------------------------
+
+				-- Spec Abilities
+				{ "R",          "macro",   "SHOCK" },
+
+				-- Targetting
+				{ "SHIFT-T",    "spell",   "Beacon of Faith" },
+				{ "CTRL-T",     "spell",   "Beacon of Light" },
+
+				---------------------------------------------------
+
+				-- Ults (Big Cooldowns)
+				{ "SHIFT-G",    "spell",   "Daybreak" },
+				{ "CTRL-G",     "spell",   "Tyr's Deliverance" },
+				{ "ALT-G",      "spell",   "Aura Mastery" },
+
+				-- Extras
+				{ "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
+
+				-- AoE (emanating from me)
+				{ "C",          "spell",   "Consecration" },
+				{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
+			},
+			PROTECTION = {
+				-- Quick Heals
+				{ "ALT-1",      "spell",   "Cleanse Toxins" },
+
+				---------------------------------------------------
+
+				-- Shield
+				{ "SHIFT-Q",    "spell",   "Bastion of Light" },
+
+				-- Attacks
+				{ "R",          "spell",   "Avenger's Shield" },
+
+				-- Targetting
+
+				---------------------------------------------------
+
+				-- Blessings
+
+				-- AoE (emanating from me)
+			},
+			RETRIBUTION = {
+				-- AoE
+				{ "3",          "spell",   "Wake of Ashes" },
+				{ "BUTTON4",    "macro",   "RECKON_CURSOR" },
+
+				---------------------------------------------------
+
+				-- Sword
+				{ "Q",          "macro",   "Q" },
+				{ "SHIFT-Q",    "spell",   "Templar's Verdict" },
+				{ "R",          "spell",   "Blade of Justice" },
+
+				-- Targetting
+
+				---------------------------------------------------
+
+				-- Blessings
+
+				-- AoE (emanating from me)
+				{ "C",         "spell",   "Divine Storm" },
+				{ "SHIFT-C",   "macro",   "RECKON_SELF" }, -- Can't cast BELL_SELF on self as Ret
+				{ "CTRL-C",    "spell",   "Shield of Vengeance" },
+			},
 		}
 	},
-	PALADIN = {
-		CLASS = {
+	CLASSIC = {
+		PALADIN = {
 			{ "1",  "command", "ACTIONBUTTON1" },
 			{ "2",  "command", "ACTIONBUTTON2" },
 			{ "3",  "command", "ACTIONBUTTON3" },
@@ -335,138 +522,6 @@ BINDINGS = {
 			{ "`",          "macro",   "STOP!" },
 			{ "BUTTON4",    "macro",   "MOUSE4" },
 			{ "BUTTON5",    "macro",   "MOUSE5" },
-			{ "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
-
-			-- Quick Heals
-			{ "1",          "spell",   "Word of Glory" },
-			{ "SHIFT-1",    "spell",   "Lay on Hands" },
-
-			-- Cast Heals
-			{ "2",          "spell",   "Flash of Light" },
-
-			-- Ranged Attacks
-			{ "4",          "spell",   "Judgment" },
-			{ "5",          "spell",   "Hammer of Wrath" },
-			{ "SHIFT-5",    "macro",   "WINGS" },
-
-			---------------------------------------------------
-
-			-- Shield (Tanking)
-			{ "Q",          "spell",   "Shield of the Righteous" },
-			{ "ALT-Q",      "spell",   "Hand of Reckoning" },
-
-			-- Sword
-			{ "E",          "macro",   "ENGAGE" },
-
-			-- Targetting
-			{ "T",          "macro",   "TARGET" },
-
-			---------------------------------------------------
-
-			-- CC
-			{ "F",          "spell",   "Rebuke" },
-			{ "SHIFT-F",    "spell",   "Hammer of Justice" },
-			{ "CTRL-F",     "spell",   "Repentance" },
-
-			-- Ultimates (Big Cooldowns)
-			{ "G",          "macro",   "WINGS" },
-
-			-- Extras
-			{ "Z",          "macro",   "FREEDOM" },
-			{ "SHIFT-Z",    "spell",   "Will to Survive" },
-			{ "CTRL-Z",     "macro",   "REZ" },
-			{ "ALT-Z",      "macro",   "PVP_TRINKET" },
-			{ "ALT-CTRL-Z", "macro",   "REZ" },
-
-			-- AoE (emanating from me)
-			{ "C",          "spell",   "Consecration" },
-			{ "CTRL-C",     "macro",   "BELL_SELF" },
-			{ "ALT-C",      "spell",   "Aerated Mana Potion" },
-
-			-- Vitality (Self-Heals/Protections)
-			{ "V",          "macro",   "VITALITY" },
-			{ "SHIFT-V",    "spell",   "Divine Shield" },
-			{ "CTRL-V",     "macro",   "LAY_ON_SELF" },
-			{ "ALT-V",      "spell",   "Refreshing Healing Potion" },
-			{ "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
-		},
-		HOLY = {
-			-- Quick Heals
-			{ "ALT-1",      "spell",   "Cleanse" },
-
-			-- Cast Heals
-			{ "SHIFT-2",    "spell",   "Holy Light" },
-			{ "CTRL-2",     "spell",   "Divine Favor" },
-
-			-- AoE Heals
-			{ "3",          "spell",   "Light of Dawn" },
-			{ "SHIFT-3",    "macro",   "LHAMMER_TARGET" },
-
-			---------------------------------------------------
-
-			-- Spec Abilities
-			{ "R",          "macro",   "SHOCK" },
-
-			-- Targetting
-			{ "SHIFT-T",    "spell",   "Beacon of Faith" },
-			{ "CTRL-T",     "spell",   "Beacon of Light" },
-
-			---------------------------------------------------
-
-			-- Ults (Big Cooldowns)
-			{ "SHIFT-G",    "spell",   "Daybreak" },
-			{ "CTRL-G",     "spell",   "Tyr's Deliverance" },
-			{ "ALT-G",      "spell",   "Aura Mastery" },
-
-			-- Extras
-			{ "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
-
-			-- AoE (emanating from me)
-			{ "C",          "spell",   "Consecration" },
-			{ "SHIFT-C",    "macro",   "LHAMMER_SELF" },
-		},
-		PROTECTION = {
-			-- Quick Heals
-			{ "ALT-1",      "spell",   "Cleanse Toxins" },
-
-			---------------------------------------------------
-
-			-- Shield
-			{ "SHIFT-Q",    "spell",   "Bastion of Light" },
-
-			-- Attacks
-			{ "R",          "spell",   "Avenger's Shield" },
-
-			-- Targetting
-
-			---------------------------------------------------
-
-			-- Blessings
-
-			-- AoE (emanating from me)
-		},
-		RETRIBUTION = {
-			-- AoE
-			{ "3",          "spell",   "Wake of Ashes" },
-			{ "BUTTON4",    "macro",   "RECKON_CURSOR" },
-
-			---------------------------------------------------
-
-			-- Sword
-			{ "Q",          "macro",   "Q" },
-			{ "SHIFT-Q",    "spell",   "Templar's Verdict" },
-			{ "R",          "spell",   "Blade of Justice" },
-
-			-- Targetting
-
-			---------------------------------------------------
-
-			-- Blessings
-
-			-- AoE (emanating from me)
-			{ "C",         "spell",   "Divine Storm" },
-			{ "SHIFT-C",   "macro",   "RECKON_SELF" }, -- Can't cast BELL_SELF on self as Ret
-			{ "CTRL-C",    "spell",   "Shield of Vengeance" },
-		},
+		}
 	}
 }
