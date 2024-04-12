@@ -529,9 +529,11 @@ BINDINGS = {
 
 			-- Main Attacks and Runes?
 			{ "SHIFT-E",    "spell",   "Crusader Strike"},
+			{ "4",					"spell",   "Hammer of Justice"},
 
 			-- Heals (Coming from left hand?)
 			{ "Q",					"spell",   "Holy Light"},
+			{ "ALT-Q",			"spell",   "Purify"},
 
 			-- Blessings
 			{ "F",					"spell",   "Blessing of Might"},
