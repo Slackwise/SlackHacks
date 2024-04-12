@@ -213,6 +213,9 @@ function repairAllItems()
 end
 
 function canCollectTransmog(itemInfo) -- itemID, itemLink, or Name
+	if isClassic() then
+		return false
+	end
 	local itemAppearanceID, sourceID  = C_TransmogCollection.GetItemInfo(itemInfo) -- https://wowpedia.fandom.com/wiki/API_C_TransmogCollection.GetItemInfo
 	if sourceID then
 		local categoryID, visualID, canEnchant, icon, isCollected, itemLink, transmogLink, unknown1, itemSubTypeIndex = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
