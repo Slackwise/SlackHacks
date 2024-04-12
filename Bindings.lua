@@ -522,6 +522,24 @@ BINDINGS = {
 			{ "`",          "macro",   "STOP!" },
 			{ "BUTTON4",    "macro",   "MOUSE4" },
 			{ "BUTTON5",    "macro",   "MOUSE5" },
+
+			-- Core
+			{ "CTRL-Z",    "spell",   "Divine Protection"},
+			{ "ALT-Z",     "spell",   "Perception"},
+
+			-- Main Attacks and Runes?
+			{ "SHIFT-E",    "spell",   "Crusader Strike"},
+
+			-- Heals (Coming from left hand?)
+			{ "Q",					"spell",   "Holy Light"},
+
+			-- Blessings
+			{ "F",					"spell",   "Blessing of Might"},
+
+			-- Seals & Judgement
+			{ "R",					"spell",   "Judgement"},
+			{"SHIFT-R",			"spell",   "Seal of Righteousness" },
+			{"ALT-R",  			"spell",   "Seal of the Crusader" },
 		}
 	}
 }
