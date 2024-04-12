@@ -1,6 +1,6 @@
-$sourceFolder = "$PSScriptRoot"
-$retailDir = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackUI"
-$classicDir = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackUI"
+$sourceDir    = "$PSScriptRoot"
+$retailDir    = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackUI"
+$classicDir   = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackUI"
 
 # Check if script is running as administrator, if not, relaunch as administrator
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
@@ -9,19 +9,24 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit
 }
 
-# Check if destination folders exist, create if not
-if (!(Test-Path -Path $retailDir -PathType Container)) {
-    New-Item -ItemType Junction -Path retailDir -Target $sourceFolder
+try {
+    New-Item -ItemType Junction -Path $retailDir -Target $sourceDir -ErrorAction Stop
     Write-Host "Junctioned retail dir."
-} else {
+} catch [System.IO.IOException] {
     Write-Host "Retail dir already exists!"
+} catch {
+    Write-Host "Error while trying to junction retail dir:"
+    Write-Host $_
 }
 
-if (!(Test-Path -Path $classicDir -PathType Container)) {
-    New-Item -ItemType Junction -Path $classicDir -Target $sourceFolder
+try {
+    New-Item -ItemType Junction -Path $classicDir -Target $sourceDir -ErrorAction Stop
     Write-Host "Junctioned classic dir."
-} else {
-    Write-Host "Classic dir already exists!"
+} catch [System.IO.IOException] {
+    Write-Host "classic dir already exists!"
+} catch {
+    Write-Host "Error while trying to junction classic dir:"
+    Write-Host $_
 }
 
 pause
