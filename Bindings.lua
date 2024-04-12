@@ -524,7 +524,7 @@ BINDINGS = {
 			{ "BUTTON5",    "macro",   "MOUSE5" },
 
 			-- Core
-			{ "CTRL-Z",    "spell",   "Divine Protection"},
+			{ "Z",         "spell",   "Divine Protection"},
 			{ "ALT-Z",     "spell",   "Perception"},
 
 			-- Main Attacks and Runes?
