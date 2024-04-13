@@ -531,7 +531,6 @@ BINDINGS = {
 			{ "ALT-Z",     "spell",   "Perception"},
 
 			-- Main Attacks and Runes?
-			{ "SHIFT-E",    "spell",   "Crusader Strike"},
 			{ "4",					"spell",   "Hammer of Justice"},
 
 			-- Heals (Coming from left hand?)
