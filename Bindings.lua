@@ -529,6 +529,7 @@ BINDINGS = {
 			-- Core
 			{ "Z",         "spell",   "Divine Protection"},
 			{ "ALT-Z",     "spell",   "Perception"},
+			{ "T",         "spell",   "Rebuke"},
 
 			-- Main Attacks and Runes?
 			{ "4",					"spell",   "Hammer of Justice"},
@@ -536,9 +537,11 @@ BINDINGS = {
 			-- Heals (Coming from left hand?)
 			{ "Q",					"spell",   "Holy Light"},
 			{ "ALT-Q",			"spell",   "Purify"},
+			{ "ALT-CTRL-Z", "spell",   "Redemption"},
 
 			-- Blessings
 			{ "F",					"spell",   "Blessing of Might"},
+			{ "G",          "spell",   "Blessing of Protection" },
 
 			-- Seals & Judgement
 			{ "R",					"spell",   "Judgement"},
