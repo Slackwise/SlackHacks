@@ -515,7 +515,7 @@ BINDINGS = {
 
 			-- General
 			{ "E",          "macro", "Engage!" },
-			{ "SHIFT-E",    "command",  "INTERACTTARGET"},
+			{ "CTRL-E",     "command",  "INTERACTTARGET"},
 
 			{ "F9",         "command", "SHAPESHIFTBUTTON1" },
 			{ "F10",        "command", "SHAPESHIFTBUTTON2" },
