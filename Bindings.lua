@@ -170,6 +170,7 @@ BINDINGS = {
     {"ALT-H",                 "command",  "TOGGLEUI"},
     {"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
     {"CTRL-B",                "command",  "TOGGLECHARACTER0"},
+    {"ALT-CTRL-B",            "command",  "SLACKUI_SETBINDINGS"},
     {"X",                     "command",  "SITORSTAND"},
     {"SHIFT-X",               "macro",    "MountHarvester"},
     {"CTRL-X",                "macro",    "MountPassenger"},
