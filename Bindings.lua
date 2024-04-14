@@ -537,10 +537,12 @@ BINDINGS = {
 			-- Heals (Coming from left hand?)
 			{ "Q",					"spell",   "Holy Light"},
 			{ "ALT-Q",			"spell",   "Purify"},
+			{ "ALT-CTRL-Q", "spell",   "Lay on Hands"},
 			{ "ALT-CTRL-Z", "spell",   "Redemption"},
 
 			-- Blessings
 			{ "F",					"spell",   "Blessing of Might"},
+			{ "SHIFT-F",		"spell",   "Blessing of Wisdom"},
 			{ "G",          "spell",   "Blessing of Protection" },
 
 			-- Seals & Judgement
