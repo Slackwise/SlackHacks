@@ -1,9 +1,20 @@
-setfenv(1, _G.SlackUI)
-
+-- Bindings have to be in global scope,
+-- so we need them to be set before `setfenv()` changes scope!
 BINDING_HEADER_SLACKUI = "SlackUI"
 BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKUI_MOUNT = "Mount"
+BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
+BINDING_HEADER_SLACKUI = "SlackUI"
+BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
+BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
+BINDING_NAME_SLACKUI_MOUNT = "Mount"
+BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
+
+
+-- Change implicit globla scope to our addon "namespace":
+setfenv(1, _G.SlackUI)
+
 
 BINDING_TYPE = {
   DEFAULT_BINDINGS   = 0,
