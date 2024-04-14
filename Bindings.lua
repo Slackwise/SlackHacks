@@ -533,34 +533,48 @@ BINDINGS = {
       { "F10",        "command", "SHAPESHIFTBUTTON2" },
       { "F11",        "command", "SHAPESHIFTBUTTON3" },
       { "F12",        "command", "SHAPESHIFTBUTTON4" },
-      { "CTRL-SPACE", "spell",   "Divine Steed" },
       { "`",          "macro",   "STOP!" },
       { "BUTTON4",    "macro",   "MOUSE4" },
       { "BUTTON5",    "macro",   "MOUSE5" },
 
       -- Core
-      { "Z",         "spell",   "Divine Protection"},
-      { "ALT-Z",     "spell",   "Perception"},
-      { "T",         "spell",   "Rebuke"},
+      { "Z",         "spell",   "Divine Protection" },
+      { "ALT-Z",     "spell",   "Perception" },
 
       -- Main Attacks and Runes?
-      { "4",					"spell",   "Hammer of Justice"},
+      { "4",					"spell",   "Judgement" },
+      { "5",          "spell",   "Hammer of Wrath" },
+      { "C",          "spell",   "Consecration" },
+      { "SHIFT-C",    "spell",   "Divine Storm" },
 
       -- Heals (Coming from left hand?)
-      { "Q",					"spell",   "Holy Light"},
-      { "ALT-Q",			"spell",   "Purify"},
-      { "ALT-CTRL-Q", "spell",   "Lay on Hands"},
-      { "ALT-CTRL-Z", "spell",   "Redemption"},
+      { "1",          "spell",   "Holy Light"}, -- Instant Heal (Holy Shock)
+      { "2",          "spell",   "Holy Light"}, -- Flash of Light later
+      { "SHIFT-2",		"spell",   "Holy Light"},
+      { "3",      		"spell",   "Divine Storm"}, -- AoE Heal
+      { "Q",					"spell",   "Holy Light"}, -- Instant Attack (Holy Shock macro @ Enemy only)
+      { "ALT-1",			"spell",   "Purify" }, -- Cleanse later
+      { "SHIFT-1",    "spell",   "Lay on Hands" },
+      { "Z",          "macro",   "PVP_TRINKET" },
+      { "CTRL-Z",     "spell",   "Redemption" },
+
+      -- CC
+      { "F",          "spell",   "Rebuke"},
+      { "SHIFT-F",		"spell",   "Hammer of Justice" },
 
       -- Blessings
-      { "F",					"spell",   "Blessing of Might"},
-      { "SHIFT-F",		"spell",   "Blessing of Wisdom"},
+      { "T",					"spell",   "Blessing of Might" },
+      { "SHIFT-T",		"spell",   "Blessing of Wisdom" },
       { "G",          "spell",   "Blessing of Protection" },
 
       -- Seals & Judgement
-      { "R",					"spell",   "Judgement"},
-      {"SHIFT-R",			"spell",   "Seal of Righteousness" },
-      {"ALT-R",  			"spell",   "Seal of the Crusader" },
+      { "R",    			"spell",   "Seal of Righteousness" },
+      { "ALT-R", 			"spell",   "Seal of the Crusader" },
+
+      -- Items
+      { "ALT-Z",     "item",    "Insignia of the Alliance" }, -- PvP Trinket
+      { "ALT-C",     "macro",   "ITEM_MANA" },
+      { "ALT-V",     "macro",   "ITEM_HEAL" },
     }
   }
 }
