@@ -251,6 +251,23 @@ function isSpellKnown(spellName)
   return false
 end
 
+-- Returns array of items from bags that match a Lua regex: https://warcraft.wiki.gg/wiki/Pattern_matching
+function findItemsByPattern(pattern)
+  local found = {}
+  for bag = 0, NUM_BAG_SLOTS do
+    for slot = 0, C_Container.GetContainerNumSlots(bag) do
+      local link = C_Container.GetContainerItemLink(bag, slot)
+      if link then
+        local itemName, itemLink, itemQuality = GetItemInfo(link)
+        if itemName and string.match(itemName, pattern) then
+          table.insert(found, link)
+        end
+      end
+    end
+  end
+  return found
+end
+
 --- Recursively search up the map hierarchy to find a specific map type.
 -- @param map - The map to start at.
 -- @param upMapType - An Enum.UIMapType of the map you're trying to find.
