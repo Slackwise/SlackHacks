@@ -526,7 +526,8 @@ BINDINGS = {
       ---------------------------------------------------
 
       -- General
-      { "E",          "macro", "Engage!" },
+      { "E",          "macro", "Engage!" }, -- Crusader Strike
+      { "ALT-E",      "macro", "EngageFOCUS" },
       { "CTRL-E",     "command",  "INTERACTTARGET"},
 
       { "F9",         "command", "SHAPESHIFTBUTTON1" },
@@ -548,15 +549,14 @@ BINDINGS = {
       { "SHIFT-C",    "spell",   "Divine Storm" },
 
       -- Heals (Coming from left hand?)
-      { "1",          "spell",   "Holy Light"}, -- Instant Heal (Holy Shock)
-      { "2",          "spell",   "Holy Light"}, -- Flash of Light later
-      { "SHIFT-2",		"spell",   "Holy Light"},
       { "3",      		"spell",   "Divine Storm"}, -- AoE Heal
       { "Q",					"spell",   "Holy Light"}, -- Instant Attack (Holy Shock macro @ Enemy only)
-      { "ALT-1",			"spell",   "Purify" }, -- Cleanse later
-      { "SHIFT-1",    "spell",   "Lay on Hands" },
-      { "Z",          "macro",   "PVP_TRINKET" },
+      { "ALT-Q",			"spell",   "Purify" }, -- Cleanse later
       { "CTRL-Z",     "spell",   "Redemption" },
+     
+      -- "OHSHIT" Buttons
+      { "G",          "spell",   "Blessing of Protection" },
+      { "SHIFT-G",    "spell",   "Lay on Hands" },
 
       -- CC
       { "F",          "spell",   "Rebuke"},
@@ -565,16 +565,15 @@ BINDINGS = {
       -- Blessings
       { "T",					"spell",   "Blessing of Might" },
       { "SHIFT-T",		"spell",   "Blessing of Wisdom" },
-      { "G",          "spell",   "Blessing of Protection" },
 
       -- Seals & Judgement
       { "R",    			"spell",   "Seal of Righteousness" },
-      { "ALT-R", 			"spell",   "Seal of the Crusader" },
+      { "SHIFT-R",    "spell",   "Seal of the Crusader" },
 
       -- Items
       { "ALT-Z",     "item",    "Insignia of the Alliance" }, -- PvP Trinket
-      { "ALT-C",     "macro",   "ITEM_MANA" },
-      { "ALT-V",     "macro",   "ITEM_HEAL" },
+      -- { "ALT-C",     "macro",   "ITEM_MANA" },
+      -- { "ALT-V",     "macro",   "ITEM_HEAL" },
     }
   }
 }
