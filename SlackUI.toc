@@ -12,3 +12,4 @@ embeds.xml
 Main.lua
 Bindings.lua
 Options.lua
+StaticData.lua
