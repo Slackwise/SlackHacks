@@ -24,6 +24,15 @@ dbDefaults = {
    - https://wow.gamepedia.com/World_of_Warcraft_API
    - https://github.com/Gethe/wow-ui-source/tree/live/Interface/AddOns/Blizzard_APIDocumentationGenerated
    - https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
+
+  Common data structures:
+   - ItemLink: https://warcraft.wiki.gg/wiki/ItemLink
+
+  Common dunctions:
+   - Item functions (take an ItemLink as "ItemInfo"):
+     - GetItemInfo(): https://warcraft.wiki.gg/wiki/API_C_Item.GetItemInfo
+     - GetContainerItemInfo(): https://warcraft.wiki.gg/wiki/API_C_Container.GetContainerItemInfo
+     - GetItemIDForItemInfo(): https://warcraft.wiki.gg/wiki/API_C_Item.GetItemIDForItemInfo
 ]]--
 
 function isDebugging()
@@ -236,7 +245,7 @@ function sellGreyItems()
     for slot = 0, C_Container.GetContainerNumSlots(bag) do
       local link = C_Container.GetContainerItemLink(bag, slot)
       if link then
-        local itemName, itemLink, itemQuality = GetItemInfo(link)
+        local itemName, itemLink, itemQuality = C_Item.GetItemInfo(link)
         local collectable = canCollectTransmog(itemLink)
         if itemQuality == ITEM_QUALITY_GREY and not collectable then
           log("Grey Item to Sell: " .. tostring(itemName))
@@ -255,6 +264,17 @@ function isSpellKnown(spellName)
   return false
 end
 
+ItemCount = {
+  New = function(this, link, id, count)
+    this = {}
+    this.link = link
+    this.id = id
+    this.count = count
+    return this
+  end
+}
+
+
 -- Returns array of items from bags that match a Lua regex: https://warcraft.wiki.gg/wiki/Pattern_matching
 function findItemsByPattern(pattern)
   local found = {}
@@ -262,9 +282,10 @@ function findItemsByPattern(pattern)
     for slot = 0, C_Container.GetContainerNumSlots(bag) do
       local link = C_Container.GetContainerItemLink(bag, slot)
       if link then
-        local itemName, itemLink, itemQuality = GetItemInfo(link)
+        local itemName, itemLink = C_Item.GetItemInfo(link)
         if itemName and string.match(itemName, pattern) then
-          table.insert(found, link)
+          local containerInfo = C_Container.GetContainerItemInfo(bag, slot)
+          table.insert(found, ItemCount:New(itemLink, containerInfo.itemID, containerInfo.stackCount))
         end
       end
     end
@@ -273,12 +294,16 @@ function findItemsByPattern(pattern)
 end
 
 function TEST_findPotions()
-  local itemLinks = findItemsByPattern(".* Potion")
-  if itemLinks then
-    for i, itemLink in ipairs(itemLinks) do
-      local itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture, sellPrice, classID, subclassID, bindType, expansionID, setID, isCraftingReagent = C_Item.GetItemInfo(itemLink)
-      log(itemLink)
-      log(itemName)
+  local itemCounts = findItemsByPattern(".* Potion")
+  if itemCounts then
+    for i, itemCount in ipairs(itemCounts) do
+      local itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture, sellPrice, classID, subclassID, bindType, expansionID, setID, isCraftingReagent = C_Item.GetItemInfo(itemCount.link)
+      -- log(itemLink)
+      -- log(itemName)
+      -- log(C_Item.GetItemIDForItemInfo(itemLink))
+      log(itemCount.link)
+      log(itemCount.id)
+      log(itemCount.count)
     end
   else
     log("No items found!")
