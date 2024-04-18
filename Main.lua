@@ -264,28 +264,18 @@ function isSpellKnown(spellName)
   return false
 end
 
-ItemCount = {
-  New = function(this, link, id, count)
-    this = {}
-    this.link = link
-    this.id = id
-    this.count = count
-    return this
-  end
-}
-
-
--- Returns array of items from bags that match a Lua regex: https://warcraft.wiki.gg/wiki/Pattern_matching
+--- Returns array of `ContainerItemInfo` tables found in bags that match Lua regex `pattern`
+-- @param pattern - Lua regexp pattern: https://warcraft.wiki.gg/wiki/Pattern_matching
+-- @return Array of `ContainerItemInfo` tables
 function findItemsByPattern(pattern)
   local found = {}
   for bag = 0, NUM_BAG_SLOTS do
     for slot = 0, C_Container.GetContainerNumSlots(bag) do
-      local link = C_Container.GetContainerItemLink(bag, slot)
-      if link then
-        local itemName, itemLink = C_Item.GetItemInfo(link)
+      local containerItemInfo = C_Container.GetContainerItemInfo(bag, slot)
+      if containerItemInfo then
+        local itemName, itemLink = C_Item.GetItemInfo(containerItemInfo.hyperlink)
         if itemName and string.match(itemName, pattern) then
-          local containerInfo = C_Container.GetContainerItemInfo(bag, slot)
-          table.insert(found, ItemCount:New(itemLink, containerInfo.itemID, containerInfo.stackCount))
+          table.insert(found, containerItemInfo)
         end
       end
     end
@@ -294,16 +284,12 @@ function findItemsByPattern(pattern)
 end
 
 function TEST_findPotions()
-  local itemCounts = findItemsByPattern(".* Potion")
-  if itemCounts then
-    for i, itemCount in ipairs(itemCounts) do
-      local itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture, sellPrice, classID, subclassID, bindType, expansionID, setID, isCraftingReagent = C_Item.GetItemInfo(itemCount.link)
-      -- log(itemLink)
-      -- log(itemName)
-      -- log(C_Item.GetItemIDForItemInfo(itemLink))
-      log(itemCount.link)
-      log(itemCount.id)
-      log(itemCount.count)
+  local containerItemInfos = findItemsByPattern(".* Potion")
+  if containerItemInfos then
+    for i, containerItemInfo in ipairs(containerItemInfos) do
+      log(containerItemInfo.hyperlink)
+      log(containerItemInfo.itemID)
+      log(containerItemInfo.stackCount)
     end
   else
     log("No items found!")
