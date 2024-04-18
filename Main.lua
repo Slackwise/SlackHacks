@@ -21,8 +21,9 @@ dbDefaults = {
 
 --[[
   General API Documentation:
-  https://wow.gamepedia.com/World_of_Warcraft_API
-  https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
+   - https://wow.gamepedia.com/World_of_Warcraft_API
+   - https://github.com/Gethe/wow-ui-source/tree/live/Interface/AddOns/Blizzard_APIDocumentationGenerated
+   - https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
 ]]--
 
 function isDebugging()
