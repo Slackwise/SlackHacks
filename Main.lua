@@ -74,6 +74,9 @@ end
 
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
   handleDragonriding()
+  if isTester() and isDebugging() then
+    TEST_findPotions()
+  end
 end
 
 function Self:MERCHANT_SHOW(eventName)
@@ -267,6 +270,19 @@ function findItemsByPattern(pattern)
     end
   end
   return found
+end
+
+function TEST_findPotions()
+  local itemLinks = findItemsByPattern(".* Potion")
+  if itemLinks then
+    for i, itemLink in ipairs(itemLinks) do
+      local itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType, itemStackCount, itemEquipLoc, itemTexture, sellPrice, classID, subclassID, bindType, expansionID, setID, isCraftingReagent = C_Item.GetItemInfo(itemLink)
+      log(itemLink)
+      log(itemName)
+    end
+  else
+    log("No items found!")
+  end
 end
 
 --- Recursively search up the map hierarchy to find a specific map type.
