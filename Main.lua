@@ -56,7 +56,7 @@ function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
   config:RegisterOptionsTable("SlackUI", options, "slack")
 
-  setMaxCameraDistance()
+  setCVars()
 end
 
 function Self:OnEnable()
@@ -201,7 +201,7 @@ function getSpecName()
   return strupper(select(2, GetSpecializationInfo(GetSpecialization())))
 end
 
-function setMaxCameraDistance()
+function setCVars()
   SetCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
   SetCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
 end
