@@ -10,8 +10,8 @@ BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKUI_MOUNT = "Mount"
 BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
-BINDING_NAME_BEST_HEALING_POTION = "Use Best Healing Potion"
-BINDING_NAME_BEST_MANA_POTION = "Use Best Mana Potion"
+BINDING_NAME_SLACKUI_BEST_HEALING_POTION = "Use Best Healing Potion"
+BINDING_NAME_SLACKUI_BEST_MANA_POTION = "Use Best Mana Potion"
 
 
 -- Change implicit globla scope to our addon "namespace":
