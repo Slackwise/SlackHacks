@@ -588,8 +588,8 @@ BINDINGS = {
 
       -- Items
       { "ALT-Z",     "item",    "Insignia of the Alliance" }, -- PvP Trinket
-      -- { "ALT-C",     "macro",   "ITEM_MANA" },
-      -- { "ALT-V",     "macro",   "ITEM_HEAL" },
+      { "ALT-C",     "command", "SLACKUI_BEST_MANA_POTION" },
+      { "ALT-V",     "command", "SLACKUI_BEST_HEALING_POTION" },
     }
   }
 }
