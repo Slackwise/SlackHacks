@@ -240,14 +240,16 @@ end
 
 --- Invert a table by grouping the keys by the values.
 ---@param Array - The array to group.
+---@param Function(key, value) - Takes in a `key` and `value`, and returns new `key, value` which will be grouped by `key`.
 ---@return Array - The grouped array.
-function groupKeysByValues(array)
+function groupBy(array, groupingFunction)
   local grouped = {}
   for key, value in ipairs(array) do
+    local groupingKey, newValue = groupingFunction(key, value)
     if grouped[value] then
-      table.insert(grouped[value], key)
+      table.insert(grouped[groupingKey], newValue)
     else
-      table.insert({[value] = { key } })
+      grouped[groupingKey] = { newValue }
     end
   end
   return grouped
