@@ -220,16 +220,16 @@ function isSpellKnown(spellName)
 end
 
 --- Returns array of `ContainerItemInfo` tables found in bags that match Lua regex `pattern`
----@param pattern string Lua regexp pattern: https://warcraft.wiki.gg/wiki/Pattern_matching
+---@param regex string Lua regexp pattern: https://warcraft.wiki.gg/wiki/Pattern_matching
 ---@return ContainerItemInfo[] Array of ContainerItemInfo
-function findItemsByPattern(pattern)
+function findItemsByRegex(regex)
   local found = {}
   for bag = 0, NUM_BAG_SLOTS do
     for slot = 0, C_Container.GetContainerNumSlots(bag) do
       local containerItemInfo = C_Container.GetContainerItemInfo(bag, slot)
       if containerItemInfo then
         local itemName, itemLink = C_Item.GetItemInfo(containerItemInfo.hyperlink)
-        if itemName and string.match(itemName, pattern) then
+        if itemName and string.match(itemName, regex) then
           table.insert(found, containerItemInfo)
         end
       end
