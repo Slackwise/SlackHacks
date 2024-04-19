@@ -244,7 +244,7 @@ end
 ---@return Array - The grouped array.
 function groupBy(array, groupingFunction)
   local grouped = {}
-  for i, value in ipairs(array) do
+  for key, value in pairs(array) do
     local groupingKey, newValue = groupingFunction(value)
     if grouped[value] then
       table.insert(grouped[groupingKey], newValue)
@@ -260,9 +260,9 @@ end
 ---@return Integer - Largest numeric index.
 function findLargestIndex(array)
   local largestIndex = 0
-  for i, value in ipairs(array) do
-    if i >= largestIndex then
-      largestIndex = i
+  for key, value in pairs(array) do
+    if tonumber(key) and key >= largestIndex then
+      largestIndex = key
     end
   end
   return largestIndex
