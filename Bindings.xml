@@ -11,4 +11,8 @@
   <Binding name="SLACKUI_SETBINDINGS" category="BINDING_HEADER_SLACKUI">
     SlackUI.setBindings()
   </Binding>
+  <Binding name="SLACKUI_BEST_HEALING_POTION" category="BINDING_HEADER_SLACKUI">
+  </Binding>
+  <Binding name="SLACKUI_BEST_MANA_POTION" category="BINDING_HEADER_SLACKUI">
+  </Binding>
 </Bindings>

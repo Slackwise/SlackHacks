@@ -10,6 +10,8 @@ BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
 BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKUI_MOUNT = "Mount"
 BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
+BINDING_NAME_BEST_HEALING_POTION = "Use Best Healing Potion"
+BINDING_NAME_BEST_MANA_POTION = "Use Best Mana Potion"
 
 
 -- Change implicit globla scope to our addon "namespace":
@@ -37,6 +39,19 @@ end
 
 function unbindUnwantedDefaults()
   SetBinding("SHIFT-T")
+end
+
+function bindBestPotions()
+  local containerItemInfos = findItemsByPattern(".* Potion")
+  if containerItemInfos then
+    for i, containerItemInfo in ipairs(containerItemInfos) do
+      log(containerItemInfo.hyperlink)
+      log(containerItemInfo.itemID)
+      log(containerItemInfo.stackCount)
+    end
+  else
+    log("No items found!")
+  end
 end
 
 function setBindings()

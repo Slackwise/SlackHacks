@@ -25,6 +25,9 @@ dbDefaults = {
    - https://github.com/Gethe/wow-ui-source/tree/live/Interface/AddOns/Blizzard_APIDocumentationGenerated
    - https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
 
+  Lua type-checking via VSCode extension:
+   - https://luals.github.io/wiki/type-checking/
+
   Common data structures:
    - ItemLink: https://warcraft.wiki.gg/wiki/ItemLink
 
@@ -76,9 +79,14 @@ function Self:OnEnable()
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   -- self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+  self:RegisterEvent("BAG_UPDATE_DELAYED")
 end
 
 function Self:OnDisable()
+end
+
+function Self:BAG_UPDATE_DELAYED() -- Fires after all BAG_UPDATE's are done
+  bindBestPotions()
 end
 
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
@@ -265,8 +273,8 @@ function isSpellKnown(spellName)
 end
 
 --- Returns array of `ContainerItemInfo` tables found in bags that match Lua regex `pattern`
--- @param pattern - Lua regexp pattern: https://warcraft.wiki.gg/wiki/Pattern_matching
--- @return Array of `ContainerItemInfo` tables
+---@param pattern string Lua regexp pattern: https://warcraft.wiki.gg/wiki/Pattern_matching
+---@return ContainerItemInfo[] Array of ContainerItemInfo
 function findItemsByPattern(pattern)
   local found = {}
   for bag = 0, NUM_BAG_SLOTS do
@@ -283,23 +291,10 @@ function findItemsByPattern(pattern)
   return found
 end
 
-function TEST_findPotions()
-  local containerItemInfos = findItemsByPattern(".* Potion")
-  if containerItemInfos then
-    for i, containerItemInfo in ipairs(containerItemInfos) do
-      log(containerItemInfo.hyperlink)
-      log(containerItemInfo.itemID)
-      log(containerItemInfo.stackCount)
-    end
-  else
-    log("No items found!")
-  end
-end
-
 --- Recursively search up the map hierarchy to find a specific map type.
--- @param map - The map to start at.
--- @param upMapType - An Enum.UIMapType of the map you're trying to find.
--- @return UiMapDetails
+---@param map The map to start at.
+---@param upMapType An Enum.UIMapType of the map you're trying to find.
+---@return UiMapDetails
 function findParentMapByType(map, uiMapType)
   if not map then
     return nil
