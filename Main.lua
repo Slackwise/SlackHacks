@@ -238,6 +238,21 @@ function findItemsByPattern(pattern)
   return found
 end
 
+--- Invert a table by grouping the keys by the values.
+---@param Array - The array to group.
+---@return Array - The grouped array.
+function groupKeysByValues(array)
+  local grouped = {}
+  for key, value in ipairs(array) do
+    if grouped[value] then
+      table.insert(grouped[value], key)
+    else
+      table.insert({[value] = { key } })
+    end
+  end
+  return grouped
+end
+
 --- Recursively search up the map hierarchy to find a specific map type.
 ---@param map The map to start at.
 ---@param upMapType An Enum.UIMapType of the map you're trying to find.
