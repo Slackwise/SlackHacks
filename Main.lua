@@ -255,6 +255,19 @@ function groupBy(array, groupingFunction)
   return grouped
 end
 
+--- Find the largest (numeric) index of an array.
+---@param Array - The array to search.
+---@return Integer - Largest numeric index.
+function findLargestIndex(array)
+  local largestIndex = 0
+  for i, value in ipairs(array) do
+    if i >= largestIndex then
+      largestIndex = i
+    end
+  end
+  return largestIndex
+end
+
 --- Recursively search up the map hierarchy to find a specific map type.
 ---@param map The map to start at.
 ---@param upMapType An Enum.UIMapType of the map you're trying to find.
