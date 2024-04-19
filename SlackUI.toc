@@ -7,9 +7,10 @@
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackUIDB
 ## RequiredDeps: Ace3
+Init.lua
 lamda/dist/lamda.lua
 embeds.xml
+StaticData.lua
 Main.lua
 Bindings.lua
 Options.lua
-StaticData.lua

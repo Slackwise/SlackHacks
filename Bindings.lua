@@ -42,6 +42,7 @@ function unbindUnwantedDefaults()
 end
 
 function bindBestPotions()
+  if not isTester() then return end
   local containerItemInfos = findItemsByPattern(".* Potion")
   if containerItemInfos then
     for i, containerItemInfo in ipairs(containerItemInfos) do

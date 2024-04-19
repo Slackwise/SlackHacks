@@ -1,23 +1,5 @@
---INITIALIZE
-local Self = LibStub("AceAddon-3.0"):NewAddon(
-  "SlackUI",
-  "AceConsole-3.0",
-  "AceEvent-3.0"
-)
-Self.config = LibStub("AceConfig-3.0")
-Self.frame = CreateFrame("Frame", "SlackUI")
-_G.SlackUI = Self
-Self.Self = Self
-setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
-setfenv(1, Self) -- Namespace local to addon
-
-addonName, addonTable = ...
-
-dbDefaults = {
-  profile = {
-    isDebugging = false
-  }
-}
+-- Change implicit globla scope to our addon "namespace":
+setfenv(1, _G.SlackUI)
 
 --[[
   General API Documentation:
@@ -38,41 +20,9 @@ dbDefaults = {
      - GetItemIDForItemInfo(): https://warcraft.wiki.gg/wiki/API_C_Item.GetItemIDForItemInfo
 ]]--
 
-function isDebugging()
-  return SlackUIDB.isDebugging
-end
-
-COLOR_START = "\124c"
-COLOR_END   = "\124r"
-
-function color(color)
-  return function(text)
-    return COLOR_START .. "FF" .. color .. text .. COLOR_END
-  end
-end
-
-grey = color("AAAAAA")
-
-function log(message, ...)
-  if isDebugging() then
-    print(grey(date()) .. "  " .. message)
-    if arg then
-      for i, v in ipairs(arg) do
-        print("Arg " .. i .. " = " .. v)
-      end
-    end
-  end
-end
-
 --Event Handlers
-function Self:OnInitialize()
-  Self.db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
-  config:RegisterOptionsTable("SlackUI", options, "slack")
-
-  setCVars()
-end
-
 function Self:OnEnable()
+  setCVars()
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("PLAYER_ENTERING_WORLD")
   self:RegisterEvent("UNIT_AURA")
@@ -91,9 +41,6 @@ end
 
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
   handleDragonriding()
-  if isTester() and isDebugging() then
-    TEST_findPotions()
-  end
 end
 
 function Self:MERCHANT_SHOW(eventName)
