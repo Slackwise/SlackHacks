@@ -55,6 +55,15 @@ function bindBestPotions()
   end
 end
 
+function findMaxHealingPotionItemID()
+  local containerItemInfos = findItemsByRegex(".* Healing Potion")
+  local potionsByMaxHealing = groupBy(containerItemInfos,
+    function(item)
+      return HEALING_POTION_TO_MAX_HEALING_MAP[item.itemID], { item.itemID, item.stackCount }
+    end
+  )
+end
+
 function setBindings()
   if not isTester() then
     print("[WIP Feature] Binding system is still in progress. Will not perform any binds, don't worry.")
