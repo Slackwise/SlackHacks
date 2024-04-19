@@ -56,12 +56,27 @@ function bindBestPotions()
 end
 
 function findMaxHealingPotionItemID()
+  -- Find all healing potions in bags:
   local containerItemInfos = findItemsByRegex(".* Healing Potion")
+  -- Group them up by healing so that the keys are max healing and the values are an array of potions and stack counts:
   local potionsByMaxHealing = groupBy(containerItemInfos,
     function(item)
       return HEALING_POTION_TO_MAX_HEALING_MAP[item.itemID], { item.itemID, item.stackCount }
     end
   )
+  -- Now find the largest index, which is the largest healing:
+  local bestPotions = potionsByMaxHealing[findLargestIndex(potionsByMaxHealing)]
+  --of the best potions, let's find the smallest stack so we use them up first to free up bag space;
+  local smallestStack = 21
+  local smallestPotionID = 0
+  for i, potionStack in ipairs(bestPotions) do
+    local potionID, stackCount = unpack(potionStack)
+    if stackCount < smallestStack then
+      smallestStack = stackCount
+      smallestPotionID = potionID
+    end
+  end
+  return smallestPotionID
 end
 
 function setBindings()
