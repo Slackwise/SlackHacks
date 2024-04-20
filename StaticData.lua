@@ -1,7 +1,7 @@
 setfenv(1, _G.SlackUI)
 
 BEST_HEALING_POTIONS = {
-  ITEM_REGEX = ".* Healing Potion",
+  ITEM_REGEX = ".*Healing Potion",
   BINDING_NAME = "SLACKUI_BEST_HEALING_POTION",
 
 -- Mapping of:
@@ -22,7 +22,7 @@ BEST_HEALING_POTIONS = {
 }
 
 BEST_MANA_POTIONS = {
-  ITEM_REGEX = ".* Mana Potion",
+  ITEM_REGEX = ".*Mana Potion",
   BINDING_NAME = "SLACKUI_BEST_MANA_POTION",
 
 -- Mapping of:
