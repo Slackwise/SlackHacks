@@ -1,5 +1,23 @@
 setfenv(1, _G.SlackUI)
 
+MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
+  ["Charger"]                      = 84,
+  ["Swift Razzashi Raptor"]        = 110,
+  ["Ashes of Al'ar"]               = 183,
+  ["Time-Lost Proto-Drake"]        = 265,
+  ["Mekgineer's Chopper"]          = 275,
+  ["Sea Turtle"]                   = 312,
+  ["Sandstone Drake"]              = 407,
+  ["Tyrael's Charger"]             = 439,
+  ["Grand Expedition Yak"]         = 460,
+  ["Sky Golem"]                    = 522,
+  ["Highlord's Golden Charger"]    = 885,
+  ["Highland Drake"]               = 1563,
+  ["Winding Slitherdrake"]         = 1588,
+  ["Renewed Proto-Drake"]          = 1589,
+  ["Grotto Netherwing Drake"]      = 1744,
+}
+
 BEST_ITEMS = {
   BEST_HEALING_POTIONS = {
     BINDING_NAME = "SLACKUI_BEST_HEALING_POTION",
