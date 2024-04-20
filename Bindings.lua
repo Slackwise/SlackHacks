@@ -55,7 +55,7 @@ function bindBestUseItem(bestItemMap)
   -- Find all matching items in bags:
   local containerItemInfos = findItemsByItemIDs(keys(bestItemMap))
   if isDebugging() and containerItemInfos then
-    log("Found matching (\"" .. bestItemMap.ITEM_REGEX .. "\") items:")
+    log("Found matching (\"" .. bestItemMap.BINDING_NAME .. "\") items:")
     for i, item in ipairs(containerItemInfos) do
       log(item.stackCount .. "x of " .. item.itemID .. " " .. item.hyperlink)
     end
@@ -92,7 +92,7 @@ function bindBestUseItem(bestItemMap)
       local desiredBindingKeys = { GetBindingKey(bestItemMap.BINDING_NAME) }
       if #desiredBindingKeys > 0 then
         for i, key in ipairs(desiredBindingKeys) do
-          log("Binding \"" .. bestItemMap.ITEM_REGEX .. "\" of ID " .. bestItemID .. " to " .. key)
+          log("Binding \"" .. bestItemMap.BINDING_NAME .. "\" of ID " .. bestItemID .. " to " .. key)
           SetOverrideBindingItem(Self.itemBindingFrame, true, key, "item:" .. bestItemID)
         end
       end
