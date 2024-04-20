@@ -37,16 +37,23 @@ function setBinding(binding)
   BINDINGS_FUNCTIONS[type](key, name)
 end
 
+--- Get UI text description for a `Bindings.xml` binding name.
+---@params bindingName string - The name as seen in `Bindings.xml`.
+---@return string - The UI description as string.
+function getBindingDescription(bindingName)
+  return _G['BINDING_NAME_' .. bindingName] or ""
+end
+
 function unbindUnwantedDefaults()
   SetBinding("SHIFT-T")
 end
 
 function bindBestUseItems()
-  if not isTester() then return end
+  -- if not isTester() then return end
   ClearOverrideBindings(Self.itemBindingFrame)
 
   for itemType, itemMap in pairs(BEST_ITEMS) do
-    log("Binding " .. tostring(itemType) .. "...")
+    log("Binding " .. getBindingDescription(itemMap.BINDING_NAME) .. "...")
     bindBestUseItem(itemMap)
   end
 end
@@ -55,9 +62,9 @@ function bindBestUseItem(bestItemMap)
   -- Find all matching items in bags:
   local containerItemInfos = findItemsByItemIDs(keys(bestItemMap))
   if isDebugging() and containerItemInfos then
-    log("Found matching (\"" .. bestItemMap.BINDING_NAME .. "\") items:")
+    log(getBindingDescription(bestItemMap.BINDING_NAME) .. ": found items:")
     for i, item in ipairs(containerItemInfos) do
-      log(item.stackCount .. "x of " .. item.itemID .. " " .. item.hyperlink)
+      log("    " .. item.stackCount .. "x of " .. item.itemID .. " " .. item.hyperlink)
     end
   end
 
@@ -92,7 +99,7 @@ function bindBestUseItem(bestItemMap)
       local desiredBindingKeys = { GetBindingKey(bestItemMap.BINDING_NAME) }
       if #desiredBindingKeys > 0 then
         for i, key in ipairs(desiredBindingKeys) do
-          log("Binding \"" .. bestItemMap.BINDING_NAME .. "\" of ID " .. bestItemID .. " to " .. key)
+          log("Binding ID " .. bestItemID .. " " .. C_Item.GetItemNameByID(bestItemID) .. " to " .. key)
           SetOverrideBindingItem(Self.itemBindingFrame, true, key, "item:" .. bestItemID)
         end
       end
