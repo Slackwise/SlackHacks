@@ -6,6 +6,7 @@ local Self = LibStub("AceAddon-3.0"):NewAddon(
 )
 Self.config = LibStub("AceConfig-3.0")
 Self.frame = CreateFrame("Frame", "SlackUI")
+Self.itemBindingFrame = CreateFrame("Frame", "SlackUI Item Bindings")
 _G.SlackUI = Self
 Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon

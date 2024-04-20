@@ -43,7 +43,23 @@ end
 
 function bindBestUseItems()
   if not isTester() then return end
-  findBestUseItemID(BEST_HEALING_POTIONS)
+  ClearOverrideBindings(Self.itemBindingFrame)
+  
+  -- Healing Potions:
+  local bestHealingPotionItemID = findBestUseItemID(BEST_HEALING_POTIONS)
+  if bestHealingPotionItemID then
+    local healingPotionBindingKeys = { GetBindingKey(BEST_HEALING_POTIONS.BINDING_NAME) }
+    for i, key in ipairs(healingPotionBindingKeys) do
+      log("Binding healing potion " .. bestHealingPotionItemID .. " to " .. key)
+      SetOverrideBindingItem(Self.itemBindingFrame, true, key, "item:" .. bestHealingPotionItemID)
+    end
+  end
+
+  -- Mana Potions:
+  local bestManaPotionItemID = findBestUseItemID(BEST_MANA_POTIONS)
+
+  -- Bandages:
+
 end
 
 function findBestUseItemID(bestItemMap)
