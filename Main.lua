@@ -439,7 +439,7 @@ MOUNTS_BY_USAGE = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['DRAGON']            = MOUNT_IDS["Winding Slitherdrake"], -- Dragonriding
+    ['DYNAMIC_FLYING']    = MOUNT_IDS["Winding Slitherdrake"],
     ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
     ['GATHERING']         = MOUNT_IDS["Sky Golem"],
@@ -450,7 +450,7 @@ MOUNTS_BY_USAGE = {
     ['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
     ['FLYING']            = MOUNT_IDS["Highlord's Golden Charger"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['DRAGON']            = MOUNT_IDS["Algarian Stormrider"], -- Dragonriding
+    ['DYNAMIC_FLYING']    = MOUNT_IDS["Algarian Stormrider"],
     ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
     ['GATHERING']         = MOUNT_IDS["Sky Golem"],
@@ -509,12 +509,12 @@ function mount()
         mountByUsage("GROUND_SHOWOFF")
         return
       end
-      mountByUsage("DRAGON")
+      mountByUsage('DYNAMIC_FLYING')
       return
     elseif IsSubmerged() then -- Summon water mount
       if isAlternativeMountRequested() then -- But we may want to fly out of the water
         if IsAdvancedFlyableArea() then
-          mountByUsage("DRAGON")
+          mountByUsage('DYNAMIC_FLYING')
           return
         else
           mountByUsage("FLYING")
