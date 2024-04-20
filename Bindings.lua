@@ -12,6 +12,7 @@ BINDING_NAME_SLACKUI_MOUNT = "Mount"
 BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
 BINDING_NAME_SLACKUI_BEST_HEALING_POTION = "Use Best Healing Potion"
 BINDING_NAME_SLACKUI_BEST_MANA_POTION = "Use Best Mana Potion"
+BINDING_NAME_SLACKUI_BEST_BANDAGE = "Use Best Bandage"
 
 
 -- Change implicit globla scope to our addon "namespace":
@@ -256,6 +257,9 @@ BINDINGS = {
     {"CTRL-SHIFT-X",          "macro",    "MountYak"},
     {"ALT-X",                 "command",  "TOGGLESHEATH"},
     {"ALT-CTRL-X",            "command",  "TOGGLERUN"},
+    { "ALT-C",                "command",  "SLACKUI_BEST_MANA_POTION" },
+    { "ALT-V",                "command",  "SLACKUI_BEST_HEALING_POTION" },
+    { "ALT-CTRL-V",           "command",  "SLACKUI_BEST_BANDAGE" },
     {"V",                     "command",  "NONE"},
     {"SHIFT-V",               "command",  "NONE"},
     {"CTRL-V",                "command",  "NONE"},
@@ -487,13 +491,13 @@ BINDINGS = {
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
         { "CTRL-C",     "macro",   "BELL_SELF" },
-        { "ALT-C",      "spell",   "Aerated Mana Potion" },
+        -- { "ALT-C",      "spell",   "Aerated Mana Potion" },
 
         -- Vitality (Self-Heals/Protections)
         { "V",          "macro",   "VITALITY" },
         { "SHIFT-V",    "spell",   "Divine Shield" },
         { "CTRL-V",     "macro",   "LAY_ON_SELF" },
-        { "ALT-V",      "spell",   "Refreshing Healing Potion" },
+        -- { "ALT-V",      "spell",   "Refreshing Healing Potion" },
         { "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
       },
       HOLY = {
@@ -640,8 +644,6 @@ BINDINGS = {
 
       -- Items
       { "ALT-Z",     "item",    "Insignia of the Alliance" }, -- PvP Trinket
-      { "ALT-C",     "command", "SLACKUI_BEST_MANA_POTION" },
-      { "ALT-V",     "command", "SLACKUI_BEST_HEALING_POTION" },
     }
   }
 }

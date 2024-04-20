@@ -39,5 +39,29 @@ BEST_ITEMS = {
     [3827]       = 585, -- Mana Potion
     [3385]       = 360, -- Lesser Mana Potion
     [2455]       = 180, -- Minor Mana Potion
-  }
+  },
+
+  BEST_BANDAGES = {
+    BINDING_NAME = "SLACKUI_BEST_BANDAGE",
+
+    -- Mapping of:
+    -- ITEM_ID = MAX_HEALING
+
+    -- Dragonflight Bandages:
+    [194050]     = 50768, -- Wildercloth Bandage (Quality 3)
+    [194049]     = 43560, -- Wildercloth Bandage (Quality 2)
+    [194048]     = 37376, -- Wildercloth Bandage (Quality 1)
+
+    -- Classic Bandages:
+    [14530]      = 2000, -- Heavy Runecloth Bandage
+    [14529]      = 1360, -- Runecloth Bandage
+    [8545]       = 1104, -- Heavy Mageweave Bandage
+    [8544]       = 800,  -- Mageweave Bandage
+    [6451]       = 640,  -- Heavy Silk Bandage
+    [6450]       = 400,  -- Silk Bandage
+    [3531]       = 301,  -- Heavy Wool Bandage
+    [3530]       = 161,  -- Wool Bandage
+    [2581]       = 114,  -- Heavy Linen Bandage
+    [1251]       = 66,   -- Linen Bandage
+  },
 }

@@ -15,4 +15,6 @@
   </Binding>
   <Binding name="SLACKUI_BEST_MANA_POTION" category="BINDING_HEADER_SLACKUI">
   </Binding>
+  <Binding name="SLACKUI_BEST_BANDAGE" category="BINDING_HEADER_SLACKUI">
+  </Binding>
 </Bindings>
