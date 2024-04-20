@@ -44,14 +44,11 @@ end
 function bindBestUseItems()
   if not isTester() then return end
   ClearOverrideBindings(Self.itemBindingFrame)
-  
-  -- Healing Potions:
-  bindBestUseItem(BEST_HEALING_POTIONS)
 
-  -- Mana Potions:
-
-  -- Bandages:
-
+  for itemType, itemMap in pairs(BEST_ITEMS) do
+    log("Binding " .. tostring(itemType) .. "...")
+    bindBestUseItem(itemMap)
+  end
 end
 
 function bindBestUseItem(bestItemMap)
