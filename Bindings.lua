@@ -41,44 +41,44 @@ function unbindUnwantedDefaults()
   SetBinding("SHIFT-T")
 end
 
-function bindBestPotions()
+function bindBestUseItems()
   if not isTester() then return end
-  local containerItemInfos = findItemsByRegex(".* Potion")
-  if containerItemInfos then
-    for i, containerItemInfo in ipairs(containerItemInfos) do
-      log(containerItemInfo.hyperlink)
-      log(containerItemInfo.itemID)
-      log(containerItemInfo.stackCount)
-    end
-  else
-    log("No items found!")
-  end
-  print(findMaxHealingPotionItemID())
+  print(findBestUseItemID(BEST_HEALING_POTIONS))
 end
 
-function findMaxHealingPotionItemID()
-  -- Find all healing potions in bags:
-  local containerItemInfos = findItemsByRegex(".* Healing Potion")
+function findBestUseItemID(bestItemMap)
+  -- Find all matching items in bags:
+  local containerItemInfos = findItemsByRegex(bestItemMap.ITEM_REGEX)
+  if isDebugging() and containerItemInfos then
+    for i, item in ipairs(containerItemInfos) do
+      log(item.stackCount .. "x of " .. item.itemID .. " " .. item.hyperlink)
+    end
+  else
+    log("no items found!")
+  end
+
   -- Group them up by healing so that the keys are max healing and the values are an array of potions and stack counts:
-  local potionsByMaxHealing = groupBy(containerItemInfos,
+  local itemsByBestStrength = groupBy(containerItemInfos,
     function(item)
-      return HEALING_POTION_TO_MAX_HEALING_MAP[item.itemID], { item.itemID, item.stackCount }
+      return bestItemMap[item.itemID], { item.itemID, item.stackCount }
     end
   )
-  -- Now find the largest index, which is the largest healing:
-  local bestPotions = potionsByMaxHealing[findLargestIndex(potionsByMaxHealing)]
-  --of the best potions, let's find the smallest stack so we use them up first to free up bag space;
-  if bestPotions then
+
+  -- Now find the largest index, which is the strongest item:
+  local bestItems = itemsByBestStrength[findLargestIndex(itemsByBestStrength)]
+
+  --Of the `bestItems`, let's find the smallest stack so we use them up first to free up bag space;
+  if bestItems then
     local smallestStack = 21 -- Potions can't stack past 20, so this is a shortcut :P
-    local smallestStackPotionID = 0
-    for i, potionStack in ipairs(bestPotions) do
-      local potionID, stackCount = unpack(potionStack)
+    local smallestStackItemID = 0
+    for i, itemStack in ipairs(bestItems) do
+      local potionID, stackCount = unpack(itemStack)
       if stackCount < smallestStack then
         smallestStack = stackCount
-        smallestStackPotionID = potionID
+        smallestStackItemID = potionID
       end
     end
-    return smallestStackPotionID
+    return smallestStackItemID
   end
 end
 

@@ -1,6 +1,9 @@
 setfenv(1, _G.SlackUI)
 
-HEALING_POTION_TO_MAX_HEALING_MAP = {
+BEST_HEALING_POTIONS = {
+  ITEM_REGEX = ".* Healing Potion",
+
+-- Mapping of:
 -- ITEM_ID = MAX_HEALING
 
   -- Dragonflight Potions:
@@ -17,7 +20,10 @@ HEALING_POTION_TO_MAX_HEALING_MAP = {
   [118]     = 90,       -- Minor Healing Potion
 }
 
-MANA_POTION_MAX_RESTORE_MAP = {
+BEST_MANA_POTIONS = {
+  ITEM_REGEX = ".* Mana Potion",
+
+-- Mapping of:
 -- ITEM_ID = MAX_MANA_RESTORATION
 
   -- Dragonflight Potions:

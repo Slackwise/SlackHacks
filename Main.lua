@@ -36,7 +36,7 @@ function Self:OnDisable()
 end
 
 function Self:BAG_UPDATE_DELAYED() -- Fires after all BAG_UPDATE's are done
-  bindBestPotions()
+  bindBestUseItems()
 end
 
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
