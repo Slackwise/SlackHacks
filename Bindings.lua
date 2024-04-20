@@ -49,24 +49,12 @@ function bindBestUseItems()
   bindBestUseItem(BEST_HEALING_POTIONS)
 
   -- Mana Potions:
-  local bestManaPotionItemID = findBestUseItemID(BEST_MANA_POTIONS)
 
   -- Bandages:
 
 end
 
 function bindBestUseItem(bestItemMap)
-  local bestItemID = findBestUseItemID(bestItemMap)
-  if bestItemID then
-    local desiredBindingKeys = { GetBindingKey(bestItemMap.BINDING_NAME) }
-    for i, key in ipairs(desiredBindingKeys) do
-      log("Binding \"" .. bestItemMap.ITEM_REGEX .. "\" of ID " .. bestItemID .. " to " .. key)
-      SetOverrideBindingItem(Self.itemBindingFrame, true, key, "item:" .. bestItemID)
-    end
-  end
-end
-
-function findBestUseItemID(bestItemMap)
   -- Find all matching items in bags:
   local containerItemInfos = findItemsByRegex(bestItemMap.ITEM_REGEX)
   if isDebugging() and containerItemInfos then
@@ -92,16 +80,26 @@ function findBestUseItemID(bestItemMap)
   -- Find the smallest stack so we use them up first to free up bag space;
   if bestItems then
     local smallestStack = 9999 -- Start with the largest stack possible as we're wittling down, and nothing stacks past 2000 as far as I know, and the most was arrows?
-    local smallestStackItemID = 0
+    local bestItemID = nil
     for i, itemStack in ipairs(bestItems) do
       local itemID, stackCount = unpack(itemStack)
       if stackCount < smallestStack then
         smallestStack = stackCount
-        smallestStackItemID = itemID
+        bestItemID = itemID
       end
     end
-    log("Best found smallest stack itemID: " .. smallestStackItemID)
-    return smallestStackItemID
+    log("Best found smallest stack itemID: " .. bestItemID)
+
+    -- Bind the item directly:
+    if bestItemID then
+      local desiredBindingKeys = { GetBindingKey(bestItemMap.BINDING_NAME) }
+      if #desiredBindingKeys > 0 then
+        for i, key in ipairs(desiredBindingKeys) do
+          log("Binding \"" .. bestItemMap.ITEM_REGEX .. "\" of ID " .. bestItemID .. " to " .. key)
+          SetOverrideBindingItem(Self.itemBindingFrame, true, key, "item:" .. bestItemID)
+        end
+      end
+    end
   end
 end
 
