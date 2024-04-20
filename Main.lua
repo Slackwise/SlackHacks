@@ -230,6 +230,33 @@ function keys(targetTable)
   return collectedKeys
 end
 
+--- Find the first table element that match `kvPredicate` function.
+---@param targetTable table - The table to find the first element from.
+---@param kvPredicate Function(key, value) - A predicate function that takes in `(key, value)` and returns `true` or `false` if it matches.
+---@return key, value - First element that matches `kvPredicate`.
+function findFirstElement(targetTable, kvPredicate)
+  for key, value in pairs(targetTable) do
+    if kvPredicate(key, value) then
+      return key, value
+    end
+  end
+  return nil, nil
+end
+
+--- Find all table elements that match `kvPredicate` function.
+---@param targetTable table - The table to find the first element from.
+---@param kvPredicate Function(key, value) - A predicate function that takes in `(key, value)` and returns `true` or `false` if it matches.
+---@return object[] - Array of all elements that matched `kvPredicate`.
+function findElements(targetTable, kvPredicate)
+  local found = {}
+  for key, value in pairs(targetTable) do
+    if kvPredicate(key, value) then
+      found[key] = value
+    end
+  end
+  return found
+end
+
 --- Returns array of `ContainerItemInfo` tables found in bags that match any of a given array of `itemIDs`
 ---@param array itemIDs - Array of itemIDs
 ---@return ContainerItemInfo[] Array of ContainerItemInfo
