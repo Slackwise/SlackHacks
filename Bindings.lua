@@ -53,7 +53,7 @@ end
 
 function bindBestUseItem(bestItemMap)
   -- Find all matching items in bags:
-  local containerItemInfos = findItemsByRegex(bestItemMap.ITEM_REGEX)
+  local containerItemInfos = findItemsByItemIDs(keys(bestItemMap))
   if isDebugging() and containerItemInfos then
     log("Found matching (\"" .. bestItemMap.ITEM_REGEX .. "\") items:")
     for i, item in ipairs(containerItemInfos) do

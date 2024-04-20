@@ -219,6 +219,36 @@ function isSpellKnown(spellName)
   return false
 end
 
+--- Get all keys from a given `targetTable`.
+---@param targetTable table - The table to extract keys from.
+---@return array - Array of keys.
+function keys(targetTable)
+  local collectedKeys = {}
+  for key, value in pairs(targetTable) do
+    table.insert(collectedKeys, key)
+  end
+  return collectedKeys
+end
+
+--- Returns array of `ContainerItemInfo` tables found in bags that match any of a given array of `itemIDs`
+---@param array itemIDs - Array of itemIDs
+---@return ContainerItemInfo[] Array of ContainerItemInfo
+function findItemsByItemIDs(itemIDs)
+  local found = {}
+  for bag = 0, NUM_BAG_SLOTS do
+    for slot = 0, C_Container.GetContainerNumSlots(bag) do
+      local containerItemInfo = C_Container.GetContainerItemInfo(bag, slot)
+      if containerItemInfo then
+        local itemName = C_Item.GetItemInfo(containerItemInfo.hyperlink)
+        if itemName and tContains(itemIDs, containerItemInfo.itemID) then
+          table.insert(found, containerItemInfo)
+        end
+      end
+    end
+  end
+  return found
+end
+
 --- Returns array of `ContainerItemInfo` tables found in bags that match Lua regex `pattern`
 ---@param regex string Lua regexp pattern: https://warcraft.wiki.gg/wiki/Pattern_matching
 ---@return ContainerItemInfo[] Array of ContainerItemInfo
@@ -228,7 +258,7 @@ function findItemsByRegex(regex)
     for slot = 0, C_Container.GetContainerNumSlots(bag) do
       local containerItemInfo = C_Container.GetContainerItemInfo(bag, slot)
       if containerItemInfo then
-        local itemName, itemLink = C_Item.GetItemInfo(containerItemInfo.hyperlink)
+        local itemName = C_Item.GetItemInfo(containerItemInfo.hyperlink)
         if itemName and string.match(itemName, regex) then
           table.insert(found, containerItemInfo)
         end
