@@ -53,6 +53,7 @@ function bindBestPotions()
   else
     log("No items found!")
   end
+  print(findMaxHealingPotionItemID())
 end
 
 function findMaxHealingPotionItemID()
@@ -67,16 +68,18 @@ function findMaxHealingPotionItemID()
   -- Now find the largest index, which is the largest healing:
   local bestPotions = potionsByMaxHealing[findLargestIndex(potionsByMaxHealing)]
   --of the best potions, let's find the smallest stack so we use them up first to free up bag space;
-  local smallestStack = 21 -- Potions can't stack past 20, so this is a shortcut :P
-  local smallestPotionID = 0
-  for i, potionStack in ipairs(bestPotions) do
-    local potionID, stackCount = unpack(potionStack)
-    if stackCount < smallestStack then
-      smallestStack = stackCount
-      smallestPotionID = potionID
+  if bestPotions then
+    local smallestStack = 21 -- Potions can't stack past 20, so this is a shortcut :P
+    local smallestStackPotionID = 0
+    for i, potionStack in ipairs(bestPotions) do
+      local potionID, stackCount = unpack(potionStack)
+      if stackCount < smallestStack then
+        smallestStack = stackCount
+        smallestStackPotionID = potionID
+      end
     end
+    return smallestStackPotionID
   end
-  return smallestPotionID
 end
 
 function setBindings()
