@@ -186,7 +186,7 @@ end
 BINDINGS = {
   GLOBAL = {
     {"ALT-CTRL-END",          "command",  "SLACKUI_RELOADUI"},
-    {"CTRL-`",                "command",  "FOCUSTARGET"},
+    {"ALT-CTRL-`",            "command",  "FOCUSTARGET"},
     {"ALT-`",                 "command",  "INTERACTTARGET"},
     {"W",                     "command",  "MOVEFORWARD"},
     {"A",                     "command",  "STRAFELEFT"},
@@ -240,7 +240,8 @@ BINDINGS = {
     {"CTRL-0",                "command",  "NONE"},
     {",",                     "command",  "NONE"},
     {"ALT-CTRL-W",            "command",  "TOGGLEFOLLOW"},
-    {"E",                     "command",  "INTERACTTARGET"},
+    {"E",                     "macro",    "!ENGAGE"},
+    {"SHIFT-E",               "macro",    "!ASSIST"},
     {"CTRL-E",                "command",  "EXTRAACTIONBUTTON1"},
     {"SHIFT-R",               "command",  "NONE"},
     {"CTRL-R",                "command",  "NONE"},
@@ -318,7 +319,7 @@ BINDINGS = {
         { "ALT-CTRL-Q",       "macro",   "PetToggle" },
         { "ALT-SHIFT-Q",      "spell",   "Play Dead" },
         { "ALT-CTRL-SHIFT-Q", "spell",   "Eyes of the Beast" },
-        { "E",                "spell",   "Bursting Shot" },
+        { "CTRL-E",           "spell",   "Bursting Shot" },
         { "ALT-CTRL-E",       "macro",   "ChainEagle" },
         { "R",                "spell",   "Steady Shot" },
         { "SHIFT-R",          "spell",   "Rapid Fire" },
@@ -598,15 +599,13 @@ BINDINGS = {
       ---------------------------------------------------
 
       -- General
-      { "E",          "macro", "Engage!" }, -- Crusader Strike
-      { "ALT-E",      "macro", "EngageFOCUS" },
-      { "CTRL-E",     "command",  "INTERACTTARGET"},
+      { "E",          "macro", "!ENGAGE" }, -- Crusader Strike
 
       { "F9",         "command", "SHAPESHIFTBUTTON1" },
       { "F10",        "command", "SHAPESHIFTBUTTON2" },
       { "F11",        "command", "SHAPESHIFTBUTTON3" },
       { "F12",        "command", "SHAPESHIFTBUTTON4" },
-      { "`",          "macro",   "STOP!" },
+      { "`",          "macro",   "!STOP" },
       { "BUTTON4",    "macro",   "MOUSE4" },
       { "BUTTON5",    "macro",   "MOUSE5" },
 
@@ -643,7 +642,7 @@ BINDINGS = {
       { "SHIFT-R",    "spell",   "Seal of the Crusader" },
 
       -- Items
-      { "ALT-Z",     "item",    "Insignia of the Alliance" }, -- PvP Trinket
+      { "ALT-Z",       "item",    "Insignia of the Alliance" }, -- PvP Trinket
     }
   }
 }
