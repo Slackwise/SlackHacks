@@ -25,12 +25,15 @@ BEST_ITEMS = {
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
 
-    -- Dragonflight Potions:
+    -- Dragonflight Healing Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
     [207023]     = 310592, -- Dreamwalker's Healing Potion (Quality 3)
     [207022]     = 266709, -- Dreamwalker's Healing Potion (Quality 2)
     [207021]     = 228992, -- Dreamwalker's Healing Potion (Quality 1)
+    [191380]     = 160300, -- Refreshing Healing Potion (Quality 3)
+    [191379]     = 137550, -- Refreshing Healing Potion (Quality 2)
+    [191378]     = 118000, -- Refreshing Healing Potion (Quality 1)
 
-    -- Classic Potions:
+    -- Classic Healing Potions:  https://www.wowhead.com/classic/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
     [13446]      = 1750, -- Major Healing Potion
     [3928]       = 900, -- Superior Healing Potion
     [1710]       = 585, -- Greater Healing Potion
@@ -45,12 +48,12 @@ BEST_ITEMS = {
     -- Mapping of:
     -- ITEM_ID = MAX_MANA_RESTORATION
 
-    -- Dragonflight Potions:
+    -- Dragonflight Mana Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Mana+Potion/live-only:on?filter=16;10;0
     [191386]     = 27600, -- Aerated Mana Potion (Quality 3)
     [191385]     = 24000, -- Aerated Mana Potion (Quality 2)
     [191384]     = 20870, -- Aerated Mana Potion (Quality 1)
 
-    -- Classic Potions:
+    -- Classic Mana Potions: https://www.wowhead.com/classic/spells/professions/alchemy/name:Mana+Potion#0-18+2
     [13444]      = 2250, -- Major Mana Potion
     [13443]      = 1500, -- Superior Mana Potion
     [6149]       = 900, -- Greater Mana Potion
