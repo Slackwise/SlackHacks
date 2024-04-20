@@ -43,41 +43,44 @@ end
 
 function bindBestUseItems()
   if not isTester() then return end
-  print(findBestUseItemID(BEST_HEALING_POTIONS))
+  findBestUseItemID(BEST_HEALING_POTIONS)
 end
 
 function findBestUseItemID(bestItemMap)
   -- Find all matching items in bags:
   local containerItemInfos = findItemsByRegex(bestItemMap.ITEM_REGEX)
   if isDebugging() and containerItemInfos then
+    log("Found matching (\"" .. bestItemMap.ITEM_REGEX .. "\") items:")
     for i, item in ipairs(containerItemInfos) do
       log(item.stackCount .. "x of " .. item.itemID .. " " .. item.hyperlink)
     end
-  else
-    log("no items found!")
   end
 
-  -- Group them up by healing so that the keys are max healing and the values are an array of potions and stack counts:
+  -- Group items by strength so that the keys are their strength,
+  -- and the values are an array of itemIDs and stack counts:
   local itemsByBestStrength = groupBy(containerItemInfos,
     function(item)
       return bestItemMap[item.itemID], { item.itemID, item.stackCount }
     end
   )
+  -- `itemsByBestStrength` is now a map of strength to an array of items with identical strength.
 
-  -- Now find the largest index, which is the strongest item:
+  -- Now that the keys/indexes are strengths, find the largest index, which is the strongest:
   local bestItems = itemsByBestStrength[findLargestIndex(itemsByBestStrength)]
+  -- `bestItems` contains an array of items which are an array of (itemID, stackCount)
 
-  --Of the `bestItems`, let's find the smallest stack so we use them up first to free up bag space;
+  -- Find the smallest stack so we use them up first to free up bag space;
   if bestItems then
-    local smallestStack = 21 -- Potions can't stack past 20, so this is a shortcut :P
+    local smallestStack = 9999 -- Start with the largest stack possible as we're wittling down, and nothing stacks past 2000 as far as I know, and the most was arrows?
     local smallestStackItemID = 0
     for i, itemStack in ipairs(bestItems) do
-      local potionID, stackCount = unpack(itemStack)
+      local itemID, stackCount = unpack(itemStack)
       if stackCount < smallestStack then
         smallestStack = stackCount
-        smallestStackItemID = potionID
+        smallestStackItemID = itemID
       end
     end
+    log("Best found smallest stack itemID: " .. smallestStackItemID)
     return smallestStackItemID
   end
 end
