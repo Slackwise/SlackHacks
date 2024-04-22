@@ -166,9 +166,15 @@ function getClassName()
 end
 
 function getSpecName()
-  local specID = GetSpecialization()
-  if specID then
-    return strupper(select(2, GetSpecializationInfo(specID)))
+  local specIndex = GetSpecialization()
+  if specIndex then
+    log("specIndex = " .. specIndex)
+    local specID, specName = GetSpecializationInfo(specIndex)
+    log("specID = " .. specID)
+    log("specName = " .. specName)
+    if specName then
+      return strupper(specName)
+    end
   end
   return nil
 end
@@ -206,9 +212,11 @@ function sellGreyItems()
       if link then
         local itemName, itemLink, itemQuality = C_Item.GetItemInfo(link)
         local collectable = canCollectTransmog(itemLink)
-        if itemQuality == ITEM_QUALITY_GREY and not collectable then
-          log("Grey Item to Sell: " .. tostring(itemName))
-          C_Container.UseContainerItem(bag, slot)
+        if itemQuality == ITEM_QUALITY_GREY then
+          if collectable then
+            log("Grey Item to Sell: " .. tostring(itemName))
+            C_Container.UseContainerItem(bag, slot)
+          end
         end
       end
     end
