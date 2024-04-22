@@ -110,7 +110,7 @@ end
 
 function setBindings()
   if not isTester() then
-    print("[WIP Feature] Binding system is still in progress. Will not perform any binds, don't worry.")
+    print("SlackUI Bindings: Work in progress. Cannot bind currently.")
     return
   end
 
