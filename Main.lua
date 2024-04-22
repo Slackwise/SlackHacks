@@ -166,7 +166,11 @@ function getClassName()
 end
 
 function getSpecName()
-  return strupper(select(2, GetSpecializationInfo(GetSpecialization())))
+  local specID = GetSpecialization()
+  if specID then
+    return strupper(select(2, GetSpecializationInfo(specID)))
+  end
+  return nil
 end
 
 function setCVars()

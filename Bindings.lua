@@ -129,21 +129,29 @@ function setBindings()
 
   if isRetail() then
     local spec = getSpecName()
-
-    if bindings.PRE_SCRIPT then
-      bindings.PRE_SCRIPT(spec)	
+    if not spec then
+      print("SlackUI Binding: No spec currently to bind!")
     end
 
     if bindings.CLASS ~= nil then
+      if bindings.CLASS.PRE_SCRIPT then
+        bindings.CLASS.PRE_SCRIPT()	
+      end
       for _, binding in ipairs(bindings.CLASS) do
         local key, type, name = unpack(binding)
         if not (type == "spell" and not DoesSpellExist(name)) then
           setBinding(binding)
         end
       end
+      if bindings.CLASS.POST_SCRIPT then
+        bindings.CLASS.POST_SCRIPT()	
+      end
     end
 
-    if spec ~= "" then
+    if spec then
+      if bindings[spec].PRE_SCRIPT then
+        bindings[spec].PRE_SCRIPT()	
+      end
       local specBindings = bindings[spec]
       if specBindings ~= nil then
         for _, binding in ipairs(specBindings) do
@@ -152,10 +160,9 @@ function setBindings()
           end
         end
       end
-    end
-
-    if bindings.POST_SCRIPT then
-      bindings.POST_SCRIPT(spec)	
+      if bindings[spec].POST_SCRIPT then
+        bindings[spec].POST_SCRIPT()	
+      end
     end
 
     SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
@@ -506,7 +513,8 @@ BINDINGS = {
         { "ALT-1",      "spell",   "Cleanse" },
 
         -- Cast Heals
-        { "SHIFT-2",    "spell",   "Holy Light" },
+        { "2",          "spell",   "Holy Light" },
+        { "SHIFT-2",    "spell",   "Flash of Light" },
         { "CTRL-2",     "spell",   "Divine Favor" },
 
         -- AoE Heals
