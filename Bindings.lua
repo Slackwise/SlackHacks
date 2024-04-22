@@ -166,7 +166,7 @@ function setBindings()
     end
 
     SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
-    print(spec .. " " .. class .. " binding presets loaded!")
+    print((spec or "CLASS-ONLY") .. " " .. class .. " binding presets loaded!")
   elseif isClassic() then
     if bindings.PRE_SCRIPT then
       bindings.PRE_SCRIPT()	
