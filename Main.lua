@@ -168,10 +168,10 @@ end
 function getSpecName()
   local specIndex = GetSpecialization()
   if specIndex then
-    log("specIndex = " .. specIndex)
+    log("specIndex = " .. (specIndex or "nil"))
     local specID, specName = GetSpecializationInfo(specIndex)
-    log("specID = " .. specID)
-    log("specName = " .. specName)
+    log("specID = " .. (specID or "nil"))
+    log("specName = " .. (specName or "nil"))
     if specName then
       return strupper(specName)
     end
