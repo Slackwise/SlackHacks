@@ -487,7 +487,17 @@ function mount()
   end
 
   if IsOutdoors() then
-    if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
+    if IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
+      if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
+        mountByUsage("FLYING_SHOWOFF")
+        return
+      elseif isAlternativeMountRequested() then
+        mountByUsage("GROUND_SHOWOFF")
+        return
+      end
+      mountByUsage('DYNAMIC_FLYING')
+      return
+    elseif isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
       log("FLYING AREA")
       if isAlternativeMountRequested() then -- But we may want to show off our ground mount
         mountByUsage("FLYING_SHOWOFF")
@@ -500,16 +510,6 @@ function mount()
         mountByUsage("FLYING")
         return
       end
-      return
-    elseif IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
-      if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
-        mountByUsage("FLYING_SHOWOFF")
-        return
-      elseif isAlternativeMountRequested() then
-        mountByUsage("GROUND_SHOWOFF")
-        return
-      end
-      mountByUsage('DYNAMIC_FLYING')
       return
     elseif IsSubmerged() then -- Summon water mount
       if isAlternativeMountRequested() then -- But we may want to fly out of the water
