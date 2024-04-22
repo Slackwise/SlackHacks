@@ -247,7 +247,7 @@ BINDINGS = {
     {"CTRL-R",                "command",  "NONE"},
     {"CTRL-S",                "command",  "NONE"},
     {"CTRL-G",                "item",     "Net-O-Matic 5000"},
-    {"CTRL-H",                "macro",    "HEARTH"},
+    {"ALT-CTRL-H",            "macro",     "HEARTH"},
     {"ALT-H",                 "command",  "TOGGLEUI"},
     {"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
     {"CTRL-B",                "command",  "TOGGLECHARACTER0"},
@@ -499,7 +499,7 @@ BINDINGS = {
         { "SHIFT-V",    "spell",   "Divine Shield" },
         { "CTRL-V",     "macro",   "LAY_ON_SELF" },
         -- { "ALT-V",      "spell",   "Refreshing Healing Potion" },
-        { "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
+        -- { "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
       },
       HOLY = {
         -- Quick Heals
