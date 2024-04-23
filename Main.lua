@@ -235,6 +235,19 @@ end
 
 --- Get all keys from a given `targetTable`.
 ---@param targetTable table - The table to extract keys from.
+---@param value object - The `value` to key off of.
+---@return array - First key matching value.
+function getKeyByValue(targetTable, targetValue)
+  for key, value in pairs(targetTable) do
+    if value == targetValue then
+      return key
+    end
+  end
+  return nil
+end
+
+--- Get all keys from a given `targetTable`.
+---@param targetTable table - The table to extract keys from.
 ---@return array - Array of keys.
 function keys(targetTable)
   local collectedKeys = {}
@@ -429,7 +442,7 @@ function printDebugMapInfo()
   print("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
   print("mapID: "       .. map.mapID)
   print("parentMapID: " .. map.parentMapID)
-  print("mapType: "     .. (Enum.UIMapType[map.mapType] or "nil") .. " (" .. (map.mapType or "nil") .. ")")
+  print("mapType: "     .. (getKeyByValue(Enum.UIMapType, map.mapType) or "nil") .. " (" .. (map.mapType or "nil") .. ")")
   print("Outdoor: "     .. tostring(IsOutdoors()))
   print("Submerged: "   .. tostring(IsSubmerged()))
   print("Flyable: "     .. tostring(IsFlyableArea()))
