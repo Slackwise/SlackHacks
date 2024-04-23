@@ -15,13 +15,14 @@ setfenv(1, Self) -- Namespace local to addon
 addonName, addonTable = ...
 
 dbDefaults = {
-  profile = {
-    isDebugging = false
+  global = {
+    isDebugging = false,
+    log = {}
   }
 }
 
 function isDebugging()
-  return SlackUIDB.isDebugging
+  return db.global.isDebugging
 end
 
 COLOR_START = "\124c"
@@ -38,9 +39,11 @@ grey = color("AAAAAA")
 function log(message, ...)
   if isDebugging() then
     print(grey(date()) .. "  " .. message)
+    table.insert(db.global.log, date() .. "  " .. message)
     if arg then
       for i, v in ipairs(arg) do
         print("Arg " .. i .. " = " .. v)
+        table.insert(db.global.log, "Arg " .. i .. " = " .. v)
       end
     end
   end

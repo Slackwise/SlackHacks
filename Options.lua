@@ -15,14 +15,30 @@ options = {
       name = "Enable Debugging",
       desc = "Enable debugging logs and stuff",
       type = "toggle",
-      get = function() return SlackUIDB.isDebugging end,
-      set = function() SlackUIDB.isDebugging = not SlackUIDB.isDebugging end,
+      get = function() return db.global.isDebugging end,
+      set = function()
+        db.global.isDebugging = not db.global.isDebugging
+        if db.global.isDebugging then
+          print("SlackUI Debugging ON")
+        else
+          print("SlackUI Debugging OFF")
+        end
+      end,
     },
     bind = {
       type = "execute",
       name = "Set Bindings",
       desc = "Set binding presets for current character's class and spec.",
       func = function() setBindings() end
+    },
+    reset = {
+      type = "execute",
+      name = "Reset All Data",
+      desc = "DANGER: Wipes all settings! Cannot be undone!",
+      func = function()
+        db:ResetDB()
+        print("SlackUI: ALL DATA WIPED")
+      end
     }
   }
 }
