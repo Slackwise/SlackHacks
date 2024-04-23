@@ -399,6 +399,13 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
     905,	-- Argus
   },
   ZONES = {
+    94,    -- Eversong Woods
+    95,    -- Ghostlands
+    97,    -- Azuremyst Isle
+    103,   -- The Exodar
+    106,   -- Bloodmyst Isle
+    110,   -- Silvermoon City
+    122,   -- Isle of Quel'Danas
     946,   -- "Cosmic" (Ashran BG)
     1334,  -- Wintergrasp (BG)
   }
@@ -408,7 +415,7 @@ function isActuallyFlyableArea()
   local continent = getCurrentContinent()
   local zone 			= getCurrentZone()
 
-  if not (continent and continent.mapID) or not (zone and zone.mapID) then
+  if not continent or not zone then
     return false
   end
 
@@ -430,6 +437,26 @@ function isActuallyFlyableArea()
   end
 
   return IsFlyableArea()
+end
+
+function isNotActuallyFlyableArea()
+  local continent = getCurrentContinent()
+  local zone 			= getCurrentZone()
+
+  if not continent or not zone then
+    return true
+  end
+
+  local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
+  local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
+
+  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone
+
+  if listedNonFlyable then
+    return true
+  end
+
+  return false
 end
 
 function printDebugMapInfo()
@@ -526,7 +553,38 @@ function mount()
   end
 
   if IsOutdoors() then
-    if IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
+    if isNotActuallyFlyableArea() then -- Specifically listed as NOT flyable in any way:
+      if IsSubmerged() then -- Summon water mount
+        if isAlternativeMountRequested() then -- But we may want to fly out of the water
+          if IsAdvancedFlyableArea() then
+            mountByUsage('DYNAMIC_FLYING')
+            return
+          else
+            mountByUsage("FLYING")
+            return
+          end
+          return
+        end
+        mountByUsage("WATER")
+        return
+      else -- Summon ground mount
+        if IsInGroup() then
+          if isAlternativeMountRequested() then -- But we may want to show off
+            mountByUsage("GROUND_SHOWOFF")
+            return
+          end
+          mountByUsage("GROUND_PASSENGER")
+          return
+        else
+          if isAlternativeMountRequested() then -- But we may want to show off
+            mountByUsage("GROUND_SHOWOFF")
+            return
+          end
+          mountByUsage("GROUND")
+          return
+        end
+      end 
+    elseif IsAdvancedFlyableArea() and not IsSubmerged() then -- Summon dragonriding mount
       if isAlternativeMountRequested() and isActuallyFlyableArea() then -- But we may want to show off our ground mount
         mountByUsage("FLYING_SHOWOFF")
         return
