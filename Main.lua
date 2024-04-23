@@ -399,7 +399,8 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
     905,	-- Argus
   },
   ZONES = {
-    946   -- "Cosmic" (Ashran BG)
+    946,   -- "Cosmic" (Ashran BG)
+    1334,  -- Wintergrasp (BG)
   }
 }
 
@@ -407,7 +408,7 @@ function isActuallyFlyableArea()
   local continent = getCurrentContinent()
   local zone 			= getCurrentZone()
 
-  if not continent.mapID or not zone.mapID then
+  if not (continent and continent.mapID) or not (zone and zone.mapID) then
     return false
   end
 
@@ -435,16 +436,18 @@ function printDebugMapInfo()
   local map = getCurrentMap()
   local zone = getCurrentZone()
   local continent = getCurrentContinent()
-  local parentMap = C_Map.GetMapInfo(map.parentMapID)
+  local parentMap = C_Map.GetMapInfo(map.parentMapID) or "nil"
   if isDebugging() then
     p = log
   else
     p = print
   end
   p("===============================")
-  p(map.name .. ", " .. parentMap.name)
+  p(map.name .. ", " .. (parentMap.name or "nil"))
   p("Zone: "      .. zone.name .. " (" .. zone.mapID .. ')')
-  p("Continent: " .. continent.name .. " (" .. continent.mapID .. ')')
+  if conintent then
+    p("Continent: " .. continent.name .. " (" .. continent.mapID .. ')')
+  end
   p("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
   p("mapID: "       .. map.mapID)
   p("parentMapID: " .. map.parentMapID)
