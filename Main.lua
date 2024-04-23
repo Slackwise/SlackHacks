@@ -70,8 +70,10 @@ end
 function handleDragonriding()
   if isTester() then
     if isDragonriding() then
+      log("BINDING dragonriding")
       bindDragonriding()
     else
+      log("UNBINDING dragonriding")
       unbindDragonriding()
     end
   end
@@ -355,18 +357,18 @@ function getCurrentMap()
   return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
 end
 
-function getCurrentContinentID()
+function getCurrentContinent()
   local map = getCurrentMap()
   if map then
-    return findParentMapByType(map, Enum.UIMapType.Continent).mapID
+    return findParentMapByType(map, Enum.UIMapType.Continent)
   end
   return nil
 end
 
-function getCurrentZoneID()
+function getCurrentZone()
   local map = getCurrentMap()
   if map then
-    return findParentMapByType(map, Enum.UIMapType.Zone).mapID
+    return findParentMapByType(map, Enum.UIMapType.Zone)
   end
   return nil
 end
@@ -388,18 +390,18 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
 }
 
 function isActuallyFlyableArea()
-  local continentID = getCurrentContinentID()
-  local zoneID 			= getCurrentZoneID()
+  local continent = getCurrentContinent()
+  local zone 			= getCurrentZone()
 
-  if not continentID or not zoneID then
+  if not continent.mapID or not zone.mapID then
     return false
   end
 
-  local listedFlyableContinent    = not not tContains(	   ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continentID  )
-  local listedFlyableZone         = not not tContains(	   ACTUALLY_FLYABLE_MAPS.ZONES,       zoneID       )
+  local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
+  local listedFlyableZone         = not not tContains(	    ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
 
-  local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continentID  )
-  local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zoneID       )
+  local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
+  local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
 
   local listedFlyable             = listedFlyableContinent    or listedFlyableZone
   local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone
@@ -420,7 +422,6 @@ function printDebugMapInfo()
   local zone = getCurrentZone()
   local continent = getCurrentContinent()
   local parentMap = C_Map.GetMapInfo(map.parentMapID)
-  print("MapID: " .. map.mapID)
   print("===============================")
   print(map.name .. ", " .. parentMap.name)
   print("Zone: "      .. zone.name .. " (" .. zone.mapID .. ')')
@@ -428,7 +429,7 @@ function printDebugMapInfo()
   print("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
   print("mapID: "       .. map.mapID)
   print("parentMapID: " .. map.parentMapID)
-  print("mapType: "     .. Enum.UIMapType[map.mapType] .. '('..map.mapType..')')
+  print("mapType: "     .. (Enum.UIMapType[map.mapType] or "nil") .. " (" .. (map.mapType or "nil") .. ")")
   print("Outdoor: "     .. tostring(IsOutdoors()))
   print("Submerged: "   .. tostring(IsSubmerged()))
   print("Flyable: "     .. tostring(IsFlyableArea()))
@@ -472,6 +473,9 @@ MOUNTS_BY_USAGE = {
 }
 
 function mountByUsage(usage)
+  if isDebugging then
+    printDebugMapInfo()
+  end
   C_MountJournal.SummonByID(MOUNTS_BY_USAGE[getClassName()][usage])
 end
 
