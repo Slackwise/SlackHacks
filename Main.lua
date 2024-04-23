@@ -446,6 +446,7 @@ function printDebugMapInfo()
   print("Outdoor: "     .. tostring(IsOutdoors()))
   print("Submerged: "   .. tostring(IsSubmerged()))
   print("Flyable: "     .. tostring(IsFlyableArea()))
+  print("AdvancedFlyable: " .. tostring(IsAdvancedFlyableArea()))
   print("ActuallyFlyable: " .. tostring(isActuallyFlyableArea()))
   print("===============================")
 end
