@@ -523,7 +523,7 @@ MOUNTS_BY_USAGE = {
 }
 
 function mountByUsage(usage)
-  if isDebugging then
+  if isDebugging() then
     printDebugMapInfo()
   end
   C_MountJournal.SummonByID(MOUNTS_BY_USAGE[getClassName()][usage])
