@@ -399,6 +399,7 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
     905,	-- Argus
   },
   ZONES = {
+    946   -- "Cosmic" (Ashran BG)
   }
 }
 
@@ -435,20 +436,25 @@ function printDebugMapInfo()
   local zone = getCurrentZone()
   local continent = getCurrentContinent()
   local parentMap = C_Map.GetMapInfo(map.parentMapID)
-  print("===============================")
-  print(map.name .. ", " .. parentMap.name)
-  print("Zone: "      .. zone.name .. " (" .. zone.mapID .. ')')
-  print("Continent: " .. continent.name .. " (" .. continent.mapID .. ')')
-  print("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
-  print("mapID: "       .. map.mapID)
-  print("parentMapID: " .. map.parentMapID)
-  print("mapType: "     .. (getKeyByValue(Enum.UIMapType, map.mapType) or "nil") .. " (" .. (map.mapType or "nil") .. ")")
-  print("Outdoor: "     .. tostring(IsOutdoors()))
-  print("Submerged: "   .. tostring(IsSubmerged()))
-  print("Flyable: "     .. tostring(IsFlyableArea()))
-  print("AdvancedFlyable: " .. tostring(IsAdvancedFlyableArea()))
-  print("ActuallyFlyable: " .. tostring(isActuallyFlyableArea()))
-  print("===============================")
+  if isDebugging() then
+    p = log
+  else
+    p = print
+  end
+  p("===============================")
+  p(map.name .. ", " .. parentMap.name)
+  p("Zone: "      .. zone.name .. " (" .. zone.mapID .. ')')
+  p("Continent: " .. continent.name .. " (" .. continent.mapID .. ')')
+  p("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
+  p("mapID: "       .. map.mapID)
+  p("parentMapID: " .. map.parentMapID)
+  p("mapType: "     .. (getKeyByValue(Enum.UIMapType, map.mapType) or "nil") .. " (" .. (map.mapType or "nil") .. ")")
+  p("Outdoor: "     .. tostring(IsOutdoors()))
+  p("Submerged: "   .. tostring(IsSubmerged()))
+  p("Flyable: "     .. tostring(IsFlyableArea()))
+  p("AdvancedFlyable: " .. tostring(IsAdvancedFlyableArea()))
+  p("ActuallyFlyable: " .. tostring(isActuallyFlyableArea()))
+  p("===============================")
 end
 
 MOUNT_SHORTNAMES = {
