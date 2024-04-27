@@ -216,7 +216,8 @@ function sellGreyItems()
         local collectable = canCollectTransmog(itemLink)
         if itemQuality == ITEM_QUALITY_GREY then
           if collectable then
-            log("Grey Item to Sell: " .. tostring(itemName))
+            print("[SlackUI] Not selling transmog-able item:" .. tostring(itemName))
+          else
             C_Container.UseContainerItem(bag, slot)
           end
         end
