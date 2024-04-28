@@ -457,7 +457,7 @@ BINDINGS = {
 
         -- Quick Heals
         { "1",          "spell",   "Word of Glory" },
-        { "SHIFT-1",    "spell",   "Lay on Hands" },
+        { "CTRL-1",     "spell",   "Lay on Hands" },
 
         -- Cast Heals
         { "2",          "spell",   "Flash of Light" },
@@ -510,7 +510,7 @@ BINDINGS = {
       },
       HOLY = {
         -- Quick Heals
-        { "ALT-1",      "spell",   "Cleanse" },
+        { "SHIFT-1",    "spell",   "Cleanse" },
 
         -- Cast Heals
         { "2",          "spell",   "Holy Light" },
@@ -546,7 +546,7 @@ BINDINGS = {
       },
       PROTECTION = {
         -- Quick Heals
-        { "ALT-1",      "spell",   "Cleanse Toxins" },
+        { "SHIFT-1",    "spell",   "Cleanse Toxins" },
 
         ---------------------------------------------------
 
