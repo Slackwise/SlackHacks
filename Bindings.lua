@@ -254,7 +254,7 @@ BINDINGS = {
     {"CTRL-R",                "command",  "NONE"},
     {"CTRL-S",                "command",  "NONE"},
     {"CTRL-G",                "item",     "Net-O-Matic 5000"},
-    {"ALT-CTRL-H",            "macro",     "HEARTH"},
+    {"CTRL-H",                "macro",    "HEARTH"},
     {"ALT-H",                 "command",  "TOGGLEUI"},
     {"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
     {"CTRL-B",                "command",  "TOGGLECHARACTER0"},
@@ -556,13 +556,15 @@ BINDINGS = {
         -- Attacks
         { "R",          "spell",   "Avenger's Shield" },
 
-        -- Targetting
+        -- Taunting
+        { "T",          "spell",   "Hand of Reckoning" },
 
         ---------------------------------------------------
 
         -- Blessings
 
         -- AoE (emanating from me)
+        { "SHIFT-C",    "spell",   "Eye of Tyr" },
       },
       RETRIBUTION = {
         -- Heals
