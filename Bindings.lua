@@ -565,6 +565,9 @@ BINDINGS = {
         -- AoE (emanating from me)
       },
       RETRIBUTION = {
+        -- Heals
+        { "SHIFT-1",    "spell",   "Cleanse Toxins" },
+
         -- AoE
         { "3",          "spell",   "Wake of Ashes" },
         { "BUTTON4",    "macro",   "RECKON_CURSOR" },
