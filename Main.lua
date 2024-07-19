@@ -499,11 +499,22 @@ MOUNT_SHORTNAMES = {
 };
 
 MOUNTS_BY_USAGE = {
+  DEFAULT = {
+    ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['DYNAMIC_FLYING']    = MOUNT_IDS["Algarian Stormrider"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
+    ['GATHERING']         = MOUNT_IDS["Sky Golem"],
+    ['GROUND_SHOWOFF']    = MOUNT_SHORTNAMES["RAPTOR"],
+    ['FLYING_SHOWOFF']    = MOUNT_SHORTNAMES["PHOENIX"],
+  },
   HUNTER = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['DYNAMIC_FLYING']    = MOUNT_IDS["Winding Slitherdrake"],
+    ['DYNAMIC_FLYING']    = MOUNT_IDS["Highland Drake"],
     ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
     ['GATHERING']         = MOUNT_IDS["Sky Golem"],
@@ -520,14 +531,26 @@ MOUNTS_BY_USAGE = {
     ['GATHERING']         = MOUNT_IDS["Sky Golem"],
     ['GROUND_SHOWOFF']    = MOUNT_SHORTNAMES["RAPTOR"],
     ['FLYING_SHOWOFF']    = MOUNT_SHORTNAMES["TLPD"],
-  }
+  },
+  DRUID = {
+    ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['DYNAMIC_FLYING']    = MOUNT_IDS["Auspicious Arborwyrm"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
+    ['GATHERING']         = MOUNT_IDS["Sky Golem"],
+    ['GROUND_SHOWOFF']    = MOUNT_SHORTNAMES["RAPTOR"],
+    ['FLYING_SHOWOFF']    = MOUNT_SHORTNAMES["PHOENIX"],
+  },
 }
 
 function mountByUsage(usage)
   if isDebugging() then
     printDebugMapInfo()
   end
-  C_MountJournal.SummonByID(MOUNTS_BY_USAGE[getClassName()][usage])
+  local classMounts = MOUNTS_BY_USAGE[getClassName()] or MOUNTS_BY_USAGE["DEFAULT"]
+  C_MountJournal.SummonByID(classMounts[usage])
 end
 
 function mountByName(mountName)

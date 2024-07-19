@@ -17,6 +17,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Renewed Proto-Drake"]          = 1589,
   ["Grotto Netherwing Drake"]      = 1744,
   ["Algarian Stormrider"]          = 1792,
+  ["Auspicious Arborwyrm"]         = 1795,
 }
 
 BEST_ITEMS = {
