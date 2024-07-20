@@ -592,6 +592,38 @@ BINDINGS = {
         { "SHIFT-C",   "macro",   "RECKON_SELF" }, -- Can't cast BELL_SELF on self as Ret
         { "CTRL-C",    "spell",   "Shield of Vengeance" },
       },
+    },
+    DRUID = {
+      CLASS = {
+        {"SHIFT-SPACE",           "spell",   "Travel Form"},
+        {"CTRL-SPACE",            "spell",   "Wild Charge"},
+        {"CTRL-SHIFT-SPACE",      "command", "SLACKUI_MOUNT"},
+        {"1",                     "spell",   "Rejuvenation"},
+        {"SHIFT-1",               "spell",   "Regrowth"},
+        {"CTRL-1",                "spell",   "Wild Growth"},
+        {"ALT-CTRL-1",            "spell",   "Swiftmend"},
+        {"ALT-1",                 "spell",   "Remove Corruption"},
+        {"4",                     "spell",   "Moonfire"},
+        {"F",                     "spell",   "Entangling Roots"},
+        {"ALT-CTRL-F",            "spell",   "Mass Entanglement"},
+        {"G",                     "spell",   "Heart of the Wild"},
+        {"Z",                     "spell",   "Tiger Dash"},
+        {"SHIFT-Z",               "spell",   "Shadowmeld"},
+        {"CTRL-Z",                "spell",   "Revive"},
+        {"V",                     "spell",   "Bear Form"},
+        {"SHIFT-V",               "spell",   "Barkskin"},
+        {"CTRL-V",                "spell",   "Renewal"},
+        {"C",                     "spell",   "Cat Form"},
+        {"SHIFT-C",               "spell",   "Prowl"},
+      },
+      BALANCE = {
+      },
+      FERAL = {
+      },
+      GUARDIAN = {
+      },
+      RESTORATION = {
+      }
     }
   },
   CLASSIC = {
