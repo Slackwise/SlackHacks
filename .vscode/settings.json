@@ -61,6 +61,7 @@
         "LoadBindings",
         "unpack",
         "SaveBindings",
-        "DoesSpellExist"
+        "DoesSpellExist",
+        "MOUNTS"
     ]
 }
