@@ -607,7 +607,7 @@ BINDINGS = {
         {"F",                     "spell",   "Entangling Roots"},
         {"ALT-CTRL-F",            "spell",   "Mass Entanglement"},
         {"G",                     "spell",   "Heart of the Wild"},
-        {"Z",                     "spell",   "Tiger Dash"},
+        {"Z",                     "spell",   "Dash"},
         {"SHIFT-Z",               "spell",   "Shadowmeld"},
         {"CTRL-Z",                "spell",   "Revive"},
         {"V",                     "spell",   "Bear Form"},
