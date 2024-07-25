@@ -139,7 +139,7 @@ function setBindings()
       end
       for _, binding in ipairs(bindings.CLASS) do
         local key, type, name = unpack(binding)
-        if not (type == "spell" and not DoesSpellExist(name)) then
+        if not (type == "spell" and not C_Spell.DoesSpellExist(name)) then
           setBinding(binding)
         end
       end
