@@ -508,7 +508,7 @@ MOUNTS_BY_USAGE = {
     ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
     ['GATHERING']         = MOUNT_IDS["Sky Golem"],
     ['GROUND_SHOWOFF']    = MOUNT_SHORTNAMES["RAPTOR"],
-    ['FLYING_SHOWOFF']    = MOUNT_SHORTNAMES["PHOENIX"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
   HUNTER = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
