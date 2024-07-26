@@ -646,7 +646,9 @@ BINDINGS = {
     },
     SHAMAN = {
       CLASS = {
+        {"1",                 "spell",   "Healing Surge"},
         {"2",                 "spell",   "Lightning Bolt"},
+        {"4",                 "spell",   "Flame Shock"},
         {"E",                 "spell",   "Primal Strike"},
         {"R",                 "spell",   ""},
         {"T",                 "spell",   ""},
@@ -654,9 +656,9 @@ BINDINGS = {
         {"SHIFT-F",           "spell",   ""},
         {"CTRL-F",            "spell",   ""},
         {"X",                 "spell",   ""},
-        {"C",                 "spell",   ""},
-        {"Z",                 "spell",   ""},
-        {"CTRL-SPACE",        "spell",   ""},
+        {"C",                 "spell",   "Earthbind Totem"},
+        {"Z",                 "spell",   "Ghost Wolf"},
+        {"CTRL-SPACE",        "spell",   "Ghost Wolf"},
         {"ALT-CTRL-Z",        "spell",   "Gift of the Naaru"},
       },
       ELEMENTAL = {},
