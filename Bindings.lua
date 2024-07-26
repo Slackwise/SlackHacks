@@ -148,7 +148,7 @@ function setBindings()
       end
     end
 
-    if spec then
+    if spec and spec ~= "" then
       if bindings[spec].PRE_SCRIPT then
         bindings[spec].PRE_SCRIPT()	
       end
@@ -627,7 +627,7 @@ BINDINGS = {
     },
     MAGE = {
       CLASS = {
-        {"4",                 "command", "Ice Lance"},
+        {"4",                 "spell",   "Ice Lance"},
         {"E",                 "command", "INTERACTTARGET"},
         {"R",                 "spell",   "Frostbolt"},
         {"T",                 "spell",   "Fire Blast"},
@@ -643,6 +643,25 @@ BINDINGS = {
       ARCANE = {},
       FIRE = {},
       FROST = {},
+    },
+    SHAMAN = {
+      CLASS = {
+        {"2",                 "spell",   "Lightning Bolt"},
+        {"E",                 "spell",   "Primal Strike"},
+        {"R",                 "spell",   ""},
+        {"T",                 "spell",   ""},
+        {"F",                 "spell",   ""},
+        {"SHIFT-F",           "spell",   ""},
+        {"CTRL-F",            "spell",   ""},
+        {"X",                 "spell",   ""},
+        {"C",                 "spell",   ""},
+        {"Z",                 "spell",   ""},
+        {"CTRL-SPACE",        "spell",   ""},
+        {"ALT-CTRL-Z",        "spell",   "Gift of the Naaru"},
+      },
+      ELEMENTAL = {},
+      ENHANCEMENT = {},
+      RESTORATION = {},
     },
   },
   CLASSIC = {
