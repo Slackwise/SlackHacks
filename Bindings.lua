@@ -627,6 +627,7 @@ BINDINGS = {
     },
     MAGE = {
       CLASS = {
+        {"4",                 "command", "Ice Lance"},
         {"E",                 "command", "INTERACTTARGET"},
         {"R",                 "spell",   "Frostbolt"},
         {"T",                 "spell",   "Fire Blast"},
