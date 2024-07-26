@@ -523,9 +523,9 @@ MOUNTS_BY_USAGE = {
   },
   PALADIN = {
     ['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
-    ['FLYING']            = MOUNT_IDS["Highlord's Golden Charger"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['DYNAMIC_FLYING']    = MOUNT_IDS["Algarian Stormrider"],
+    ['DYNAMIC_FLYING']    = MOUNT_IDS["Ashes of Al'ar"],
     ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
     ['GATHERING']         = MOUNT_IDS["Sky Golem"],
