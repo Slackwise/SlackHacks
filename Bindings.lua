@@ -624,7 +624,25 @@ BINDINGS = {
       },
       RESTORATION = {
       }
-    }
+    },
+    MAGE = {
+      CLASS = {
+        {"E",                 "command", "INTERACTTARGET"},
+        {"R",                 "spell",   "Frostbolt"},
+        {"T",                 "spell",   "Fire Blast"},
+        {"F",                 "spell",   "Frost Nova"},
+        {"SHIFT-F",           "spell",   "Counterspell"},
+        {"CTRL-F",            "spell",   "Polymorph"},
+        {"X",                 "spell",   "Slow Fall"},
+        {"C",                 "spell",   "Arcane Explosion"},
+        {"Z",                 "spell",   "Invisibility"},
+        {"CTRL-SPACE",        "spell",   "Blink"},
+        {"ALT-CTRL-Z",        "spell",   "Shadowmeld"},
+      },
+      ARCANE = {},
+      FIRE = {},
+      FROST = {},
+    },
   },
   CLASSIC = {
     PALADIN = {
