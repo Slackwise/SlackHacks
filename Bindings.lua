@@ -155,7 +155,7 @@ function setBindings()
       local specBindings = bindings[spec]
       if specBindings ~= nil then
         for _, binding in ipairs(specBindings) do
-          if not (binding[2] == "spell" and not DoesSpellExist(binding[3])) then
+          if not (binding[2] == "spell" and not C_Spell.DoesSpellExist(binding[3])) then
             setBinding(binding)
           end
         end
@@ -174,7 +174,7 @@ function setBindings()
 
     for _, binding in ipairs(bindings) do
       local key, type, name = unpack(binding)
-      if not (type == "spell" and not DoesSpellExist(name)) then
+      if not (type == "spell" and not C_Spell.DoesSpellExist(name)) then
         setBinding(binding)
       end
     end
