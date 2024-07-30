@@ -669,7 +669,7 @@ BINDINGS = {
         {"ALT-CTRL-SHIFT-T",  "spell",   "Wind Rush Totem"},
         {"F",                 "spell",   "Frost Shock"},
         {"SHIFT-F",           "spell",   "Wind Shear"},
-        {"CTRL-F",            "spell",   "Wind Shear"},
+        {"CTRL-F",            "spell",   "Hex"},
         {"Z",                 "spell",   "Ghost Wolf"},
         {"C",                 "macro",   "SELF_RAIN"},
         {"V",                 "spell",   "Astral Shift"},
