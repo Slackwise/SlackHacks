@@ -407,14 +407,20 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
     106,   -- Bloodmyst Isle
     110,   -- Silvermoon City
     122,   -- Isle of Quel'Danas
+    747,   -- The Dreamgrove (Druid Legion Hall)
     946,   -- "Cosmic" (Ashran BG)
     1334,  -- Wintergrasp (BG)
+  },
+  MAPS = {
+    715,   -- Emerald Dreamway, The Dreamgrove (Druid Legion Hall)
+    747,   -- The Dreamgrove (Druid Legion Hall)
   }
 }
 
 function isActuallyFlyableArea()
   local continent = getCurrentContinent()
   local zone 			= getCurrentZone()
+  local map       = getCurrentMap()
 
   if not continent or not zone then
     return false
@@ -425,9 +431,10 @@ function isActuallyFlyableArea()
 
   local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
   local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
+  local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID        )
 
   local listedFlyable             = listedFlyableContinent    or listedFlyableZone
-  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone
+  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone or listedNonFlyableMap
 
   if listedNonFlyable then
     return false
@@ -443,6 +450,7 @@ end
 function isNotActuallyFlyableArea()
   local continent = getCurrentContinent()
   local zone 			= getCurrentZone()
+  local map       = getCurrentMap()
 
   if not continent or not zone then
     return true
@@ -450,8 +458,9 @@ function isNotActuallyFlyableArea()
 
   local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
   local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
+  local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID        )
 
-  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone
+  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone or listedNonFlyableMap
 
   if listedNonFlyable then
     return true
