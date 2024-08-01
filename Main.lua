@@ -88,7 +88,8 @@ function bindDragonriding()
     SetOverrideBindingSpell(Self.frame, true, "CTRL-BUTTON3",  "Whirling Surge")   -- Fly forward x3
     SetOverrideBindingSpell(Self.frame, true, "X",             "Aerial Halt")      -- Brake
     SetOverrideBindingSpell(Self.frame, true, "BUTTON5",       "Aerial Halt")      -- Brake
-    SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Bronze Timelock")  -- Rewind Time
+    SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Second Wind")  -- Regen Energy
+    SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Second Wind")  -- Rewind Time
     isDragonridingBound = true
     log("Dragonriding keys BOUND")
   end 
@@ -105,11 +106,15 @@ end
 function isDragonriding()
   log("Checking if dragonriding...")
   local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
-  if IsMounted() and IsAdvancedFlyableArea() then
-    for _, mountId in ipairs(dragonridingSpellIds) do
-      local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
-      if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
-        return true
+  if IsAdvancedFlyableArea() then
+    if GetShapeshiftForm() == 3 then
+      return true
+    elseif IsMounted() then
+      for _, mountId in ipairs(dragonridingSpellIds) do
+        local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
+        if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
+          return true
+        end
       end
     end
   end
