@@ -599,18 +599,21 @@ BINDINGS = {
         {"CTRL-SPACE",            "spell",   "Wild Charge"},
         {"CTRL-SHIFT-SPACE",      "command", "SLACKUI_MOUNT"},
         {"1",                     "spell",   "Rejuvenation"},
-        {"SHIFT-1",               "spell",   "Regrowth"},
-        {"CTRL-1",                "spell",   "Wild Growth"},
+        {"SHIFT-1",               "spell",   "Rejuvenation"},
+        {"2",                     "spell",   "Regrowth"},
+        {"SHIFT-2",               "spell",   "Wild Growth"},
         {"ALT-CTRL-1",            "spell",   "Swiftmend"},
         {"ALT-1",                 "spell",   "Remove Corruption"},
         {"4",                     "spell",   "Moonfire"},
+        {"SHIFT-4",               "spell",   "Sunfire"},
         {"F",                     "spell",   "Entangling Roots"},
         {"ALT-CTRL-F",            "spell",   "Mass Entanglement"},
         {"G",                     "spell",   "Heart of the Wild"},
         {"Z",                     "spell",   "Dash"},
-        {"SHIFT-Z",               "spell",   "Shadowmeld"},
-        {"CTRL-Z",                "spell",   "Revive"},
-        {"V",                     "spell",   "Bear Form"},
+        {"SHIFT-Z",               "spell",   "Stampeding Road"},
+        {"CTRL-Z",                "spell",   "Shadowmeld"},
+        {"ALT-CTRL-Z",            "macro",   "REZ"},
+        {"V",                     "macro",   "BEAR"}, -- Switch to Bear or cast "Frenzied Regeneration"
         {"SHIFT-V",               "spell",   "Barkskin"},
         {"CTRL-V",                "spell",   "Renewal"},
         {"C",                     "spell",   "Cat Form"},
@@ -623,6 +626,7 @@ BINDINGS = {
       GUARDIAN = {
       },
       RESTORATION = {
+        {"1",                     "spell",   "Lifebloom"},
       }
     },
     MAGE = {
