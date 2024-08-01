@@ -88,8 +88,8 @@ function bindDragonriding()
     SetOverrideBindingSpell(Self.frame, true, "CTRL-BUTTON3",  "Whirling Surge")   -- Fly forward x3
     SetOverrideBindingSpell(Self.frame, true, "X",             "Aerial Halt")      -- Brake
     SetOverrideBindingSpell(Self.frame, true, "BUTTON5",       "Aerial Halt")      -- Brake
-    SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Second Wind")  -- Regen Energy
-    SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Second Wind")  -- Rewind Time
+    SetOverrideBindingSpell(Self.frame, true, "SHIFT-X",       "Second Wind")      -- Regen Vigor
+    SetOverrideBindingSpell(Self.frame, true, "CTRL-X",        "Bronze Timelock")  -- Rewind Time
     isDragonridingBound = true
     log("Dragonriding keys BOUND")
   end 
