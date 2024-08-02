@@ -617,7 +617,7 @@ BINDINGS = {
         {"SHIFT-E",               "spell",   "Shred"},
         {"CTRL-E",                "spell",   "Mangle"},
         {"ALT-E",                 "spell",   "Wrath"},
-        {"R",                     "macro",   "Ferocious Bite"},
+        {"R",                     "spell",   "Ferocious Bite"},
         {"T",                     "macro",   "T"}, -- Taunt or Cleanse
         {"F",                     "macro",   "INTERRUPT"},
         {"SHIFT-F",               "spell",   "Entangling Roots"},
