@@ -598,6 +598,7 @@ BINDINGS = {
         {"SHIFT-SPACE",           "macro",   "TRAVEL"}, -- Travel Form, but only out of combat, otherwise Mount Form
         {"CTRL-SPACE",            "spell",   "Wild Charge"},
         {"CTRL-SHIFT-SPACE",      "command", "SLACKUI_MOUNT"},
+        {"SHIFT-H",               "spell",   "Dreamwalk"},
         {"1",                     "spell",   "Rejuvenation"},
         {"SHIFT-1",               "spell",   "Rejuvenation"},
         {"ALT-1",                 "spell",   "Remove Corruption"},
@@ -638,7 +639,9 @@ BINDINGS = {
       GUARDIAN = {
       },
       RESTORATION = {
+        {"BUTTON4",               "macro",   "MOUSE4"},
         {"1",                     "spell",   "Lifebloom"},
+        {"ALT-CTRL-V",            "macro",   "Tranquility"},
       }
     },
     MAGE = {
