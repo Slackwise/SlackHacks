@@ -595,18 +595,17 @@ BINDINGS = {
     },
     DRUID = {
       CLASS = {
+        {"BUTTON4",               "macro",   "MOUSE4"},
         {"SHIFT-SPACE",           "macro",   "TRAVEL"}, -- Travel Form, but only out of combat, otherwise Mount Form
         {"CTRL-SPACE",            "spell",   "Wild Charge"},
         {"CTRL-SHIFT-SPACE",      "command", "SLACKUI_MOUNT"},
         {"SHIFT-H",               "spell",   "Dreamwalk"},
         {"1",                     "spell",   "Rejuvenation"},
+        {"1",                     "spell",   "Rejuvenation"},
         {"SHIFT-1",               "spell",   "Rejuvenation"},
-        {"ALT-1",                 "spell",   "Remove Corruption"},
-        {"ALT-CTRL-1",            "spell",   "Swiftmend"},
         {"2",                     "spell",   "Regrowth"},
         {"SHIFT-2",               "spell",   "Wild Growth"},
         {"3",                     "spell",   "Sunfire"},
-        {"SHIFT-3",               "spell",   "Starfall"},
         {"4",                     "spell",   "Moonfire"},
         {"SHIFT-4",               "spell",   "Starsurge"},
         {"5",                     "spell",   ""},
@@ -618,6 +617,8 @@ BINDINGS = {
         {"SHIFT-E",               "spell",   "Shred"},
         {"CTRL-E",                "spell",   "Mangle"},
         {"ALT-E",                 "spell",   "Wrath"},
+        {"R",                     "macro",   "Ferocious Bite"},
+        {"T",                     "macro",   "T"}, -- Taunt or Cleanse
         {"F",                     "macro",   "INTERRUPT"},
         {"SHIFT-F",               "spell",   "Entangling Roots"},
         {"CTRL-F",                "spell",   "Incapacitating Roar"},
@@ -635,15 +636,15 @@ BINDINGS = {
         {"SHIFT-C",               "spell",   "Prowl"},
       },
       BALANCE = {
-        {"3",                     "spell",   "Starfall"},
+        {"SHIFT-3",               "spell",   "Starfall"},
       },
       FERAL = {
       },
       GUARDIAN = {
       },
       RESTORATION = {
-        {"BUTTON4",               "macro",   "MOUSE4"},
-        {"1",                     "spell",   "Lifebloom"},
+        {"`",                     "spell",   "Swiftmend"},
+        {"SHIFT-1",               "spell",   "Lifebloom"},
         {"ALT-CTRL-V",            "macro",   "Tranquility"},
       }
     },
