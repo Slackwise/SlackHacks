@@ -645,7 +645,7 @@ BINDINGS = {
       RESTORATION = {
         {"`",                     "spell",   "Swiftmend"},
         {"SHIFT-1",               "spell",   "Lifebloom"},
-        {"ALT-CTRL-V",            "macro",   "Tranquility"},
+        {"ALT-CTRL-V",            "spell",   "Tranquility"},
       }
     },
     MAGE = {
