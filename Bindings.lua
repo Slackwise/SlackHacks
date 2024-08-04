@@ -623,20 +623,21 @@ BINDINGS = {
         {"SHIFT-F",               "spell",   "Entangling Roots"},
         {"CTRL-F",                "spell",   "Incapacitating Roar"},
         {"ALT-CTRL-F",            "spell",   "Mass Entanglement"},
-        {"G",                     "spell",   "Heart of the Wild"},
+        {"CTRL-G",                "spell",   "Heart of the Wild"},
         {"Z",                     "spell",   "Dash"},
         {"SHIFT-Z",               "spell",   "Stampeding Road"},
         {"CTRL-Z",                "spell",   "Shadowmeld"},
         {"ALT-CTRL-Z",            "macro",   "REZ"},
-        {"X",                     "macro",   "MOON"}, -- Switch to Moonkin or cast "Flap"
+        {"X",                     "macro",   "CANCELFORM"},
+        {"C",                     "spell",   "Cat Form"},
+        {"SHIFT-C",               "spell",   "Prowl"},
         {"V",                     "macro",   "BEAR"}, -- Switch to Bear or cast "Frenzied Regeneration"
         {"SHIFT-V",               "spell",   "Barkskin"},
         {"CTRL-V",                "spell",   "Renewal"},
-        {"C",                     "spell",   "Cat Form"},
-        {"SHIFT-C",               "spell",   "Prowl"},
       },
       BALANCE = {
         {"SHIFT-3",               "spell",   "Starfall"},
+        {"X",                     "macro",   "MOON"}, -- Switch to Moonkin or cast "Flap"
       },
       FERAL = {
       },
@@ -645,6 +646,8 @@ BINDINGS = {
       RESTORATION = {
         {"`",                     "spell",   "Swiftmend"},
         {"SHIFT-1",               "spell",   "Lifebloom"},
+        {"G",                     "spell",   "Grove Guardians"},
+        {"SHIFT-G",               "spell",   "Incarnation: Tree of Life"},
         {"ALT-CTRL-V",            "spell",   "Tranquility"},
       }
     },
