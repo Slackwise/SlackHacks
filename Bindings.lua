@@ -608,7 +608,6 @@ BINDINGS = {
         {"3",                     "spell",   "Sunfire"},
         {"4",                     "spell",   "Moonfire"},
         {"SHIFT-4",               "spell",   "Starsurge"},
-        {"5",                     "spell",   ""},
         {"Q",                     "spell",   "Ferocious Bite"},
         {"E",                     "macro",   "SINGLE_TARGET"},
         {"SHIFT-E",               "spell",   "Shred"},
@@ -637,7 +636,11 @@ BINDINGS = {
       },
       BALANCE = {
         {"SHIFT-3",               "spell",   "Starfall"},
+        {"5",                     "spell",   "Fury of Elune"},
+        {"SHIFT-5",               "spell",   "Wild Mushroom"},
         {"X",                     "macro",   "MOON"}, -- Switch to Moonkin or cast "Flap"
+        {"G",                     "spell",   "Incarnation: Chosen of Elune"},
+        {"SHIFT-G",               "spell",   "Incarnation: Chosen of Elune"},
       },
       FERAL = {
       },
