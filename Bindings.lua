@@ -629,7 +629,7 @@ BINDINGS = {
         {"CTRL-Z",                "spell",   "Shadowmeld"},
         {"ALT-CTRL-Z",            "macro",   "REZ"},
         {"X",                     "macro",   "CANCELFORM"},
-        {"C",                     "spell",   "Cat Form"},
+        {"C",                     "macro",   "CAT"},
         {"SHIFT-C",               "spell",   "Prowl"},
         {"V",                     "macro",   "BEAR"}, -- Switch to Bear or cast "Frenzied Regeneration"
         {"SHIFT-V",               "spell",   "Barkskin"},
