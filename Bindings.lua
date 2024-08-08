@@ -622,7 +622,7 @@ BINDINGS = {
         {"SHIFT-F",               "spell",   "Entangling Roots"},
         {"CTRL-F",                "spell",   "Incapacitating Roar"},
         {"ALT-CTRL-F",            "spell",   "Mass Entanglement"},
-        {"CTRL-G",                "spell",   "Heart of the Wild"},
+        {"CTRL-G",                "macro",   "ULT"},
         {"Z",                     "spell",   "Dash"},
         {"SHIFT-Z",               "spell",   "Stampeding Road"},
         {"CTRL-Z",                "spell",   "Shadowmeld"},
