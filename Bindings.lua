@@ -639,8 +639,8 @@ BINDINGS = {
         {"5",                     "spell",   "Fury of Elune"},
         {"SHIFT-5",               "spell",   "Wild Mushroom"},
         {"X",                     "macro",   "X"}, -- Switch to Moonkin or cast "Flap"
-        {"G",                     "spell",   "Incarnation: Chosen of Elune"},
-        {"SHIFT-G",               "spell",   "Incarnation: Chosen of Elune"},
+        {"G",                     "spell",   "Celestial Alignment"}, -- Also maps to Incarnation as that replaces Celestial Alignment
+        {"SHIFT-G",               "spell",   "Celestial Alignment"},
       },
       FERAL = {
       },
