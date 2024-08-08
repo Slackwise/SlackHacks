@@ -627,7 +627,7 @@ BINDINGS = {
         {"SHIFT-Z",               "spell",   "Stampeding Road"},
         {"CTRL-Z",                "spell",   "Shadowmeld"},
         {"ALT-CTRL-Z",            "macro",   "REZ"},
-        {"X",                     "macro",   "CANCELFORM"},
+        {"X",                     "macro",   "X"},
         {"C",                     "macro",   "CAT"},
         {"SHIFT-C",               "spell",   "Prowl"},
         {"V",                     "macro",   "BEAR"}, -- Switch to Bear or cast "Frenzied Regeneration"
@@ -638,7 +638,7 @@ BINDINGS = {
         {"SHIFT-3",               "spell",   "Starfall"},
         {"5",                     "spell",   "Fury of Elune"},
         {"SHIFT-5",               "spell",   "Wild Mushroom"},
-        {"X",                     "macro",   "MOON"}, -- Switch to Moonkin or cast "Flap"
+        {"X",                     "macro",   "X"}, -- Switch to Moonkin or cast "Flap"
         {"G",                     "spell",   "Incarnation: Chosen of Elune"},
         {"SHIFT-G",               "spell",   "Incarnation: Chosen of Elune"},
       },

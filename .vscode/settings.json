@@ -47,7 +47,6 @@
         "GetSpecializationInfo",
         "Enum",
         "C_UnitAuras",
-        "GetItemInfo",
         "C_Item",
         "IsInGroup",
         "date",
@@ -63,5 +62,20 @@
         "SaveBindings",
         "DoesSpellExist",
         "MOUNTS"
+    ],
+    "Lua.runtime.version": "Lua 5.1",
+    "Lua.runtime.builtin": {
+        "basic": "disable",
+        "debug": "disable",
+        "io": "disable",
+        "math": "disable",
+        "os": "disable",
+        "package": "disable",
+        "string": "disable",
+        "table": "disable",
+        "utf8": "disable"
+    },
+    "Lua.workspace.library": [
+        "c:\\Users\\Slackwise\\.vscode\\extensions\\ketho.wow-api-0.15.5\\Annotations"
     ]
 }
