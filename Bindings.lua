@@ -624,7 +624,7 @@ BINDINGS = {
         {"ALT-CTRL-F",            "spell",   "Mass Entanglement"},
         {"CTRL-G",                "macro",   "ULT"},
         {"Z",                     "spell",   "Dash"},
-        {"SHIFT-Z",               "spell",   "Stampeding Road"},
+        {"SHIFT-Z",               "spell",   "Stampeding Roar"},
         {"CTRL-Z",                "spell",   "Shadowmeld"},
         {"ALT-CTRL-Z",            "macro",   "REZ"},
         {"X",                     "macro",   "X"},
