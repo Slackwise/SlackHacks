@@ -50,7 +50,8 @@ function unbindUnwantedDefaults()
 end
 
 function bindBestUseItems()
-  -- if not isTester() then return end
+  if InCombatLockdown() then return end
+
   ClearOverrideBindings(Self.itemBindingFrame)
 
   for itemType, itemMap in pairs(BEST_ITEMS) do
