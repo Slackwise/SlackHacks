@@ -50,6 +50,7 @@ end
 
 function Self:PLAYER_REGEN_ENABLED(eventName) -- Out of combat
   handleDragonriding()
+  runAfterCombatActions()
 end
 
 function Self:PLAYER_REGEN_DISABLED(eventName) -- In combat
@@ -64,6 +65,19 @@ function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.f
   if unitTarget == "player" then
     log("Aura handling dragonriding...")
     handleDragonriding()
+  end
+end
+
+afterCombatActions = {}
+function runAfterCombat(f)
+  table.insert(afterCombatActions, f)
+end
+
+function runAfterCombatActions()
+  while #afterCombatActions > 0 do
+    if not InCombatLockdown() then
+      table.remove(afterCombatActions)()
+    end
   end
 end
 

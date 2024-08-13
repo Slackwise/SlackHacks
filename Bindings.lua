@@ -50,7 +50,10 @@ function unbindUnwantedDefaults()
 end
 
 function bindBestUseItems()
-  if InCombatLockdown() then return end
+  if InCombatLockdown() then
+    runAfterCombat(bindBestUseItems)
+    return
+  end
 
   ClearOverrideBindings(Self.itemBindingFrame)
 
