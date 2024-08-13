@@ -256,7 +256,7 @@ BINDINGS = {
     {"CTRL-G",                "item",     "Net-O-Matic 5000"},
     {"CTRL-H",                "macro",    "HEARTH"},
     {"ALT-H",                 "command",  "TOGGLEUI"},
-    {"CTRL-L",                "command",  "TOGGLEACTIONBARLOCK"},
+    {"ALT-CTRL-L",            "command",  "TOGGLEACTIONBARLOCK"},
     {"CTRL-B",                "command",  "TOGGLECHARACTER0"},
     {"ALT-CTRL-B",            "command",  "SLACKUI_SETBINDINGS"},
     {"X",                     "command",  "SITORSTAND"},
