@@ -118,6 +118,11 @@ function setBindings()
     return
   end
 
+  if InCombatLockdown() then
+    runAfterCombat(setBindings)
+    return
+  end
+
   LoadBindings(BINDING_TYPE.DEFAULT_BINDINGS)
   unbindUnwantedDefaults()
 
