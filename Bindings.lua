@@ -259,6 +259,7 @@ BINDINGS = {
     {"CTRL-S",                "command",  "NONE"},
     {"CTRL-G",                "item",     "Net-O-Matic 5000"},
     {"CTRL-H",                "macro",    "HEARTH"},
+    {"ALT-CTRL-H",            "macro",    "HEARTH_DALARAN"},
     {"ALT-H",                 "command",  "TOGGLEUI"},
     {"ALT-CTRL-L",            "command",  "TOGGLEACTIONBARLOCK"},
     {"CTRL-B",                "command",  "TOGGLECHARACTER0"},
@@ -603,6 +604,7 @@ BINDINGS = {
         {"SHIFT-SPACE",           "macro",   "TRAVEL"}, -- Travel Form, but only out of combat, otherwise Mount Form
         {"CTRL-SPACE",            "spell",   "Wild Charge"},
         {"CTRL-SHIFT-SPACE",      "command", "SLACKUI_MOUNT"},
+        {"CTRL-H",                "spell",   "Noble Gardener's Hearthstone"},
         {"SHIFT-H",               "spell",   "Dreamwalk"},
         {"1",                     "spell",   "Rejuvenation"},
         {"1",                     "spell",   "Rejuvenation"},
