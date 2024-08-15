@@ -125,7 +125,7 @@ SKYRIDING_SPELLID = 404464
 function isDragonriding()
   log("Checking if dragonriding...")
   local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
-  if C_UnitAuras.GetPlayerAuraBySpellID(SKYRIDING_SPELLID) then
+  if C_UnitAuras.GetPlayerAuraBySpellID(SKYRIDING_SPELLID) and isActuallyFlyableArea() then
     if GetShapeshiftForm() == 3 then
       return true
     elseif IsMounted() then
