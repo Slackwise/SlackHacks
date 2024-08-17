@@ -3,7 +3,9 @@ setfenv(1, _G.SlackUI)
 
 --[[
   General API Documentation:
-   - https://wow.gamepedia.com/World_of_Warcraft_API
+   - https://warcraft.wiki.gg/wiki/World_of_Warcraft_API
+   - https://warcraft.wiki.gg/wiki/Events
+   - https://github.com/BigWigsMods/WoWUI/tree/live/AddOns
    - https://github.com/Gethe/wow-ui-source/tree/live/Interface/AddOns/Blizzard_APIDocumentationGenerated
    - https://www.townlong-yak.com/framexml/live/Blizzard_APIDocumentation
 
@@ -13,7 +15,7 @@ setfenv(1, _G.SlackUI)
   Common data structures:
    - ItemLink: https://warcraft.wiki.gg/wiki/ItemLink
 
-  Common dunctions:
+  Common functions:
    - Item functions (take an ItemLink as "ItemInfo"):
      - GetItemInfo(): https://warcraft.wiki.gg/wiki/API_C_Item.GetItemInfo
      - GetContainerItemInfo(): https://warcraft.wiki.gg/wiki/API_C_Container.GetContainerItemInfo
@@ -61,7 +63,7 @@ function Self:ACTIVE_TALENT_GROUP_CHANGED(currentSpecID, previousSpecID)
   setBindings()
 end
 
-function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://wowpedia.fandom.com/wiki/UNIT_AURA
+function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://warcraft.wiki.gg/wiki/UNIT_AURA
   if unitTarget == "player" then
     log("Aura handling dragonriding...")
     handleDragonriding()
@@ -160,7 +162,7 @@ function isTester()
 end
 
 function isRetail()
-  -- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
+  -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
   if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
     return true
   else
@@ -169,7 +171,7 @@ function isRetail()
 end
 
 function isClassic()
-  -- Official way Blizzard distinguishes between game clients: https://wow.gamepedia.com/WOW_PROJECT_ID
+  -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
   if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
     return true
   else
@@ -220,7 +222,7 @@ function canCollectTransmog(itemInfo) -- itemID, itemLink, or Name
   if isClassic() then
     return false
   end
-  local itemAppearanceID, sourceID  = C_TransmogCollection.GetItemInfo(itemInfo) -- https://wowpedia.fandom.com/wiki/API_C_TransmogCollection.GetItemInfo
+  local itemAppearanceID, sourceID  = C_TransmogCollection.GetItemInfo(itemInfo) -- https://warcraft.wiki.gg/wiki/API_C_TransmogCollection.GetItemInfo
   if sourceID then
     local categoryID, visualID, canEnchant, icon, isCollected, itemLink, transmogLink, unknown1, itemSubTypeIndex = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
     -- local hasItemData, canCollect = C_TransmogCollection.PlayerCanCollectSource(sourceID)
