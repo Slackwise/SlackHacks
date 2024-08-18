@@ -267,6 +267,7 @@ BINDINGS = {
     {"ALT-CTRL-H",            "macro",    "HEARTH_DALARAN"},
     {"ALT-H",                 "command",  "TOGGLEUI"},
     {"ALT-CTRL-L",            "command",  "TOGGLEACTIONBARLOCK"},
+    {"ALT-CTRL-SHIFT-M",      "spell",    "Switch Flight Style" },
     {"X",                     "command",  "SITORSTAND"},
     {"SHIFT-X",               "macro",    "MountPassenger"},
     {"CTRL-SHIFT-X",          "macro",    "MountYak"},
