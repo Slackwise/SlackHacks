@@ -452,7 +452,7 @@ function isActuallyFlyableArea()
   local map       = getCurrentMap()
 
   if not continent or not zone or not map then
-    return false
+    return IsFlyableArea()
   end
 
   local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
@@ -463,40 +463,16 @@ function isActuallyFlyableArea()
   local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
   local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID        )
 
-  local listedFlyable             = listedFlyableContinent    or listedFlyableZone or listedFlyableMap
-  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone or listedNonFlyableMap
+  if listedFlyableMap           then return true end
+  if listedNonFlyableMap        then return false end
 
-  if listedFlyable then
-    return true
-  end
+  if listedFlyableZone          then return true end
+  if listedNonFlyableZone       then return false end
 
-  if listedNonFlyable then
-    return false
-  end
+  if listedFlyableContinent     then return true end
+  if listedNonFlyableContinent  then return false end
 
   return IsFlyableArea()
-end
-
-function isNotActuallyFlyableArea()
-  local continent = getCurrentContinent()
-  local zone 			= getCurrentZone()
-  local map       = getCurrentMap()
-
-  if not continent or not zone or not map then
-    return true
-  end
-
-  local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
-  local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
-  local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID        )
-
-  local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone or listedNonFlyableMap
-
-  if listedNonFlyable then
-    return true
-  end
-
-  return false
 end
 
 function printDebugMapInfo()
@@ -580,32 +556,7 @@ function mount()
   end
 
   if IsOutdoors() then
-    if isNotActuallyFlyableArea() then -- Specifically listed as NOT flyable in any way:
-      if IsSubmerged() then -- Summon water mount
-        if isAlternativeMountRequested() then -- But we may want to fly out of the water
-          mountByUsage("FLYING")
-          return
-        end
-        mountByUsage("WATER")
-        return
-      else -- Summon ground mount
-        if IsInGroup() then
-          if isAlternativeMountRequested() then -- But we may want to show off
-            mountByUsage("GROUND_SHOWOFF")
-            return
-          end
-          mountByUsage("GROUND_PASSENGER")
-          return
-        else
-          if isAlternativeMountRequested() then -- But we may want to show off
-            mountByUsage("GROUND_SHOWOFF")
-            return
-          end
-          mountByUsage("GROUND")
-          return
-        end
-      end 
-    elseif isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
+    if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
       log("FLYING AREA")
       if isAlternativeMountRequested() then -- But we may want to show off our ground mount
         mountByUsage("FLYING_SHOWOFF")
