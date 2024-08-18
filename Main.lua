@@ -32,6 +32,7 @@ function Self:OnEnable()
   -- self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   self:RegisterEvent("BAG_UPDATE_DELAYED")
+  self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 end
 
 function Self:OnDisable()
@@ -41,7 +42,9 @@ function Self:BAG_UPDATE_DELAYED() -- Fires after all BAG_UPDATE's are done
   bindBestUseItems()
 end
 
+-- GAME_READY = false
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
+  -- GAME_READY = true
   handleDragonriding()
 end
 
@@ -68,6 +71,10 @@ function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://warcraft.w
     log("Aura handling dragonriding...")
     handleDragonriding()
   end
+end
+
+function Self:NAME_PLATE_UNIT_ADDED(eventName, unitToken) -- https://warcraft.wiki.gg/wiki/NAME_PLATE_UNIT_ADDED
+  announceDruidRare(unitToken)
 end
 
 afterCombatActions = {}
@@ -595,6 +602,46 @@ function mount()
       end
     end
   end
+end
+
+function announceDruidRare(unitToken)
+  -- if (not GAME_READY) then return end
+
+  if (getClassName() ~= "DRUID") then return end
+
+  -- Adapted from RareScanner's `HandleEntityWithoutVignette()` function:
+
+  if (not unitToken) then return end
+	
+	local unitGuid = UnitGUID(unitToken)
+	if (not unitGuid) then return end
+	
+	local unitType, _, _, _, _, entityID = strsplit("-", unitGuid)
+	if not (unitType == "Creature") then return end
+
+  local npcID = entityID and tonumber(entityID) or nil
+  if (not npcID) then return end
+
+  -- If player in a zone with vignettes ignore it
+  local mapID = C_Map.GetBestMapForUnit("player")
+  if (not mapID) then return end
+
+  log("Got to NPC check...")
+  if (npcID == 210848) then
+    log("Trying to send message...")
+    -- SendChatMessage("Cave Bristlebruin spawned", "CHANNEL", nil, 5)
+  end
+
+  -- -- If its a supported NPC and its not killed
+  -- if ((RSGeneralDB.GetAlreadyFoundEntity(npcID) or RSNpcDB.GetInternalNpcInfo(npcID)) and not UnitIsDead(unitID)) then
+  --   local nameplateUnitName, _ = UnitName(unitID)
+  --   if (not nameplateUnitName or nameplateUnitName == UNKNOWNOBJECT) then
+  --     nameplateUnitName = RSNpcDB.GetNpcName(npcID)
+  --   end
+
+  --   local x, y = RSNpcDB.GetBestInternalNpcCoordinates(npcID, mapID)
+  --   rareScannerButton:SimulateRareFound(npcID, unitGuid, nameplateUnitName, x, y, RSConstants.NPC_VIGNETTE)
+  -- end
 end
 
 
