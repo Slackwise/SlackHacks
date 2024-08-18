@@ -418,6 +418,9 @@ ACTUALLY_FLYABLE_MAPS = {
     619, -- Broken Isles
   },
   ZONES = {
+  },
+  MAPS = {
+    627,   -- Legion Dalaran, but as a dungeon due to phasing for the Harbinger questline
   }
 }
 
@@ -448,26 +451,27 @@ function isActuallyFlyableArea()
   local zone 			= getCurrentZone()
   local map       = getCurrentMap()
 
-  if not continent or not zone then
+  if not continent or not zone or not map then
     return false
   end
 
   local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
   local listedFlyableZone         = not not tContains(	    ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
+  local listedFlyableMap          = not not tContains(	    ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID       )
 
   local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
   local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
   local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID        )
 
-  local listedFlyable             = listedFlyableContinent    or listedFlyableZone
+  local listedFlyable             = listedFlyableContinent    or listedFlyableZone or listedFlyableMap
   local listedNonFlyable          = listedNonFlyableContinent or listedNonFlyableZone or listedNonFlyableMap
-
-  if listedNonFlyable then
-    return false
-  end
 
   if listedFlyable then
     return true
+  end
+
+  if listedNonFlyable then
+    return false
   end
 
   return IsFlyableArea()
@@ -478,7 +482,7 @@ function isNotActuallyFlyableArea()
   local zone 			= getCurrentZone()
   local map       = getCurrentMap()
 
-  if not continent or not zone then
+  if not continent or not zone or not map then
     return true
   end
 
