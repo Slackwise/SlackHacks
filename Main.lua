@@ -32,7 +32,8 @@ function Self:OnEnable()
   -- self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   self:RegisterEvent("BAG_UPDATE_DELAYED")
-  self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+  -- self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+  self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 end
 
 function Self:OnDisable()
@@ -73,9 +74,14 @@ function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://warcraft.w
   end
 end
 
-function Self:NAME_PLATE_UNIT_ADDED(eventName, unitToken) -- https://warcraft.wiki.gg/wiki/NAME_PLATE_UNIT_ADDED
-  announceDruidRare(unitToken)
+--- "Vignettes" are pop-up events on the minimap or world map like rare mobs or treasures: https://warcraft.wiki.gg/wiki/Vignette
+--- https://warcraft.wiki.gg/wiki/VIGNETTE_MINIMAP_UPDATED
+--- @param vignetteGUID string
+--- @param onMinimap boolean
+function Self:VIGNETTE_MINIMAP_UPDATED(eventName, vignetteGUID, onMinimap)
+  findDruidRareMobs(vignetteGUID)
 end
+
 
 afterCombatActions = {}
 function runAfterCombat(f)
@@ -604,46 +610,51 @@ function mount()
   end
 end
 
-function announceDruidRare(unitToken)
-  -- if (not GAME_READY) then return end
+DRUID_RARE_MOBS = {
+  "Keen-eyed Cian",
+  "Matriarch Keevah",
+  "Moragh the Slothful",
+  "Mosa Umbramane",
+  "Ristar the Rabid",
+  "Talthonei Ashwhisper"
+}
+function findDruidRareMobs(vignetteGUID)
+  if getClassName() ~= "DRUID" then return end
 
-  if (getClassName() ~= "DRUID") then return end
+  log("VIGNETTE ID: " .. vignetteGUID)
+	local vignetteInfo = C_VignetteInfo.GetVignetteInfo(vignetteGUID) -- https://warcraft.wiki.gg/wiki/API_C_VignetteInfo.GetVignetteInfo
+	if not vignetteInfo then return end
+  local name = vignetteInfo.name
+  log("VIGNETTE NAME: " .. (name or ""))
 
-  -- Adapted from RareScanner's `HandleEntityWithoutVignette()` function:
-
-  if (not unitToken) then return end
-	
-	local unitGuid = UnitGUID(unitToken)
-	if (not unitGuid) then return end
-	
-	local unitType, _, _, _, _, entityID = strsplit("-", unitGuid)
-	if not (unitType == "Creature") then return end
-
-  local npcID = entityID and tonumber(entityID) or nil
-  if (not npcID) then return end
-
-  -- If player in a zone with vignettes ignore it
-  local mapID = C_Map.GetBestMapForUnit("player")
-  if (not mapID) then return end
-
-  log("Got to NPC check...")
-  if (npcID == 210848) then
-    log("Trying to send message...")
-    -- SendChatMessage("Cave Bristlebruin spawned", "CHANNEL", nil, 5)
+  if tContains(DRUID_RARE_MOBS, name) then
+    foundDruidRare(name)
   end
-
-  -- -- If its a supported NPC and its not killed
-  -- if ((RSGeneralDB.GetAlreadyFoundEntity(npcID) or RSNpcDB.GetInternalNpcInfo(npcID)) and not UnitIsDead(unitID)) then
-  --   local nameplateUnitName, _ = UnitName(unitID)
-  --   if (not nameplateUnitName or nameplateUnitName == UNKNOWNOBJECT) then
-  --     nameplateUnitName = RSNpcDB.GetNpcName(npcID)
-  --   end
-
-  --   local x, y = RSNpcDB.GetBestInternalNpcCoordinates(npcID, mapID)
-  --   rareScannerButton:SimulateRareFound(npcID, unitGuid, nameplateUnitName, x, y, RSConstants.NPC_VIGNETTE)
-  -- end
 end
 
+foundDruidRares = {}
+function foundDruidRare(name)
+  local currentUnixTimestamp = GetServerTime()
+  local currentHour, currentMinute = GetGameTime()
+  local lastTimeFound = foundDruidRares[name]
+  if not lastTimeFound or isTimeWithin(lastTimeFound, 5 * 60, GetServerTime()) then
+    foundDruidRares[name] = { currentUnixTimestamp, currentHour, currentMinute }
+    announceFoundDruidRare(name)
+  end
+end
+
+function announceFoundDruidRare(name)
+  log("Found druid rare: " .. name)
+end
+
+--- Checks if a time is within a given time of another time
+--- @param originUnixTimestamp integer
+--- @param secondsToBeWithin integer
+--- @param currentUnixTimestamp integer
+--- @return boolean
+function isTimeWithin(originUnixTimestamp, secondsToBeWithin, currentUnixTimestamp)
+  return currentUnixTimestamp >= (originUnixTimestamp + (secondsToBeWithin * 1000))
+end
 
 --[[ -- TODO: Update broken fishing pole right-click handler
 function events:PLAYER_EQUIPMENT_CHANGED(slot, hasItem)
