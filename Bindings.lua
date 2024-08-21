@@ -734,6 +734,73 @@ BINDINGS = {
         {"SHIFT-2",           "spell",   "Healing Surge"},
       },
     },
+    PRIEST = {
+      CLASS = {
+        {"`",                 "spell",   "Holy Word: Serenity"},
+        {"1",                 "spell",   "Renew"},
+        {"2",                 "spell",   "Heal"},
+        {"4",                 "spell",   "Shadow Word: Pain"},
+        {"SHIFT-2",           "spell",   "Flash Heal"},
+        {"R",                 "spell",   ""},
+        {"E",                 "spell",   "Smite"},
+        {"R",                 "spell",   ""},
+        {"T",                 "spell",   "Fire Blast"},
+        {"F",                 "spell",   "Psychic Scream"},
+        {"SHIFT-F",           "spell",   ""},
+        {"CTRL-F",            "spell",   ""},
+        {"Z",                 "spell",   ""},
+        {"CTRL-Z",            "spell",   "Fade"},
+        {"X",                 "spell",   "Slow Fall"},
+        {"C",                 "spell",   "Holy Nova"},
+        {"V",                 "spell",   "Desperate Prayer"},
+        {"SHIFT-V",           "spell",   ""},
+        {"CTRL-V",            "spell",   ""},
+        {"CTRL-SPACE",        "spell",   ""},
+        {"ALT-CTRL-Z",        "spell",   "Shadowmeld"},
+      },
+      DISCIPLINE = {
+      },
+      HOLY = {
+      },
+      SHADOW = {
+      }
+    },
+    WARRIOR = {
+      CLASS = {
+        {"`",                 "spell",   ""},
+        {"1",                 "spell",   ""},
+        {"2",                 "spell",   ""},
+        {"4",                 "spell",   "Heroic Throw"},
+        {"5",                 "spell",   "Champion's Spear"},
+        {"SHIFT-2",           "spell",   ""},
+        {"R",                 "spell",   ""},
+        {"E",                 "spell",   "Hamstring"},
+        {"R",                 "spell",   "Whirlwind"},
+        {"T",                 "spell",   "Taunt"},
+        {"F",                 "spell",   "Pummel"},
+        {"G",                 "spell",   "Avatar"},
+        {"SHIFT-F",           "spell",   "Storm Bolt"},
+        {"CTRL-F",            "spell",   ""},
+        {"Z",                 "spell",   "Charge"},
+        {"SHIFT-Z",           "spell",   "Shield Charge"},
+        {"ALT-CTRL-Z",        "spell",   "Shadowmeld"},
+        {"X",                 "spell",   ""},
+        {"C",                 "spell",   "Thunder Clap"},
+        {"SHIFT-V",           "spell",   ""},
+        {"CTRL-V",            "spell",   ""},
+        {"CTRL-SPACE",        "spell",   "Heroic Leap"},
+      },
+      ARMS = {
+      },
+      FURY = {
+      },
+      PROTECTION = {
+
+        {"Q",                 "spell",   "Shield Charge"},
+        {"SHIFT-Q",           "spell",   "Shield Charge"},
+        {"V",                 "spell",   "Shield Wall"},
+      }
+    }
   },
   CLASSIC = {
     PALADIN = {
