@@ -773,6 +773,9 @@ BINDINGS = {
         {"4",                 "spell",   "Heroic Throw"},
         {"5",                 "spell",   "Champion's Spear"},
         {"SHIFT-2",           "spell",   ""},
+        {"Q",                 "spell",   "Shield Slam"},
+        {"SHIFT-Q",           "spell",   "Shield Block"},
+        {"CTRL-Q",            "spell",   "Shield Charge"},
         {"R",                 "spell",   ""},
         {"E",                 "spell",   "Hamstring"},
         {"R",                 "spell",   "Whirlwind"},
@@ -796,8 +799,6 @@ BINDINGS = {
       },
       PROTECTION = {
 
-        {"Q",                 "spell",   "Shield Charge"},
-        {"SHIFT-Q",           "spell",   "Shield Charge"},
         {"V",                 "spell",   "Shield Wall"},
       }
     }
