@@ -26,6 +26,9 @@ BEST_ITEMS = {
 
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
+    [211880]     = 3839450, -- Algari Healing Potion (Quality 3)
+    [211879]     = 3681800, -- Algari Healing Potion (Quality 2)
+    [211878]     = 3530600, -- Algari Healing Potion (Quality 1)
 
     -- Dragonflight Healing Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
     [207023]     = 310592, -- Dreamwalker's Healing Potion (Quality 3)
