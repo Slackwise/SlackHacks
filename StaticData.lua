@@ -26,6 +26,8 @@ BEST_ITEMS = {
 
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
+
+    -- The War Within Healing Potions
     [211880]     = 3839450, -- Algari Healing Potion (Quality 3)
     [211879]     = 3681800, -- Algari Healing Potion (Quality 2)
     [211878]     = 3530600, -- Algari Healing Potion (Quality 1)
@@ -52,6 +54,11 @@ BEST_ITEMS = {
 
     -- Mapping of:
     -- ITEM_ID = MAX_MANA_RESTORATION
+
+    -- The War Within Mana Potions
+    [212241]     = 270000, -- Algari Mana Potion (Quality 3)
+    [212240]     = 234783, -- Algari Mana Potion (Quality 2)
+    [212239]     = 204159, -- Algari Mana Potion (Quality 1)
 
     -- Dragonflight Mana Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Mana+Potion/live-only:on?filter=16;10;0
     [191386]     = 27600, -- Aerated Mana Potion (Quality 3)
