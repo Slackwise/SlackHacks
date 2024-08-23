@@ -407,7 +407,7 @@ function findParentMapByType(map, uiMapType)
 end
 
 function getCurrentMap()
-  return C_Map.GetMapInfo((C_Map.GetBestMapForUnit("player")))
+  return C_Map.GetMapInfo(C_Map.GetBestMapForUnit("player"))
 end
 
 function getCurrentContinent()
