@@ -33,7 +33,7 @@ function Self:OnEnable()
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   self:RegisterEvent("BAG_UPDATE_DELAYED")
   -- self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
-  self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
+  -- self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 end
 
 function Self:OnDisable()
@@ -465,7 +465,7 @@ function isActuallyFlyableArea()
   local map       = getCurrentMap()
 
   if not continent or not zone or not map then
-    return IsFlyableArea()
+    return IsFlyableArea() or IsAdvancedFlyableArea()
   end
 
   local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
@@ -485,7 +485,7 @@ function isActuallyFlyableArea()
   if listedFlyableContinent     then return true end
   if listedNonFlyableContinent  then return false end
 
-  return IsFlyableArea()
+  return IsFlyableArea() or IsAdvancedFlyableArea()
 end
 
 function printDebugMapInfo()
@@ -639,12 +639,12 @@ function foundDruidRare(name)
   local lastTimeFound = foundDruidRares[name]
   if not lastTimeFound or isTimeWithin(lastTimeFound, 5 * 60, GetServerTime()) then
     foundDruidRares[name] = { currentUnixTimestamp, currentHour, currentMinute }
-    announceFoundDruidRare(name)
   end
 end
 
 function announceFoundDruidRare(name)
   log("Found druid rare: " .. name)
+  SendChatMessage(name ".. spotted!", "CHANNEL", nil, 5)
 end
 
 --- Checks if a time is within a given time of another time
