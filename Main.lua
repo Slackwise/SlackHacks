@@ -527,7 +527,7 @@ MOUNTS_BY_USAGE = {
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Time-Lost Proto-Drake"],
   },
   PALADIN = {
-    ['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
+    ['GROUND']            = MOUNT_IDS["Tyrael's Charger"],
     ['FLYING']            = MOUNT_IDS["Tyrael's Charger"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
     ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
