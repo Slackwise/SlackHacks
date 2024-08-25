@@ -618,8 +618,10 @@ BINDINGS = {
         {"2",                     "spell",   "Regrowth"},
         {"SHIFT-2",               "spell",   "Wild Growth"},
         {"3",                     "spell",   "Sunfire"},
+        {"SHIFT-3",               "spell",   "Starfire"},
         {"4",                     "spell",   "Moonfire"},
-        {"SHIFT-4",               "spell",   "Starsurge"},
+        {"SHIFT-4",               "spell",   "Wrath"},
+        {"CTRL-4",                "spell",   "Starsurge"},
         {"Q",                     "spell",   "Ferocious Bite"},
         {"E",                     "macro",   "SINGLE_TARGET"},
         {"SHIFT-E",               "spell",   "Shred"},
@@ -647,7 +649,7 @@ BINDINGS = {
         {"CTRL-V",                "spell",   "Renewal"},
       },
       BALANCE = {
-        {"SHIFT-3",               "spell",   "Starfall"},
+        {"CTRL-3",                "spell",   "Starfall"},
         {"5",                     "spell",   "Fury of Elune"},
         {"SHIFT-5",               "spell",   "Wild Mushroom"},
         {"X",                     "macro",   "X"}, -- Switch to Moonkin or cast "Flap"
