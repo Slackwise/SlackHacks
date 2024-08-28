@@ -487,7 +487,8 @@ BINDINGS = {
         { "E",          "macro",   "ENGAGE" },
 
         -- Targetting
-        { "T",          "macro",   "TARGET" },
+        { "T",          "spell",   "Hand of Reckoning" },
+        -- { "T",          "macro",   "TARGET" },
 
         ---------------------------------------------------
 
