@@ -461,7 +461,6 @@ BINDINGS = {
         { "F11",        "command", "SHAPESHIFTBUTTON3" },
         { "F12",        "command", "SHAPESHIFTBUTTON4" },
         { "CTRL-SPACE", "spell",   "Divine Steed" },
-        { "`",          "macro",   "STOP!" },
         { "BUTTON4",    "macro",   "MOUSE4" },
         { "BUTTON5",    "macro",   "MOUSE5" },
         { "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
@@ -515,7 +514,7 @@ BINDINGS = {
         -- Vitality (Self-Heals/Protections)
         { "V",          "macro",   "VITALITY" },
         { "SHIFT-V",    "spell",   "Divine Shield" },
-        { "CTRL-V",     "macro",   "LAY_ON_SELF" },
+        { "CTRL-V",     "macro",   "LAY_SELF" },
         -- { "ALT-V",      "spell",   "Refreshing Healing Potion" },
         -- { "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
       },
@@ -530,7 +529,6 @@ BINDINGS = {
 
         -- AoE Heals
         { "3",          "spell",   "Light of Dawn" },
-        { "SHIFT-3",    "macro",   "LHAMMER_TARGET" },
 
         ---------------------------------------------------
 
@@ -553,7 +551,6 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
-        { "SHIFT-C",    "macro",   "LHAMMER_SELF" },
       },
       PROTECTION = {
         -- Quick Heals
