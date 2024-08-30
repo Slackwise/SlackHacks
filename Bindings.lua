@@ -530,6 +530,7 @@ BINDINGS = {
 
         -- AoE Heals
         { "3",          "spell",   "Light of Dawn" },
+        { "SHIFT-3",    "spell",   "Holy Prism" },
 
         ---------------------------------------------------
 
@@ -544,7 +545,6 @@ BINDINGS = {
 
         -- Ults (Big Cooldowns)
         { "SHIFT-G",    "spell",   "Daybreak" },
-        { "CTRL-G",     "spell",   "Tyr's Deliverance" },
         { "ALT-G",      "spell",   "Aura Mastery" },
 
         -- Extras
@@ -552,6 +552,7 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
+        { "SHIFT-C",    "spell",   "Tyr's Deliverance" },
       },
       PROTECTION = {
         -- Quick Heals
