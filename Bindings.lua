@@ -544,7 +544,6 @@ BINDINGS = {
         ---------------------------------------------------
 
         -- Ults (Big Cooldowns)
-        { "SHIFT-G",    "spell",   "Daybreak" },
         { "ALT-G",      "spell",   "Aura Mastery" },
 
         -- Extras
