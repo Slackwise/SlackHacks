@@ -526,15 +526,15 @@ MOUNTS_BY_USAGE = {
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Time-Lost Proto-Drake"],
   },
-  -- PALADIN = {
-  --   ['GROUND']            = MOUNT_IDS["Tyrael's Charger"],
-  --   ['FLYING']            = MOUNT_IDS["Tyrael's Charger"],
-  --   ['WATER']             = MOUNT_IDS["Sea Turtle"],
-  --   ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
-  --   ['FLYING_PASSENGER']  = MOUNT_IDS["Sandstone Drake"],
-  --   ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
-  --   ['FLYING_SHOWOFF']    = MOUNT_IDS["Time-Lost Proto-Drake"],
-  -- },
+  PALADIN = {
+    ['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
+    ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Time-Lost Proto-Drake"],
+  },
 }
 
 function mountByUsage(usage)
