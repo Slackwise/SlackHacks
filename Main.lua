@@ -168,6 +168,10 @@ function isSlackwise()
   return getBattletag() == "Slackwise#1121" or false
 end
 
+function isEkil()
+  return getBattletag() == "ekil#1612" or false
+end
+
 -- Gatekeeping new features with no UI
 function isTester()
   -- Use a checkbox in settings later, probably, but right now it's just me
@@ -536,6 +540,20 @@ MOUNTS_BY_USAGE = {
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Time-Lost Proto-Drake"],
   },
 }
+
+if isEkil() then
+  MOUNTS_BY_USAGE = {
+    DEFAULT = {
+      ['GROUND']            = MOUNT_IDS["Ironbound Proto-Drake"],
+      ['FLYING']            = MOUNT_IDS["Ironbound Proto-Drake"],
+      ['WATER']             = MOUNT_IDS["Ironbound Proto-Drake"],
+      ['GROUND_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
+      ['FLYING_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
+      ['GROUND_SHOWOFF']    = MOUNT_IDS["Ironbound Proto-Drake"],
+      ['FLYING_SHOWOFF']    = MOUNT_IDS["Ironbound Proto-Drake"],
+    },
+  }
+end
 
 function mountByUsage(usage)
   if isDebugging() then

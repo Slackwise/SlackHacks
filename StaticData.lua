@@ -6,6 +6,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Ashes of Al'ar"]               = 183,
   ["Time-Lost Proto-Drake"]        = 265,
   ["Mekgineer's Chopper"]          = 275,
+  ["Ironbound Proto-Drake"]        = 306,
   ["Sea Turtle"]                   = 312,
   ["Sandstone Drake"]              = 407,
   ["Tyrael's Charger"]             = 439,
