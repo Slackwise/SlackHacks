@@ -501,7 +501,7 @@ function printDebugMapInfo()
   p("===============================")
   p(map.name .. ", " .. (parentMap.name or "nil"))
   p("Zone: "      .. zone.name .. " (" .. zone.mapID .. ')')
-  if conintent then
+  if continent then
     p("Continent: " .. continent.name .. " (" .. continent.mapID .. ')')
   end
   p("-------------------------------------------------------") -- Chat window does not used fixed width; trying to match header
