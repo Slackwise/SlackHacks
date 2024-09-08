@@ -697,6 +697,7 @@ BINDINGS = {
         {"SHIFT-1",           "spell",   "Healing Surge"},
         {"2",                 "spell",   "Healing Surge"},
         {"SHIFT-2",           "spell",   "Healing Surge"},
+        {"3",                 "spell",   "Chain Lightning"},
         {"SHIFT-3",           "spell",   "Chain Lightning"},
         {"4",                 "spell",   "Flame Shock"},
         {"SHIFT-4",           "spell",   "Lava Burst"},
