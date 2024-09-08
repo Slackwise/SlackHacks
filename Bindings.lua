@@ -729,6 +729,7 @@ BINDINGS = {
       ENHANCEMENT = {},
       RESTORATION = {
         {"1",                 "spell",   "Riptide"},
+        {"SHIFT-1",           "spell",   "Primordial Wave"},
         {"ALT-1",             "spell",   "Purify Spirit"},
         {"2",                 "spell",   "Healing Wave"},
         {"SHIFT-2",           "spell",   "Healing Surge"},
