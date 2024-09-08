@@ -549,10 +549,6 @@ function mountByName(mountName)
   C_MountJournal.SummonByID(MOUNT_IDS[mountName])
 end
 
-function mountByShortname(mountShortname)
-  C_MountJournal.SummonByID(MOUNT_SHORTNAMES[mountShortname])
-end
-
 function isAlternativeMountRequested()
   return IsControlKeyDown()
 end
