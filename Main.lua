@@ -456,6 +456,8 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
     747,   -- The Dreamgrove (Druid Legion Hall)
     946,   -- "Cosmic" (Ashran BG)
     1334,  -- Wintergrasp (BG)
+    1543,  -- The Maw
+    1961,  -- Korthia, The Maw
   },
   MAPS = {
     715,   -- Emerald Dreamway, The Dreamgrove (Druid Legion Hall)
@@ -469,6 +471,7 @@ function isActuallyFlyableArea()
   local map       = getCurrentMap()
 
   if not continent or not zone or not map then
+    log("isActuallyFlyableArea(): failing to find continent/zone/map")
     return IsFlyableArea() or IsAdvancedFlyableArea()
   end
 
