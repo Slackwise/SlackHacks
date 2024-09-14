@@ -319,7 +319,7 @@ BINDINGS = {
         { "F11",              "spell",   "Call Pet 4" },
         { "F12",              "spell",   "Call Pet 5" },
         { "`",                "macro",   "." },
-        { "1",                "macro",   "Hunter's Mark" },
+        { "1",                "spell",   "Hunter's Mark" },
         { "ALT-1",            "macro",   "MD" },
         { "3",                "spell",   "Multi-Shot" },
         { "SHIFT-3",          "spell",   "Explosive Shot" },
