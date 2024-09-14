@@ -46,6 +46,7 @@ end
 -- GAME_READY = false
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
   -- GAME_READY = true
+  setupEkil()
   handleDragonriding()
 end
 
@@ -544,7 +545,7 @@ MOUNTS_BY_USAGE = {
   },
 }
 
-if isEkil() then
+function setupEkil()
   MOUNTS_BY_USAGE = {
     DEFAULT = {
       ['GROUND']            = MOUNT_IDS["Ironbound Proto-Drake"],
@@ -554,7 +555,7 @@ if isEkil() then
       ['FLYING_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
       ['GROUND_SHOWOFF']    = MOUNT_IDS["Ironbound Proto-Drake"],
       ['FLYING_SHOWOFF']    = MOUNT_IDS["Ironbound Proto-Drake"],
-    },
+    }
   }
 end
 
