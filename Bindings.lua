@@ -257,7 +257,7 @@ BINDINGS = {
     {",",                     "command",  "NONE"},
     {"ALT-CTRL-W",            "command",  "TOGGLEFOLLOW"},
     {"E",                     "command",  "INTERACTTARGET"},
-    {"SHIFT-E",               "macro",    "!ASSIST"},
+    {"SHIFT-E",               "command",  "INTERACTTARGET"},
     {"CTRL-E",                "command",  "EXTRAACTIONBUTTON1"},
     {"SHIFT-R",               "command",  "NONE"},
     {"CTRL-R",                "command",  "NONE"},
@@ -269,10 +269,11 @@ BINDINGS = {
     {"ALT-CTRL-L",            "command",  "TOGGLEACTIONBARLOCK"},
     {"X",                     "command",  "SITORSTAND"},
     -- {"SHIFT-X",               "macro",    "MountPassenger"},
-    {"CTRL-SHIFT-X",          "macro",    "MountYak"},
+    {"CTRL-SHIFT-X",          "macro",    "MountBear"},
     {"ALT-X",                 "command",  "SITORSTAND"},
     {"ALT-CTRL-X",            "command",  "TOGGLERUN"},
     {"ALT-CTRL-SHIFT-X",      "spell",    "Switch Flight Style" },
+    {"ALT-CTRL-SHIFT-M",      "spell",    "Switch Flight Style" },
     {"ALT-C",                 "command",  "SLACKUI_BEST_MANA_POTION" },
     {"ALT-V",                 "command",  "SLACKUI_BEST_HEALING_POTION" },
     {"ALT-CTRL-V",            "command",  "SLACKUI_BEST_BANDAGE" },
@@ -432,7 +433,7 @@ BINDINGS = {
         { "ALT-Q",      "spell",   "Hand of Reckoning" },
 
         -- Sword
-        { "E",          "macro",   "ENGAGE" },
+        { "E",          "spell",   "Crusader Strike" },
 
         -- Targetting
         { "T",          "spell",   "Hand of Reckoning" },
