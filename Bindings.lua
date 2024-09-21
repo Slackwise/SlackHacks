@@ -478,8 +478,8 @@ BINDINGS = {
         { "CTRL-2",     "spell",   "Divine Favor" },
 
         -- AoE Heals
-        { "3",          "spell",   "Holy Prism" },
-        { "SHIFT-3",    "spell",   "Light of Dawn" },
+        { "3",          "spell",   "Light of Dawn" },
+        { "SHIFT-3",    "spell",   "Holy Prism" },
 
         ---------------------------------------------------
 
