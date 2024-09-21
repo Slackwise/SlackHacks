@@ -412,7 +412,7 @@ function findParentMapByType(map, uiMapType)
 end
 
 function getCurrentMap()
-  return C_Map.GetMapInfo(C_Map.GetBestMapForUnit("player"))
+  return C_Map.GetMapInfo(C_Map.GetBestMapForUnit("player") or 0)
 end
 
 function getCurrentContinent()
@@ -467,14 +467,9 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
 }
 
 function isActuallyFlyableArea()
-  local continent = getCurrentContinent()
-  local zone 			= getCurrentZone()
-  local map       = getCurrentMap()
-
-  if not continent or not zone or not map then
-    log("isActuallyFlyableArea(): failing to find continent/zone/map")
-    return IsFlyableArea() or IsAdvancedFlyableArea()
-  end
+  local continent = getCurrentContinent() or 0
+  local zone 			= getCurrentZone() or 0
+  local map       = getCurrentMap() or 0
 
   local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
   local listedFlyableZone         = not not tContains(	    ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
@@ -493,7 +488,7 @@ function isActuallyFlyableArea()
   if listedFlyableContinent     then return true end
   if listedNonFlyableContinent  then return false end
 
-  return IsFlyableArea() or IsAdvancedFlyableArea()
+  return IsFlyableArea()
 end
 
 function printDebugMapInfo()
