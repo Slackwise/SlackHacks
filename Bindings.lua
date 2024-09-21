@@ -459,14 +459,12 @@ BINDINGS = {
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
         { "CTRL-C",     "macro",   "BELL_SELF" },
-        -- { "ALT-C",      "spell",   "Aerated Mana Potion" },
 
         -- Vitality (Self-Heals/Protections)
         { "V",          "macro",   "VITALITY" },
         { "SHIFT-V",    "spell",   "Divine Shield" },
+        { "CTRL-SHIFT-V","macro",  "BOP_SELF" },
         { "CTRL-V",     "macro",   "LAY_SELF" },
-        -- { "ALT-V",      "spell",   "Refreshing Healing Potion" },
-        -- { "ALT-CTRL-V", "spell",   "Wildercloth Bandage" },
       },
       HOLY = {
         -- Quick Heals
