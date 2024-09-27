@@ -458,7 +458,6 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
-        { "CTRL-C",     "macro",   "BELL_SELF" },
 
         -- Vitality (Self-Heals/Protections)
         { "V",          "macro",   "VITALITY" },
@@ -499,6 +498,7 @@ BINDINGS = {
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
         { "SHIFT-C",    "spell",   "Tyr's Deliverance" },
+        { "CTRL-C",     "spell",   "Divine Toll" },
       },
       PROTECTION = {
         -- Quick Heals
