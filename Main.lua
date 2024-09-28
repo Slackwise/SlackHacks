@@ -463,6 +463,7 @@ NOT_ACTUALLY_FLYABLE_MAPS = {
   MAPS = {
     715,   -- Emerald Dreamway, The Dreamgrove (Druid Legion Hall)
     747,   -- The Dreamgrove (Druid Legion Hall)
+    1478,  -- Ashran (BG)
   }
 }
 
