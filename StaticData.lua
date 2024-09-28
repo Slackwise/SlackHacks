@@ -21,6 +21,10 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Auspicious Arborwyrm"]         = 1795,
 }
 
+-- Alchemists have equal strength potions but they're cheaper to make,
+-- so we're adding an amount to make them be used first when equal strength potions:
+ALCHEMIST_VALUE_OFFSET = 1000 
+
 BEST_ITEMS = {
   BEST_HEALING_POTIONS = {
     BINDING_NAME = "SLACKUI_BEST_HEALING_POTION",
@@ -28,11 +32,23 @@ BEST_ITEMS = {
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
 
-    -- The War Within Healing Potions
+    -- TWW Alchemist-Only Healing Potions
+    [212944]     = 3839450 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 3)
+    [212943]     = 3681800 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 2)
+    [212942]     = 3530600 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 1)
     [211880]     = 3839450, -- Algari Healing Potion (Quality 3)
     [211879]     = 3681800, -- Algari Healing Potion (Quality 2)
     [211878]     = 3530600, -- Algari Healing Potion (Quality 1)
 
+    -- TWW Healing/Mana Potions
+    [212950]     = 2799950 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 3)
+    [212949]     = 2685000 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 2)
+    [212948]     = 2574760 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 1)
+    [212244]     = 2799950, -- Cavedweller's Delight (Quality 3)
+    [212243]     = 2685000, -- Cavedweller's Delight (Quality 2)
+    [212242]     = 2574760, -- Cavedweller's Delight (Quality 1)
+    
+    
     -- Dragonflight Healing Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
     [207023]     = 310592, -- Dreamwalker's Healing Potion (Quality 3)
     [207022]     = 266709, -- Dreamwalker's Healing Potion (Quality 2)
@@ -42,12 +58,12 @@ BEST_ITEMS = {
     [191378]     = 118000, -- Refreshing Healing Potion (Quality 1)
 
     -- Classic Healing Potions:  https://www.wowhead.com/classic/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
-    [13446]      = 1750, -- Major Healing Potion
-    [3928]       = 900, -- Superior Healing Potion
-    [1710]       = 585, -- Greater Healing Potion
-    [929]        = 360, -- Healing Potion
-    [858]        = 180, -- Lesser Healing Potion
-    [118]        = 90, -- Minor Healing Potion
+    [13446]      = 1750,  -- Major Healing Potion
+    [3928]       = 900,   -- Superior Healing Potion
+    [1710]       = 585,   -- Greater Healing Potion
+    [929]        = 360,   -- Healing Potion
+    [858]        = 180,   -- Lesser Healing Potion
+    [118]        = 90,    -- Minor Healing Potion
   },
 
   BEST_MANA_POTIONS = {
@@ -56,10 +72,22 @@ BEST_ITEMS = {
     -- Mapping of:
     -- ITEM_ID = MAX_MANA_RESTORATION
 
-    -- The War Within Mana Potions
+    -- TWW Alchemist-Only Mana Potions
+    [212947]     = 270000 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 3)
+    [212946]     = 234783 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 2)
+    [212945]     = 204159 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 1)
     [212241]     = 270000, -- Algari Mana Potion (Quality 3)
     [212240]     = 234783, -- Algari Mana Potion (Quality 2)
     [212239]     = 204159, -- Algari Mana Potion (Quality 1)
+
+    -- TWW Mana/Healing Potions
+    [212950]     = 202500 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 3)
+    [212949]     = 176087 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 2)
+    [212948]     = 153119 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 1)
+    [212244]     = 202500, -- Cavedweller's Delight (Quality 3)
+    [212243]     = 176087, -- Cavedweller's Delight (Quality 2)
+    [212242]     = 153119, -- Cavedweller's Delight (Quality 1)
+
 
     -- Dragonflight Mana Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Mana+Potion/live-only:on?filter=16;10;0
     [191386]     = 27600, -- Aerated Mana Potion (Quality 3)
