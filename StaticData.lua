@@ -109,6 +109,12 @@ BEST_ITEMS = {
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
 
+    -- TWW Bandages:
+    [224442]     = 3339000, -- Weavercloth Bandage (Quality 3)
+    [224441]     = 2504250, -- Weavercloth Bandage (Quality 2)
+    [224440]     = 1669500, -- Weavercloth Bandage (Quality 1)
+
+
     -- Dragonflight Bandages:
     [194050]     = 50768, -- Wildercloth Bandage (Quality 3)
     [194049]     = 43560, -- Wildercloth Bandage (Quality 2)
