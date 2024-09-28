@@ -452,7 +452,6 @@ BINDINGS = {
         -- Extras
         { "Z",          "macro",   "FREEDOM" },
         { "SHIFT-Z",    "spell",   "Will to Survive" },
-        { "CTRL-Z",     "macro",   "REZ" },
         { "ALT-Z",      "macro",   "PVP_TRINKET" },
         { "ALT-CTRL-Z", "macro",   "REZ" },
 
@@ -475,8 +474,10 @@ BINDINGS = {
         { "SHIFT-2",    "spell",   "Flash of Light" },
 
         -- AoE Heals
-        { "3",          "spell",   "Light of Dawn" },
-        { "SHIFT-3",    "spell",   "Holy Prism" },
+        { "3",          "spell",   "Holy Prism" },
+        { "SHIFT-3",    "spell",   "Light of Dawn" },
+        -- { "3",          "spell",   "Light of Dawn" },
+        -- { "SHIFT-3",    "spell",   "Holy Prism" },
 
         ---------------------------------------------------
 
@@ -495,9 +496,13 @@ BINDINGS = {
         -- Extras
         { "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
 
+        -- CC
+        { "CTRL-F",     "spell",   "Blinding Light" },
+
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
-        { "CTRL-C",     "spell",   "Tyr's Deliverance" },
+        { "CTRL-C",     "macro",   "BEACON_SELF" },
+        -- { "CTRL-C",     "spell",   "Tyr's Deliverance" },
       },
       PROTECTION = {
         -- Quick Heals
@@ -542,6 +547,7 @@ BINDINGS = {
         ---------------------------------------------------
 
         -- Blessings
+        { "CTRL-Z",     "macro",   "SANC_SELF" },
 
         -- AoE (emanating from me)
         { "C",         "spell",   "Divine Storm" },
