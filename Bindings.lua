@@ -410,6 +410,7 @@ BINDINGS = {
         { "F11",        "command", "SHAPESHIFTBUTTON3" },
         { "F12",        "command", "SHAPESHIFTBUTTON4" },
         { "CTRL-SPACE", "spell",   "Divine Steed" },
+        -- { "BUTTON3",    "macro",   "MOUSE_KICKS" },
         { "BUTTON4",    "macro",   "MOUSE4" },
         { "BUTTON5",    "macro",   "MOUSE5" },
         { "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
@@ -533,7 +534,7 @@ BINDINGS = {
 
         -- AoE
         { "3",          "spell",   "Wake of Ashes" },
-        { "BUTTON4",    "macro",   "RECKON_CURSOR" },
+        -- { "BUTTON4",    "macro",   "RECKON_CURSOR" },
 
         ---------------------------------------------------
 
