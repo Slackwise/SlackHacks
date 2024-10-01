@@ -405,12 +405,12 @@ BINDINGS = {
         ---------------------------------------------------
 
         -- General
+        { "F8",         "macro",   "SUMMONPET" },
         { "F9",         "command", "SHAPESHIFTBUTTON1" },
         { "F10",        "command", "SHAPESHIFTBUTTON2" },
         { "F11",        "command", "SHAPESHIFTBUTTON3" },
         { "F12",        "command", "SHAPESHIFTBUTTON4" },
         { "CTRL-SPACE", "spell",   "Divine Steed" },
-        -- { "BUTTON3",    "macro",   "MOUSE_KICKS" },
         { "BUTTON4",    "macro",   "MOUSE4" },
         { "BUTTON5",    "macro",   "MOUSE5" },
         { "ALT-CTRL-SHIFT-X", "spell",   "Contemplation" },
@@ -425,7 +425,6 @@ BINDINGS = {
         -- Ranged Attacks
         { "4",          "spell",   "Judgment" },
         { "5",          "spell",   "Hammer of Wrath" },
-        { "SHIFT-5",    "macro",   "WINGS" },
 
         ---------------------------------------------------
 
@@ -437,8 +436,9 @@ BINDINGS = {
         { "E",          "spell",   "Crusader Strike" },
 
         -- Targetting
-        { "T",          "spell",   "Hand of Reckoning" },
+        -- { "T",          "spell",   "Hand of Reckoning" },
         -- { "T",          "macro",   "TARGET" },
+        { "T",          "macro",   "BLESST" },
 
         ---------------------------------------------------
 
@@ -468,31 +468,34 @@ BINDINGS = {
       },
       HOLY = {
         -- Quick Heals
+        { "`",          "spell",   "Barrier of Faith" },
         { "SHIFT-1",    "spell",   "Cleanse" },
 
         -- Cast Heals
-        { "2",          "spell",   "Holy Light" },
-        { "SHIFT-2",    "spell",   "Flash of Light" },
+        { "SHIFT-2",    "spell",   "Holy Light" },
+        -- { "2",          "spell",   "Holy Light" },
+        -- { "SHIFT-2",    "spell",   "Flash of Light" },
 
         -- AoE Heals
-        { "3",          "spell",   "Holy Prism" },
-        { "SHIFT-3",    "spell",   "Light of Dawn" },
-        -- { "3",          "spell",   "Light of Dawn" },
+        { "3",          "spell",   "Light of Dawn" },
         -- { "SHIFT-3",    "spell",   "Holy Prism" },
+        -- { "3",          "spell",   "Holy Prism" },
+        -- { "SHIFT-3",    "spell",   "Light of Dawn" },
 
         ---------------------------------------------------
 
         -- Spec Abilities
         { "R",          "macro",   "SHOCK" },
+        { "SHIFT-R",    "spell",   "Barrier of Faith" },
 
         -- Targetting
-        { "SHIFT-T",    "spell",   "Beacon of Faith" },
-        { "CTRL-T",     "spell",   "Beacon of Light" },
+        -- { "SHIFT-T",    "spell",   "Beacon of Faith" },
+        -- { "CTRL-T",     "spell",   "Beacon of Light" },
 
         ---------------------------------------------------
 
         -- Ults (Big Cooldowns)
-        { "ALT-G",      "spell",   "Aura Mastery" },
+        { "SHIFT-G",    "spell",   "Aura Mastery" },
 
         -- Extras
         { "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
@@ -515,8 +518,8 @@ BINDINGS = {
         { "SHIFT-Q",    "spell",   "Bastion of Light" },
 
         -- Attacks
-        { "3",          "spell",   "Sacred Weapon" },
-        { "R",          "spell",   "Avenger's Shield" },
+        { "3",          "spell",   "Avenger's Shield" },
+        { "R",          "spell",   "Sacred Weapon" },
 
         -- Taunting
         { "T",          "spell",   "Hand of Reckoning" },
@@ -532,9 +535,8 @@ BINDINGS = {
         -- Heals
         { "SHIFT-1",    "spell",   "Cleanse Toxins" },
 
-        -- AoE
+        -- AoE Frontal
         { "3",          "spell",   "Wake of Ashes" },
-        -- { "BUTTON4",    "macro",   "RECKON_CURSOR" },
 
         ---------------------------------------------------
 
@@ -552,8 +554,7 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",         "spell",   "Divine Storm" },
-        { "SHIFT-C",   "macro",   "RECKON_SELF" }, -- Can't cast BELL_SELF on self as Ret
-        { "CTRL-C",    "spell",   "Shield of Vengeance" },
+        { "CTRL-C",    "macro",   "RECKON_SELF" },
       },
     },
     DRUID = {
@@ -616,7 +617,9 @@ BINDINGS = {
         {"`",                     "spell",   "Swiftmend"},
         {"SHIFT-1",               "spell",   "Lifebloom"},
         {"G",                     "spell",   "Grove Guardians"},
-        {"SHIFT-G",               "spell",   "Incarnation: Tree of Life"},
+        {"SHIFT-G",               "spell",   "Flourish"},
+        {"CTRL-G",                "spell",   "Incarnation: Tree of Life"},
+        {"ALT-CTRL-G",            "spell",   "Tranquility"},
         {"ALT-CTRL-V",            "spell",   "Tranquility"},
       }
     },
@@ -656,9 +659,8 @@ BINDINGS = {
         {"4",                 "spell",   "Flame Shock"},
         {"SHIFT-4",           "spell",   "Lava Burst"},
         {"Q",                 "macro",   "CHAIN"},
-        {"E",                 "spell",   "Primal Strike"},
-        {"SHIFT-E",           "spell",   "Lightning Bolt"},
-        {"CTRL-E",            "spell",   "Chain Lightning"},
+        {"E",                 "spell",   "Lightning Bolt"},
+        {"ALT-E",             "spell",   "Primal Strike"},
         {"R",                 "spell",   "Earth Shield"},
         {"SHIFT-R",           "spell",   "Lightning Shield"},
         {"CTRL-R",            "spell",   "Water Shield"},
@@ -666,11 +668,11 @@ BINDINGS = {
         {"ALT-T",             "spell",   "Healing Tide Totem"},
         {"SHIFT-T",           "spell",   "Spirit Link Totem"},
         {"CTRL-T",            "spell",   "Earthbind Totem"},
-        {"ALT-CTRL-SHIFT-T",  "spell",   "Wind Rush Totem"},
         {"F",                 "spell",   "Frost Shock"},
         {"SHIFT-F",           "spell",   "Wind Shear"},
         {"CTRL-F",            "spell",   "Hex"},
         {"Z",                 "spell",   "Ghost Wolf"},
+        {"SHIFT-Z",           "spell",   "Wind Rush Totem"},
         {"C",                 "spell",   "Thunderstorm"},
         {"SHIFT-C",           "macro",   "SELF_RAIN"},
         {"V",                 "spell",   "Astral Shift"},
