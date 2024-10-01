@@ -539,6 +539,15 @@ MOUNTS_BY_USAGE = {
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Time-Lost Proto-Drake"],
   },
+  SHAMAN = {
+    ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
+    ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+  },
 }
 
 function setupEkil()
