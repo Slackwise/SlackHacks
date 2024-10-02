@@ -18,6 +18,24 @@ dbDefaults = {
   global = {
     isDebugging = false,
     log = {}
+  },
+  char = {
+    mounts = {
+      ["ground"] = nil,
+      ["ground-showoff"] = nil,
+      ["skyriding"] = nil,
+      ["skyriding-showoff"] = nil,
+      ["steadyflight"] = nil,
+      ["steadyflight-showoff"] = nil,
+      ["water"] = nil,
+      ["water-showoff"] = nil,
+      ["ground-passenger"] = nil,
+      ["ground-passenger-showoff"] = nil,
+      ["skyriding-passenger"] = nil,
+      ["skyriding-passenger-showoff"] = nil,
+      ["steadyflight-passenger"] = nil,
+      ["steadyflight-passenger-showoff"] = nil,
+    }
   }
 }
 

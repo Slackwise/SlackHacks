@@ -21,6 +21,42 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Auspicious Arborwyrm"]         = 1795,
 }
 
+ACTUALLY_FLYABLE_MAPS = {
+  CONTINENTS = {
+    619, -- Broken Isles
+  },
+  ZONES = {
+  },
+  MAPS = {
+    627,   -- Legion Dalaran, but as a dungeon due to phasing for the Harbinger questline
+  }
+}
+
+NOT_ACTUALLY_FLYABLE_MAPS = {
+  CONTINENTS = {
+    905,	-- Argus
+  },
+  ZONES = {
+    94,    -- Eversong Woods
+    95,    -- Ghostlands
+    97,    -- Azuremyst Isle
+    103,   -- The Exodar
+    106,   -- Bloodmyst Isle
+    110,   -- Silvermoon City
+    122,   -- Isle of Quel'Danas
+    747,   -- The Dreamgrove (Druid Legion Hall)
+    946,   -- "Cosmic" (Ashran BG)
+    1334,  -- Wintergrasp (BG)
+    1543,  -- The Maw
+    1961,  -- Korthia, The Maw
+  },
+  MAPS = {
+    715,   -- Emerald Dreamway, The Dreamgrove (Druid Legion Hall)
+    747,   -- The Dreamgrove (Druid Legion Hall)
+    1478,  -- Ashran (BG)
+  }
+}
+
 -- Alchemists have equal strength potions but they're cheaper to make,
 -- so we're adding an amount to make them be used first when equal strength potions:
 ALCHEMIST_VALUE_OFFSET = 1000 
