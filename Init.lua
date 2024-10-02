@@ -70,5 +70,8 @@ end
 --Event Handlers
 function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults, true)
-  config:RegisterOptionsTable("SlackUI", options, "slack")
+  Self.options = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
+  Self.config:RegisterOptionsTable("SlackUI", Self.options, "slack")
+  LibStub("AceConfig-3.0"):RegisterOptionsTable("SlackUI", Self.options)
+  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackUI")
 end

@@ -40,6 +40,17 @@ options = {
         print("SlackUI: ALL DATA WIPED")
       end
     }
+  },
+  mount = {
+    type = "group",
+    name = "Mount",
+    desc = "Mount binding configuration",
+    func = function()
+      -- mount()
+      print("SlackUI: mounting...")
+    end,
+    args = {
+    }
   }
 }
 
