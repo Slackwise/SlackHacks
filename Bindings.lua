@@ -519,7 +519,7 @@ BINDINGS = {
 
         -- Attacks
         { "3",          "spell",   "Avenger's Shield" },
-        { "R",          "spell",   "Sacred Weapon" },
+        { "R",          "spell",   "Holy Bulwark" },
 
         -- Taunting
         { "T",          "spell",   "Hand of Reckoning" },
