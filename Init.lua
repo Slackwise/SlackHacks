@@ -39,8 +39,57 @@ dbDefaults = {
   }
 }
 
+function getBattletag()
+  return select(2, BNGetInfo())
+end
+
+function isSlackwise()
+  return getBattletag() == "Slackwise#1121" or false
+end
+
+-- Gatekeeping new features with no UI
+function isTester()
+  -- Use a checkbox in settings later, probably, but right now it's just me
+  return isSlackwise()
+end
+
+function isRetail()
+  -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
+  if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+    return true
+  else
+    return false
+  end
+end
+
+function isClassic()
+  -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
+  if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
+    return true
+  else
+    return false
+  end
+end
+
+function getGameType()
+  if isRetail() then
+    return "RETAIL"
+  elseif isClassic() then
+    return "CLASSIC"
+  else
+    return "UNKNOWN" -- Uh oh
+  end
+end
+
 function isDebugging()
-  return db.global.isDebugging
+  if isInitialized() then
+    return Self.db.global.isDebugging
+  end
+  if isSlackwise() then
+    return true
+  else
+    return false
+  end
 end
 
 COLOR_START = "\124c"
@@ -57,11 +106,13 @@ grey = color("AAAAAA")
 function log(message, ...)
   if isDebugging() then
     print(grey(date()) .. "  " .. message)
-    table.insert(db.global.log, date() .. "  " .. message)
-    if arg then
-      for i, v in ipairs(arg) do
-        print("Arg " .. i .. " = " .. v)
-        table.insert(db.global.log, "Arg " .. i .. " = " .. v)
+    if isInitialized() then -- we have a DB to save to:
+      table.insert(Self.db.global.log, date() .. "  " .. message)
+      if arg then
+        for i, v in ipairs(arg) do
+          print("Arg " .. i .. " = " .. v)
+          table.insert(Self.db.global.log, "Arg " .. i .. " = " .. v)
+        end
       end
     end
   end
@@ -74,4 +125,9 @@ function Self:OnInitialize()
   Self.config:RegisterOptionsTable("SlackUI", Self.options, "slack")
   LibStub("AceConfig-3.0"):RegisterOptionsTable("SlackUI", Self.options)
   Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackUI")
+end
+
+function isInitialized()
+  -- Check for presence of last thing loaded at init
+  return not not Self["configDialog"]
 end
