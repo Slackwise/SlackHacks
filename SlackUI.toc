@@ -11,7 +11,7 @@ Init.lua
 lamda/dist/lamda.lua
 embeds.xml
 StaticData.lua
-Main.lua
+Core.lua
 Bindings.lua
 Options.lua
-mount.lua
+Mount.lua
