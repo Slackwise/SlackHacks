@@ -19,7 +19,7 @@ dbDefaults = {
     isDebugging = false,
     log = {}
   },
-  char = {
+  profile = {
     mounts = {
       ["ground"] = nil,
       ["ground-showoff"] = nil,
