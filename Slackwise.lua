@@ -468,8 +468,6 @@ BINDINGS = {
     },
     MAGE = {
       CLASS = {
-        {"4",                 "spell",   "Ice Lance"},
-        {"Q",                 "spell",   "Frozen Orb"},
         {"E",                 "spell",   "Frostbolt"},
         {"R",                 "spell",   "Cone of Cold"},
         {"T",                 "spell",   "Fire Blast"},
@@ -479,7 +477,6 @@ BINDINGS = {
         {"Z",                 "spell",   "Invisibility"},
         {"X",                 "spell",   "Slow Fall"},
         {"C",                 "spell",   "Arcane Explosion"},
-        {"V",                 "spell",   "Ice Barrier"},
         {"SHIFT-V",           "spell",   "Ice Cold"},
         {"CTRL-V",            "spell",   "Mass Barrier"},
         {"CTRL-SPACE",        "spell",   "Blink"},
@@ -487,7 +484,14 @@ BINDINGS = {
       },
       ARCANE = {},
       FIRE = {},
-      FROST = {},
+      FROST = {
+        {"BUTTON4",           "macro",   "BLIZZ_CURSOR"},
+        {"3",                 "spell",   "Comet Storm"},
+        {"4",                 "spell",   "Ice Lance"},
+        {"5",                 "spell",   "Flurry"},
+        {"Q",                 "spell",   "Frozen Orb"},
+        {"V",                 "spell",   "Ice Barrier"},
+      },
     },
     SHAMAN = {
       CLASS = {
