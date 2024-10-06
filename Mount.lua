@@ -1,12 +1,13 @@
 setfenv(1, _G.SlackUI)
 
 function handleDragonriding()
+  -- log("Aura handling dragonriding...")
   if isTester() then
     if isDragonriding() then
-      log("BINDING dragonriding")
+      -- log("BINDING dragonriding")
       bindDragonriding()
     else
-      log("UNBINDING dragonriding")
+      -- log("UNBINDING dragonriding")
       unbindDragonriding()
     end
   end
@@ -28,7 +29,7 @@ function bindDragonriding()
       SetOverrideBindingSpell(Self.frame, true, "X",             "Aerial Halt")      -- Brake
     end
     isDragonridingBound = true
-    log("Dragonriding keys BOUND")
+    -- log("Dragonriding keys BOUND")
   end 
 end
 
@@ -36,13 +37,13 @@ function unbindDragonriding()
   if not InCombatLockdown() and isDragonridingBound then
     ClearOverrideBindings(Self.frame)
     isDragonridingBound = false
-    log("Dragonriding keys CLEARED")
+    -- log("Dragonriding keys CLEARED")
   end
 end
 
 SKYRIDING_SPELLID = 404464
 function isDragonriding()
-  log("Checking if dragonriding...")
+  -- log("Checking if dragonriding...")
   local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
   if C_UnitAuras.GetPlayerAuraBySpellID(SKYRIDING_SPELLID) and isActuallyFlyableArea() then
     if GetShapeshiftForm() == 3 then
