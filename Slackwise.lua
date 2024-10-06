@@ -5,10 +5,10 @@
 -- Change implicit global scope to our addon "namespace":
 setfenv(1, _G.SlackUI)
 
-if not isSlackwise() then
-  -- Cancel loading the rest of the file:
-  return -- Does not impact loading subsequent files, though!
-end
+-- if not isSlackwise() then
+--   -- Cancel loading the rest of the file:
+--   return -- Does not impact loading subsequent files, though!
+-- end
 
 
 MOUNTS_BY_USAGE = {
