@@ -1,6 +1,8 @@
 local addonName, addonTable = ...
 setfenv(1, _G.SlackUI)
 
+-- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
+
 options = {
   type = "group",
   args = {
@@ -10,6 +12,7 @@ options = {
       type = "toggle",
       get = function() return Self:IsEnabled() end,
       set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
+      order = 0 -- first
     },
     debug = {
       name = "Enable Debugging",
@@ -29,7 +32,8 @@ options = {
       type = "execute",
       name = "Set Bindings",
       desc = "Set binding presets for current character's class and spec.",
-      func = function() setBindings() end
+      func = function() setBindings() end,
+      hidden = true -- Current just used by me
     },
     reset = {
       type = "execute",
@@ -38,7 +42,8 @@ options = {
       func = function()
         db:ResetDB()
         print("SlackUI: ALL DATA WIPED")
-      end
+      end,
+      confirm = true
     }
   },
   -- mount = {
