@@ -70,7 +70,6 @@ end
 
 function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://warcraft.wiki.gg/wiki/UNIT_AURA
   if unitTarget == "player" then
-    log("Aura handling dragonriding...")
     handleDragonriding()
   end
 end
@@ -139,10 +138,14 @@ function canCollectTransmog(itemInfo) -- itemID, itemLink, or Name
   if isClassic() then
     return false
   end
+  -- local itemName, itemLink, itemQuality, itemLevel, itemMinLevel, itemType, itemSubType = C_Item.GetItemInfo(itemInfo)
+  -- if itemType ~= "Armor" then
+  --   log(itemLink)
+  --   return false
+  -- end
   local itemAppearanceID, sourceID  = C_TransmogCollection.GetItemInfo(itemInfo) -- https://warcraft.wiki.gg/wiki/API_C_TransmogCollection.GetItemInfo
   if sourceID then
     local categoryID, visualID, canEnchant, icon, isCollected, itemLink, transmogLink, unknown1, itemSubTypeIndex = C_TransmogCollection.GetAppearanceSourceInfo(sourceID)
-    -- local hasItemData, canCollect = C_TransmogCollection.PlayerCanCollectSource(sourceID)
     return not isCollected
   end
   return false
@@ -156,9 +159,8 @@ function sellGreyItems()
       local link = C_Container.GetContainerItemLink(bag, slot)
       if link then
         local itemName, itemLink, itemQuality = C_Item.GetItemInfo(link)
-        local collectable = canCollectTransmog(itemLink)
         if itemQuality == ITEM_QUALITY_GREY then
-          if collectable then
+          if canCollectTransmog(itemLink) then
             print("[SlackUI] Not selling transmog-able item: " .. itemLink)
           else
             C_Container.UseContainerItem(bag, slot)
