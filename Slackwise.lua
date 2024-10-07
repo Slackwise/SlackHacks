@@ -524,7 +524,7 @@ BINDINGS = {
         {"Z",                 "spell",   "Ghost Wolf"},
         {"SHIFT-Z",           "spell",   "Wind Rush Totem"},
         {"C",                 "spell",   "Thunderstorm"},
-        {"SHIFT-C",           "macro",   "SELF_RAIN"},
+        {"SHIFT-C",           "macro",   "RAIN_SELF"},
         {"V",                 "spell",   "Astral Shift"},
         {"CTRL-C",            "spell",   "Stone Bulwark Totem"},
         {"CTRL-SPACE",        "spell",   "Gust of Wind"},
@@ -533,6 +533,7 @@ BINDINGS = {
       ELEMENTAL = {
         {"3",                 "spell",   "Earthquake"},
         {"5",                 "spell",   "Earth Shock"},
+        {"SHIFT-5",           "spell",   "Primordial Wave"},
       },
       ENHANCEMENT = {},
       RESTORATION = {
