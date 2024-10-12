@@ -531,9 +531,13 @@ BINDINGS = {
         {"ALT-CTRL-Z",        "spell",   "Ancestral Spirit"},
       },
       ELEMENTAL = {
-        {"3",                 "spell",   "Earthquake"},
-        {"5",                 "spell",   "Earth Shock"},
-        {"SHIFT-5",           "spell",   "Primordial Wave"},
+        {"BUTTON4",           "macro",   "MOUSE4_ELE"},
+        {"1",                 "spell",   "Flame Shock"},
+        {"3",                 "spell",   "Earth Shock"},
+        {"4",                 "spell",   "Frost Shock"},
+        {"5",                 "spell",   "Primordial Wave"},
+        {"R",                 "spell",   "Lava Burst"},
+        {"F",                 "spell",   "Wind Shear"},
       },
       ENHANCEMENT = {},
       RESTORATION = {
