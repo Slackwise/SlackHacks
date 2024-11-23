@@ -115,6 +115,8 @@ BINDINGS = {
     {"CTRL-R",                "command",  "NONE"},
     {"CTRL-S",                "command",  "NONE"},
     {"ALT-CTRL-S",            "spell",    "Survey" },
+    {"H",                     "command",  "TOGGLEGROUPFINDER"},
+    {"SHIFT-H",               "command",  "TOGGLECHARACTER4"}, -- Honor Panel (PvP Queue)
     {"CTRL-H",                "macro",    "HEARTH"},
     {"ALT-CTRL-H",            "macro",    "HEARTH_DALARAN"},
     {"ALT-H",                 "command",  "TOGGLEUI"},
@@ -561,7 +563,7 @@ BINDINGS = {
         {"SHIFT-Q",           "spell",   "Shadowfiend"},
         {"R",                 "spell",   ""},
         {"E",                 "spell",   "Smite"},
-        -- {"CTRL-E",            "spell",   ""},
+        {"CTRL-E",            "spell",   ""},
         {"R",                 "spell",   "Holy Fire"},
         {"T",                 "spell",   "Dispel Magic"},
         {"SHIFT-T",           "spell",   "Power Word: Fortitude"},
