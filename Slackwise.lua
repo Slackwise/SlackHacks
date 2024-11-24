@@ -48,6 +48,15 @@ MOUNTS_BY_USAGE = {
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
+  DEFAULT = {
+    ['GROUND']            = MOUNT_IDS["Celestial Steed"],
+    ['FLYING']            = MOUNT_IDS["Celestial Steed"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Celestial Steed"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Celestial Steed"],
+    ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+  },
 }
 
 

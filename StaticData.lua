@@ -8,6 +8,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Mekgineer's Chopper"]          = 275,
   ["Ironbound Proto-Drake"]        = 306,
   ["Sea Turtle"]                   = 312,
+  ["Celestial Steed"]              = 376,
   ["Sandstone Drake"]              = 407,
   ["Tyrael's Charger"]             = 439,
   ["Grand Expedition Yak"]         = 460,
