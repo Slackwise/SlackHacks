@@ -708,6 +708,29 @@ BINDINGS = {
 
       -- Items
       { "ALT-Z",       "item",    "Insignia of the Alliance" }, -- PvP Trinket
+    },
+    PRIEST = {
+      { "1",  "command", "ACTIONBUTTON1" },
+      { "2",  "command", "ACTIONBUTTON2" },
+      { "3",  "command", "ACTIONBUTTON3" },
+      { "4",  "command", "ACTIONBUTTON4" },
+      { "5",  "command", "ACTIONBUTTON5" },
+      { "6",  "command", "ACTIONBUTTON6" },
+      { "7",  "command", "ACTIONBUTTON7" },
+      { "8",  "command", "ACTIONBUTTON8" },
+      { "9",  "command", "ACTIONBUTTON9" },
+      { "10", "command", "ACTIONBUTTON10" },
+      { "11", "command", "ACTIONBUTTON11" },
+      { "12", "command", "ACTIONBUTTON12" },
+
+      { "`",        "macro",   "!STOP" },
+      { "2",        "spell",   "Lesser Heal" },
+      { "4",        "spell",   "Shadow Word: Pain" },
+      { "Q",        "spell",   "Power Word: Shield" },
+      { "E",        "macro",   "!ENGAGE" },
+      { "T",        "spell",   "Power Word: Fortitude" },
+      { "SHIFT-Z",  "spell",   "Shadowmeld" },
+      { "V",        "macro",   "SHIELD_SELF" },
     }
   }
 }
