@@ -724,12 +724,16 @@ BINDINGS = {
       { "12", "command", "ACTIONBUTTON12" },
 
       { "`",        "macro",   "!STOP" },
+      { "1",        "spell",   "Renew" },
       { "2",        "spell",   "Lesser Heal" },
       { "4",        "spell",   "Shadow Word: Pain" },
+      { "5",        "spell",   "Penance" },
       { "Q",        "spell",   "Power Word: Shield" },
       { "E",        "macro",   "!ENGAGE" },
       { "T",        "spell",   "Power Word: Fortitude" },
+      { "Z",        "spell",   "Fade" },
       { "SHIFT-Z",  "spell",   "Shadowmeld" },
+      { "CTRL-Z",   "spell",   "Fade" },
       { "V",        "macro",   "SHIELD_SELF" },
     }
   }
