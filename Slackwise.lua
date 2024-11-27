@@ -48,7 +48,16 @@ MOUNTS_BY_USAGE = {
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
-  DEFAULT = {
+  PRIEST = {
+    ['GROUND']            = MOUNT_IDS["Celestial Steed"],
+    ['FLYING']            = MOUNT_IDS["Celestial Steed"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Celestial Steed"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Celestial Steed"],
+    ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+  },
+  MAGE = {
     ['GROUND']            = MOUNT_IDS["Celestial Steed"],
     ['FLYING']            = MOUNT_IDS["Celestial Steed"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
@@ -727,7 +736,7 @@ BINDINGS = {
       { "1",        "spell",   "Renew" },
       { "2",        "spell",   "Lesser Heal" },
       { "4",        "spell",   "Shadow Word: Pain" },
-      { "5",        "spell",   "Penance" },
+      -- { "5",        "spell",   "Penance" },
       { "Q",        "spell",   "Power Word: Shield" },
       { "E",        "macro",   "!ENGAGE" },
       { "T",        "spell",   "Power Word: Fortitude" },
