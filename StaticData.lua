@@ -21,6 +21,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Algarian Stormrider"]          = 1792,
   ["Auspicious Arborwyrm"]         = 1795,
   ["Trader's Gilded Brutosaur"]    = 2265,
+  ["Chaos-Forged Gryphon"]         = 2304,
 }
 
 ACTUALLY_FLYABLE_MAPS = {

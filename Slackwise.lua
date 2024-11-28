@@ -32,7 +32,7 @@ MOUNTS_BY_USAGE = {
   },
   PALADIN = {
     ['GROUND']            = MOUNT_IDS["Highlord's Golden Charger"],
-    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['FLYING']            = MOUNT_IDS["Chaos-Forged Gryphon"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
     ['GROUND_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
