@@ -8,7 +8,7 @@
 ## SavedVariables: SlackUIDB
 ## RequiredDeps: Ace3
 Init.lua
-lamda/dist/lamda.lua
+## lamda/dist/lamda.lua
 embeds.xml
 StaticData.lua
 Core.lua
