@@ -16,10 +16,10 @@ MOUNTS_BY_USAGE = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['GROUND_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
-    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["X-45 Heartbreaker"],
   },
   HUNTER = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
