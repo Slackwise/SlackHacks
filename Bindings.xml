@@ -2,8 +2,8 @@
   <Binding name="SLACKUI_RELOADUI" category="BINDING_HEADER_SLACKUI">
     ReloadUI()
   </Binding>
-    <Binding name="SLACKUI_RESTART_SOUND" category="BINDING_HEADER_SLACKUI">
-      Sound_GameSystem_RestartSoundSystem()
+  <Binding name="SLACKUI_RESTART_SOUND" category="BINDING_HEADER_SLACKUI">
+    Sound_GameSystem_RestartSoundSystem()
   </Binding>
   <Binding name="SLACKUI_MOUNT" category="BINDING_HEADER_SLACKUI">
     SlackUI.mount()
