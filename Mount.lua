@@ -91,7 +91,8 @@ function mountByName(mountName)
 end
 
 function isAlternativeMountRequested()
-  return IsControlKeyDown()
+  -- return IsControlKeyDown()
+  return IsModifierKeyDown() -- This will ignore any modifiers used to trigger off a keybinding!
 end
 
 function mount()  
