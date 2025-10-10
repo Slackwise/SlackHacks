@@ -333,17 +333,20 @@ function getCurrentZone()
 end
 
 function isActuallyFlyableArea()
-  local continent = getCurrentContinent() or 0
-  local zone 			= getCurrentZone() or 0
-  local map       = getCurrentMap() or 0
+  local continent   = getCurrentContinent()
+  local continentID = continent and continent.mapID or 0
+  local zone 			  = getCurrentZone()
+  local zoneID      = zone and zone.mapID or 0
+  local map         = getCurrentMap()
+  local mapID       = map and map.mapID or 0
 
-  local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
-  local listedFlyableZone         = not not tContains(	    ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
-  local listedFlyableMap          = not not tContains(	    ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID       )
+  local listedFlyableContinent    = not not tContains(	    ACTUALLY_FLYABLE_MAP_IDS.CONTINENTS,  continentID )
+  local listedFlyableZone         = not not tContains(	    ACTUALLY_FLYABLE_MAP_IDS.ZONES,       zoneID      )
+  local listedFlyableMap          = not not tContains(	    ACTUALLY_FLYABLE_MAP_IDS.MAPS,        mapID       )
 
-  local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.CONTINENTS,  continent.mapID  )
-  local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.ZONES,       zone.mapID       )
-  local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAPS.MAPS,        map.mapID        )
+  local listedNonFlyableContinent = not not tContains(	NOT_ACTUALLY_FLYABLE_MAP_IDS.CONTINENTS,  continentID )
+  local listedNonFlyableZone      = not not tContains(	NOT_ACTUALLY_FLYABLE_MAP_IDS.ZONES,       zoneID      )
+  local listedNonFlyableMap       = not not tContains(	NOT_ACTUALLY_FLYABLE_MAP_IDS.MAPS,        mapID       )
 
   if listedFlyableMap           then return true end
   if listedNonFlyableMap        then return false end

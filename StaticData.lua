@@ -25,7 +25,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Chaos-Forged Gryphon"]         = 2304,
 }
 
-ACTUALLY_FLYABLE_MAPS = {
+ACTUALLY_FLYABLE_MAP_IDS = {
   CONTINENTS = {
     619, -- Broken Isles
   },
@@ -36,7 +36,7 @@ ACTUALLY_FLYABLE_MAPS = {
   }
 }
 
-NOT_ACTUALLY_FLYABLE_MAPS = {
+NOT_ACTUALLY_FLYABLE_MAP_IDS = {
   CONTINENTS = {
     905,	-- Argus
   },
