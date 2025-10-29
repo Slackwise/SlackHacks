@@ -552,6 +552,7 @@ BINDINGS = {
         {"SHIFT-CTRL-G",      "spell",   "Heroism"},
         {"Z",                 "spell",   "Ghost Wolf"},
         {"SHIFT-Z",           "spell",   "Wind Rush Totem"},
+        {"CTRL-Z",            "spell",   "Stoneform"},
         {"C",                 "spell",   "Thunderstorm"},
         {"SHIFT-C",           "macro",   "RAIN_SELF"},
         {"V",                 "spell",   "Astral Shift"},
