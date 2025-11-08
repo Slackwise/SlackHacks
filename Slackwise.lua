@@ -43,8 +43,8 @@ MOUNTS_BY_USAGE = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['GROUND_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
-    ['FLYING_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Ashes of Al'ar"],
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
@@ -710,7 +710,7 @@ BINDINGS = {
       { "Q",					"spell",   "Holy Light"}, -- Instant Attack (Holy Shock macro @ Enemy only)
       { "ALT-Q",			"spell",   "Purify" }, -- Cleanse later
       { "CTRL-Z",     "spell",   "Redemption" },
-     
+
       -- "OHSHIT" Buttons
       { "G",          "spell",   "Blessing of Protection" },
       { "SHIFT-G",    "spell",   "Lay on Hands" },
