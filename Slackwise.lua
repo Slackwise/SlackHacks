@@ -501,6 +501,7 @@ BINDINGS = {
         {"G",                     "spell",   "Grove Guardians"},
         {"SHIFT-G",               "spell",   "Flourish"},
         {"CTRL-G",                "spell",   "Incarnation: Tree of Life"},
+        -- {"H",                     "spell",   "Tranquility"},
         {"ALT-CTRL-G",            "spell",   "Tranquility"},
         {"ALT-CTRL-V",            "spell",   "Tranquility"},
       }
