@@ -446,9 +446,7 @@ BINDINGS = {
         {"SHIFT-SPACE",           "macro",   "TRAVEL"}, -- Travel Form, but only out of combat, otherwise Mount Form
         {"CTRL-SPACE",            "spell",   "Wild Charge"},
         {"CTRL-SHIFT-SPACE",      "command", "SLACKUI_MOUNT"},
-        {"CTRL-H",                "spell",   "Noble Gardener's Hearthstone"},
         {"SHIFT-H",               "spell",   "Dreamwalk"},
-        {"1",                     "spell",   "Rejuvenation"},
         {"1",                     "spell",   "Rejuvenation"},
         {"SHIFT-1",               "spell",   "Rejuvenation"},
         {"2",                     "spell",   "Regrowth"},
@@ -462,7 +460,7 @@ BINDINGS = {
         {"Q",                     "spell",   "Ferocious Bite"},
         {"E",                     "macro",   "SINGLE_TARGET"},
         -- {"SHIFT-E",               "spell",   "Shred"},
-        {"CTRL-E",                "spell",   "Mangle"},
+        -- {"CTRL-E",                "spell",   "Mangle"},
         -- {"ALT-E",                 "spell",   "Wrath"},
         {"R",                     "macro",   "AOE"},
         {"SHIFT-R",               "spell",   "Swipe"},
