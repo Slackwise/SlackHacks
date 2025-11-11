@@ -369,7 +369,8 @@ BINDINGS = {
 
         -- Spec Abilities
         { "R",          "macro",   "SHOCK" },
-        { "SHIFT-R",    "spell",   "Barrier of Faith" },
+        { "SHIFT-R",    "spell",   "Holy Prism" },
+        -- { "SHIFT-R",    "spell",   "Barrier of Faith" },
 
         -- Targetting
         -- { "SHIFT-T",    "spell",   "Beacon of Faith" },
