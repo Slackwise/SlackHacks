@@ -1,18 +1,16 @@
 SlackwiseTweaks
-=========
-Contrasting TukUI / ElvUI, I am creating a project to update the UI holistically,
-but I will be using Blizzard's textures and aesthetics rather than redesigning everything,
-making only minor tweaks adding the tiny features we all crave, all of them optional.
+===============
+A collection of personal small tweaks and optional features to the default WoW UI.
 
-A true *minimalist* approach.
+Can I use this?
+---------------
+In its current state, much of this code is specific to my needs and anyone I've developed features for.
+You're welcome to mess around with it.
 
-P.S. This project is still **PRE-ALPHA**  and mostly a collection of personal tweaks to the standard Blizzard UI.
-
-
-Why is this on GitHub...?
--------------------------
-For backup. Feel free to steal any of this code. :P
-
+Future Goals
+------------
+Ideally I modularize all features so they're checkbox options in the Options menu,
+and I add UI elements to control the functionality for everyone else.
 
 Questions?
 ----------
