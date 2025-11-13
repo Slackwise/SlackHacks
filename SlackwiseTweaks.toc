@@ -1,5 +1,5 @@
 ## Interface: 110205, 110207, 120000
-## Title: SlackwiseTweaks
+## Title: Slackwise's Tweaks
 ## Notes: A compilation of minimalistic tweaks to the default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
 ## Version: 0.3
