@@ -15,7 +15,7 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 foreach ($dirName in $dirs.Keys) {
     $parentDir = Split-Path -Parent $dirs[$dirName]
     if (-not (Test-Path -Path $parentDir)) {
-        Write-Host "Skipping $dirName: directory does not exist"
+        Write-Host "Skipping ${dirName}: directory does not exist"
         continue
     }
     
