@@ -1,7 +1,7 @@
 @echo off
 
 rem Check if the icon already exists
-if exist "%USERPROFILE%\Desktop\SlackUI Update.lnk" (
+if exist "%USERPROFILE%\Desktop\SlackwiseTweaks Update.lnk" (
     rem If the icon exists, execute "git pull" in the current directory
     rem Check if Git is installed
     if not exist "%PATH%\git.exe" (
@@ -17,7 +17,7 @@ if exist "%USERPROFILE%\Desktop\SlackUI Update.lnk" (
     )
 ) else (
     rem If the icon doesn't exist, create it
-    echo. | more > "%USERPROFILE%\Desktop\SlackUI Update.lnk"
-    mklink /j "%USERPROFILE%\Desktop\SlackUI Update.lnk" "%~f0"
-    start "SlackUI Update" "%~f0"
+    echo. | more > "%USERPROFILE%\Desktop\SlackwiseTweaks Update.lnk"
+    mklink /j "%USERPROFILE%\Desktop\SlackwiseTweaks Update.lnk" "%~f0"
+    start "SlackwiseTweaks Update" "%~f0"
 )

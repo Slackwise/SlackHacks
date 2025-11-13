@@ -1,6 +1,6 @@
 $sourceDir    = "$PSScriptRoot"
-$retailDir    = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackUI"
-$classicDir   = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackUI"
+$retailDir    = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackwiseTweaks"
+$classicDir   = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackwiseTweaks"
 
 # Check if script is running as administrator, if not, relaunch as administrator
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {

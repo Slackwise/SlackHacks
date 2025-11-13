@@ -1,5 +1,5 @@
 local addonName, addonTable = ...
-setfenv(1, _G.SlackUI)
+setfenv(1, _G.SlackwiseTweaks)
 
 -- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
 
@@ -22,9 +22,9 @@ options = {
       set = function()
         db.global.isDebugging = not db.global.isDebugging
         if db.global.isDebugging then
-          print("SlackUI Debugging ON")
+          print("SlackwiseTweaks Debugging ON")
         else
-          print("SlackUI Debugging OFF")
+          print("SlackwiseTweaks Debugging OFF")
         end
       end,
     },
@@ -41,7 +41,7 @@ options = {
       desc = "DANGER: Wipes all settings! Cannot be undone!",
       func = function()
         db:ResetDB()
-        print("SlackUI: ALL DATA WIPED")
+        print("SlackwiseTweaks: ALL DATA WIPED")
       end,
       confirm = true
     }
@@ -52,7 +52,7 @@ options = {
   --   desc = "Mount binding configuration",
   --   func = function()
   --     -- mount()
-  --     print("SlackUI: mounting...")
+  --     print("SlackwiseTweaks: mounting...")
   --   end,
   --   args = {
   --   }

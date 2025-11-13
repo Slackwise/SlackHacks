@@ -1,13 +1,13 @@
 --INITIALIZE
 local Self = LibStub("AceAddon-3.0"):NewAddon(
-  "SlackUI",
+  "SlackwiseTweaks",
   "AceConsole-3.0",
   "AceEvent-3.0"
 )
 Self.config = LibStub("AceConfig-3.0")
-Self.frame = CreateFrame("Frame", "SlackUI")
-Self.itemBindingFrame = CreateFrame("Frame", "SlackUI Item Bindings")
-_G.SlackUI = Self
+Self.frame = CreateFrame("Frame", "SlackwiseTweaks")
+Self.itemBindingFrame = CreateFrame("Frame", "SlackwiseTweaks Item Bindings")
+_G.SlackwiseTweaks = Self
 Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
 setfenv(1, Self) -- Namespace local to addon
@@ -120,9 +120,9 @@ end
 
 --Event Handlers
 function Self:OnInitialize()
-  Self.db = LibStub("AceDB-3.0"):New("SlackUIDB", dbDefaults)
-  config:RegisterOptionsTable("SlackUI", options, "slack")
-  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackUI")
+  Self.db = LibStub("AceDB-3.0"):New("SlackwiseTweaksDB", dbDefaults)
+  config:RegisterOptionsTable("SlackwiseTweaks", options, "slack")
+  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackwiseTweaks")
 end
 
 function isInitialized()

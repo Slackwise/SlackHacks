@@ -1,11 +1,11 @@
 ## Interface: 110205, 110207, 120000
-## Title: SlackUI
+## Title: SlackwiseTweaks
 ## Notes: A compilation of minimalistic tweaks to the default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
 ## Version: 0.3
-## X-Website: https://github.com/Slackwise/SlackUI
+## X-Website: https://github.com/Slackwise/SlackwiseTweaks
 ## X-Feedback: https://github.com/Slackwise
-## SavedVariables: SlackUIDB
+## SavedVariables: SlackwiseTweaksDB
 ## RequiredDeps: Ace3
 Init.lua
 ## lamda/dist/lamda.lua

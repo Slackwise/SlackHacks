@@ -1,4 +1,4 @@
-setfenv(1, _G.SlackUI)
+setfenv(1, _G.SlackwiseTweaks)
 
 function handleDragonriding()
   -- log("Aura handling dragonriding...")

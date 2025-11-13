@@ -1,5 +1,5 @@
 -- Change implicit globla scope to our addon "namespace":
-setfenv(1, _G.SlackUI)
+setfenv(1, _G.SlackwiseTweaks)
 
 --[[
   General API Documentation:
@@ -161,7 +161,7 @@ function sellGreyItems()
         local itemName, itemLink, itemQuality = C_Item.GetItemInfo(link)
         if itemQuality == ITEM_QUALITY_GREY then
           if canCollectTransmog(itemLink) then
-            print("[SlackUI] Not selling transmog-able item: " .. itemLink)
+            print("[SlackwiseTweaks] Not selling transmog-able item: " .. itemLink)
           else
             C_Container.UseContainerItem(bag, slot)
           end

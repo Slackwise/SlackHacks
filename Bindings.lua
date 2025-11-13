@@ -1,22 +1,22 @@
 -- Bindings have to be in global scope,
 -- so we need them to be set before `setfenv()` changes scope!
-BINDING_HEADER_SLACKUI = "SlackUI"
-BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
-BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
-BINDING_NAME_SLACKUI_MOUNT = "Mount"
-BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
-BINDING_HEADER_SLACKUI = "SlackUI"
-BINDING_NAME_SLACKUI_RESTART_SOUND = "Restart Sound"
-BINDING_NAME_SLACKUI_RELOADUI = "Reload UI"
-BINDING_NAME_SLACKUI_MOUNT = "Mount"
-BINDING_NAME_SLACKUI_SETBINDINGS = "Load Keybindings"
-BINDING_NAME_SLACKUI_BEST_HEALING_POTION = "Use Best Healing Potion"
-BINDING_NAME_SLACKUI_BEST_MANA_POTION = "Use Best Mana Potion"
-BINDING_NAME_SLACKUI_BEST_BANDAGE = "Use Best Bandage"
+BINDING_HEADER_SLACKWISETWEAKS = "SlackwiseTweaks"
+BINDING_NAME_SLACKWISETWEAKS_RESTART_SOUND = "Restart Sound"
+BINDING_NAME_SLACKWISETWEAKS_RELOADUI = "Reload UI"
+BINDING_NAME_SLACKWISETWEAKS_MOUNT = "Mount"
+BINDING_NAME_SLACKWISETWEAKS_SETBINDINGS = "Load Keybindings"
+BINDING_HEADER_SLACKWISETWEAKS = "SlackwiseTweaks"
+BINDING_NAME_SLACKWISETWEAKS_RESTART_SOUND = "Restart Sound"
+BINDING_NAME_SLACKWISETWEAKS_RELOADUI = "Reload UI"
+BINDING_NAME_SLACKWISETWEAKS_MOUNT = "Mount"
+BINDING_NAME_SLACKWISETWEAKS_SETBINDINGS = "Load Keybindings"
+BINDING_NAME_SLACKWISETWEAKS_BEST_HEALING_POTION = "Use Best Healing Potion"
+BINDING_NAME_SLACKWISETWEAKS_BEST_MANA_POTION = "Use Best Mana Potion"
+BINDING_NAME_SLACKWISETWEAKS_BEST_BANDAGE = "Use Best Bandage"
 
 
 -- Change implicit global scope to our addon "namespace":
-setfenv(1, _G.SlackUI)
+setfenv(1, _G.SlackwiseTweaks)
 
 BINDINGS = {} --#TODO: Map these to the DB/config file
 
@@ -115,7 +115,7 @@ end
 
 function setBindings()
   if not isTester() then
-    print("SlackUI Bindings: Work in progress. Cannot bind currently.")
+    print("SlackwiseTweaks Bindings: Work in progress. Cannot bind currently.")
     return
   end
 
@@ -140,7 +140,7 @@ function setBindings()
   if isRetail() then
     local spec = getSpecName()
     if not spec then
-      print("SlackUI Binding: No spec currently to bind!")
+      print("SlackwiseTweaks Binding: No spec currently to bind!")
     end
 
     if bindings.CLASS ~= nil then

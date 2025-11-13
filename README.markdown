@@ -1,4 +1,4 @@
-SlackUI
+SlackwiseTweaks
 =========
 Contrasting TukUI / ElvUI, I am creating a project to update the UI holistically,
 but I will be using Blizzard's textures and aesthetics rather than redesigning everything,
