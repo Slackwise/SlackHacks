@@ -15,6 +15,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Grand Expedition Yak"]         = 460,
   ["Sky Golem"]                    = 522,
   ["Highlord's Golden Charger"]    = 885,
+  ["Lightforged Warframe"]         = 932,
   ["Highland Drake"]               = 1563,
   ["Winding Slitherdrake"]         = 1588,
   ["Renewed Proto-Drake"]          = 1589,
@@ -23,6 +24,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Auspicious Arborwyrm"]         = 1795,
   ["Trader's Gilded Brutosaur"]    = 2265,
   ["Chaos-Forged Gryphon"]         = 2304,
+  ["Starspark Netherdrake"]        = 2719,
 }
 
 ACTUALLY_FLYABLE_MAP_IDS = {
