@@ -22,6 +22,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Grotto Netherwing Drake"]      = 1744,
   ["Algarian Stormrider"]          = 1792,
   ["Auspicious Arborwyrm"]         = 1795,
+  ["Grizzly Hills Packmaster"]     = 2237,
   ["Trader's Gilded Brutosaur"]    = 2265,
   ["Chaos-Forged Gryphon"]         = 2304,
   ["Starspark Netherdrake"]        = 2719,
