@@ -520,6 +520,7 @@ BINDINGS = {
         {"CTRL-G",                "spell",   "Incarnation: Tree of Life"},
         -- {"H",                     "spell",   "Tranquility"},
         {"ALT-CTRL-G",            "spell",   "Tranquility"},
+        {"ALT-CTRL-SHIFT-Z",      "spell",   "Revitalize"},
         {"ALT-CTRL-V",            "spell",   "Tranquility"},
       }
     },
