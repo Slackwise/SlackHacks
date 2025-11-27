@@ -323,6 +323,7 @@ BINDINGS = {
 
         -- Ranged Attacks
         { "4",          "spell",   "Judgment" },
+        { "SHIFT-4",    "spell",   "Hammer of Wrath" },
         { "5",          "spell",   "Hammer of Wrath" },
 
         ---------------------------------------------------
@@ -517,7 +518,7 @@ BINDINGS = {
         {"SHIFT-1",               "spell",   "Lifebloom"},
         {"G",                     "spell",   "Grove Guardians"},
         {"SHIFT-G",               "spell",   "Flourish"},
-        {"CTRL-G",                "spell",   "Incarnation: Tree of Life"},
+        {"CTRL-G",                "spell",   "Convoke the Spirits"},
         -- {"H",                     "spell",   "Tranquility"},
         {"ALT-CTRL-G",            "spell",   "Tranquility"},
         {"ALT-CTRL-SHIFT-Z",      "spell",   "Revitalize"},
