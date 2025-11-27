@@ -410,6 +410,8 @@ BINDINGS = {
         -- { "CTRL-C",     "spell",   "Tyr's Deliverance" },
       },
       PROTECTION = {
+        -- Temorarily... mash one button to tank!
+        {"E",           "spell",    "Single-Button Assistant"},
         -- Quick Heals
         { "SHIFT-1",    "spell",   "Cleanse Toxins" },
 
