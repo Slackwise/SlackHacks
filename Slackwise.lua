@@ -74,13 +74,13 @@ MOUNTS_BY_USAGE = {
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
   PRIEST = {
-    ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['GROUND']            = MOUNT_IDS["Algarian Stormrider"],
     ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['GROUND_PASSENGER']  = MOUNT_IDS["Swift Razzashi Raptor"],
-    ['FLYING_PASSENGER']  = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Algarian Stormrider"],
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
-    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Ashes of Al'ar"],
   },
   MAGE = {
     ['GROUND']            = MOUNT_IDS["Celestial Steed"],
