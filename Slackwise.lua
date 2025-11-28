@@ -643,6 +643,7 @@ BINDINGS = {
         {"R",                 "spell",   "Holy Fire"},
         {"CTRL-G",            "spell",   "Divine Hymn"},
         {"ALT-SHIFT-G",       "spell",   "Symbol of Hope"},
+        {"ALT-CTRL-SHIFT-Z",  "spell",   "Mass Resurrection"},
         {"SHIFT-C",           "spell",   "SANCTIFY_SELF"},
         {"CTRL-V",            "macro",   "GUARD_SELF"},
       },
