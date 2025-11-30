@@ -598,6 +598,7 @@ BINDINGS = {
         {"1",                 "spell",   "Riptide"},
         {"ALT-1",             "spell",   "Purify Spirit"},
         {"SHIFT-2",           "spell",   "Healing Wave"},
+        {"ALT-CTRL-SHIFT-Z",  "spell",   "Ancestral Vision"},
       },
     },
     PRIEST = {
