@@ -207,7 +207,7 @@ BINDINGS = {
     {"NUMPAD7",               "command",  "RAIDTARGET3"},
     {"NUMPADDECIMAL",         "command",  "RAIDTARGETNONE"},
     {"BUTTON3",               "command",  "TOGGLEAUTORUN"},
-    {"ALT-BUTTON2",           "command",  "TOGGLEPINGLISTENER"},
+    {"ALT-BUTTON3",           "command",  "TOGGLEPINGLISTENER"},
     {"SHIFT-MOUSEWHEELUP",    "command",  "NONE"},
     {"SHIFT-MOUSEWHEELDOWN",  "command",  "NONE"}
   },
