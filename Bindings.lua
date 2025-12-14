@@ -31,7 +31,8 @@ BINDINGS_FUNCTIONS = {
   ["command"] = SetBinding,
   ["spell"]   = SetBindingSpell,
   ["macro"]   = SetBindingMacro,
-  ["item"]    = SetBindingItem
+  ["item"]    = SetBindingItem,
+  ["click"]   = SetBindingClick
 }
 
 function setBinding(binding)
