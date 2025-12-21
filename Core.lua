@@ -126,6 +126,10 @@ end
 function setCVars()
   SetCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
   SetCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
+
+  if isSlackwise() then
+    SetCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
+  end
 end
 
 function repairAllItems()
