@@ -664,6 +664,7 @@ BINDINGS = {
         {"CTRL-Q",            "spell",   "Shield Charge"},
         {"R",                 "spell",   ""},
         {"E",                 "spell",   "Hamstring"},
+        {"E",                 "command", "MULTIACTIONBAR7BUTTON1"},
         {"R",                 "spell",   "Whirlwind"},
         {"T",                 "spell",   "Taunt"},
         {"F",                 "spell",   "Pummel"},
