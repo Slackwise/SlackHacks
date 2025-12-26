@@ -1,5 +1,5 @@
-(local Self (: (LibStub :AceAddon-3.0) :NewAddon :SlackwiseTweaks
-               :AceConsole-3.0 :AceEvent-3.0))
+(local Self (: (LibStub "AceAddon-3.0") :NewAddon "SlackwiseTweaks"
+               "AceConsole-3.0" "AceEvent-3.0"))
 (set Self.config (LibStub :AceConfig-3.0))
 (set Self.frame (CreateFrame :Frame :SlackwiseTweaks))
 (set Self.itemBindingFrame
@@ -25,21 +25,20 @@
                             :steadyflight-showoff nil
                             :water nil
                             :water-showoff nil}}})
-(fn get-battletag [] (select 2 (BNGet-info)))
+(fn get-battletag [] (select 2 (BNGetInfo)))
 (fn is-slackwise []
-  (or (= (get-battletag) "Slackwise#1121") false))
+  (= (get-battletag) "Slackwise#1121"))
 (fn is-tester [] (is-slackwise))
-(fn is-retail [] (if (= WOW_PROJECT_ID WOW_PROJECT_MAINLINE) true false))
-(fn is-classic [] (if (= WOW_PROJECT_ID WOW_PROJECT_CLASSIC) true false))
+(fn is-retail [] (= WOW_PROJECT_ID WOW_PROJECT_MAINLINE))
+(fn is-classic [] (= WOW_PROJECT_ID WOW_PROJECT_CLASSIC))
 (fn get-game-type []
   (if (is-retail) :RETAIL
       (is-classic) :CLASSIC
       :UNKNOWN))
 (fn is-debugging []
-  (when (is-initialized)
-    (let [___antifnl_rtn_1___ Self.db.global.isDebugging]
-      (lua "return ___antifnl_rtn_1___")))
-  (if (is-slackwise) true false))
+  (if (is-initialized)
+    Self.db.global.isDebugging
+    (is-slackwise)))
 (global COLOR_START :|c)
 (global COLOR_END :|r)
 (fn color [color] (fn [text] (.. COLOR_START :FF color text COLOR_END)))
