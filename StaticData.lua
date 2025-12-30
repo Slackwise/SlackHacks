@@ -26,6 +26,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Coldflame Tempest"]            = 2261,
   ["Trader's Gilded Brutosaur"]    = 2265,
   ["Chaos-Forged Gryphon"]         = 2304,
+  ["Lightwing Dragonhawk"]         = 2568,
   ["Starspark Netherdrake"]        = 2719,
 }
 
