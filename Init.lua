@@ -123,6 +123,9 @@ function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackwiseTweaksDB", dbDefaults)
   config:RegisterOptionsTable("SlackwiseTweaks", options, "slack")
   Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackwiseTweaks")
+
+  -- Disabling ActionCam warning/confirmation popup: https://github.com/mpstark/DynamicCam/blob/master/Core.lua#L628C1-L629C68
+  UIParent:UnregisterEvent("EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED")
 end
 
 function isInitialized()
