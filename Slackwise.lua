@@ -512,6 +512,7 @@ BINDINGS = {
         {"SHIFT-G",               "spell",   "Celestial Alignment"},
       },
       FERAL = {
+        {"E",                     "command", "MULTIACTIONBAR7BUTTON1"},
       },
       GUARDIAN = {
       },
