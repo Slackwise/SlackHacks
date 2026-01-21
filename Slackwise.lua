@@ -517,15 +517,12 @@ BINDINGS = {
       GUARDIAN = {
       },
       RESTORATION = {
+        {"E",                     "command", "MULTIACTIONBAR7BUTTON1"},
         {"`",                     "spell",   "Swiftmend"},
         {"SHIFT-1",               "spell",   "Lifebloom"},
-        {"G",                     "spell",   "Grove Guardians"},
-        {"SHIFT-G",               "spell",   "Flourish"},
-        {"CTRL-G",                "spell",   "Convoke the Spirits"},
-        -- {"H",                     "spell",   "Tranquility"},
-        {"ALT-CTRL-G",            "spell",   "Tranquility"},
+        {"G",                     "spell",   "Convoke the Spirits"},
+        {"SHIFT-G",               "spell",   "Tranquility"},
         {"ALT-CTRL-SHIFT-Z",      "spell",   "Revitalize"},
-        {"ALT-CTRL-V",            "spell",   "Tranquility"},
       }
     },
     MAGE = {
