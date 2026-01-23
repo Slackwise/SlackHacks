@@ -323,8 +323,7 @@ BINDINGS = {
 
         -- Ranged Attacks
         { "4",          "spell",   "Judgment" },
-        { "SHIFT-4",    "spell",   "Hammer of Wrath" },
-        { "5",          "spell",   "Hammer of Wrath" },
+        { "5",          "spell",   "Holy Prism" },
 
         ---------------------------------------------------
 
@@ -457,7 +456,6 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",         "spell",   "Divine Storm" },
-        { "CTRL-C",    "macro",   "RECKON_SELF" },
       },
     },
     DRUID = {
