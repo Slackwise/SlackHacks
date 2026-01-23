@@ -409,19 +409,22 @@ BINDINGS = {
         -- { "CTRL-C",     "spell",   "Tyr's Deliverance" },
       },
       PROTECTION = {
-        -- Temorarily... mash one button to tank!
-        {"E",           "spell",    "Single-Button Assistant"},
+        { "E",           "spell",    "Blessed Hammer"},
         -- Quick Heals
         { "SHIFT-1",    "spell",   "Cleanse Toxins" },
 
         ---------------------------------------------------
+        { "CTRL-F",     "spell",   "Blinding Light" },
 
-        -- Shield
-        { "SHIFT-Q",    "spell",   "Bastion of Light" },
+
+        -- Survival
+        { "G",          "spell",   "Guardian of Ancient Kings" },
+
 
         -- Attacks
-        { "3",          "spell",   "Avenger's Shield" },
-        { "R",          "spell",   "Holy Bulwark" },
+        { "R",          "spell",   "Avenger's Shield" },
+        { "SHIFT-R",    "spell",   "Divine Toll" },
+        { "5",          "spell",   "Divine Toll" },
 
         -- Taunting
         { "T",          "spell",   "Hand of Reckoning" },
@@ -431,7 +434,7 @@ BINDINGS = {
         -- Blessings
 
         -- AoE (emanating from me)
-        { "CTRL-C",     "spell",   "Eye of Tyr" },
+        { "CTRL-C",     "spell",   "Divine Toll" },
       },
       RETRIBUTION = {
         -- Heals
