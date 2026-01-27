@@ -418,7 +418,7 @@ BINDINGS = {
 
 
         -- Survival
-        { "G",          "spell",   "Guardian of Ancient Kings" },
+        { "SHIFT-G",    "spell",   "Guardian of Ancient Kings" },
 
 
         -- Attacks
