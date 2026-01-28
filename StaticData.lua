@@ -27,6 +27,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Trader's Gilded Brutosaur"]    = 2265,
   ["Chaos-Forged Gryphon"]         = 2304,
   ["Lightwing Dragonhawk"]         = 2568,
+  ["Royal Voidwing"]               = 2606,
   ["Starspark Netherdrake"]        = 2719,
 }
 
