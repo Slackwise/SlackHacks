@@ -1,8 +1,8 @@
 $sourceDir    = "$PSScriptRoot"
 $dirs = @{
-    retail = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackwiseTweaks"
-    classic = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackwiseTweaks"
-    beta = "C:\Program Files (x86)\World of Warcraft\_beta_\Interface\AddOns\SlackwiseTweaks"
+    retail = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackHacks"
+    classic = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackHacks"
+    beta = "C:\Program Files (x86)\World of Warcraft\_beta_\Interface\AddOns\SlackHacks"
 }
 
 # Check if script is running as administrator, if not, relaunch as administrator

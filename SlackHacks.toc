@@ -3,9 +3,9 @@
 ## Notes: A compilation of minimalistic tweaks to the default UI.
 ## Author: Adam /*SLACKWISE*/ Flanczewski
 ## Version: 0.3
-## X-Website: https://github.com/Slackwise/SlackwiseTweaks
+## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
-## SavedVariables: SlackwiseTweaksDB
+## SavedVariables: SlackHacksDB
 ## RequiredDeps: Ace3
 Init.lua
 ## lamda/dist/lamda.lua

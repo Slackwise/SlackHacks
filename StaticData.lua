@@ -1,4 +1,4 @@
-setfenv(1, _G.SlackwiseTweaks)
+setfenv(1, _G.SlackHacks)
 
 MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
   ["Charger"]                      = 84,
@@ -73,7 +73,7 @@ ALCHEMIST_VALUE_OFFSET = 1000
 
 BEST_ITEMS = {
   BEST_HEALING_POTIONS = {
-    BINDING_NAME = "SLACKWISETWEAKS_BEST_HEALING_POTION",
+    BINDING_NAME = "SLACKHACKS_BEST_HEALING_POTION",
 
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
@@ -113,7 +113,7 @@ BEST_ITEMS = {
   },
 
   BEST_MANA_POTIONS = {
-    BINDING_NAME = "SLACKWISETWEAKS_BEST_MANA_POTION",
+    BINDING_NAME = "SLACKHACKS_BEST_MANA_POTION",
 
     -- Mapping of:
     -- ITEM_ID = MAX_MANA_RESTORATION
@@ -150,7 +150,7 @@ BEST_ITEMS = {
   },
 
   BEST_BANDAGES = {
-    BINDING_NAME = "SLACKWISETWEAKS_BEST_BANDAGE",
+    BINDING_NAME = "SLACKHACKS_BEST_BANDAGE",
 
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING

@@ -1,13 +1,13 @@
 --INITIALIZE
 local Self = LibStub("AceAddon-3.0"):NewAddon(
-  "SlackwiseTweaks",
+  "SlackHacks",
   "AceConsole-3.0",
   "AceEvent-3.0"
 )
 Self.config = LibStub("AceConfig-3.0")
-Self.frame = CreateFrame("Frame", "SlackwiseTweaks")
-Self.itemBindingFrame = CreateFrame("Frame", "SlackwiseTweaks Item Bindings")
-_G.SlackwiseTweaks = Self
+Self.frame = CreateFrame("Frame", "SlackHacks")
+Self.itemBindingFrame = CreateFrame("Frame", "SlackHacks Item Bindings")
+_G.SlackHacks = Self
 Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
 setfenv(1, Self) -- Namespace local to addon
@@ -120,9 +120,9 @@ end
 
 --Event Handlers
 function Self:OnInitialize()
-  Self.db = LibStub("AceDB-3.0"):New("SlackwiseTweaksDB", dbDefaults)
-  config:RegisterOptionsTable("SlackwiseTweaks", options, "slack")
-  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackwiseTweaks")
+  Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
+  config:RegisterOptionsTable("SlackHacks", options, "slack")
+  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks")
 
   -- Disabling ActionCam warning/confirmation popup: https://github.com/mpstark/DynamicCam/blob/master/Core.lua#L628C1-L629C68
   UIParent:UnregisterEvent("EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED")
