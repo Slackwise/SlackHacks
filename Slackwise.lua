@@ -232,7 +232,7 @@ BINDINGS = {
         { "ALT-SHIFT-Q",      "spell",   "Play Dead" },
         { "ALT-CTRL-SHIFT-Q", "spell",   "Eyes of the Beast" },
         { "SHIFT-F",          "spell",   "Bursting Shot" },
-        { "E",                "spell",   "Steady Shot" },
+        { "R",                "spell",   "Steady Shot" },
         { "ALT-CTRL-E",       "macro",   "ChainEagle" },
         { "F",                "spell",   "Counter Shot" },
         { "SHIFT-F",          "spell",   "Concussive Shot" },
@@ -267,7 +267,7 @@ BINDINGS = {
         { "2",                "spell",   "Aimed Shot" }, -- Procs as INSTANT so on same key as Arcane
         { "SHIFT-4",          "spell",   "Aimed Shot" }, -- Procs as INSTANT so on same key as Arcane
         { "5",                "spell",   "Kill Shot" },
-        { "R",                "spell",   "Rapid Fire" },
+        { "SHIFT-R",          "spell",   "Rapid Fire" },
         { "G",                "macro",   "Trueshot!" },
       },
       SURVIVAL = {
@@ -327,7 +327,7 @@ BINDINGS = {
         { "ALT-Q",      "spell",   "Hand of Reckoning" },
 
         -- Sword
-        { "E",          "spell",   "Crusader Strike" },
+        -- { "E",          "spell",   "Crusader Strike" },
 
         -- Targetting
         -- { "T",          "spell",   "Hand of Reckoning" },
@@ -364,6 +364,9 @@ BINDINGS = {
         -- Quick Heals
         { "`",          "spell",   "Barrier of Faith" },
         { "SHIFT-1",    "spell",   "Cleanse" },
+        
+        -- CC (No more interrupts...)
+        { "F",          "spell",   "Hammer of Justice" },
 
         -- Cast Heals
         { "SHIFT-2",    "spell",   "Holy Light" },
