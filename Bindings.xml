@@ -1,20 +1,20 @@
 <Bindings>
-  <Binding name="SLACKWISETWEAKS_RELOADUI" category="BINDING_HEADER_SLACKWISETWEAKS">
+  <Binding name="SLACKHACKS_RELOADUI" category="BINDING_HEADER_SLACKHACKS">
     ReloadUI()
   </Binding>
-  <Binding name="SLACKWISETWEAKS_RESTART_SOUND" category="BINDING_HEADER_SLACKWISETWEAKS">
+  <Binding name="SLACKHACKS_RESTART_SOUND" category="BINDING_HEADER_SLACKHACKS">
     Sound_GameSystem_RestartSoundSystem()
   </Binding>
-  <Binding name="SLACKWISETWEAKS_MOUNT" category="BINDING_HEADER_SLACKWISETWEAKS">
-    SlackwiseTweaks.mount()
+  <Binding name="SLACKHACKS_MOUNT" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.mount()
   </Binding>
-  <Binding name="SLACKWISETWEAKS_SETBINDINGS" category="BINDING_HEADER_SLACKWISETWEAKS">
-    SlackwiseTweaks.setBindings()
+  <Binding name="SLACKHACKS_SETBINDINGS" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.setBindings()
   </Binding>
-  <Binding name="SLACKWISETWEAKS_BEST_HEALING_POTION" category="BINDING_HEADER_SLACKWISETWEAKS">
+  <Binding name="SLACKHACKS_BEST_HEALING_POTION" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
-  <Binding name="SLACKWISETWEAKS_BEST_MANA_POTION" category="BINDING_HEADER_SLACKWISETWEAKS">
+  <Binding name="SLACKHACKS_BEST_MANA_POTION" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
-  <Binding name="SLACKWISETWEAKS_BEST_BANDAGE" category="BINDING_HEADER_SLACKWISETWEAKS">
+  <Binding name="SLACKHACKS_BEST_BANDAGE" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
 </Bindings>

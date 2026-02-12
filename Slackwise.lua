@@ -3,7 +3,7 @@
 
 
 -- Change implicit global scope to our addon "namespace":
-setfenv(1, _G.SlackwiseTweaks)
+setfenv(1, _G.SlackHacks)
 
 -- if not isSlackwise() then
 --   -- Cancel loading the rest of the file:
@@ -97,7 +97,7 @@ MOUNTS_BY_USAGE = {
 
 BINDINGS = {
   GLOBAL = {
-    {"ALT-CTRL-END",          "command",  "SLACKWISETWEAKS_RELOADUI"},
+    {"ALT-CTRL-END",          "command",  "SLACKHACKS_RELOADUI"},
     {"ALT-CTRL-`",            "command",  "FOCUSTARGET"},
     {"ALT-`",                 "command",  "INTERACTTARGET"},
     {"W",                     "command",  "MOVEFORWARD"},
@@ -174,25 +174,25 @@ BINDINGS = {
     {"ALT-CTRL-SHIFT-X",      "spell",    "Switch Flight Style" },
     {"ALT-CTRL-SHIFT-V",      "spell",    "Recuperate" },
     {"ALT-CTRL-SHIFT-M",      "spell",    "Switch Flight Style" },
-    {"ALT-C",                 "command",  "SLACKWISETWEAKS_BEST_MANA_POTION" },
-    {"ALT-V",                 "command",  "SLACKWISETWEAKS_BEST_HEALING_POTION" },
-    {"ALT-CTRL-V",            "command",  "SLACKWISETWEAKS_BEST_BANDAGE" },
+    {"ALT-C",                 "command",  "SLACKHACKS_BEST_MANA_POTION" },
+    {"ALT-V",                 "command",  "SLACKHACKS_BEST_HEALING_POTION" },
+    {"ALT-CTRL-V",            "command",  "SLACKHACKS_BEST_BANDAGE" },
     {"V",                     "command",  "NONE"},
     {"SHIFT-V",               "command",  "NONE"},
     {"CTRL-V",                "command",  "NONE"},
     {"B",                     "command",  "INTERACTTARGET"},
     {"SHIFT-B",               "command",  "OPENALLBAGS"},
     {"CTRL-B",                "command",  "TOGGLECHARACTER0"},
-    {"ALT-CTRL-B",            "command",  "SLACKWISETWEAKS_SETBINDINGS"},
+    {"ALT-CTRL-B",            "command",  "SLACKHACKS_SETBINDINGS"},
     {"ALT-B",                 "command",  "TOGGLESHEATH"},
     {"CTRL-M",                "command",  "TOGGLEMUSIC"},
     {"ALT-M",                 "command",  "TOGGLESOUND"},
-    {"ALT-CTRL-M",            "command",  "SLACKWISETWEAKS_RESTART_SOUND"},
+    {"ALT-CTRL-M",            "command",  "SLACKHACKS_RESTART_SOUND"},
     {"SHIFT-UP",              "command",  "NONE"},
     {"SHIFT-DOWN",            "command",  "NONE"},
     {"SHIFT-ENTER",           "command",  "REPLY"},
     {"CTRL-ENTER",            "command",  "REPLY2"},
-    {"SHIFT-SPACE",           "command",  "SLACKWISETWEAKS_MOUNT"},
+    {"SHIFT-SPACE",           "command",  "SLACKHACKS_MOUNT"},
     {"SHIFT-HOME",            "command",  "SETVIEW1"},
     {"HOME",                  "command",  "SETVIEW2"},
     {"END",                   "command",  "SETVIEW3"},
@@ -464,7 +464,7 @@ BINDINGS = {
         {"BUTTON4",               "macro",   "MOUSE4"},
         {"SHIFT-SPACE",           "macro",   "TRAVEL"}, -- Travel Form, but only out of combat, otherwise Mount Form
         {"CTRL-SPACE",            "spell",   "Wild Charge"},
-        {"CTRL-SHIFT-SPACE",      "command", "SLACKWISETWEAKS_MOUNT"},
+        {"CTRL-SHIFT-SPACE",      "command", "SLACKHACKS_MOUNT"},
         {"SHIFT-H",               "spell",   "Dreamwalk"},
         {"1",                     "spell",   "Rejuvenation"},
         {"SHIFT-1",               "spell",   "Rejuvenation"},

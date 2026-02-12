@@ -1,4 +1,4 @@
-SlackwiseTweaks
+SlackHacks
 ===============
 A collection of personal small tweaks and optional features to the default WoW UI.
 
