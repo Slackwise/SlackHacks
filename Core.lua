@@ -24,7 +24,6 @@ setfenv(1, _G.SlackHacks)
 
 --Event Handlers
 function Self:OnEnable()
-  setCVars()
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("PLAYER_ENTERING_WORLD")
   self:RegisterEvent("UNIT_AURA")
@@ -46,6 +45,7 @@ end
 -- GAME_READY = false
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
   -- GAME_READY = true
+  setCVars()
   setupEkil()
   handleDragonriding()
 end
@@ -129,6 +129,8 @@ function setCVars()
 
   if isSlackwise() then
     SetCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
+    SetCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
+    SetCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
   end
 end
 
