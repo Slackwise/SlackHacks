@@ -339,7 +339,8 @@ BINDINGS = {
         -- CC
         { "F",          "spell",   "Rebuke" },
         { "SHIFT-F",    "spell",   "Hammer of Justice" },
-        { "CTRL-F",     "spell",   "Repentance" },
+        -- { "CTRL-F",     "spell",   "Repentance" },
+        { "CTRL-F",     "spell",   "Blinding Light" },
 
         -- Ultimates (Big Cooldowns)
         { "G",          "macro",   "WINGS" },
@@ -398,9 +399,6 @@ BINDINGS = {
         -- Extras
         { "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
 
-        -- CC
-        { "CTRL-F",     "spell",   "Blinding Light" },
-
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
         { "CTRL-C",     "macro",   "BEACON_SELF" },
@@ -411,13 +409,8 @@ BINDINGS = {
         -- Quick Heals
         { "SHIFT-1",    "spell",   "Cleanse Toxins" },
 
-        ---------------------------------------------------
-        { "CTRL-F",     "spell",   "Blinding Light" },
-
-
         -- Survival
         { "SHIFT-G",    "spell",   "Guardian of Ancient Kings" },
-
 
         -- Attacks
         { "R",          "spell",   "Avenger's Shield" },
