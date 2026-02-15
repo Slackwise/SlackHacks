@@ -131,6 +131,13 @@ function setCVars()
     SetCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
     SetCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
     SetCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
+    -- Floating Combat Text
+    SetCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
+    SetCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
+    SetCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
+    SetCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
+    SetCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
+
   end
 end
 
