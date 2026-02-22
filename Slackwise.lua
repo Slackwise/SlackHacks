@@ -328,7 +328,7 @@ BINDINGS = {
         { "ALT-Q",      "spell",   "Hand of Reckoning" },
 
         -- Sword
-        -- { "E",          "spell",   "Crusader Strike" },
+        { "E",          "spell",   "Crusader Strike" },
 
         -- Targetting
         -- { "T",          "spell",   "Hand of Reckoning" },
