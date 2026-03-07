@@ -354,7 +354,7 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
-        { "SHIFT-C",    "spell",   "Divine Toll" },
+        { "CTRL-C",     "spell",   "Divine Toll" },
 
         -- Vitality (Self-Heals/Protections)
         { "V",          "macro",   "VITALITY" },
@@ -402,7 +402,7 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
-        { "CTRL-C",     "macro",   "BEACON_SELF" },
+        { "SHIFT-C",    "macro",   "BEACON_SELF" },
         -- { "CTRL-C",     "spell",   "Tyr's Deliverance" },
       },
       PROTECTION = {
