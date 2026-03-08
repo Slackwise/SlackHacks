@@ -354,6 +354,7 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
+        { "SHIFT-C",    "spell",   "Divine Toll" },
         { "CTRL-C",     "spell",   "Divine Toll" },
 
         -- Vitality (Self-Heals/Protections)
