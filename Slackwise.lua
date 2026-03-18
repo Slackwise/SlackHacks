@@ -396,7 +396,7 @@ BINDINGS = {
         ---------------------------------------------------
 
         -- Ults (Big Cooldowns)
-        { "SHIFT-G",    "spell",   "Aura Mastery" },
+        { "SHIFT-G",      "spell",   "Aura Mastery" },
 
         -- Extras
         { "ALT-CTRL-SHIFT-Z", "spell",   "Absolution" },
@@ -404,7 +404,7 @@ BINDINGS = {
         -- AoE (emanating from me)
         { "C",          "spell",   "Consecration" },
         { "SHIFT-C",    "macro",   "BEACON_SELF" },
-        -- { "CTRL-C",     "spell",   "Tyr's Deliverance" },
+        { "CTRL-SHIFT-C", "spell",   "Aura Mastery" },
       },
       PROTECTION = {
         { "E",           "spell",    "Blessed Hammer"},
