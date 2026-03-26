@@ -131,6 +131,7 @@ function setCVars()
     SetCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
     SetCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
     SetCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
+    SetCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
     -- Floating Combat Text
     SetCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
     SetCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
