@@ -319,7 +319,7 @@ BINDINGS = {
 
         -- Ranged Attacks
         { "4",          "spell",   "Judgment" },
-        { "5",          "spell",   "Holy Prism" },
+        { "5",          "spell",   "Divine Toll" },
 
         ---------------------------------------------------
 
@@ -428,6 +428,7 @@ BINDINGS = {
 
         -- AoE (emanating from me)
         { "CTRL-C",     "spell",   "Divine Toll" },
+        { "SHIFT-4",    "spell",   "Divine Toll" },
       },
       RETRIBUTION = {
         -- Heals
