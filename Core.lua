@@ -128,11 +128,19 @@ function setCVars()
   SetCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
 
   if isSlackwise() then
+    -- Camera:
     SetCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
+
+    -- Logging:
+    SetCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
+    LoggingCombat(true) -- Equal to `/combatlog` being toggled ON
+
+    -- Nameplates:
     SetCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
     SetCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
     SetCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
-    -- Floating Combat Text
+
+    -- Floating Combat Text:
     SetCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
     SetCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
     SetCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
