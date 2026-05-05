@@ -123,6 +123,11 @@ function getSpecName()
   return nil
 end
 
+--- Sets a `cvar` to a specific `value` if it isn't already,
+--- to avoid triggering a cvar change event, especially too many on startup.
+---@param cvar string - CVar name.
+---@param value object - The `value` to set it to if needed.
+---@return bool - True if was set before invocation.
 function ensureCVar(cvar, value)
   local currentValue = GetCVar(cvar)
   local targetValue = tostring(value) -- Uh, make sure the values are always at least the same type.
