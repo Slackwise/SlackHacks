@@ -137,30 +137,30 @@ function ensureCVar(cvar, value)
 end
 
 function setCVars()
-  SetCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
-  SetCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
+  ensureCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
+  ensureCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
 
   if isSlackwise() then
     -- Camera:
-    SetCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
+    ensureCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
 
     -- Logging:
-    SetCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
+    ensureCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
     ensureLogging()
 
     -- Nameplates:
-    SetCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
-    SetCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
-    SetCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
+    ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
+    ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
+    ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
 
     -- Floating Combat Text:
-    SetCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
-    SetCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
-    SetCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
-    SetCVar("floatingCombatTextCombatHealing_v2", 0)           -- Disable All Healing v2 ?
-    SetCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
-    SetCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
-    SetCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
+    ensureCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
+    ensureCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
+    ensureCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
+    ensureCVar("floatingCombatTextCombatHealing_v2", 0)           -- Disable All Healing v2 ?
+    ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
+    ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
+    ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
   end
 end
 
