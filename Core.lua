@@ -146,7 +146,7 @@ function setCVars()
 
     -- Logging:
     SetCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
-    LoggingCombat(true) -- Equal to `/combatlog` being toggled ON
+    ensureLogging()
 
     -- Nameplates:
     SetCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
@@ -161,6 +161,12 @@ function setCVars()
     SetCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
     SetCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
     SetCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
+  end
+end
+
+function ensureLogging()
+  if not LoggingCombat() then -- Gating to prevent potential in-combat logging issues
+      LoggingCombat(true) -- Equal to `/combatlog` being toggled ON
   end
 end
 
