@@ -123,6 +123,19 @@ function getSpecName()
   return nil
 end
 
+function ensureCVar(cvar, value)
+  local currentValue = GetCVar(cvar)
+  local targetValue = tostring(value) -- Uh, make sure the values are always at least the same type.
+  local wasSet = true -- In case we care to know if it was set prior to this call.
+  
+  if currentValue ~= targetValue then
+      wasSet = false
+      SetCVar(cvar, value)
+  end
+  
+  return wasSet
+end
+
 function setCVars()
   SetCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
   SetCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
