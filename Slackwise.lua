@@ -25,7 +25,7 @@ MOUNTS_BY_USAGE = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
     ['WATER']             = MOUNT_IDS["Sea Turtle"],
-    ['GROUND_PASSENGER']  = MOUNT_IDS["Mekgineer's Chopper"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
     ['FLYING_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
@@ -216,6 +216,7 @@ BINDINGS = {
   RETAIL = {
     HUNTER = {
       CLASS = {
+        { "E",                 "command", "MULTIACTIONBAR7BUTTON1"},
         { "F8",               "spell",   "Call Pet 1" },
         { "F9",               "spell",   "Call Pet 2" },
         { "F10",              "spell",   "Call Pet 3" },
@@ -528,9 +529,9 @@ BINDINGS = {
     },
     MAGE = {
       CLASS = {
-        {"Q",                 "spell",   "Cone of Cold"},
+        {"Q",                 "command", "MULTIACTIONBAR7BUTTON1"},
+        {"R",                 "spell",   "Cone of Cold"},
         {"E",                 "spell",   "Frostbolt"},
-        -- {"E",                 "command", "MULTIACTIONBAR7BUTTON1"},
         {"T",                 "spell",   ""},
         {"F",                 "spell",   "Counterspell"},
         {"SHIFT-F",           "spell",   "Frost Nova"},
@@ -608,9 +609,7 @@ BINDINGS = {
     },
     PRIEST = {
       CLASS = {
-        {"1",                 "spell",   "Renew"},
         {"2",                 "spell",   "Flash Heal"},
-        {"3",                 "spell",   "Divine Star"},
         {"4",                 "spell",   "Shadow Word: Pain"},
         {"Q",                 "spell",   ""},
         {"SHIFT-Q",           "spell",   "Shadowfiend"},
@@ -644,9 +643,7 @@ BINDINGS = {
       },
       HOLY = {
         {"1",                 "spell",   "Holy Word: Serenity"},
-        {"SHIFT-1",           "spell",   "Renew"},
-        {"SHIFT-2",           "spell",   "Heal"},
-        {"5",                 "spell",   "Holy Word: Chastise"},
+        {"4",                 "spell",   "Holy Word: Chastise"},
         {"R",                 "spell",   "Holy Fire"},
         {"CTRL-G",            "spell",   "Divine Hymn"},
         {"ALT-SHIFT-G",       "spell",   "Symbol of Hope"},
