@@ -207,11 +207,11 @@ function sellGreyItems()
       if link then
         local itemName, itemLink, itemQuality = C_Item.GetItemInfo(link)
         if itemQuality == ITEM_QUALITY_GREY then
-          if canCollectTransmog(itemLink) then
-            print("[SlackHacks] Not selling transmog-able item: " .. itemLink)
-          else
+          -- if canCollectTransmog(itemLink) then
+          --   print("[SlackHacks] Not selling transmog-able item: " .. itemLink)
+          -- else
             C_Container.UseContainerItem(bag, slot)
-          end
+          -- end
         end
       end
     end
