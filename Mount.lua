@@ -80,7 +80,7 @@ end
 
 function mountByUsage(usage)
   if isDebugging() then
-    printDebugMapInfo()
+    -- printDebugMapInfo()
   end
   local classMounts = MOUNTS_BY_USAGE[getClassName()] or MOUNTS_BY_USAGE["DEFAULT"]
   C_MountJournal.SummonByID(classMounts[usage])
