@@ -12,6 +12,7 @@ Init.lua
 embeds.xml
 StaticData.lua
 Core.lua
+Nameplates.lua
 Bindings.lua
 Options.lua
 Mount.lua
