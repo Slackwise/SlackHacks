@@ -28,6 +28,31 @@ options = {
         end
       end,
     },
+    vendor = {
+      type = "group",
+      name = "Self Vendor",
+      desc = "Trade recommended enchants, gems, and consumables to nearby group or guild members who salute you.",
+      order = 10,
+      args = {
+        enabled = {
+          name = "Enable Self Vendor",
+          desc = "Open trades when an eligible party, raid, or guild member salutes you.",
+          type = "toggle",
+          get = function() return db.profile.selfVendor.enabled end,
+          set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
+          order = 1
+        },
+        mode = {
+          name = "Vendor Mode",
+          desc = "Choose which recommendations are offered in the trade window.",
+          type = "select",
+          values = { consumable = "Consumable", gear = "Gear" },
+          get = function() return db.profile.selfVendor.mode end,
+          set = function(_, value) Self.SelfVendor:SetMode(value) end,
+          order = 2
+        }
+      }
+    },
     bind = {
       type = "execute",
       name = "Set Bindings",
