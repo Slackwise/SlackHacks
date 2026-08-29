@@ -62,10 +62,10 @@ end
 function Self:PLAYER_REGEN_ENABLED(eventName) -- Out of combat
   handleDragonriding()
   runAfterCombatActions()
+  resetNameplateCastLift()
 end
 
 function Self:PLAYER_REGEN_DISABLED(eventName) -- In combat
-
 end
 
 function Self:ACTIVE_TALENT_GROUP_CHANGED(currentSpecID, previousSpecID)
