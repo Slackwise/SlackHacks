@@ -148,6 +148,15 @@ local function findBagItem(itemID, minimumCount)
   return preferredBag or fallbackBag, preferredSlot or fallbackSlot
 end
 
+local function findExactBagItem(itemID, quantity)
+  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if itemIDFromInfo(info) == itemID and info.stackCount == quantity then return bag, slot end
+    end
+  end
+end
+
 local function findEmptyBagSlot()
   for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
     for slot = 1, C_Container.GetContainerNumSlots(bag) do
@@ -382,27 +391,22 @@ function module:PrepareTradeItems(required)
       return
     end
     local itemID = itemIDs[itemIndex]
-    local bag, slot = findBagItem(itemID, remaining)
+    local exactBag, exactSlot = findExactBagItem(itemID, remaining)
+    if exactBag then
+      itemIndex = itemIndex + 1
+      remaining = required[itemIDs[itemIndex]]
+      C_Timer.After(0, prepareNextItem)
+      return
+    end
+    local bag, slot = findBagItem(itemID, remaining + 1)
     if not bag then
       self:FailPendingTrade("could not prepare " .. itemName(itemID) .. " for trade")
       return
     end
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local stackCount = info and info.stackCount or 0
-    if stackCount <= 0 then
-      itemIndex = itemIndex + 1
-      remaining = required[itemIDs[itemIndex]]
-      C_Timer.After(0, prepareNextItem)
-      return
-    end
-    local splitQuantity = math.min(stackCount, remaining)
-    if splitQuantity == stackCount then
-      remaining = remaining - splitQuantity
-      if remaining <= 0 then
-        itemIndex = itemIndex + 1
-        remaining = required[itemIDs[itemIndex]]
-      end
-      C_Timer.After(0, prepareNextItem)
+    if stackCount <= remaining then
+      self:FailPendingTrade("could not find a stack larger than the requested " .. itemName(itemID) .. " quantity")
       return
     end
     local emptyBag, emptySlot = findEmptyBagSlot()
@@ -412,8 +416,8 @@ function module:PrepareTradeItems(required)
       return
     end
     if GetCursorInfo() then ClearCursor() end
-    log("Splitting item " .. itemID .. " before trade: quantity=" .. splitQuantity .. ", stack=" .. stackCount)
-    C_Container.SplitContainerItem(bag, slot, splitQuantity)
+    log("Splitting item " .. itemID .. " before trade: quantity=" .. remaining .. ", stack=" .. stackCount)
+    C_Container.SplitContainerItem(bag, slot, remaining)
     if not GetCursorInfo() then
       self:FailPendingTrade("could not split " .. itemName(itemID) .. " to the requested quantity")
       return
@@ -423,11 +427,13 @@ function module:PrepareTradeItems(required)
       self:FailPendingTrade("could not place the split " .. itemName(itemID) .. " into an empty bag slot")
       return
     end
-    remaining = remaining - splitQuantity
-    if remaining <= 0 then
-      itemIndex = itemIndex + 1
-      remaining = required[itemIDs[itemIndex]]
+    local preparedInfo = C_Container.GetContainerItemInfo(emptyBag, emptySlot)
+    if itemIDFromInfo(preparedInfo) ~= itemID or preparedInfo.stackCount ~= remaining then
+      self:FailPendingTrade("could not confirm the exact " .. itemName(itemID) .. " stack in your bags")
+      return
     end
+    itemIndex = itemIndex + 1
+    remaining = required[itemIDs[itemIndex]]
     C_Timer.After(0, prepareNextItem)
     return
   end
@@ -459,9 +465,9 @@ function module:OpenPendingTrade()
       return
     end
     local itemID = itemIDs[itemIndex]
-    local bag, slot = findBagItem(itemID, remaining)
+    local bag, slot = findExactBagItem(itemID, remaining)
     if not bag then
-      self:FailPendingTrade("could not find " .. itemName(itemID) .. " while populating trade")
+      self:FailPendingTrade("could not find an exact " .. itemName(itemID) .. " stack while populating trade")
       return
     end
     local info = C_Container.GetContainerItemInfo(bag, slot)
@@ -470,26 +476,18 @@ function module:OpenPendingTrade()
       self:FailPendingTrade("could not read the stack size for " .. itemName(itemID))
       return
     end
-    local splitQuantity = math.min(stackCount, remaining)
     if GetCursorInfo() then ClearCursor() end
-    log("Adding item " .. itemID .. " to trade: requested=" .. remaining .. ", stack=" .. stackCount .. ", tradeSlot=" .. tradeSlot)
-    if splitQuantity == stackCount then
-      C_Container.PickupContainerItem(bag, slot)
-    else
-      C_Container.SplitContainerItem(bag, slot, splitQuantity)
-      if not GetCursorInfo() then
-        self:FailPendingTrade("could not split " .. itemName(itemID) .. " to the requested quantity")
-        return
-      end
+    log("Adding exact item stack " .. itemID .. " to trade: quantity=" .. remaining .. ", tradeSlot=" .. tradeSlot)
+    C_Container.PickupContainerItem(bag, slot)
+    if not GetCursorInfo() then
+      self:FailPendingTrade("could not pick up the exact " .. itemName(itemID) .. " stack")
+      return
     end
     ClickTradeButton(tradeSlot)
-    added = added + splitQuantity
+    added = added + remaining
     tradeSlot = tradeSlot + 1
-    remaining = remaining - splitQuantity
-    if remaining <= 0 then
-      itemIndex = itemIndex + 1
-      remaining = required[itemIDs[itemIndex]]
-    end
+    itemIndex = itemIndex + 1
+    remaining = required[itemIDs[itemIndex]]
     C_Timer.After(0, addNextItem)
   end
   addNextItem()
