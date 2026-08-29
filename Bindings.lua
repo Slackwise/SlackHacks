@@ -60,7 +60,7 @@ function bindBestUseItems()
   ClearOverrideBindings(Self.itemBindingFrame)
 
   for itemType, itemMap in pairs(BEST_ITEMS) do
-    log("Binding " .. getBindingDescription(itemMap.BINDING_NAME) .. "...")
+    -- log("Binding " .. getBindingDescription(itemMap.BINDING_NAME) .. "...")
     bindBestUseItem(itemMap)
   end
 end
@@ -69,7 +69,7 @@ function bindBestUseItem(bestItemMap)
   -- Find all matching items in bags:
   local containerItemInfos = findItemsByItemIDs(keys(bestItemMap))
   if isDebugging() and containerItemInfos then
-    log(getBindingDescription(bestItemMap.BINDING_NAME) .. ": found items:")
+    -- log(getBindingDescription(bestItemMap.BINDING_NAME) .. ": found items:")
     for i, item in ipairs(containerItemInfos) do
       log("    " .. item.stackCount .. "x of " .. item.itemID .. " " .. item.hyperlink)
     end
