@@ -9,6 +9,7 @@ local function isEnemyUnit(unitTarget)
 		return false
 	end
 
+	-- Turns out that the target frame is special and you can't mess with it? Throws if you try.
 	if unitTarget ~= "target" and unitTarget:lower():match("target$") then
 		return false
 	end
@@ -30,8 +31,10 @@ function raiseCastingNameplate(unitTarget)
 	if nameplate then
 		local currentLevel = nameplate:GetFrameLevel()
 		if lastNameplateLevel == 0 then
+			-- Starting off, we want to bump the first caster by a big amount so they're at the top:
 			lastNameplateLevel = currentLevel + nameplateCastLift
 		else
+			-- But for every other, we 'll just take the last nameplate's level, and bump THAT so the newest is always highest:
 			lastNameplateLevel = lastNameplateLevel + 1
 		end
 
