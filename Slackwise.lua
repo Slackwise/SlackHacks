@@ -93,6 +93,15 @@ MOUNTS_BY_USAGE = {
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
+  EVOKER = {
+    ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Renewed Proto-Drake"],
+    ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+  },
 }
 
 
@@ -693,6 +702,76 @@ BINDINGS = {
       PROTECTION = {
 
         {"V",                 "spell",   "Shield Wall"},
+      }
+    },
+    EVOKER = {
+      CLASS = {
+        -- General
+        { "F8",         "macro",   "SUMMONPET" },
+        { "CTRL-SPACE", "spell",   "Hover" },
+        { "BUTTON4",    "macro",   "MOUSE4" },
+        { "BUTTON5",    "macro",   "MOUSE5" },
+        { "SHIFT-G",    "macro",   "TRINKETS" },
+
+        -- Quick Heals
+        { "1",          "spell",   "Word of Glory" },
+        { "CTRL-1",     "spell",   "Lay on Hands" },
+
+        -- Cast Heals
+        { "2",          "spell",   "Flash of Light" },
+
+        -- Ranged Attacks
+        { "4",          "spell",   "Judgment" },
+        { "5",          "spell",   "Divine Toll" },
+
+        ---------------------------------------------------
+
+        -- Shield (Tanking)
+        { "Q",          "spell",   "Shield of the Righteous" },
+        { "ALT-Q",      "spell",   "Hand of Reckoning" },
+
+        -- Sword
+        { "E",          "spell",   "Crusader Strike" },
+
+        -- Targetting
+        -- { "T",          "spell",   "Hand of Reckoning" },
+        -- { "T",          "macro",   "TARGET" },
+        { "T",          "macro",   "BLESST" },
+
+        ---------------------------------------------------
+
+        -- CC
+        { "F",          "spell",   "Rebuke" },
+        { "SHIFT-F",    "spell",   "Hammer of Justice" },
+        -- { "CTRL-F",     "spell",   "Repentance" },
+        { "CTRL-F",     "spell",   "Blinding Light" },
+
+        -- Ultimates (Big Cooldowns)
+        { "G",          "macro",   "WINGS" },
+
+        -- Extras
+        { "Z",          "macro",   "FREEDOM" },
+        { "SHIFT-Z",    "spell",   "Will to Survive" },
+        { "ALT-Z",      "macro",   "PVP_TRINKET" },
+        { "ALT-CTRL-Z", "macro",   "REZ" },
+
+        -- AoE (emanating from me)
+        { "C",          "spell",   "Consecration" },
+        { "SHIFT-C",    "spell",   "Divine Toll" },
+        { "CTRL-C",     "spell",   "Divine Toll" },
+
+        -- Vitality (Self-Heals/Protections)
+        { "V",          "macro",   "VITALITY" },
+        { "SHIFT-V",    "spell",   "Divine Shield" },
+        { "CTRL-SHIFT-V","macro",  "BOP_SELF" },
+        { "CTRL-V",     "macro",   "LAY_SELF" },
+      },
+      DEVASTATION = {
+      },
+      PRESERVATION = {
+      },
+      AUGMENTATION = {
+        { "ALT-CTRL-SHIFT-Z", "spell",   "Mass Return" },
       }
     }
   },
