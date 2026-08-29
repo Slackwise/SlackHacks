@@ -1,3 +1,7 @@
-[submodule "lamda"]
-	path = lamda
-	url = https://github.com/Slackwise/lamda.git
+[submodule "Libs/Ace3"]
+	path = Libs/Ace3
+	url = https://github.com/WoWUIDev/Ace3.git
+
+# [submodule "Libs/lamda"]
+# 	path = Libs/lamda
+# 	url = https://github.com/Slackwise/lamda.git
