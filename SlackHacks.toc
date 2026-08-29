@@ -8,6 +8,7 @@
 ## SavedVariables: SlackHacksDB
 ## RequiredDeps: Ace3
 Init.lua
+SelfVendor.lua
 ## Libs/lamda/dist/lamda.lua
 embeds.xml
 StaticData.lua

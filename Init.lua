@@ -20,6 +20,10 @@ dbDefaults = {
     log = {}
   },
   profile = {
+    selfVendor = {
+      enabled = false,
+      mode = "consumable"
+    },
     mounts = {
       ["ground"] = nil,
       ["ground-showoff"] = nil,
