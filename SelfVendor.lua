@@ -94,7 +94,14 @@ end
 
 local function guildMember(name)
   if not IsInGuild() then return false end
-  GuildRoster()
+  if GuildRoster then
+    GuildRoster()
+  elseif C_GuildInfo and C_GuildInfo.GuildRoster then
+    C_GuildInfo.GuildRoster()
+  else
+    log("Guild membership check skipped because no guild roster API is available")
+    return false
+  end
   for index = 1, GetNumGuildMembers() do
     local memberName = GetGuildRosterInfo(index)
     if sameName(memberName, name) then return true end
@@ -240,6 +247,29 @@ function module:OnDisable()
   log("Self Vendor disabled; unregistering events")
   self.pendingBagUpdate = nil
   self:UnregisterAllEvents()
+end
+
+function module:PollPreparedStack(bag, slot, itemID, quantity, onSuccess, onFailure)
+  local delay = 0.1
+  local function check()
+    if not self.pendingName then return end
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    local actualItemID = itemIDFromInfo(info)
+    local actualQuantity = info and info.stackCount or 0
+    log("Prepared stack poll: expectedItem=" .. itemID .. ", actualItem=" .. tostring(actualItemID) .. ", expectedQuantity=" .. quantity .. ", actualQuantity=" .. actualQuantity .. ", nextDelay=" .. delay)
+    if actualItemID == itemID and actualQuantity == quantity then
+      onSuccess()
+      return
+    end
+    if delay >= 3 then
+      log("Prepared stack did not reach the expected quantity after polling")
+      onFailure()
+      return
+    end
+    delay = math.min(delay + 0.1, 3)
+    C_Timer.After(delay, check)
+  end
+  C_Timer.After(delay, check)
 end
 
 function module:FailPendingTrade(message)
@@ -395,7 +425,7 @@ function module:PrepareTradeItems(required)
     if exactBag then
       itemIndex = itemIndex + 1
       remaining = required[itemIDs[itemIndex]]
-      C_Timer.After(0, prepareNextItem)
+      C_Timer.After(0.5, prepareNextItem)
       return
     end
     local bag, slot = findBagItem(itemID, remaining + 1)
@@ -427,14 +457,14 @@ function module:PrepareTradeItems(required)
       self:FailPendingTrade("could not place the split " .. itemName(itemID) .. " into an empty bag slot")
       return
     end
-    local preparedInfo = C_Container.GetContainerItemInfo(emptyBag, emptySlot)
-    if itemIDFromInfo(preparedInfo) ~= itemID or preparedInfo.stackCount ~= remaining then
+    log("Split stack placed in bag; starting quantity polling")
+    self:PollPreparedStack(emptyBag, emptySlot, itemID, remaining, function()
+      itemIndex = itemIndex + 1
+      remaining = required[itemIDs[itemIndex]]
+      C_Timer.After(0.5, prepareNextItem)
+    end, function()
       self:FailPendingTrade("could not confirm the exact " .. itemName(itemID) .. " stack in your bags")
-      return
-    end
-    itemIndex = itemIndex + 1
-    remaining = required[itemIDs[itemIndex]]
-    C_Timer.After(0, prepareNextItem)
+    end)
     return
   end
   prepareNextItem()
@@ -488,7 +518,7 @@ function module:OpenPendingTrade()
     tradeSlot = tradeSlot + 1
     itemIndex = itemIndex + 1
     remaining = required[itemIDs[itemIndex]]
-    C_Timer.After(0, addNextItem)
+    C_Timer.After(0.5, addNextItem)
   end
   addNextItem()
 end
