@@ -108,7 +108,7 @@ function mount()
 
   if IsOutdoors() then
     if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
-      log("FLYING AREA")
+      -- log("FLYING AREA")
       if isAlternativeMountRequested() then -- But we may want to show off our ground mount
         mountByUsage("FLYING_SHOWOFF")
         return
