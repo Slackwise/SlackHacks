@@ -128,13 +128,43 @@ local function bagItemCount(itemID)
   return count
 end
 
-local function findBagItem(itemID)
+local function findBagItem(itemID, minimumCount)
+  local preferredBag, preferredSlot, preferredCount
+  local fallbackBag, fallbackSlot, fallbackCount
+  minimumCount = minimumCount or 1
   for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
     for slot = 1, C_Container.GetContainerNumSlots(bag) do
       local info = C_Container.GetContainerItemInfo(bag, slot)
-      if itemIDFromInfo(info) == itemID then return bag, slot end
+      if itemIDFromInfo(info) == itemID then
+        local stackCount = info.stackCount or 0
+        if stackCount >= minimumCount and (not preferredCount or stackCount > preferredCount) then
+          preferredBag, preferredSlot, preferredCount = bag, slot, stackCount
+        elseif not fallbackCount or stackCount > fallbackCount then
+          fallbackBag, fallbackSlot, fallbackCount = bag, slot, stackCount
+        end
+      end
     end
   end
+  return preferredBag or fallbackBag, preferredSlot or fallbackSlot
+end
+
+local function findEmptyBagSlot()
+  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      if not C_Container.GetContainerItemInfo(bag, slot) then return bag, slot end
+    end
+  end
+end
+
+local function finishTradePopulation(module, added)
+  if added == 0 then
+    log("Trade population found no items to add")
+    print("SlackHacks: no Self Vendor items found in your bags.")
+  else
+    log("Added " .. added .. " item entries to the trade window")
+  end
+  module.pendingName = nil
+  module.pendingUnit = nil
 end
 
 local function itemName(itemID)
@@ -148,7 +178,8 @@ end
 local function hasConsumableBuff(unit, buffName)
   if not unit then return false end
   for index = 1, 40 do
-    local name = UnitAura(unit, index, "HELPFUL")
+    local auraData = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
+    local name = auraData and auraData.name
     if name and name:lower():find(buffName:lower(), 1, true) then return true end
   end
   return false
@@ -156,6 +187,7 @@ end
 
 function module:SetEnabled(enabled)
   db.profile.selfVendor.enabled = enabled
+  log("Self Vendor enabled state changed to " .. tostring(enabled))
   if enabled then self:Enable() else self:Disable() end
 end
 
@@ -163,6 +195,7 @@ function module:SetMode(mode)
   if mode == "buff" then mode = "consumable" end
   if mode ~= "gear" and mode ~= "consumable" then return end
   db.profile.selfVendor.mode = mode
+  log("Self Vendor mode changed to " .. mode)
 end
 
 function module:HandleSlash(input)
@@ -183,27 +216,53 @@ function module:OnInitialize()
   if db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" then
     db.profile.selfVendor.mode = "consumable"
   end
+  log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled) .. ", mode=" .. db.profile.selfVendor.mode)
   if not db.profile.selfVendor.enabled then self:Disable() end
 end
 
 function module:OnEnable()
+  log("Self Vendor enabled; registering events")
   self:RegisterEvent("CHAT_MSG_TEXT_EMOTE")
   self:RegisterEvent("TRADE_SHOW")
   self:RegisterEvent("INSPECT_READY")
 end
 
 function module:OnDisable()
+  log("Self Vendor disabled; unregistering events")
+  self.pendingBagUpdate = nil
   self:UnregisterAllEvents()
 end
 
-function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, _, _, target)
-  if not db.profile.selfVendor.enabled or not senderIsEligible(sender) then return end
+function module:FailPendingTrade(message)
+  if self.pendingName then
+    DoEmote("CRY", self.pendingName)
+  end
+  log("Self Vendor failed: " .. message)
+  if message then print("SlackHacks: " .. message) end
+  self.pendingName = nil
+  self.pendingUnit = nil
+  self.inspectGUID = nil
+end
+
+function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
+  log("Text emote received: message=" .. tostring(message) .. ", sender=" .. tostring(sender) .. ", target=" .. tostring(target) .. ", language=" .. tostring(languageName) .. ", channel=" .. tostring(channelName) .. ", senderGUID=" .. tostring(senderGUID))
+  if not db.profile.selfVendor.enabled then
+    log("Ignoring text emote because Self Vendor is disabled")
+    return
+  end
+  if not senderIsEligible(sender) then
+    log("Ignoring text emote because sender is not eligible")
+    return
+  end
   local playerName = UnitName("player")
   local addressedToPlayer = target and sameName(target, playerName)
   if not addressedToPlayer and message then
-    addressedToPlayer = message:find(playerName, 1, true) ~= nil
+    local lowerMessage = message:lower()
+    addressedToPlayer = message:find(playerName, 1, true) ~= nil or lowerMessage:find("salutes you", 1, true) ~= nil
   end
+  log("Text emote target check: player=" .. tostring(playerName) .. ", addressedToPlayer=" .. tostring(addressedToPlayer))
   if addressedToPlayer and message and message:lower():find("salute", 1, true) then
+    log("Matching salute received from " .. tostring(sender))
     self.pendingName = sender
     self.pendingUnit = groupUnitFor(sender)
     if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
@@ -213,16 +272,23 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, _, _, target)
     else
       self:CheckAndInitiateTrade()
     end
+  else
+    log("Ignoring text emote because it was not a targeted salute")
   end
 end
 
 function module:INSPECT_READY(_, guid)
-  if self.inspectGUID ~= guid or not self.pendingName then return end
+  log("Inspect ready received: guid=" .. tostring(guid) .. ", expected=" .. tostring(self.inspectGUID))
+  if self.inspectGUID ~= guid or not self.pendingName then
+    log("Ignoring inspect result because it does not match the pending trade")
+    return
+  end
   self.inspectGUID = nil
   self:CheckAndInitiateTrade()
 end
 
 function module:TRADE_SHOW()
+  log("Trade window shown; pending player=" .. tostring(self.pendingName))
   if not self.pendingName then return end
   self:OpenPendingTrade()
 end
@@ -274,7 +340,11 @@ function module:GetRequiredItems()
 end
 
 function module:CheckAndInitiateTrade()
-  if not self.pendingName then return end
+  if not self.pendingName then
+    log("Trade check skipped because there is no pending player")
+    return
+  end
+  log("Checking inventory for pending player " .. self.pendingName)
   local required = self:GetRequiredItems()
   local shortages = {}
   for itemID, quantity in pairs(required) do
@@ -282,6 +352,7 @@ function module:CheckAndInitiateTrade()
     if missing > 0 then shortages[itemID] = missing end
   end
   if next(shortages) then
+    log("Trade blocked because required items are missing")
     DoEmote("CRY", self.pendingName)
     print("SlackHacks: buy these items from the auction house:")
     for itemID, quantity in pairs(shortages) do
@@ -292,31 +363,136 @@ function module:CheckAndInitiateTrade()
     self.inspectGUID = nil
     return
   end
-  InitiateTrade(self.pendingName)
+  log("Inventory check passed; preparing exact stacks before trade")
+  self:PrepareTradeItems(required)
+end
+
+function module:PrepareTradeItems(required)
+  local itemIDs = {}
+  for itemID in pairs(required) do
+    table.insert(itemIDs, itemID)
+  end
+  local itemIndex = 1
+  local remaining = required[itemIDs[itemIndex]]
+  local function prepareNextItem()
+    if not self.pendingName then return end
+    if itemIndex > #itemIDs then
+      log("Exact trade stacks prepared; initiating trade with " .. self.pendingName)
+      InitiateTrade(self.pendingName)
+      return
+    end
+    local itemID = itemIDs[itemIndex]
+    local bag, slot = findBagItem(itemID, remaining)
+    if not bag then
+      self:FailPendingTrade("could not prepare " .. itemName(itemID) .. " for trade")
+      return
+    end
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    local stackCount = info and info.stackCount or 0
+    if stackCount <= 0 then
+      itemIndex = itemIndex + 1
+      remaining = required[itemIDs[itemIndex]]
+      C_Timer.After(0, prepareNextItem)
+      return
+    end
+    local splitQuantity = math.min(stackCount, remaining)
+    if splitQuantity == stackCount then
+      remaining = remaining - splitQuantity
+      if remaining <= 0 then
+        itemIndex = itemIndex + 1
+        remaining = required[itemIDs[itemIndex]]
+      end
+      C_Timer.After(0, prepareNextItem)
+      return
+    end
+    local emptyBag, emptySlot = findEmptyBagSlot()
+    if not emptyBag then
+      log("Unable to prepare exact trade stacks because bags are full")
+      self:FailPendingTrade("make room in your bags before trading Self Vendor items")
+      return
+    end
+    if GetCursorInfo() then ClearCursor() end
+    log("Splitting item " .. itemID .. " before trade: quantity=" .. splitQuantity .. ", stack=" .. stackCount)
+    C_Container.SplitContainerItem(bag, slot, splitQuantity)
+    if not GetCursorInfo() then
+      self:FailPendingTrade("could not split " .. itemName(itemID) .. " to the requested quantity")
+      return
+    end
+    C_Container.PickupContainerItem(emptyBag, emptySlot)
+    if GetCursorInfo() then
+      self:FailPendingTrade("could not place the split " .. itemName(itemID) .. " into an empty bag slot")
+      return
+    end
+    remaining = remaining - splitQuantity
+    if remaining <= 0 then
+      itemIndex = itemIndex + 1
+      remaining = required[itemIDs[itemIndex]]
+    end
+    C_Timer.After(0, prepareNextItem)
+    return
+  end
+  prepareNextItem()
 end
 
 function module:OpenPendingTrade()
-  if not self.pendingName then return end
+  if not self.pendingName then
+    log("Trade population skipped because there is no pending player")
+    return
+  end
+  log("Populating trade window for " .. self.pendingName)
   local required = self:GetRequiredItems()
   local uniqueItemIDs = {}
   for itemID in pairs(required) do
     uniqueItemIDs[itemID] = true
   end
   local added = 0
+  local tradeSlot = 1
+  local itemIDs = {}
   for itemID in pairs(uniqueItemIDs) do
-    for itemIndex = 1, required[itemID] do
-      local bag, slot = findBagItem(itemID)
-      if bag then
-        C_TradeInfo.AddTradeItem(bag, slot)
-        added = added + 1
+    table.insert(itemIDs, itemID)
+  end
+  local itemIndex = 1
+  local remaining = required[itemIDs[itemIndex]]
+  local function addNextItem()
+    if itemIndex > #itemIDs then
+      finishTradePopulation(self, added)
+      return
+    end
+    local itemID = itemIDs[itemIndex]
+    local bag, slot = findBagItem(itemID, remaining)
+    if not bag then
+      self:FailPendingTrade("could not find " .. itemName(itemID) .. " while populating trade")
+      return
+    end
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    local stackCount = info and info.stackCount or 0
+    if stackCount <= 0 then
+      self:FailPendingTrade("could not read the stack size for " .. itemName(itemID))
+      return
+    end
+    local splitQuantity = math.min(stackCount, remaining)
+    if GetCursorInfo() then ClearCursor() end
+    log("Adding item " .. itemID .. " to trade: requested=" .. remaining .. ", stack=" .. stackCount .. ", tradeSlot=" .. tradeSlot)
+    if splitQuantity == stackCount then
+      C_Container.PickupContainerItem(bag, slot)
+    else
+      C_Container.SplitContainerItem(bag, slot, splitQuantity)
+      if not GetCursorInfo() then
+        self:FailPendingTrade("could not split " .. itemName(itemID) .. " to the requested quantity")
+        return
       end
     end
+    ClickTradeButton(tradeSlot)
+    added = added + splitQuantity
+    tradeSlot = tradeSlot + 1
+    remaining = remaining - splitQuantity
+    if remaining <= 0 then
+      itemIndex = itemIndex + 1
+      remaining = required[itemIDs[itemIndex]]
+    end
+    C_Timer.After(0, addNextItem)
   end
-  if added == 0 then
-    print("SlackHacks: no Self Vendor items found in your bags.")
-  end
-  self.pendingName = nil
-  self.pendingUnit = nil
+  addNextItem()
 end
 
 
