@@ -239,7 +239,10 @@ function module:HandleSlash(input)
   local mode = command:match("^mode%s+(%S+)$") or command:match("^(everything)$") or command:match("^(augments)$") or command:match("^(buff)$") or command:match("^(consumable)$") or command:match("^(consumables)$") or command:match("^(flaskoil)$") or command:match("^(runes)$") or command:match("^(oil)$") or command:match("^(flasks)$")
   if mode == "everything" or mode == "augments" or mode == "buff" or mode == "consumable" or mode == "consumables" or mode == "flaskoil" or mode == "runes" or mode == "oil" or mode == "flasks" then
     self:SetMode(mode)
+    if not db.profile.selfVendor.enabled then self:SetEnabled(true) end
     print("SlackHacks Self Vendor mode: " .. db.profile.selfVendor.mode)
+  elseif command == "mode" then
+    print("Usage: /slack vendor mode [everything|augments|consumables|flaskOil|runes|oil|flasks]")
   elseif command == "" or command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))

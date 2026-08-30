@@ -125,7 +125,8 @@ end
 --Event Handlers
 function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
-  config:RegisterOptionsTable("SlackHacks", options, "slack")
+  config:RegisterOptionsTable("SlackHacks", options)
+  Self:RegisterChatCommand("slack", handleSlashCommand)
   Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks")
 
   -- Disabling ActionCam warning/confirmation popup: https://github.com/mpstark/DynamicCam/blob/master/Core.lua#L628C1-L629C68
