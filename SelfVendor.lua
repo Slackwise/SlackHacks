@@ -2,6 +2,7 @@ setfenv(1, _G.SlackHacks)
 
 local module = Self:NewModule("SelfVendor", "AceEvent-3.0")
 Self.SelfVendor = module
+local maxTradeSlots = MAX_TRADABLE_ITEMS or 6
 
 local function recommendation(enchantIDs, gemIDs, flaskID)
   return {
@@ -189,6 +190,9 @@ local function finishTradePopulation(module, added)
   end
   module.pendingName = nil
   module.pendingUnit = nil
+  module.pendingRequired = nil
+  module.pendingTradeItems = nil
+  module.pendingTradeIndex = nil
 end
 
 local function itemName(itemID)
@@ -298,6 +302,24 @@ function module:FailPendingTrade(message)
   if message then print("SlackHacks: " .. message) end
   self.pendingName = nil
   self.pendingUnit = nil
+  self.pendingRequired = nil
+  self.inspectGUID = nil
+end
+
+function module:ReportMissingItems(shortages)
+  if self.pendingName then
+    DoEmote("SORRY", self.pendingName)
+  end
+  log("Self Vendor trade blocked because required items are missing")
+  print("SlackHacks: buy these items from the auction house:")
+  for itemID, quantity in pairs(shortages) do
+    print("- " .. itemName(itemID) .. " x" .. quantity)
+  end
+  self.pendingName = nil
+  self.pendingUnit = nil
+  self.pendingRequired = nil
+  self.pendingTradeItems = nil
+  self.pendingTradeIndex = nil
   self.inspectGUID = nil
 end
 
@@ -430,18 +452,11 @@ function module:CheckAndInitiateTrade()
     if missing > 0 then shortages[itemID] = missing end
   end
   if next(shortages) then
-    log("Trade blocked because required items are missing")
-    DoEmote("CRY", self.pendingName)
-    print("SlackHacks: buy these items from the auction house:")
-    for itemID, quantity in pairs(shortages) do
-      print("- " .. itemName(itemID) .. " x" .. quantity)
-    end
-    self.pendingName = nil
-    self.pendingUnit = nil
-    self.inspectGUID = nil
+    self:ReportMissingItems(shortages)
     return
   end
   log("Inventory check passed; preparing exact stacks before trade")
+  self.pendingRequired = required
   self:PrepareTradeItems(required)
 end
 
@@ -450,6 +465,8 @@ function module:PrepareTradeItems(required)
   for itemID in pairs(required) do
     table.insert(itemIDs, itemID)
   end
+  self.pendingTradeItems = itemIDs
+  self.pendingTradeIndex = 1
   local itemIndex = 1
   local remaining = required[itemIDs[itemIndex]]
   local function prepareNextItem()
@@ -515,22 +532,27 @@ function module:OpenPendingTrade()
     return
   end
   log("Populating trade window for " .. self.pendingName)
-  local required = self:GetRequiredItems()
-  local uniqueItemIDs = {}
-  for itemID in pairs(required) do
-    uniqueItemIDs[itemID] = true
-  end
+  local required = self.pendingRequired or self:GetRequiredItems()
   local added = 0
   local tradeSlot = 1
-  local itemIDs = {}
-  for itemID in pairs(uniqueItemIDs) do
-    table.insert(itemIDs, itemID)
+  local itemIDs = self.pendingTradeItems or {}
+  if #itemIDs == 0 then
+    for itemID in pairs(required) do
+      table.insert(itemIDs, itemID)
+    end
+    self.pendingTradeItems = itemIDs
   end
-  local itemIndex = 1
+  local itemIndex = self.pendingTradeIndex or 1
   local remaining = required[itemIDs[itemIndex]]
   local function addNextItem()
     if itemIndex > #itemIDs then
       finishTradePopulation(self, added)
+      return
+    end
+    if tradeSlot > maxTradeSlots then
+      self.pendingTradeIndex = itemIndex
+      print("SlackHacks: trade again to continue with the remaining Self Vendor items.")
+      log("Trade window reached its six-slot limit; waiting for another trade")
       return
     end
     local itemID = itemIDs[itemIndex]
@@ -556,6 +578,7 @@ function module:OpenPendingTrade()
     added = added + remaining
     tradeSlot = tradeSlot + 1
     itemIndex = itemIndex + 1
+    self.pendingTradeIndex = itemIndex
     remaining = required[itemIDs[itemIndex]]
     C_Timer.After(0.5, addNextItem)
   end
