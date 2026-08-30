@@ -135,6 +135,123 @@ function classKeyForName(rawClass)
   return aliases[normalized]
 end
 
+function specKeyForName(rawSpec)
+  return strupper((rawSpec or ""):gsub("[%s%-]+", "_"))
+end
+
+function specNameForClass(classKey, rawSpec)
+  local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classKey]
+  local specKey = specKeyForName(rawSpec)
+  return classData and classData[specKey] and specKey
+end
+
+function displayClassName(classKey)
+  local names = {
+    DEATHKNIGHT = "Death Knight",
+    DEMONHUNTER = "Demon Hunter",
+  }
+  return names[classKey] or (classKey:sub(1, 1) .. strlower(classKey:sub(2)))
+end
+
+function displaySpecName(specKey)
+  return (specKey:gsub("_", " "):gsub("(%a)(%a*)", function(first, rest)
+    return strupper(first) .. strlower(rest)
+  end))
+end
+
+function shortName(name)
+  return name and Ambiguate(name, "none")
+end
+
+function sameName(left, right)
+  return shortName(left) == shortName(right)
+end
+
+function groupUnitFor(name)
+  if sameName(UnitName("player"), name) then return "player" end
+  for index = 1, GetNumGroupMembers() do
+    local unit = IsInRaid() and "raid" .. index or "party" .. index
+    if sameName(UnitName(unit), name) then return unit end
+  end
+end
+
+function guildMember(name)
+  if not IsInGuild() then return false end
+  if GuildRoster then
+    GuildRoster()
+  elseif C_GuildInfo and C_GuildInfo.GuildRoster then
+    C_GuildInfo.GuildRoster()
+  else
+    log("Guild membership check skipped because no guild roster API is available")
+    return false
+  end
+  for index = 1, GetNumGuildMembers() do
+    local memberName = GetGuildRosterInfo(index)
+    if sameName(memberName, name) then return true end
+  end
+  return false
+end
+
+function itemIDFromInfo(info)
+  return info and (info.itemID or C_Item.GetItemInfoInstant(info.hyperlink))
+end
+
+function inventoryEnchantID(unit, slot, link)
+  if GetInventoryItemEnchantInfo then
+    local _, _, _, enchantID = GetInventoryItemEnchantInfo(unit, slot)
+    return enchantID
+  end
+  return link and tonumber(link:match("item:%d+:(%d+):"))
+end
+
+function bagItemCount(itemID)
+  local count = 0
+  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if itemIDFromInfo(info) == itemID then count = count + (info.stackCount or 0) end
+    end
+  end
+  return count
+end
+
+function findBagItem(itemID, minimumCount)
+  local preferredBag, preferredSlot, preferredCount
+  local fallbackBag, fallbackSlot, fallbackCount
+  minimumCount = minimumCount or 1
+  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if itemIDFromInfo(info) == itemID then
+        local stackCount = info.stackCount or 0
+        if stackCount >= minimumCount and (not preferredCount or stackCount > preferredCount) then
+          preferredBag, preferredSlot, preferredCount = bag, slot, stackCount
+        elseif not fallbackCount or stackCount > fallbackCount then
+          fallbackBag, fallbackSlot, fallbackCount = bag, slot, stackCount
+        end
+      end
+    end
+  end
+  return preferredBag or fallbackBag, preferredSlot or fallbackSlot
+end
+
+function findExactBagItem(itemID, quantity)
+  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if itemIDFromInfo(info) == itemID and info.stackCount == quantity then return bag, slot end
+    end
+  end
+end
+
+function findEmptyBagSlot()
+  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      if not C_Container.GetContainerItemInfo(bag, slot) then return bag, slot end
+    end
+  end
+end
+
 function getSpecName()
   local specIndex = GetSpecialization()
   if specIndex then
