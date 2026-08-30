@@ -139,17 +139,8 @@ function specKeyForName(rawSpec)
   return strupper((rawSpec or ""):gsub("[%s%-]+", "_"))
 end
 
-function specNameForClass(classKey, rawSpec)
-  local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classKey]
-  local specKey = specKeyForName(rawSpec)
-  return classData and classData[specKey] and specKey
-end
-
 function displayClassName(classKey)
-  local names = {
-    DEATHKNIGHT = "Death Knight",
-    DEMONHUNTER = "Demon Hunter",
-  }
+  local names = { DEATHKNIGHT = "Death Knight", DEMONHUNTER = "Demon Hunter" }
   return names[classKey] or (classKey:sub(1, 1) .. strlower(classKey:sub(2)))
 end
 
@@ -177,17 +168,11 @@ end
 
 function guildMember(name)
   if not IsInGuild() then return false end
-  if GuildRoster then
-    GuildRoster()
-  elseif C_GuildInfo and C_GuildInfo.GuildRoster then
-    C_GuildInfo.GuildRoster()
-  else
-    log("Guild membership check skipped because no guild roster API is available")
-    return false
-  end
+  if GuildRoster then GuildRoster()
+  elseif C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster()
+  else return false end
   for index = 1, GetNumGuildMembers() do
-    local memberName = GetGuildRosterInfo(index)
-    if sameName(memberName, name) then return true end
+    if sameName(GetGuildRosterInfo(index), name) then return true end
   end
   return false
 end
@@ -197,10 +182,7 @@ function itemIDFromInfo(info)
 end
 
 function inventoryEnchantID(unit, slot, link)
-  if GetInventoryItemEnchantInfo then
-    local _, _, _, enchantID = GetInventoryItemEnchantInfo(unit, slot)
-    return enchantID
-  end
+  if GetInventoryItemEnchantInfo then return select(4, GetInventoryItemEnchantInfo(unit, slot)) end
   return link and tonumber(link:match("item:%d+:(%d+):"))
 end
 

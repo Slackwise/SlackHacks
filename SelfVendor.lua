@@ -8,18 +8,78 @@ local function itemID(itemName)
   return ITEM_NAMES and ITEM_NAMES[itemName]
 end
 
+local function enhancementSourceKey(rawSource)
+  local sourceKey = strlower(rawSource or DEFAULT_ENHANCEMENT_SOURCE or "")
+  return ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[sourceKey] and sourceKey
+end
+
+local function displayEnhancementSource(sourceKey)
+  local names = { wowhead = "Wowhead", icyveins = "Icy Veins", murlok = "Murlok M+" }
+  return names[sourceKey] or sourceKey
+end
+
+local function enhancementFlaskName(sourceKey, classKey, specKey)
+  if sourceKey ~= "murlok" then return nil end
+  local classData = ENHANCEMENTS_BIS.icyveins and ENHANCEMENTS_BIS.icyveins[classKey]
+  local specData = classData and classData[specKey]
+  return specData and specData.Flask
+end
+
+local function specNameForClass(classKey, rawSpec)
+  local specKey = specKeyForName(rawSpec)
+  for _, sourceData in pairs(ENHANCEMENTS_BIS or {}) do
+    local classData = sourceData[classKey]
+    if classData and classData[specKey] then return specKey end
+  end
+end
+
+local function buildBISEnhancementRecommendation(data, flaskName)
+  flaskName = flaskName or data.Flask
+  local slotKeys = { "HEAD", "SHOULDER", "CHEST", "WAIST", "LEGS", "FEET", "WRIST", "HANDS", "FINGER1", "FINGER2", "TRINKET1", "TRINKET2", "BACK", "MAINHAND", "OFFHAND" }
+  local slots, enchantNames, enchantIDs = {}, {}, {}
+  for _, slotKey in ipairs(slotKeys) do
+    local enchantName = data.Enchants and data.Enchants[slotKey]
+    if enchantName then
+      enchantNames[slotKey] = enchantName
+      enchantIDs[slotKey] = ITEM_NAMES[enchantName]
+      slots[#slots + 1] = SLOT_IDS[slotKey]
+    end
+  end
+  local gemEntries, gemNames, gemIDs = {}, {}, {}
+  if data.Gems and data.Gems.Primary then gemEntries[#gemEntries + 1] = { itemName = data.Gems.Primary, quantity = 1 } end
+  if data.Gems and data.Gems.Secondary then gemEntries[#gemEntries + 1] = { itemName = data.Gems.Secondary, quantity = SECONDARY_GEM_QUANTITY } end
+  for index, gem in ipairs(gemEntries) do
+    gemNames[index] = gem.itemName
+    gemIDs[index] = ITEM_NAMES[gem.itemName]
+  end
+  return {
+    slotKeys = slotKeys, slots = slots, enchantNames = enchantNames, enchantIDs = enchantIDs,
+    gemNames = gemNames, gemEntries = gemEntries, gemIDs = gemIDs,
+    consumables = {
+      { itemName = flaskName, itemID = ITEM_NAMES[flaskName], kind = "flask", buffName = "Flask" },
+      { itemName = "Thalassian Phoenix Oil", itemID = ITEM_NAMES["Thalassian Phoenix Oil"], kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
+      { itemName = "Void-Touched Augment Rune", itemID = ITEM_NAMES["Void-Touched Augment Rune"], kind = "augmentRune", buffName = "Augmented", quantity = 5 }
+    }
+  }
+end
+
 local function senderIsEligible(name)
   return groupUnitFor(name) or guildMember(name)
 end
 
-local function currentRecommendation(unit)
+local function currentRecommendation(unit, sourceKey)
   local _, classFile = UnitClass(unit or "player")
   local specIndex = GetSpecialization()
   local specName = specIndex and select(2, GetSpecializationInfo(specIndex))
-  local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classFile]
-  local _, fallbackSpecData = classData and next(classData)
-  local specData = classData and (classData[specKeyForName(specName)] or fallbackSpecData)
-  return specData and buildBISEnhancementRecommendation(specData)
+  sourceKey = enhancementSourceKey(sourceKey)
+  local sourceData = sourceKey and ENHANCEMENTS_BIS[sourceKey]
+  local classData = sourceData and sourceData[classFile]
+  if not classData then return nil, sourceKey end
+  local specKey = specKeyForName(specName)
+  local fallbackSpecKey, fallbackSpecData = next(classData)
+  if not classData[specKey] then specKey = fallbackSpecKey end
+  local specData = classData and (classData[specKey] or fallbackSpecData)
+  return specData and buildBISEnhancementRecommendation(specData, enhancementFlaskName(sourceKey, classFile, specKey)), sourceKey
 end
 
 local function finishTradePopulation(module, added)
@@ -146,23 +206,30 @@ local function hasConsumableBuff(unit, buffName, auraSpellID)
   return false
 end
 
-function module:SendAugsForClassSpec(className, specName)
-  local classKey, resolvedSpec = parseClassAndSpec(className .. " " .. specName)
+function module:SendAugsForClassSpec(input)
+  local tokens = {}
+  for token in (input or ""):gmatch("%S+") do
+    tokens[#tokens + 1] = token
+  end
+  local sourceKey = enhancementSourceKey(tokens[#tokens])
+  if sourceKey then table.remove(tokens) end
+  sourceKey = sourceKey or DEFAULT_ENHANCEMENT_SOURCE
+  local classKey, resolvedSpec = parseClassAndSpec(table.concat(tokens, " "))
   if not classKey or not resolvedSpec then
-    local input = (className or "") .. " " .. (specName or "")
     print("SlackHacks: unknown class/spec for sendaugs: " .. strtrim(input or ""))
-    print("Usage: /slack sendaugs <class> <spec>")
+    print("Usage: /slack sendaugs <class> <spec> [wowhead|icyveins|murlok]")
     return
   end
 
-  local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classKey]
+  local sourceData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[sourceKey]
+  local classData = sourceData and sourceData[classKey]
   local specData = classData and classData[resolvedSpec]
   if not specData then
-    print("SlackHacks: no BIS data found for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec))
+    print("SlackHacks: no " .. displayEnhancementSource(sourceKey) .. " BIS data found for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
     return
   end
 
-  local recommendationData = buildBISEnhancementRecommendation(specData)
+  local recommendationData = buildBISEnhancementRecommendation(specData, enhancementFlaskName(sourceKey, classKey, resolvedSpec))
   local required = buildRequiredForRecommendation(recommendationData)
   local shortages = missingListForRequired(required)
 
@@ -229,20 +296,34 @@ function module:SetMode(mode)
   log("Self Vendor mode changed to " .. mode)
 end
 
+function module:SetSource(sourceKey)
+  sourceKey = enhancementSourceKey(sourceKey)
+  if not sourceKey then return false end
+  db.profile.selfVendor.source = sourceKey
+  log("Self Vendor source changed to " .. sourceKey)
+  return true
+end
+
 function module:HandleSlash(input)
   local command = strlower(strtrim(input or ""))
+  local requestedSource = command:match("%s+(%S+)$")
+  local sourceKey = enhancementSourceKey(requestedSource)
+  if sourceKey then
+    command = strtrim(command:sub(1, #command - #requestedSource))
+    self:SetSource(sourceKey)
+  end
   local mode = command:match("^mode%s+(%S+)$") or command:match("^(everything)$") or command:match("^(augments)$") or command:match("^(buff)$") or command:match("^(consumable)$") or command:match("^(consumables)$") or command:match("^(flaskoil)$") or command:match("^(runes)$") or command:match("^(oil)$") or command:match("^(flasks)$")
   if mode == "everything" or mode == "augments" or mode == "buff" or mode == "consumable" or mode == "consumables" or mode == "flaskoil" or mode == "runes" or mode == "oil" or mode == "flasks" then
     self:SetMode(mode)
     if not db.profile.selfVendor.enabled then self:SetEnabled(true) end
-    print("SlackHacks Self Vendor mode: " .. db.profile.selfVendor.mode)
+    print("SlackHacks Self Vendor mode: " .. db.profile.selfVendor.mode .. " (" .. displayEnhancementSource(db.profile.selfVendor.source) .. ")")
   elseif command == "mode" then
-    print("Usage: /slack vendor mode [everything|augments|consumables|flaskOil|runes|oil|flasks]")
+    print("Usage: /slack vendor mode [everything|augments|consumables|flaskOil|runes|oil|flasks] [wowhead|icyveins|murlok]")
   elseif command == "" or command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   else
-    print("Usage: /slack vendor [toggle|mode everything|augments|consumables|flaskOil|runes|oil|flasks]")
+    print("Usage: /slack vendor [toggle|mode everything|augments|consumables|flaskOil|runes|oil|flasks] [wowhead|icyveins|murlok]")
   end
 end
 
@@ -251,6 +332,9 @@ function module:OnInitialize()
     db.profile.selfVendor.mode = "augments"
   elseif db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" or db.profile.selfVendor.mode == "consumable" then
     db.profile.selfVendor.mode = "consumables"
+  end
+  if not enhancementSourceKey(db.profile.selfVendor.source) then
+    db.profile.selfVendor.source = DEFAULT_ENHANCEMENT_SOURCE
   end
   log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled) .. ", mode=" .. db.profile.selfVendor.mode)
   if not db.profile.selfVendor.enabled then self:Disable() end
@@ -383,7 +467,10 @@ local function modeIncludesConsumable(mode, kind)
 end
 
 function module:GetRequiredItems()
-  local recommendationData = currentRecommendation(self.pendingUnit or "player")
+  local recommendationData, sourceKey = currentRecommendation(self.pendingUnit or "player", db.profile.selfVendor.source)
+  if not recommendationData then
+    return nil, sourceKey
+  end
   local required = {}
   local mode = db.profile.selfVendor.mode
   if modeIncludesGear(mode) then
@@ -435,7 +522,7 @@ function module:GetRequiredItems()
       end
     end
   end
-  return required
+  return required, sourceKey
 end
 
 function module:CheckAndInitiateTrade()
@@ -444,7 +531,11 @@ function module:CheckAndInitiateTrade()
     return
   end
   log("Checking inventory for pending player " .. self.pendingName)
-  local required = self:GetRequiredItems()
+  local required, sourceKey = self:GetRequiredItems()
+  if not required then
+    print("SlackHacks: no " .. displayEnhancementSource(sourceKey or db.profile.selfVendor.source) .. " BIS data found for your current class/spec.")
+    return
+  end
   local shortages = {}
   for itemID, quantity in pairs(required) do
     local missing = quantity - bagItemCount(itemID)
