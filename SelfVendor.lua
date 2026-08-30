@@ -10,8 +10,8 @@ local function recommendation(enchantIDs, gemIDs, flaskID)
     gemIDs = gemIDs,
     consumables = {
       { itemID = flaskID, kind = "flask", buffName = "Flask" },
-      { itemID = 243734, kind = "oil", buffName = "Thalassian Phoenix Oil" },
-      { itemID = 259085, kind = "augmentRune", buffName = "Void-Touched Augment Rune", quantity = 5 }
+      { itemID = 243734, kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
+      { itemID = 259085, kind = "augmentRune", buffName = "Augmented", quantity = 5 }
     }
   }
 end
@@ -124,6 +124,14 @@ local function itemIDFromInfo(info)
   return info and (info.itemID or C_Item.GetItemInfoInstant(info.hyperlink))
 end
 
+local function inventoryEnchantID(unit, slot, link)
+  if GetInventoryItemEnchantInfo then
+    local _, _, _, enchantID = GetInventoryItemEnchantInfo(unit, slot)
+    return enchantID
+  end
+  return link and tonumber(link:match("item:%d+:(%d+):"))
+end
+
 local function bagItemCount(itemID)
   local count = 0
   for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
@@ -191,12 +199,18 @@ local function addRequiredItem(required, itemID, quantity)
   if itemID then required[itemID] = math.max(required[itemID] or 0, quantity or 1) end
 end
 
-local function hasConsumableBuff(unit, buffName)
+local function hasConsumableBuff(unit, buffName, auraSpellID)
   if not unit then return false end
+  local buffNames = type(buffName) == "table" and buffName or { buffName }
   for index = 1, 40 do
     local auraData = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
     local name = auraData and auraData.name
-    if name and name:lower():find(buffName:lower(), 1, true) then return true end
+    if auraSpellID and auraData and auraData.spellId == auraSpellID then return true end
+    if name then
+      for _, expectedName in ipairs(buffNames) do
+        if name:lower():find(expectedName:lower(), 1, true) then return true end
+      end
+    end
   end
   return false
 end
@@ -305,7 +319,7 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
     self.pendingName = sender
     self.pendingUnit = groupUnitFor(sender)
     if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-    if db.profile.selfVendor.mode == "gear" and self.pendingUnit then
+    if self.pendingUnit then
       self.inspectGUID = UnitGUID(self.pendingUnit)
       NotifyInspect(self.pendingUnit)
     else
@@ -338,7 +352,7 @@ function module:GetRequiredItems()
   if db.profile.selfVendor.mode == "gear" then
     for _, slot in ipairs(recommendationData.slots) do
       local link = self.pendingUnit and GetInventoryItemLink(self.pendingUnit, slot)
-      local _, _, _, enchantID = link and GetInventoryItemEnchantInfo(self.pendingUnit, slot)
+      local enchantID = link and inventoryEnchantID(self.pendingUnit, slot, link)
       local expectedEnchantID = recommendationData.enchantIDs[slot]
       if expectedEnchantID and enchantID ~= expectedEnchantID then
         addRequiredItem(required, expectedEnchantID)
@@ -370,8 +384,15 @@ function module:GetRequiredItems()
     end
   else
     for _, item in ipairs(recommendationData.consumables) do
-      if not hasConsumableBuff(self.pendingUnit, item.buffName) then
+      local hasBuff = hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
+      if item.kind == "oil" then
+        log("Cannot verify Phoenix Oil on another player; temporary weapon enchant data is player-only")
+      end
+      if not hasBuff then
         addRequiredItem(required, item.itemID, item.quantity)
+        log("Consumable needed: " .. itemName(item.itemID) .. " x" .. (item.quantity or 1))
+      else
+        log("Consumable already active; skipping " .. itemName(item.itemID))
       end
     end
   end
