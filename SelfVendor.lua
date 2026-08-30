@@ -223,28 +223,30 @@ end
 
 function module:SetMode(mode)
   if mode == "buff" then mode = "consumable" end
-  if mode ~= "gear" and mode ~= "consumable" then return end
+  if mode == "consumable" then mode = "consumables" end
+  if mode == "flaskoil" then mode = "flaskOil" end
+  if mode ~= "everything" and mode ~= "gear" and mode ~= "consumables" and mode ~= "flaskOil" and mode ~= "runes" and mode ~= "oil" and mode ~= "flasks" then return end
   db.profile.selfVendor.mode = mode
   log("Self Vendor mode changed to " .. mode)
 end
 
 function module:HandleSlash(input)
   local command = strlower(strtrim(input or ""))
-  local mode = command:match("^mode%s+(%S+)$") or command:match("^(gear)$") or command:match("^(buff)$") or command:match("^(consumable)$")
-  if mode == "gear" or mode == "buff" or mode == "consumable" then
+  local mode = command:match("^mode%s+(%S+)$") or command:match("^(everything)$") or command:match("^(gear)$") or command:match("^(buff)$") or command:match("^(consumable)$") or command:match("^(consumables)$") or command:match("^(flaskoil)$") or command:match("^(runes)$") or command:match("^(oil)$") or command:match("^(flasks)$")
+  if mode == "everything" or mode == "gear" or mode == "buff" or mode == "consumable" or mode == "consumables" or mode == "flaskoil" or mode == "runes" or mode == "oil" or mode == "flasks" then
     self:SetMode(mode)
     print("SlackHacks Self Vendor mode: " .. db.profile.selfVendor.mode)
   elseif command == "" or command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   else
-    print("Usage: /slack vendor [toggle|mode gear|mode consumable]")
+    print("Usage: /slack vendor [toggle|mode everything|gear|consumables|flaskOil|runes|oil|flasks]")
   end
 end
 
 function module:OnInitialize()
-  if db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" then
-    db.profile.selfVendor.mode = "consumable"
+  if db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" or db.profile.selfVendor.mode == "consumable" then
+    db.profile.selfVendor.mode = "consumables"
   end
   log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled) .. ", mode=" .. db.profile.selfVendor.mode)
   if not db.profile.selfVendor.enabled then self:Disable() end
@@ -346,10 +348,23 @@ function module:TRADE_SHOW()
   self:OpenPendingTrade()
 end
 
+local function modeIncludesGear(mode)
+  return mode == "everything" or mode == "gear"
+end
+
+local function modeIncludesConsumable(mode, kind)
+  return mode == "everything" or mode == "consumables"
+    or mode == "flaskOil" and (kind == "flask" or kind == "oil")
+    or mode == "runes" and kind == "augmentRune"
+    or mode == "oil" and kind == "oil"
+    or mode == "flasks" and kind == "flask"
+end
+
 function module:GetRequiredItems()
   local recommendationData = currentRecommendation(self.pendingUnit or "player")
   local required = {}
-  if db.profile.selfVendor.mode == "gear" then
+  local mode = db.profile.selfVendor.mode
+  if modeIncludesGear(mode) then
     for _, slot in ipairs(recommendationData.slots) do
       local link = self.pendingUnit and GetInventoryItemLink(self.pendingUnit, slot)
       local enchantID = link and inventoryEnchantID(self.pendingUnit, slot, link)
@@ -382,9 +397,10 @@ function module:GetRequiredItems()
         addRequiredItem(required, gemID)
       end
     end
-  else
-    for _, item in ipairs(recommendationData.consumables) do
-      local hasBuff = hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
+  end
+  for _, item in ipairs(recommendationData.consumables) do
+    if modeIncludesConsumable(mode, item.kind) then
+      local hasBuff = item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
       if item.kind == "oil" then
         log("Cannot verify Phoenix Oil on another player; temporary weapon enchant data is player-only")
       end

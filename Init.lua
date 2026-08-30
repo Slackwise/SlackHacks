@@ -22,7 +22,7 @@ dbDefaults = {
   profile = {
     selfVendor = {
       enabled = false,
-      mode = "consumable"
+      mode = "consumables"
     },
     mounts = {
       ["ground"] = nil,
