@@ -113,6 +113,28 @@ function getClassName()
   return select(2, UnitClass("player"))
 end
 
+function classKeyForName(rawClass)
+  local aliases = {
+    deathknight = "DEATHKNIGHT",
+    death = "DEATHKNIGHT",
+    druid = "DRUID",
+    demonhunter = "DEMONHUNTER",
+    demon = "DEMONHUNTER",
+    evoker = "EVOKER",
+    hunter = "HUNTER",
+    mage = "MAGE",
+    monk = "MONK",
+    paladin = "PALADIN",
+    priest = "PRIEST",
+    rogue = "ROGUE",
+    shaman = "SHAMAN",
+    warlock = "WARLOCK",
+    warrior = "WARRIOR",
+  }
+  local normalized = strlower((rawClass or ""):gsub("[%s%-'%.]", ""))
+  return aliases[normalized]
+end
+
 function getSpecName()
   local specIndex = GetSpecialization()
   if specIndex then

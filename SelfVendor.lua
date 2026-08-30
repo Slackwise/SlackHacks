@@ -132,6 +132,102 @@ local function itemName(itemID)
   return ITEM_NAMES[itemID] or ("Item " .. itemID)
 end
 
+local function lowerName(value)
+  return strlower((value or ""):gsub("[%s%-'%.]", ""))
+end
+
+local function specNameForClass(classKey, rawSpec)
+  if not ENHANCEMENTS_BIS or not ENHANCEMENTS_BIS[classKey] then return nil end
+  local normalizedTarget = lowerName(rawSpec)
+  for specName in pairs(ENHANCEMENTS_BIS[classKey]) do
+    if lowerName(specName) == normalizedTarget then
+      return specName
+    end
+  end
+  return nil
+end
+
+local function parseClassAndSpec(rawCommand)
+  local tokens = {}
+  for token in (rawCommand or ""):gmatch("%S+") do
+    tokens[#tokens + 1] = token
+  end
+  if #tokens < 2 then return nil, nil end
+  for classCount = #tokens, 1, -1 do
+    local className = table.concat(tokens, " ", 1, classCount)
+    local classKey = classKeyForName(className)
+    if classKey then
+      local specText = table.concat(tokens, " ", classCount + 1, #tokens)
+      local specName = specNameForClass(classKey, specText)
+      if specName then
+        return classKey, specName
+      end
+    end
+  end
+  return nil, nil
+end
+
+local function buildRequiredForRecommendation(recommendationData)
+  local required = {}
+  local function add(itemID, quantity)
+    if itemID then
+      required[itemID] = math.max(required[itemID] or 0, quantity or 1)
+    end
+  end
+  for _, enchantID in pairs(recommendationData.enchantIDs or {}) do
+    add(enchantID, 1)
+  end
+  for _, gem in ipairs(recommendationData.gemEntries or {}) do
+    add(gem.itemID, gem.quantity or 1)
+  end
+  return required
+end
+
+local function missingListForRequired(required)
+  local shortages = {}
+  for itemID, quantity in pairs(required) do
+    local missing = quantity - bagItemCount(itemID)
+    if missing > 0 then shortages[itemID] = missing end
+  end
+  return shortages
+end
+
+local function sortedItemIDs(required)
+  local itemIDs = {}
+  for itemID in pairs(required) do
+    itemIDs[#itemIDs + 1] = itemID
+  end
+  table.sort(itemIDs, function(left, right)
+    return itemName(left) < itemName(right)
+  end)
+  return itemIDs
+end
+
+local function mailFrameOpen()
+  return SendMailFrame and SendMailFrame:IsShown()
+end
+
+local function attachItemToMail(itemID, quantity, mailIndex)
+  local bag, slot = findBagItem(itemID, quantity)
+  if not bag or not slot then return false end
+  if GetCursorInfo() then ClearCursor() end
+  local info = C_Container.GetContainerItemInfo(bag, slot)
+  local stackCount = info and info.stackCount or 0
+  if stackCount > quantity then
+    C_Container.SplitContainerItem(bag, slot, quantity)
+    if not GetCursorInfo() then return false end
+  else
+    C_Container.PickupContainerItem(bag, slot)
+    if not GetCursorInfo() then return false end
+  end
+  local button = _G["SendMailItem" .. mailIndex]
+  if button then
+    ClickSendMailItemButton(mailIndex)
+    return true
+  end
+  return false
+end
+
 local function addRequiredItem(required, itemID, quantity)
   if itemID then required[itemID] = math.max(required[itemID] or 0, quantity or 1) end
 end
@@ -150,6 +246,78 @@ local function hasConsumableBuff(unit, buffName, auraSpellID)
     end
   end
   return false
+end
+
+function module:SendAugsForClassSpec(className, specName)
+  local classKey, resolvedSpec = parseClassAndSpec(className .. " " .. specName)
+  if not classKey or not resolvedSpec then
+    local input = (className or "") .. " " .. (specName or "")
+    print("SlackHacks: unknown class/spec for sendaugs: " .. strtrim(input or ""))
+    print("Usage: /slack sendaugs <class> <spec>")
+    return
+  end
+
+  local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classKey]
+  local specData = classData and classData[resolvedSpec]
+  if not specData then
+    print("SlackHacks: no BIS data found for " .. classKey .. " / " .. resolvedSpec)
+    return
+  end
+
+  local recommendationData = recommendation({
+    Flask = specData.Flask,
+    Gems = specData.Gems,
+    Enchants = specData.Enchants,
+  })
+  local required = buildRequiredForRecommendation(recommendationData)
+  local shortages = missingListForRequired(required)
+
+  if not mailFrameOpen() then
+    print("SlackHacks: open the mail compose window first.")
+    if next(shortages) then
+      print("SlackHacks: buy these items from the auction house for " .. classKey .. " / " .. resolvedSpec .. ":")
+      for itemID, quantity in pairs(shortages) do
+        print("- " .. itemName(itemID) .. " x" .. quantity)
+      end
+    else
+      print("SlackHacks: you already have everything needed for " .. classKey .. " / " .. resolvedSpec .. ".")
+    end
+    return
+  end
+
+  if next(shortages) then
+    print("SlackHacks: missing items for " .. classKey .. " / " .. resolvedSpec .. ":")
+    for itemID, quantity in pairs(shortages) do
+      print("- " .. itemName(itemID) .. " x" .. quantity)
+    end
+    print("SlackHacks: buy the missing items from the auction house, then reopen the mail compose window.")
+    return
+  end
+
+  local orderedIDs = sortedItemIDs(required)
+  local mailCount = 0
+  for _, itemID in ipairs(orderedIDs) do
+    if mailCount >= 12 then break end
+    local quantity = required[itemID]
+    local bag, slot = findBagItem(itemID, quantity)
+    if not bag or not slot then
+      print("SlackHacks: unable to find " .. itemName(itemID) .. " x" .. quantity .. " in your bags.")
+      return
+    end
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    local stackCount = info and info.stackCount or 0
+    if stackCount < quantity then
+      print("SlackHacks: not enough " .. itemName(itemID) .. " in a single stack for mail.")
+      return
+    end
+    if not attachItemToMail(itemID, quantity, mailCount + 1) then
+      print("SlackHacks: failed to attach " .. itemName(itemID) .. " x" .. quantity .. " to the mail.")
+      return
+    end
+    mailCount = mailCount + 1
+  end
+
+  print("SlackHacks: BIS enchants and gems for " .. classKey .. " / " .. resolvedSpec .. " have been added to the letter.")
 end
 
 function module:SetEnabled(enabled)
