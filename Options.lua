@@ -46,7 +46,16 @@ options = {
           name = "Vendor Mode",
           desc = "Choose which recommendations are offered in the trade window.",
           type = "select",
-          values = { consumable = "Consumable", gear = "Gear" },
+          values = {
+            everything = "Everything",
+            gear = "Gear",
+            consumables = "Consumables",
+            flaskOil = "Flask and Oil",
+            runes = "Runes",
+            oil = "Oil",
+            flasks = "Flasks"
+          },
+          sorting = { "everything", "gear", "consumables", "flaskOil", "runes", "oil", "flasks" },
           get = function() return db.profile.selfVendor.mode end,
           set = function(_, value) Self.SelfVendor:SetMode(value) end,
           order = 2
