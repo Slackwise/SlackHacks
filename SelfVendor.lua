@@ -375,7 +375,7 @@ function module:GetRequiredItems()
       local hasMatchingGem = false
       if link then
         for gemIndex = 1, 3 do
-          local gemLink = select(1, GetItemGem(gemIndex, link))
+          local gemLink = select(2, C_Item.GetItemGem(link, gemIndex))
           local gemID = gemLink and C_Item.GetItemInfoInstant(gemLink)
           if gemID and tContains(recommendationData.gemIDs, gemID) then
             hasMatchingGem = true
