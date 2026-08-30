@@ -10,9 +10,9 @@
 Init.lua
 ## Libs/lamda/dist/lamda.lua
 embeds.xml
+Core.lua
 StaticData.lua
 SelfVendor.lua
-Core.lua
 Nameplates.lua
 Bindings.lua
 Options.lua
