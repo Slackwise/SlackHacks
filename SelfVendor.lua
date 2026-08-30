@@ -64,7 +64,7 @@ local function buildRequiredForRecommendation(recommendationData)
   local required = {}
   local function add(itemID, quantity)
     if itemID then
-      required[itemID] = math.max(required[itemID] or 0, quantity or 1)
+      required[itemID] = (required[itemID] or 0) + (quantity or 1)
     end
   end
   for _, enchantID in pairs(recommendationData.enchantIDs or {}) do
@@ -96,6 +96,11 @@ local function sortedItemIDs(required)
   return itemIDs
 end
 
+local function shoppingListItem(itemID, quantity)
+  local prefix = quantity > 1 and quantity .. "x " or ""
+  return "- " .. prefix .. itemName(itemID)
+end
+
 local function mailFrameOpen()
   return SendMailFrame and SendMailFrame:IsShown()
 end
@@ -122,7 +127,7 @@ local function attachItemToMail(itemID, quantity, mailIndex)
 end
 
 local function addRequiredItem(required, itemID, quantity)
-  if itemID then required[itemID] = math.max(required[itemID] or 0, quantity or 1) end
+  if itemID then required[itemID] = (required[itemID] or 0) + (quantity or 1) end
 end
 
 local function hasConsumableBuff(unit, buffName, auraSpellID)
@@ -166,7 +171,7 @@ function module:SendAugsForClassSpec(className, specName)
     if next(shortages) then
       print("SlackHacks: buy these items from the auction house for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
       for itemID, quantity in pairs(shortages) do
-        print("- " .. itemName(itemID) .. " x" .. quantity)
+        print(shoppingListItem(itemID, quantity))
       end
     else
       print("SlackHacks: you already have everything needed for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
@@ -177,7 +182,7 @@ function module:SendAugsForClassSpec(className, specName)
   if next(shortages) then
     print("SlackHacks: missing items for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
     for itemID, quantity in pairs(shortages) do
-      print("- " .. itemName(itemID) .. " x" .. quantity)
+      print(shoppingListItem(itemID, quantity))
     end
     print("SlackHacks: buy the missing items from the auction house, then reopen the mail compose window.")
     return
@@ -306,7 +311,7 @@ function module:ReportMissingItems(shortages)
   log("Self Vendor trade blocked because required items are missing")
   print("SlackHacks: buy these items from the auction house:")
   for itemID, quantity in pairs(shortages) do
-    print("- " .. itemName(itemID) .. " x" .. quantity)
+    print(shoppingListItem(itemID, quantity))
   end
   self.pendingName = nil
   self.pendingUnit = nil
