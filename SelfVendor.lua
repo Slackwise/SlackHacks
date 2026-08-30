@@ -4,78 +4,11 @@ local module = Self:NewModule("SelfVendor", "AceEvent-3.0")
 Self.SelfVendor = module
 local maxTradeSlots = MAX_TRADABLE_ITEMS or 6
 
-local function recommendation(enchantIDs, gemIDs, flaskID)
-  return {
-    slots = { 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 },
-    enchantIDs = enchantIDs,
-    gemIDs = gemIDs,
-    consumables = {
-      { itemID = flaskID, kind = "flask", buffName = "Flask" },
-      { itemID = 243734, kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
-      { itemID = 259085, kind = "augmentRune", buffName = "Augmented", quantity = 5 }
-    }
-  }
+SelfVendorBIS = SelfVendorBIS or {}
+
+local function itemID(itemName)
+  return ITEM_IDS and ITEM_IDS[itemName]
 end
-
-local physicalDPS = recommendation({
-  [1] = 244007, [3] = 243990, [5] = 243977,
-  [7] = 244640, [8] = 243952, [9] = 243977, [10] = 243977,
-  [11] = 243956, [12] = 243956, [16] = 273072, [17] = 273072
-}, { 240967, 240898 }, 241322)
-
-local casterDPS = recommendation({
-  [1] = 244007, [3] = 244021, [5] = 243977,
-  [7] = 240155, [8] = 243983, [9] = 243977, [10] = 243977,
-  [11] = 243957, [12] = 243957, [16] = 244029, [17] = 244029
-}, { 240967, 240900 }, 241324)
-
-local healer = recommendation({
-  [1] = 243951, [3] = 244021, [5] = 243977,
-  [7] = 240133, [8] = 243983, [9] = 243977, [10] = 243977,
-  [11] = 243987, [12] = 243987, [16] = 244029, [17] = 244029
-}, { 240983, 240910 }, 241326)
-
-local tank = recommendation({
-  [1] = 243981, [3] = 243963, [5] = 243977,
-  [7] = 244642, [8] = 244009, [9] = 243977, [10] = 243977,
-  [11] = 244015, [12] = 244015, [16] = 243973, [17] = 243973
-}, { 240983, 240894 }, 241324)
-
-local function addSpecs(classFile, specs, data)
-  for _, specName in ipairs(specs) do
-    SelfVendorBIS[classFile .. ":" .. specName] = data
-  end
-  SelfVendorBIS[classFile] = SelfVendorBIS[classFile .. ":" .. specs[1]]
-end
-
-SelfVendorBIS = {}
-addSpecs("DEATHKNIGHT", { "Blood" }, tank)
-addSpecs("DEATHKNIGHT", { "Frost", "Unholy" }, physicalDPS)
-addSpecs("DEMONHUNTER", { "Havoc", "Devourer" }, physicalDPS)
-addSpecs("DEMONHUNTER", { "Vengeance" }, tank)
-addSpecs("DRUID", { "Balance" }, casterDPS)
-addSpecs("DRUID", { "Feral" }, physicalDPS)
-addSpecs("DRUID", { "Guardian" }, tank)
-addSpecs("DRUID", { "Restoration" }, healer)
-addSpecs("EVOKER", { "Devastation", "Augmentation" }, casterDPS)
-addSpecs("EVOKER", { "Preservation" }, healer)
-addSpecs("HUNTER", { "Beast Mastery", "Marksmanship", "Survival" }, physicalDPS)
-addSpecs("MAGE", { "Arcane", "Fire", "Frost" }, casterDPS)
-addSpecs("MONK", { "Brewmaster" }, tank)
-addSpecs("MONK", { "Mistweaver" }, healer)
-addSpecs("MONK", { "Windwalker" }, physicalDPS)
-addSpecs("PALADIN", { "Holy" }, healer)
-addSpecs("PALADIN", { "Protection" }, tank)
-addSpecs("PALADIN", { "Retribution" }, physicalDPS)
-addSpecs("PRIEST", { "Discipline", "Holy" }, healer)
-addSpecs("PRIEST", { "Shadow" }, casterDPS)
-addSpecs("ROGUE", { "Assassination", "Outlaw", "Subtlety" }, physicalDPS)
-addSpecs("SHAMAN", { "Elemental" }, casterDPS)
-addSpecs("SHAMAN", { "Enhancement" }, physicalDPS)
-addSpecs("SHAMAN", { "Restoration" }, healer)
-addSpecs("WARLOCK", { "Affliction", "Demonology", "Destruction" }, casterDPS)
-addSpecs("WARRIOR", { "Arms", "Fury" }, physicalDPS)
-addSpecs("WARRIOR", { "Protection" }, tank)
 
 local function shortName(name)
   return name and Ambiguate(name, "none")
@@ -196,7 +129,7 @@ local function finishTradePopulation(module, added)
 end
 
 local function itemName(itemID)
-  return C_Item.GetItemNameByID(itemID) or ("Item " .. itemID)
+  return ITEM_NAMES[itemID] or ("Item " .. itemID)
 end
 
 local function addRequiredItem(required, itemID, quantity)
@@ -392,10 +325,11 @@ function module:GetRequiredItems()
   local required = {}
   local mode = db.profile.selfVendor.mode
   if modeIncludesGear(mode) then
-    for _, slot in ipairs(recommendationData.slots) do
+    for _, slotName in ipairs(recommendationData.slotNames) do
+      local slot = SLOT_IDS[slotName]
       local link = self.pendingUnit and GetInventoryItemLink(self.pendingUnit, slot)
       local enchantID = link and inventoryEnchantID(self.pendingUnit, slot, link)
-      local expectedEnchantID = recommendationData.enchantIDs[slot]
+      local expectedEnchantID = recommendationData.enchantIDs[slotName]
       if expectedEnchantID and enchantID ~= expectedEnchantID then
         addRequiredItem(required, expectedEnchantID)
       end
@@ -411,8 +345,8 @@ function module:GetRequiredItems()
         end
       end
       if not hasMatchingGem and link then
-        for _, gemID in ipairs(recommendationData.gemIDs) do
-          addRequiredItem(required, gemID)
+        for _, gem in ipairs(recommendationData.gemEntries or {}) do
+          addRequiredItem(required, gem.itemID, gem.quantity)
         end
       end
     end
@@ -420,8 +354,8 @@ function module:GetRequiredItems()
       for _, enchantID in pairs(recommendationData.enchantIDs) do
         addRequiredItem(required, enchantID)
       end
-      for _, gemID in ipairs(recommendationData.gemIDs) do
-        addRequiredItem(required, gemID)
+      for _, gem in ipairs(recommendationData.gemEntries or {}) do
+        addRequiredItem(required, gem.itemID, gem.quantity)
       end
     end
   end

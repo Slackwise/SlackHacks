@@ -1,5 +1,827 @@
 setfenv(1, _G.SlackHacks)
 
+ITEM_NAMES = {
+  [240133] = "Sunfire Silk Spellthread",
+  [240155] = "Arcanoweave Spellthread",
+  [240894] = "Flawless Versatile Peridot",
+  [240898] = "Flawless Deadly Amethyst",
+  [240900] = "Flawless Quick Amethyst",
+  [240910] = "Flawless Versatile Garnet",
+  [240967] = "Powerful Eversong Diamond",
+  [240983] = "Indecipherable Eversong Diamond",
+  [241322] = "Flask of the Magisters",
+  [241324] = "Flask of the Blood Knights",
+  [241326] = "Flask of the Shattered Sun",
+  [242275] = "Royal Roast",
+  [243734] = "Thalassian Phoenix Oil",
+  [243952] = "Enchant Boots - Lynx's Dexterity",
+  [243956] = "Enchant Ring - Eyes of the Eagle",
+  [243963] = "Enchant Shoulders - Akil'zon's Swiftness",
+  [243973] = "Enchant Weapon - Berserker's Rage",
+  [243977] = "Enchant Chest - Mark of the Worldsoul",
+  [243981] = "Enchant Helm - Empowered Blessing of Speed",
+  [243983] = "Enchant Boots - Shaladrassil's Roots",
+  [243987] = "Enchant Ring - Nature's Fury",
+  [243990] = "Enchant Shoulders - Amirdrassil's Grace",
+  [244007] = "Enchant Helm - Empowered Rune of Avoidance",
+  [244009] = "Enchant Boots - Farstrider's Hunt",
+  [244015] = "Enchant Ring - Silvermoon's Alacrity",
+  [244021] = "Enchant Shoulders - Silvermoon's Mending",
+  [244029] = "Enchant Weapon - Acuity of the Ren'dorei",
+  [244640] = "Forest Hunter's Armor Kit",
+  [244642] = "Blood Knight's Armor Kit",
+  [259085] = "Void-Touched Augment Rune",
+  [273072] = "Enchant Weapon - Rite of the Hash'ey",
+}
+
+ITEM_IDS = {}
+for itemID, itemName in pairs(ITEM_NAMES) do
+  ITEM_IDS[itemName] = itemID
+end
+
+SLOT_IDS = {
+  Head = 1,
+  Neck = 2,
+  Shoulder = 3,
+  Shirt = 4,
+  Chest = 5,
+  Waist = 6,
+  Legs = 7,
+  Feet = 8,
+  Wrist = 9,
+  Hands = 10,
+  Finger1 = 11,
+  Finger2 = 12,
+  Trinket1 = 13,
+  Trinket2 = 14,
+  Back = 15,
+  MainHand = 16,
+  OffHand = 17,
+}
+
+local function itemIDs(itemNames)
+  local ids = {}
+  for slot, itemName in pairs(itemNames) do
+    ids[slot] = ITEM_IDS[itemName]
+  end
+  return ids
+end
+
+local function recommendation(data)
+  local slotNames = { "Head", "Shoulder", "Chest", "Waist", "Legs", "Feet", "Wrist", "Hands", "Finger1", "Finger2", "Trinket1", "Trinket2", "Back", "MainHand", "OffHand" }
+  local slots = {}
+  local enchantNames = {}
+  for _, slotName in ipairs(slotNames) do
+    local enchantName = data.Enchants and data.Enchants[slotName]
+    if enchantName then
+      enchantNames[slotName] = enchantName
+      slots[#slots + 1] = SLOT_IDS[slotName]
+    end
+  end
+
+  local gemEntries = {}
+  if data.Gems then
+    if data.Gems.Primary then
+      gemEntries[#gemEntries + 1] = { itemName = data.Gems.Primary, quantity = 1 }
+    end
+    if data.Gems.Secondary then
+      gemEntries[#gemEntries + 1] = { itemName = data.Gems.Secondary, quantity = SECONDARY_GEM_QUANTITY }
+    end
+  end
+
+  local gemNames = {}
+  for _, gem in ipairs(gemEntries) do
+    gemNames[#gemNames + 1] = gem.itemName
+  end
+
+  return {
+    slotNames = slotNames,
+    slots = slots,
+    enchantNames = enchantNames,
+    enchantIDs = itemIDs(enchantNames),
+    gemNames = gemNames,
+    gemEntries = gemEntries,
+    gemIDs = itemIDs(gemNames),
+    consumables = {
+      { itemName = data.Flask, itemID = ITEM_IDS[data.Flask], kind = "flask", buffName = "Flask" },
+      { itemName = "Thalassian Phoenix Oil", itemID = ITEM_IDS["Thalassian Phoenix Oil"], kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
+      { itemName = "Void-Touched Augment Rune", itemID = ITEM_IDS["Void-Touched Augment Rune"], kind = "augmentRune", buffName = "Augmented", quantity = 5 }
+    }
+  }
+end
+
+SECONDARY_GEM_QUANTITY = 6
+
+ENHANCEMENTS_BIS = {
+  DEATHKNIGHT = {
+    Blood = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Frost = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Unholy = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+  },
+  DRUID = {
+    Balance = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Feral = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Guardian = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Peridot",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Blessing of Speed",
+        Shoulder = "Enchant Shoulders - Akil'zon's Swiftness",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Blood Knight's Armor Kit",
+        Feet = "Enchant Boots - Farstrider's Hunt",
+        Finger1 = "Enchant Ring - Silvermoon's Alacrity",
+        Finger2 = "Enchant Ring - Silvermoon's Alacrity",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+      },
+    },
+    Restoration = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+  },
+  DEMONHUNTER = {
+    Havoc = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Vengeance = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Peridot",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Blessing of Speed",
+        Shoulder = "Enchant Shoulders - Akil'zon's Swiftness",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Blood Knight's Armor Kit",
+        Feet = "Enchant Boots - Farstrider's Hunt",
+        Finger1 = "Enchant Ring - Silvermoon's Alacrity",
+        Finger2 = "Enchant Ring - Silvermoon's Alacrity",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+      },
+    },
+  },
+  EVOKER = {
+    Devastation = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Augmentation = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Preservation = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+  },
+  HUNTER = {
+    ["Beast Mastery"] = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Marksmanship = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Survival = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+  },
+  MAGE = {
+    Arcane = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Fire = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Frost = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+  },
+  MONK = {
+    Brewmaster = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Peridot",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Blessing of Speed",
+        Shoulder = "Enchant Shoulders - Akil'zon's Swiftness",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Blood Knight's Armor Kit",
+        Feet = "Enchant Boots - Farstrider's Hunt",
+        Finger1 = "Enchant Ring - Silvermoon's Alacrity",
+        Finger2 = "Enchant Ring - Silvermoon's Alacrity",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+      },
+    },
+    Mistweaver = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Windwalker = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+  },
+  PALADIN = {
+    Holy = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Protection = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Peridot",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Blessing of Speed",
+        Shoulder = "Enchant Shoulders - Akil'zon's Swiftness",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Blood Knight's Armor Kit",
+        Feet = "Enchant Boots - Farstrider's Hunt",
+        Finger1 = "Enchant Ring - Silvermoon's Alacrity",
+        Finger2 = "Enchant Ring - Silvermoon's Alacrity",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+      },
+    },
+    Retribution = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+  },
+  PRIEST = {
+    Discipline = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Holy = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Shadow = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+  },
+  ROGUE = {
+    Assassination = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Outlaw = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Subtlety = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+  },
+  SHAMAN = {
+    Elemental = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Enhancement = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Restoration = {
+      Flask = "Flask of the Shattered Sun",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Garnet",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Hex of Leeching",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Sunfire Silk Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Nature's Fury",
+        Finger2 = "Enchant Ring - Nature's Fury",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+  },
+  WARLOCK = {
+    Affliction = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Demonology = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+    Destruction = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Quick Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Silvermoon's Mending",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Arcanoweave Spellthread",
+        Feet = "Enchant Boots - Shaladrassil's Roots",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+      },
+    },
+  },
+  WARRIOR = {
+    Arms = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Fury = {
+      Flask = "Flask of the Magisters",
+      Gems = {
+        Primary = "Powerful Eversong Diamond",
+        Secondary = "Flawless Deadly Amethyst",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Rune of Avoidance",
+        Shoulder = "Enchant Shoulders - Amirdrassil's Grace",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Forest Hunter's Armor Kit",
+        Feet = "Enchant Boots - Lynx's Dexterity",
+        Finger1 = "Enchant Ring - Eyes of the Eagle",
+        Finger2 = "Enchant Ring - Eyes of the Eagle",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+      },
+    },
+    Protection = {
+      Flask = "Flask of the Blood Knights",
+      Gems = {
+        Primary = "Indecipherable Eversong Diamond",
+        Secondary = "Flawless Versatile Peridot",
+      },
+      Enchants = {
+        Head = "Enchant Helm - Empowered Blessing of Speed",
+        Shoulder = "Enchant Shoulders - Akil'zon's Swiftness",
+        Chest = "Enchant Chest - Mark of the Worldsoul",
+        Legs = "Blood Knight's Armor Kit",
+        Feet = "Enchant Boots - Farstrider's Hunt",
+        Finger1 = "Enchant Ring - Silvermoon's Alacrity",
+        Finger2 = "Enchant Ring - Silvermoon's Alacrity",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+      },
+    },
+  },
+}
+
+SelfVendorBIS = {}
+for classFile, classData in pairs(ENHANCEMENTS_BIS) do
+  local firstSpecName
+  for specName, data in pairs(classData) do
+    if not firstSpecName then
+      firstSpecName = specName
+    end
+    SelfVendorBIS[classFile .. ":" .. specName] = recommendation({
+      Flask = data.Flask,
+      Gems = data.Gems,
+      Enchants = data.Enchants,
+    })
+  end
+  if firstSpecName then
+    SelfVendorBIS[classFile] = SelfVendorBIS[classFile .. ":" .. firstSpecName]
+  end
+end
+
 MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
   ["Charger"]                      = 84,
   ["Swift Razzashi Raptor"]        = 110,
