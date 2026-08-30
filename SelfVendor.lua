@@ -4,10 +4,8 @@ local module = Self:NewModule("SelfVendor", "AceEvent-3.0")
 Self.SelfVendor = module
 local maxTradeSlots = MAX_TRADABLE_ITEMS or 6
 
-SelfVendorBIS = SelfVendorBIS or {}
-
 local function itemID(itemName)
-  return ITEM_IDS and ITEM_IDS[itemName]
+  return ITEM_NAMES and ITEM_NAMES[itemName]
 end
 
 local function shortName(name)
@@ -51,7 +49,9 @@ local function currentRecommendation(unit)
   local _, classFile = UnitClass(unit or "player")
   local specIndex = GetSpecialization()
   local specName = specIndex and select(2, GetSpecializationInfo(specIndex))
-  return SelfVendorBIS[classFile .. ":" .. (specName or "")] or SelfVendorBIS[classFile]
+  local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classFile]
+  local specData = classData and (classData[specName] or next(classData))
+  return specData and buildBISEnhancementRecommendation(specData)
 end
 
 local function itemIDFromInfo(info)
@@ -129,7 +129,7 @@ local function finishTradePopulation(module, added)
 end
 
 local function itemName(itemID)
-  return ITEM_NAMES[itemID] or ("Item " .. itemID)
+  return ITEM_NAMES_BY_ID[itemID] or ("Item " .. itemID)
 end
 
 local function lowerName(value)
@@ -264,11 +264,7 @@ function module:SendAugsForClassSpec(className, specName)
     return
   end
 
-  local recommendationData = recommendation({
-    Flask = specData.Flask,
-    Gems = specData.Gems,
-    Enchants = specData.Enchants,
-  })
+  local recommendationData = buildBISEnhancementRecommendation(specData)
   local required = buildRequiredForRecommendation(recommendationData)
   local shortages = missingListForRequired(required)
 

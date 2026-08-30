@@ -1,42 +1,42 @@
 setfenv(1, _G.SlackHacks)
 
 ITEM_NAMES = {
-  [240133] = "Sunfire Silk Spellthread",
-  [240155] = "Arcanoweave Spellthread",
-  [240894] = "Flawless Versatile Peridot",
-  [240898] = "Flawless Deadly Amethyst",
-  [240900] = "Flawless Quick Amethyst",
-  [240910] = "Flawless Versatile Garnet",
-  [240967] = "Powerful Eversong Diamond",
-  [240983] = "Indecipherable Eversong Diamond",
-  [241322] = "Flask of the Magisters",
-  [241324] = "Flask of the Blood Knights",
-  [241326] = "Flask of the Shattered Sun",
-  [242275] = "Royal Roast",
-  [243734] = "Thalassian Phoenix Oil",
-  [243952] = "Enchant Boots - Lynx's Dexterity",
-  [243956] = "Enchant Ring - Eyes of the Eagle",
-  [243963] = "Enchant Shoulders - Akil'zon's Swiftness",
-  [243973] = "Enchant Weapon - Berserker's Rage",
-  [243977] = "Enchant Chest - Mark of the Worldsoul",
-  [243981] = "Enchant Helm - Empowered Blessing of Speed",
-  [243983] = "Enchant Boots - Shaladrassil's Roots",
-  [243987] = "Enchant Ring - Nature's Fury",
-  [243990] = "Enchant Shoulders - Amirdrassil's Grace",
-  [244007] = "Enchant Helm - Empowered Rune of Avoidance",
-  [244009] = "Enchant Boots - Farstrider's Hunt",
-  [244015] = "Enchant Ring - Silvermoon's Alacrity",
-  [244021] = "Enchant Shoulders - Silvermoon's Mending",
-  [244029] = "Enchant Weapon - Acuity of the Ren'dorei",
-  [244640] = "Forest Hunter's Armor Kit",
-  [244642] = "Blood Knight's Armor Kit",
-  [259085] = "Void-Touched Augment Rune",
-  [273072] = "Enchant Weapon - Rite of the Hash'ey",
+  ["Sunfire Silk Spellthread"] = 240133,
+  ["Arcanoweave Spellthread"] = 240155,
+  ["Flawless Versatile Peridot"] = 240894,
+  ["Flawless Deadly Amethyst"] = 240898,
+  ["Flawless Quick Amethyst"] = 240900,
+  ["Flawless Versatile Garnet"] = 240910,
+  ["Powerful Eversong Diamond"] = 240967,
+  ["Indecipherable Eversong Diamond"] = 240983,
+  ["Flask of the Magisters"] = 241322,
+  ["Flask of the Blood Knights"] = 241324,
+  ["Flask of the Shattered Sun"] = 241326,
+  ["Royal Roast"] = 242275,
+  ["Thalassian Phoenix Oil"] = 243734,
+  ["Enchant Boots - Lynx's Dexterity"] = 243952,
+  ["Enchant Ring - Eyes of the Eagle"] = 243956,
+  ["Enchant Shoulders - Akil'zon's Swiftness"] = 243963,
+  ["Enchant Weapon - Berserker's Rage"] = 243973,
+  ["Enchant Chest - Mark of the Worldsoul"] = 243977,
+  ["Enchant Helm - Empowered Blessing of Speed"] = 243981,
+  ["Enchant Boots - Shaladrassil's Roots"] = 243983,
+  ["Enchant Ring - Nature's Fury"] = 243987,
+  ["Enchant Shoulders - Amirdrassil's Grace"] = 243990,
+  ["Enchant Helm - Empowered Rune of Avoidance"] = 244007,
+  ["Enchant Boots - Farstrider's Hunt"] = 244009,
+  ["Enchant Ring - Silvermoon's Alacrity"] = 244015,
+  ["Enchant Shoulders - Silvermoon's Mending"] = 244021,
+  ["Enchant Weapon - Acuity of the Ren'dorei"] = 244029,
+  ["Forest Hunter's Armor Kit"] = 244640,
+  ["Blood Knight's Armor Kit"] = 244642,
+  ["Void-Touched Augment Rune"] = 259085,
+  ["Enchant Weapon - Rite of the Hash'ey"] = 273072,
 }
 
-ITEM_IDS = {}
-for itemID, itemName in pairs(ITEM_NAMES) do
-  ITEM_IDS[itemName] = itemID
+ITEM_NAMES_BY_ID = {}
+for itemName, itemID in pairs(ITEM_NAMES) do
+  ITEM_NAMES_BY_ID[itemID] = itemName
 end
 
 SLOT_IDS = {
@@ -59,15 +59,15 @@ SLOT_IDS = {
   OffHand = 17,
 }
 
-local function itemIDs(itemNames)
+function itemIDs(itemNames)
   local ids = {}
   for slot, itemName in pairs(itemNames) do
-    ids[slot] = ITEM_IDS[itemName]
+    ids[slot] = ITEM_NAMES[itemName]
   end
   return ids
 end
 
-local function recommendation(data)
+function buildBISEnhancementRecommendation(data)
   local slotNames = { "Head", "Shoulder", "Chest", "Waist", "Legs", "Feet", "Wrist", "Hands", "Finger1", "Finger2", "Trinket1", "Trinket2", "Back", "MainHand", "OffHand" }
   local slots = {}
   local enchantNames = {}
@@ -103,9 +103,9 @@ local function recommendation(data)
     gemEntries = gemEntries,
     gemIDs = itemIDs(gemNames),
     consumables = {
-      { itemName = data.Flask, itemID = ITEM_IDS[data.Flask], kind = "flask", buffName = "Flask" },
-      { itemName = "Thalassian Phoenix Oil", itemID = ITEM_IDS["Thalassian Phoenix Oil"], kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
-      { itemName = "Void-Touched Augment Rune", itemID = ITEM_IDS["Void-Touched Augment Rune"], kind = "augmentRune", buffName = "Augmented", quantity = 5 }
+      { itemName = data.Flask, itemID = ITEM_NAMES[data.Flask], kind = "flask", buffName = "Flask" },
+      { itemName = "Thalassian Phoenix Oil", itemID = ITEM_NAMES["Thalassian Phoenix Oil"], kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
+      { itemName = "Void-Touched Augment Rune", itemID = ITEM_NAMES["Void-Touched Augment Rune"], kind = "augmentRune", buffName = "Augmented", quantity = 5 }
     }
   }
 end
@@ -215,7 +215,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Farstrider's Hunt",
         Finger1 = "Enchant Ring - Silvermoon's Alacrity",
         Finger2 = "Enchant Ring - Silvermoon's Alacrity",
-        MainHand = "Enchant Weapon - Berserker's Rage",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+
       },
     },
     Restoration = {
@@ -232,7 +233,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Nature's Fury",
         Finger2 = "Enchant Ring - Nature's Fury",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
   },
@@ -340,7 +342,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Lynx's Dexterity",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+
       },
     },
     Marksmanship = {
@@ -393,7 +396,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
     Fire = {
@@ -410,7 +414,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
     Frost = {
@@ -427,7 +432,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
   },
@@ -480,7 +486,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Lynx's Dexterity",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+
       },
     },
   },
@@ -499,7 +506,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Nature's Fury",
         Finger2 = "Enchant Ring - Nature's Fury",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
     Protection = {
@@ -516,7 +524,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Farstrider's Hunt",
         Finger1 = "Enchant Ring - Silvermoon's Alacrity",
         Finger2 = "Enchant Ring - Silvermoon's Alacrity",
-        MainHand = "Enchant Weapon - Berserker's Rage",
+        MainHand = "Enchant Weapon - Berserker's Rage",
+
       },
     },
     Retribution = {
@@ -533,7 +542,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Lynx's Dexterity",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+
       },
     },
   },
@@ -586,7 +596,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
   },
@@ -639,7 +650,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Lynx's Dexterity",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+
       },
     },
   },
@@ -692,7 +704,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Nature's Fury",
         Finger2 = "Enchant Ring - Nature's Fury",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
   },
@@ -745,7 +758,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Shaladrassil's Roots",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+        MainHand = "Enchant Weapon - Acuity of the Ren'dorei",
+
       },
     },
   },
@@ -781,7 +795,8 @@ ENHANCEMENTS_BIS = {
         Feet = "Enchant Boots - Lynx's Dexterity",
         Finger1 = "Enchant Ring - Eyes of the Eagle",
         Finger2 = "Enchant Ring - Eyes of the Eagle",
-        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+        MainHand = "Enchant Weapon - Rite of the Hash'ey",
+
       },
     },
     Protection = {
@@ -803,24 +818,6 @@ ENHANCEMENTS_BIS = {
     },
   },
 }
-
-SelfVendorBIS = {}
-for classFile, classData in pairs(ENHANCEMENTS_BIS) do
-  local firstSpecName
-  for specName, data in pairs(classData) do
-    if not firstSpecName then
-      firstSpecName = specName
-    end
-    SelfVendorBIS[classFile .. ":" .. specName] = recommendation({
-      Flask = data.Flask,
-      Gems = data.Gems,
-      Enchants = data.Enchants,
-    })
-  end
-  if firstSpecName then
-    SelfVendorBIS[classFile] = SelfVendorBIS[classFile .. ":" .. firstSpecName]
-  end
-end
 
 MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
   ["Charger"]                      = 84,
