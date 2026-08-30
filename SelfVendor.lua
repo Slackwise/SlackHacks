@@ -225,27 +225,29 @@ function module:SetMode(mode)
   if mode == "buff" then mode = "consumable" end
   if mode == "consumable" then mode = "consumables" end
   if mode == "flaskoil" then mode = "flaskOil" end
-  if mode ~= "everything" and mode ~= "gear" and mode ~= "consumables" and mode ~= "flaskOil" and mode ~= "runes" and mode ~= "oil" and mode ~= "flasks" then return end
+  if mode ~= "everything" and mode ~= "augments" and mode ~= "consumables" and mode ~= "flaskOil" and mode ~= "runes" and mode ~= "oil" and mode ~= "flasks" then return end
   db.profile.selfVendor.mode = mode
   log("Self Vendor mode changed to " .. mode)
 end
 
 function module:HandleSlash(input)
   local command = strlower(strtrim(input or ""))
-  local mode = command:match("^mode%s+(%S+)$") or command:match("^(everything)$") or command:match("^(gear)$") or command:match("^(buff)$") or command:match("^(consumable)$") or command:match("^(consumables)$") or command:match("^(flaskoil)$") or command:match("^(runes)$") or command:match("^(oil)$") or command:match("^(flasks)$")
-  if mode == "everything" or mode == "gear" or mode == "buff" or mode == "consumable" or mode == "consumables" or mode == "flaskoil" or mode == "runes" or mode == "oil" or mode == "flasks" then
+  local mode = command:match("^mode%s+(%S+)$") or command:match("^(everything)$") or command:match("^(augments)$") or command:match("^(buff)$") or command:match("^(consumable)$") or command:match("^(consumables)$") or command:match("^(flaskoil)$") or command:match("^(runes)$") or command:match("^(oil)$") or command:match("^(flasks)$")
+  if mode == "everything" or mode == "augments" or mode == "buff" or mode == "consumable" or mode == "consumables" or mode == "flaskoil" or mode == "runes" or mode == "oil" or mode == "flasks" then
     self:SetMode(mode)
     print("SlackHacks Self Vendor mode: " .. db.profile.selfVendor.mode)
   elseif command == "" or command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   else
-    print("Usage: /slack vendor [toggle|mode everything|gear|consumables|flaskOil|runes|oil|flasks]")
+    print("Usage: /slack vendor [toggle|mode everything|augments|consumables|flaskOil|runes|oil|flasks]")
   end
 end
 
 function module:OnInitialize()
-  if db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" or db.profile.selfVendor.mode == "consumable" then
+  if db.profile.selfVendor.mode == "gear" then
+    db.profile.selfVendor.mode = "augments"
+  elseif db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" or db.profile.selfVendor.mode == "consumable" then
     db.profile.selfVendor.mode = "consumables"
   end
   log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled) .. ", mode=" .. db.profile.selfVendor.mode)
@@ -349,7 +351,7 @@ function module:TRADE_SHOW()
 end
 
 local function modeIncludesGear(mode)
-  return mode == "everything" or mode == "gear"
+  return mode == "everything" or mode == "augments"
 end
 
 local function modeIncludesConsumable(mode, kind)

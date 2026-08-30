@@ -48,14 +48,14 @@ options = {
           type = "select",
           values = {
             everything = "Everything",
-            gear = "Gear",
+            augments = "Augments (Enchants and Gems)",
             consumables = "Consumables",
             flaskOil = "Flask and Oil",
             runes = "Runes",
             oil = "Oil",
             flasks = "Flasks"
           },
-          sorting = { "everything", "gear", "consumables", "flaskOil", "runes", "oil", "flasks" },
+          sorting = { "everything", "augments", "consumables", "flaskOil", "runes", "oil", "flasks" },
           get = function() return db.profile.selfVendor.mode end,
           set = function(_, value) Self.SelfVendor:SetMode(value) end,
           order = 2
