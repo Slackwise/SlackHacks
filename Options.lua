@@ -3,6 +3,18 @@ setfenv(1, _G.SlackHacks)
 
 -- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
 
+function handleSlashCommand(input)
+  local command = strlower(strtrim(input or ""))
+  if command == "vendor" then
+    Self.SelfVendor:SetEnabled(false)
+    print("SlackHacks Self Vendor: OFF")
+  elseif command:find("^vendor%s+") then
+    Self.SelfVendor:HandleSlash(command:sub(8))
+  else
+    LibStub("AceConfigCmd-3.0"):HandleCommand("slack", "SlackHacks", input or "")
+  end
+end
+
 options = {
   type = "group",
   args = {
