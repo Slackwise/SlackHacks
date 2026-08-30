@@ -8,39 +8,6 @@ local function itemID(itemName)
   return ITEM_NAMES and ITEM_NAMES[itemName]
 end
 
-local function shortName(name)
-  return name and Ambiguate(name, "none")
-end
-
-local function sameName(left, right)
-  return shortName(left) == shortName(right)
-end
-
-local function groupUnitFor(name)
-  if sameName(UnitName("player"), name) then return "player" end
-  for index = 1, GetNumGroupMembers() do
-    local unit = IsInRaid() and "raid" .. index or "party" .. index
-    if sameName(UnitName(unit), name) then return unit end
-  end
-end
-
-local function guildMember(name)
-  if not IsInGuild() then return false end
-  if GuildRoster then
-    GuildRoster()
-  elseif C_GuildInfo and C_GuildInfo.GuildRoster then
-    C_GuildInfo.GuildRoster()
-  else
-    log("Guild membership check skipped because no guild roster API is available")
-    return false
-  end
-  for index = 1, GetNumGuildMembers() do
-    local memberName = GetGuildRosterInfo(index)
-    if sameName(memberName, name) then return true end
-  end
-  return false
-end
-
 local function senderIsEligible(name)
   return groupUnitFor(name) or guildMember(name)
 end
@@ -50,68 +17,9 @@ local function currentRecommendation(unit)
   local specIndex = GetSpecialization()
   local specName = specIndex and select(2, GetSpecializationInfo(specIndex))
   local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classFile]
-  local specData = classData and (classData[specName] or next(classData))
+  local _, fallbackSpecData = classData and next(classData)
+  local specData = classData and (classData[specKeyForName(specName)] or fallbackSpecData)
   return specData and buildBISEnhancementRecommendation(specData)
-end
-
-local function itemIDFromInfo(info)
-  return info and (info.itemID or C_Item.GetItemInfoInstant(info.hyperlink))
-end
-
-local function inventoryEnchantID(unit, slot, link)
-  if GetInventoryItemEnchantInfo then
-    local _, _, _, enchantID = GetInventoryItemEnchantInfo(unit, slot)
-    return enchantID
-  end
-  return link and tonumber(link:match("item:%d+:(%d+):"))
-end
-
-local function bagItemCount(itemID)
-  local count = 0
-  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-    for slot = 1, C_Container.GetContainerNumSlots(bag) do
-      local info = C_Container.GetContainerItemInfo(bag, slot)
-      if itemIDFromInfo(info) == itemID then count = count + (info.stackCount or 0) end
-    end
-  end
-  return count
-end
-
-local function findBagItem(itemID, minimumCount)
-  local preferredBag, preferredSlot, preferredCount
-  local fallbackBag, fallbackSlot, fallbackCount
-  minimumCount = minimumCount or 1
-  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-    for slot = 1, C_Container.GetContainerNumSlots(bag) do
-      local info = C_Container.GetContainerItemInfo(bag, slot)
-      if itemIDFromInfo(info) == itemID then
-        local stackCount = info.stackCount or 0
-        if stackCount >= minimumCount and (not preferredCount or stackCount > preferredCount) then
-          preferredBag, preferredSlot, preferredCount = bag, slot, stackCount
-        elseif not fallbackCount or stackCount > fallbackCount then
-          fallbackBag, fallbackSlot, fallbackCount = bag, slot, stackCount
-        end
-      end
-    end
-  end
-  return preferredBag or fallbackBag, preferredSlot or fallbackSlot
-end
-
-local function findExactBagItem(itemID, quantity)
-  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-    for slot = 1, C_Container.GetContainerNumSlots(bag) do
-      local info = C_Container.GetContainerItemInfo(bag, slot)
-      if itemIDFromInfo(info) == itemID and info.stackCount == quantity then return bag, slot end
-    end
-  end
-end
-
-local function findEmptyBagSlot()
-  for bag = BACKPACK_CONTAINER, NUM_BAG_SLOTS do
-    for slot = 1, C_Container.GetContainerNumSlots(bag) do
-      if not C_Container.GetContainerItemInfo(bag, slot) then return bag, slot end
-    end
-  end
 end
 
 local function finishTradePopulation(module, added)
@@ -130,21 +38,6 @@ end
 
 local function itemName(itemID)
   return ITEM_NAMES_BY_ID[itemID] or ("Item " .. itemID)
-end
-
-local function lowerName(value)
-  return strlower((value or ""):gsub("[%s%-'%.]", ""))
-end
-
-local function specNameForClass(classKey, rawSpec)
-  if not ENHANCEMENTS_BIS or not ENHANCEMENTS_BIS[classKey] then return nil end
-  local normalizedTarget = lowerName(rawSpec)
-  for specName in pairs(ENHANCEMENTS_BIS[classKey]) do
-    if lowerName(specName) == normalizedTarget then
-      return specName
-    end
-  end
-  return nil
 end
 
 local function parseClassAndSpec(rawCommand)
@@ -260,7 +153,7 @@ function module:SendAugsForClassSpec(className, specName)
   local classData = ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[classKey]
   local specData = classData and classData[resolvedSpec]
   if not specData then
-    print("SlackHacks: no BIS data found for " .. classKey .. " / " .. resolvedSpec)
+    print("SlackHacks: no BIS data found for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec))
     return
   end
 
@@ -271,18 +164,18 @@ function module:SendAugsForClassSpec(className, specName)
   if not mailFrameOpen() then
     print("SlackHacks: open the mail compose window first.")
     if next(shortages) then
-      print("SlackHacks: buy these items from the auction house for " .. classKey .. " / " .. resolvedSpec .. ":")
+      print("SlackHacks: buy these items from the auction house for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
       for itemID, quantity in pairs(shortages) do
         print("- " .. itemName(itemID) .. " x" .. quantity)
       end
     else
-      print("SlackHacks: you already have everything needed for " .. classKey .. " / " .. resolvedSpec .. ".")
+      print("SlackHacks: you already have everything needed for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
     end
     return
   end
 
   if next(shortages) then
-    print("SlackHacks: missing items for " .. classKey .. " / " .. resolvedSpec .. ":")
+    print("SlackHacks: missing items for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
     for itemID, quantity in pairs(shortages) do
       print("- " .. itemName(itemID) .. " x" .. quantity)
     end
@@ -313,7 +206,7 @@ function module:SendAugsForClassSpec(className, specName)
     mailCount = mailCount + 1
   end
 
-  print("SlackHacks: BIS enchants and gems for " .. classKey .. " / " .. resolvedSpec .. " have been added to the letter.")
+  print("SlackHacks: BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
 end
 
 function module:SetEnabled(enabled)
@@ -489,11 +382,11 @@ function module:GetRequiredItems()
   local required = {}
   local mode = db.profile.selfVendor.mode
   if modeIncludesGear(mode) then
-    for _, slotName in ipairs(recommendationData.slotNames) do
-      local slot = SLOT_IDS[slotName]
+    for _, slotKey in ipairs(recommendationData.slotKeys) do
+      local slot = SLOT_IDS[slotKey]
       local link = self.pendingUnit and GetInventoryItemLink(self.pendingUnit, slot)
       local enchantID = link and inventoryEnchantID(self.pendingUnit, slot, link)
-      local expectedEnchantID = recommendationData.enchantIDs[slotName]
+      local expectedEnchantID = recommendationData.enchantIDs[slotKey]
       if expectedEnchantID and enchantID ~= expectedEnchantID then
         addRequiredItem(required, expectedEnchantID)
       end
