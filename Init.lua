@@ -22,7 +22,8 @@ dbDefaults = {
   profile = {
     selfVendor = {
       enabled = false,
-      mode = "consumables"
+      mode = "consumables",
+      source = "murlok"
     },
     mounts = {
       ["ground"] = nil,

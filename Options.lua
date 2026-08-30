@@ -11,11 +11,11 @@ function handleSlashCommand(input)
   elseif command:find("^vendor%s+") then
     Self.SelfVendor:HandleSlash(command:sub(8))
   elseif command:find("^sendaugs%s+") then
-    local classText, specText = command:match("^sendaugs%s+(.+)%s+(.+)$")
-    if classText and specText then
-      Self.SelfVendor:SendAugsForClassSpec(classText, specText)
+    local arguments = command:match("^sendaugs%s+(.+)$")
+    if arguments then
+      Self.SelfVendor:SendAugsForClassSpec(arguments)
     else
-      print("Usage: /slack sendaugs <class> <spec>")
+      print("Usage: /slack sendaugs <class> <spec> [wowhead|icyveins|murlok]")
     end
   else
     LibStub("AceConfigCmd-3.0"):HandleCommand("slack", "SlackHacks", input or "")
