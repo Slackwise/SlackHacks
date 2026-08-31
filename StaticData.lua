@@ -1473,7 +1473,664 @@ ENHANCEMENTS_BIS = {
       },
     },
   },
-  murlok = {},
+  murlok = {
+    DEATHKNIGHT = {
+      BLOOD = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Blessing of Speed",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Farstrider's Hunt",
+          FINGER1 = "Enchant Ring - Silvermoon's Tenacity",
+          FINGER2 = "Enchant Ring - Silvermoon's Tenacity",
+        },
+      },
+      FROST = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Blessing of Speed",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Farstrider's Hunt",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+        },
+      },
+      UNHOLY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+        },
+      },
+    },
+    DEMONHUNTER = {
+      HAVOC = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Jan'alai's Precision",
+          OFFHAND = "Enchant Weapon - Jan'alai's Precision",
+        },
+      },
+      VENGEANCE = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+          OFFHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    DRUID = {
+      BALANCE = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      FERAL = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      GUARDIAN = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Versatile Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
+          FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      RESTORATION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Arcanoweave Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
+          FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    EVOKER = {
+      DEVASTATION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      AUGMENTATION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Zul'jin's Mastery",
+          FINGER2 = "Enchant Ring - Zul'jin's Mastery",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      PRESERVATION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Arcanoweave Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Zul'jin's Mastery",
+          FINGER2 = "Enchant Ring - Zul'jin's Mastery",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    HUNTER = {
+      BEAST_MASTERY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Rite of the Hash'ey",
+        },
+      },
+      MARKSMANSHIP = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Jan'alai's Precision",
+        },
+      },
+      SURVIVAL = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Arcane Mastery",
+          OFFHAND = "Enchant Weapon - Arcane Mastery",
+        },
+      },
+    },
+    MAGE = {
+      ARCANE = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Versatile Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      FIRE = {
+        Gems = {
+          Primary = "Powerful Eversong Diamond",
+          Secondary = "Flawless Masterful Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      FROST = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    MONK = {
+      BREWMASTER = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Versatile Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      MISTWEAVER = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
+          FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      WINDWALKER = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+          OFFHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    PALADIN = {
+      HOLY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Arcanoweave Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Zul'jin's Mastery",
+          FINGER2 = "Enchant Ring - Zul'jin's Mastery",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      PROTECTION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      RETRIBUTION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    PRIEST = {
+      DISCIPLINE = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Magister",
+          LEGS = "Arcanoweave Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
+          FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      HOLY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Versatile Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Nature's Fury",
+          FINGER2 = "Enchant Ring - Nature's Fury",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      SHADOW = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Masterful Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Arcane Mastery",
+        },
+      },
+    },
+    ROGUE = {
+      ASSASSINATION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Berserker's Rage",
+          OFFHAND = "Enchant Weapon - Jan'alai's Precision",
+        },
+      },
+      OUTLAW = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+          OFFHAND = "Enchant Weapon - Rite of the Hash'ey",
+        },
+      },
+      SUBTLETY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Arcane Mastery",
+          OFFHAND = "Enchant Weapon - Arcane Mastery",
+        },
+      },
+    },
+    SHAMAN = {
+      ELEMENTAL = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Deadly Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Jan'alai's Precision",
+        },
+      },
+      ENHANCEMENT = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Arcane Mastery",
+          OFFHAND = "Enchant Weapon - Arcane Mastery",
+        },
+      },
+      RESTORATION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Versatile Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Magister",
+          LEGS = "Arcanoweave Spellthread",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    WARLOCK = {
+      AFFLICTION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      DEMONOLOGY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+      DESTRUCTION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Sunfire Silk Spellthread",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+        },
+      },
+    },
+    WARRIOR = {
+      ARMS = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Garnet",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Blood Knight's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Berserker's Rage",
+        },
+      },
+      FURY = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Quick Amethyst",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+          SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Blood Knight's Armor Kit",
+          FEET = "Enchant Boots - Lynx's Dexterity",
+          FINGER1 = "Enchant Ring - Eyes of the Eagle",
+          FINGER2 = "Enchant Ring - Eyes of the Eagle",
+          MAINHAND = "Enchant Weapon - Arcane Mastery",
+          OFFHAND = "Enchant Weapon - Arcane Mastery",
+        },
+      },
+      PROTECTION = {
+        Gems = {
+          Primary = "Indecipherable Eversong Diamond",
+          Secondary = "Flawless Versatile Peridot",
+        },
+        Enchants = {
+          HEAD = "Enchant Helm - Empowered Hex of Leeching",
+          SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+          CHEST = "Enchant Chest - Mark of the Worldsoul",
+          LEGS = "Forest Hunter's Armor Kit",
+          FEET = "Enchant Boots - Shaladrassil's Roots",
+          FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
+          FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+          MAINHAND = "Enchant Weapon - Berserker's Rage",
+        },
+      },
+    },
+  },
 }
 
 MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from the leftmost column)
