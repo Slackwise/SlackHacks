@@ -29,6 +29,11 @@ function raiseCastingNameplate(unitTarget)
 
 	local nameplate = C_NamePlate.GetNamePlateForUnit(unitTarget)
 	if nameplate then
+		if nameplate.IsProtected and nameplate:IsProtected() then
+			log("unit=" .. tostring(unitTarget) .. " protected nameplate")
+			return
+		end
+
 		local currentLevel = nameplate:GetFrameLevel()
 		if lastNameplateLevel == 0 then
 			-- Starting off, we want to bump the first caster by a big amount so they're at the top:
