@@ -104,6 +104,25 @@ MOUNTS_BY_USAGE = {
   },
 }
 
+ENHANCEMENTS_BIS_OVERRIDES = {
+  ["Amazoniangf-MoonGuard"] = {
+      Gems = {
+      Primary = "Indecipherable Eversong Diamond",
+      Secondary = "Flawless Versatile Peridot",
+    },
+    Enchants = {
+      HEAD = "Enchant Helm - Empowered Hex of Leeching",
+      SHOULDER = "Enchant Shoulders - Silvermoon's Mending",
+      CHEST = "Enchant Chest - Mark of the Worldsoul",
+      LEGS = "Forest Hunter's Armor Kit",
+      FEET = "Enchant Boots - Shaladrassil's Roots",
+      FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
+      FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+      MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+    },
+  }
+}
+
 
 BINDINGS = {
   GLOBAL = {
