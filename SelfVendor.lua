@@ -25,6 +25,24 @@ local function enhancementFlaskName(sourceKey, classKey, specKey)
   return specData and specData.Flask
 end
 
+local function enhancementOverrideForKey(key)
+  if not key or not ENHANCEMENTS_BIS_OVERRIDES then return nil end
+  for overrideKey, override in pairs(ENHANCEMENTS_BIS_OVERRIDES) do
+    if overrideKey:lower() == key:lower() then return override, overrideKey end
+  end
+end
+
+local function enhancementOverride(unit, fallbackName)
+  if not isSlackwise() or not ENHANCEMENTS_BIS_OVERRIDES then return nil end
+  local characterName, realmName = unit and UnitFullName(unit)
+  local key = characterFullName(characterName, realmName)
+  if not key and fallbackName then
+    characterName, realmName = fallbackName:match("^(.+)%-(.+)$")
+    key = characterFullName(characterName, realmName)
+  end
+  return enhancementOverrideForKey(key)
+end
+
 local function specNameForClass(classKey, rawSpec)
   local specKey = specKeyForName(rawSpec)
   for _, sourceData in pairs(ENHANCEMENTS_BIS or {}) do
@@ -67,7 +85,7 @@ local function senderIsEligible(name)
   return groupUnitFor(name) or guildMember(name)
 end
 
-local function currentRecommendation(unit, sourceKey)
+local function currentRecommendation(unit, sourceKey, characterName)
   local _, classFile = UnitClass(unit or "player")
   local specIndex = GetSpecialization()
   local specName = specIndex and select(2, GetSpecializationInfo(specIndex))
@@ -79,6 +97,11 @@ local function currentRecommendation(unit, sourceKey)
   local fallbackSpecKey, fallbackSpecData = next(classData)
   if not classData[specKey] then specKey = fallbackSpecKey end
   local specData = classData and (classData[specKey] or fallbackSpecData)
+  local override, overrideKey = enhancementOverride(unit, characterName)
+  if override then
+    log("Using enhancement override for " .. overrideKey)
+    specData = override
+  end
   return specData and buildBISEnhancementRecommendation(specData, enhancementFlaskName(sourceKey, classFile, specKey)), sourceKey
 end
 
@@ -207,6 +230,10 @@ local function hasConsumableBuff(unit, buffName, auraSpellID)
 end
 
 function module:SendAugsForClassSpec(input)
+  if not isSlackwise() then
+    print("SlackHacks: unknown command.")
+    return
+  end
   local tokens = {}
   for token in (input or ""):gmatch("%S+") do
     tokens[#tokens + 1] = token
@@ -214,10 +241,39 @@ function module:SendAugsForClassSpec(input)
   local sourceKey = enhancementSourceKey(tokens[#tokens])
   if sourceKey then table.remove(tokens) end
   sourceKey = sourceKey or DEFAULT_ENHANCEMENT_SOURCE
+  if isSlackwise() and #tokens == 2 then
+    local overrideKey = characterFullName(tokens[1], tokens[2])
+    local override, resolvedOverrideKey = enhancementOverrideForKey(overrideKey)
+    if override then
+      local recommendationData = buildBISEnhancementRecommendation(override)
+      local required = buildRequiredForRecommendation(recommendationData)
+      local shortages = missingListForRequired(required)
+      if not mailFrameOpen() then
+        print("SlackHacks: open the mail compose window first.")
+        for itemID, quantity in pairs(shortages) do print(shoppingListItem(itemID, quantity)) end
+        return
+      end
+      if next(shortages) then
+        print("SlackHacks: missing items for " .. resolvedOverrideKey .. ":")
+        for itemID, quantity in pairs(shortages) do print(shoppingListItem(itemID, quantity)) end
+        return
+      end
+      local orderedIDs = sortedItemIDs(required)
+      for mailIndex, itemID in ipairs(orderedIDs) do
+        if mailIndex > 12 or not attachItemToMail(itemID, required[itemID], mailIndex) then
+          print("SlackHacks: failed to attach items for " .. resolvedOverrideKey .. ".")
+          return
+        end
+      end
+      print("SlackHacks: BIS enchants and gems for " .. resolvedOverrideKey .. " have been added to the letter.")
+      return
+    end
+  end
   local classKey, resolvedSpec = parseClassAndSpec(table.concat(tokens, " "))
   if not classKey or not resolvedSpec then
     print("SlackHacks: unknown class/spec for sendaugs: " .. strtrim(input or ""))
     print("Usage: /slack sendaugs <class> <spec> [wowhead|icyveins|murlok]")
+    if isSlackwise() then print("SlackHacks: personal overrides use /slack sendaugs <character> <realm> [wowhead|icyveins|murlok]") end
     return
   end
 
@@ -467,7 +523,7 @@ local function modeIncludesConsumable(mode, kind)
 end
 
 function module:GetRequiredItems()
-  local recommendationData, sourceKey = currentRecommendation(self.pendingUnit or "player", db.profile.selfVendor.source)
+  local recommendationData, sourceKey = currentRecommendation(self.pendingUnit or "player", db.profile.selfVendor.source, self.pendingName)
   if not recommendationData then
     return nil, sourceKey
   end
