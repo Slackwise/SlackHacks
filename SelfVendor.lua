@@ -76,7 +76,7 @@ local function buildBISEnhancementRecommendation(data, flaskName)
     consumables = {
       { itemName = flaskName, itemID = ITEM_NAMES[flaskName], kind = "flask", buffName = "Flask" },
       { itemName = "Thalassian Phoenix Oil", itemID = ITEM_NAMES["Thalassian Phoenix Oil"], kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
-      { itemName = "Void-Touched Augment Rune", itemID = ITEM_NAMES["Void-Touched Augment Rune"], kind = "augmentRune", buffName = "Augmented", quantity = 5 }
+      { itemName = "Void-Touched Augment Rune", itemID = ITEM_NAMES["Void-Touched Augment Rune"], kind = "augmentRune", buffName = "Void-Touched", quantity = 5 }
     }
   }
 end
