@@ -64,8 +64,8 @@ local function buildBISEnhancementRecommendation(data, flaskName)
     end
   end
   local gemEntries, gemNames, gemIDs = {}, {}, {}
-  if data.Gems and data.Gems.Primary then gemEntries[#gemEntries + 1] = { itemName = data.Gems.Primary, quantity = 1 } end
-  if data.Gems and data.Gems.Secondary then gemEntries[#gemEntries + 1] = { itemName = data.Gems.Secondary, quantity = SECONDARY_GEM_QUANTITY } end
+  if data.Gems and data.Gems.Primary then gemEntries[#gemEntries + 1] = { itemName = data.Gems.Primary, itemID = ITEM_NAMES[data.Gems.Primary], quantity = 1 } end
+  if data.Gems and data.Gems.Secondary then gemEntries[#gemEntries + 1] = { itemName = data.Gems.Secondary, itemID = ITEM_NAMES[data.Gems.Secondary], quantity = SECONDARY_GEM_QUANTITY } end
   for index, gem in ipairs(gemEntries) do
     gemNames[index] = gem.itemName
     gemIDs[index] = ITEM_NAMES[gem.itemName]
