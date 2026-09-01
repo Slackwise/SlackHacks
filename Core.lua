@@ -158,6 +158,11 @@ function sameName(left, right)
   return shortName(left) == shortName(right)
 end
 
+function characterFullName(characterName, realmName)
+  if not characterName or not realmName then return nil end
+  return characterName .. "-" .. realmName:gsub("%s+", "")
+end
+
 function groupUnitFor(name)
   if sameName(UnitName("player"), name) then return "player" end
   for index = 1, GetNumGroupMembers() do
