@@ -363,7 +363,7 @@ end
 function module:HandleSlash(input)
   local command = strlower(strtrim(input or ""))
   local requestedSource = command:match("%s+(%S+)$")
-  local sourceKey = enhancementSourceKey(requestedSource)
+  local sourceKey = requestedSource and enhancementSourceKey(requestedSource)
   if sourceKey then
     command = strtrim(command:sub(1, #command - #requestedSource))
     self:SetSource(sourceKey)
