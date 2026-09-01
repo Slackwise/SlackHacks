@@ -14,6 +14,11 @@ local function isEnemyUnit(unitTarget)
 		return false
 	end
 
+	-- bossN unit tokens aren't valid for GetNamePlateForUnit and throw if used.
+	if unitTarget:lower():match("^boss%d+$") then
+		return false
+	end
+
 	return UnitCanAttack("player", unitTarget)
 end
 
