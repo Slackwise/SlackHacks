@@ -106,7 +106,8 @@ MOUNTS_BY_USAGE = {
 
 ENHANCEMENTS_BIS_OVERRIDES = {
   ["Amazoniangf-MoonGuard"] = {
-      Gems = {
+    Flask = "Flask of the Blood Knights",
+    Gems = {
       Primary = "Indecipherable Eversong Diamond",
       Secondary = "Flawless Versatile Peridot",
     },
@@ -118,6 +119,23 @@ ENHANCEMENTS_BIS_OVERRIDES = {
       FEET = "Enchant Boots - Shaladrassil's Roots",
       FINGER1 = "Enchant Ring - Silvermoon's Alacrity",
       FINGER2 = "Enchant Ring - Silvermoon's Alacrity",
+      MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
+    },
+  },
+  ["Inukari-MoonGuard"] = {
+    Flask = "Flask of the Magisters",
+    Gems = {
+      Primary = "Indecipherable Eversong Diamond",
+      Secondary = "Flawless Quick Amethyst",
+    },
+    Enchants = {
+      HEAD = "Enchant Helm - Empowered Rune of Avoidance",
+      SHOULDER = "Enchant Shoulders - Amirdrassil's Grace",
+      CHEST = "Enchant Chest - Mark of the Worldsoul",
+      LEGS = "Forest Hunter's Armor Kit",
+      FEET = "Enchant Boots - Lynx's Dexterity",
+      FINGER1 = "Enchant Ring - Eyes of the Eagle",
+      FINGER2 = "Enchant Ring - Eyes of the Eagle",
       MAINHAND = "Enchant Weapon - Acuity of the Ren'dorei",
     },
   }
