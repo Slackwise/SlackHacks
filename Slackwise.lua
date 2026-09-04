@@ -102,6 +102,15 @@ MOUNTS_BY_USAGE = {
     ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
     ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
   },
+  WARLOCK = {
+    ['GROUND']            = MOUNT_IDS["Incognitro, the Indecipherable Felcycle"],
+    ['FLYING']            = MOUNT_IDS["Ashes of Al'ar"],
+    ['WATER']             = MOUNT_IDS["Sea Turtle"],
+    ['GROUND_PASSENGER']  = MOUNT_IDS["Grotto Netherwing Drake"],
+    ['FLYING_PASSENGER']  = MOUNT_IDS["Grotto Netherwing Drake"],
+    ['GROUND_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+    ['FLYING_SHOWOFF']    = MOUNT_IDS["Swift Razzashi Raptor"],
+  },
 }
 
 ENHANCEMENTS_BIS_OVERRIDES = {
