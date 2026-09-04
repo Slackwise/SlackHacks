@@ -705,6 +705,8 @@ BINDINGS = {
         {"ALT-CTRL-SHIFT-Z",  "spell",   "Mass Resurrection"},
         {"SHIFT-C",           "spell",   "SANCTIFY_SELF"},
         {"CTRL-V",            "macro",   "GUARD_SELF"},
+      USE4
+
       },
       SHADOW = {
       }
@@ -822,23 +824,24 @@ BINDINGS = {
     },
     WARLOCK = {
       CLASS = {
+        { "BUTTON4",    "macro",   "MOUSE4" },
+        { "CTRL-SPACE", "spell",   "Spatial Rift" },
+        { "Q",          "macro",   "PetControl" },
+        { "Z",          "spell",   "Burning Rush" },
         { "1",          "spell",   "Curse of Weakness" },
+        { "2",          "spell",   "Chaos Bolt" },
         { "T",          "spell",   "Drain Life" },
         { "F",          "spell",   "Fear" },
         { "V",          "spell",   "Unending Resolve" },
-        { "Q",          "spell",   "Summon Imp" },
-        { "CTRL-Q",     "spell",   "Summon Voidwalker" },
       },
       AFFLICTION = {},
       DEMONOLOGY = {},
       DESTRUCTION = {
-        { "E",          "spell",   "Immolate" },
-        { "R",          "spell",   "Incinerate" },
+        { "E",          "spell",   "Incinerate" },
+        { "R",          "spell",   "Immolate" },
         { "V",          "spell",   "Unending Resolve" },
         { "SHIFT-V",    "spell",   "Drain Life" },
         { "CTRL-V",     "spell",   "Drain Life" },
-        { "Q",          "spell",   "Summon Imp" },
-        { "SHIFT-Q",    "spell",   "Summon Voidwalker" },
       }
     },
   },
