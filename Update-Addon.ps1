@@ -1,5 +1,6 @@
 param(
-    [string]$RepoPath
+    [string]$RepoPath,
+    [switch]$Rerun
 )
 
 function Show-ErrorMessageBox {
@@ -103,6 +104,22 @@ try {
 
     Assert-GitInstalled
     Invoke-GitPull -Path $RepoPath
+
+    $scriptName = Split-Path -Path $PSCommandPath -Leaf
+    $pulledScript = Join-Path -Path $RepoPath -ChildPath $scriptName
+    if (-not $Rerun -and (Test-Path -Path $pulledScript)) {
+        $runningHash = (Get-FileHash -Path $PSCommandPath -Algorithm SHA256).Hash
+        $pulledHash = (Get-FileHash -Path $pulledScript -Algorithm SHA256).Hash
+        if ($runningHash -ne $pulledHash) {
+            # The pull brought down a newer version of this script; re-run that version so any updated logic actually applies.
+            $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) $scriptName
+            Copy-Item -Path $pulledScript -Destination $tempScript -Force
+
+            $shellPath = (Get-Process -Id $PID).Path
+            & $shellPath -NoProfile -ExecutionPolicy Bypass -File $tempScript -RepoPath $RepoPath -Rerun
+            exit $LASTEXITCODE
+        }
+    }
 } catch {
     Show-ErrorMessageBox -Title 'Update Failed' -Message "$($_.Exception.Message)`n`n$($_.ScriptStackTrace)"
     exit 1
