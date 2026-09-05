@@ -112,6 +112,8 @@ local function finishTradePopulation(module, added)
   else
     log("Added " .. added .. " item entries to the trade window")
   end
+  module.activeTradeName = module.pendingName
+  module.tradeSucceeded = nil
   module.pendingName = nil
   module.pendingUnit = nil
   module.pendingRequired = nil
@@ -405,6 +407,10 @@ function module:OnEnable()
   self:RegisterEvent("TRADE_SHOW")
   self:RegisterEvent("INSPECT_READY")
   self:RegisterEvent("UI_INFO_MESSAGE")
+  self:RegisterEvent("TRADE_ACCEPT_UPDATE")
+  self:RegisterEvent("TRADE_SUCCEEDED")
+  self:RegisterEvent("TRADE_CLOSED")
+  self:RegisterEvent("TRADE_REQUEST_CANCEL")
 end
 
 function module:OnDisable()
@@ -413,6 +419,11 @@ function module:OnDisable()
   self.pendingGlareOverride = nil
   self.pendingFlexOverride = nil
   self.pendingAugmentsOverride = nil
+  self.activeTradeName = nil
+  self.tradeAccepted = nil
+  self.tradeSucceeded = nil
+  self.tradeCanceled = nil
+  self.tradeQueue = {}
   self:UnregisterAllEvents()
 end
 
@@ -474,6 +485,29 @@ function module:ReportMissingItems(shortages)
   self.pendingAugmentsOverride = nil
 end
 
+function module:BeginEmoteTrade(sender, mode)
+  if self.pendingName or self.activeTradeName then
+    self.tradeQueue = self.tradeQueue or {}
+    table.insert(self.tradeQueue, { name = sender, mode = mode })
+    local currentName = self.activeTradeName or self.pendingName
+    local position = #self.tradeQueue
+    SendChatMessage("I'm busy servicing " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
+    return
+  end
+  self.pendingName = sender
+  self.pendingGlareOverride = mode == "consumables"
+  self.pendingFlexOverride = mode == "runes"
+  self.pendingAugmentsOverride = mode == "augments"
+  self.pendingUnit = groupUnitFor(sender)
+  if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
+  if mode == "salute" and self.pendingUnit then
+    self.inspectGUID = UnitGUID(self.pendingUnit)
+    NotifyInspect(self.pendingUnit)
+  else
+    self:CheckAndInitiateTrade()
+  end
+end
+
 function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
   log("Text emote received: message=" .. tostring(message) .. ", sender=" .. tostring(sender) .. ", target=" .. tostring(target) .. ", language=" .. tostring(languageName) .. ", channel=" .. tostring(channelName) .. ", senderGUID=" .. tostring(senderGUID))
   if not db.profile.selfVendor.enabled then
@@ -497,45 +531,16 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
   log("Text emote target check: player=" .. tostring(playerName) .. ", addressedToPlayer=" .. tostring(addressedToPlayer))
   if addressedToPlayer and lowerMessage and lowerMessage:find("raises hand", 1, true) then
     log("Matching raise/volunteer received from " .. tostring(sender))
-    self.pendingName = sender
-    self.pendingAugmentsOverride = true
-    self.pendingGlareOverride = nil
-    self.pendingFlexOverride = nil
-    self.pendingUnit = groupUnitFor(sender)
-    if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-    self:CheckAndInitiateTrade()
+    self:BeginEmoteTrade(sender, "augments")
   elseif addressedToPlayer and lowerMessage and lowerMessage:find("flex", 1, true) then
     log("Matching flex received from " .. tostring(sender))
-    self.pendingName = sender
-    self.pendingFlexOverride = true
-    self.pendingGlareOverride = nil
-    self.pendingAugmentsOverride = nil
-    self.pendingUnit = groupUnitFor(sender)
-    if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-    self:CheckAndInitiateTrade()
-    elseif addressedToPlayer and lowerMessage and lowerMessage:find("glare", 1, true) then
-      log("Matching glare received from " .. tostring(sender))
-    self.pendingName = sender
-      self.pendingGlareOverride = true
-    self.pendingFlexOverride = nil
-    self.pendingAugmentsOverride = nil
-    self.pendingUnit = groupUnitFor(sender)
-    if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-    self:CheckAndInitiateTrade()
+    self:BeginEmoteTrade(sender, "runes")
+  elseif addressedToPlayer and lowerMessage and lowerMessage:find("glare", 1, true) then
+    log("Matching glare received from " .. tostring(sender))
+    self:BeginEmoteTrade(sender, "consumables")
   elseif addressedToPlayer and lowerMessage and lowerMessage:find("salute", 1, true) then
     log("Matching salute received from " .. tostring(sender))
-    self.pendingName = sender
-    self.pendingGlareOverride = nil
-    self.pendingFlexOverride = nil
-    self.pendingAugmentsOverride = nil
-    self.pendingUnit = groupUnitFor(sender)
-    if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-    if self.pendingUnit then
-      self.inspectGUID = UnitGUID(self.pendingUnit)
-      NotifyInspect(self.pendingUnit)
-    else
-      self:CheckAndInitiateTrade()
-    end
+    self:BeginEmoteTrade(sender, "salute")
   else
     log("Ignoring text emote because it was not a targeted salute")
   end
@@ -572,6 +577,42 @@ function module:UI_INFO_MESSAGE(_, message)
   self.pendingGlareOverride = nil
   self.pendingFlexOverride = nil
   self.pendingAugmentsOverride = nil
+end
+
+function module:TRADE_ACCEPT_UPDATE(_, playerAccepted, targetAccepted)
+  self.tradeAccepted = playerAccepted and targetAccepted or nil
+end
+
+function module:TRADE_REQUEST_CANCEL()
+  self.tradeCanceled = true
+  self.tradeQueue = {}
+end
+
+function module:TRADE_SUCCEEDED()
+  self.tradeSucceeded = true
+end
+
+function module:StartQueuedTrade()
+  if not self.tradeQueue or #self.tradeQueue == 0 then return end
+  local queuedTrade = table.remove(self.tradeQueue, 1)
+  self.activeTradeName = nil
+  self.tradeAccepted = nil
+  self.tradeSucceeded = nil
+  self.tradeCanceled = nil
+  self:BeginEmoteTrade(queuedTrade.name, queuedTrade.mode)
+end
+
+function module:TRADE_CLOSED()
+  local successful = self.activeTradeName and self.tradeSucceeded and not self.tradeCanceled
+  self.activeTradeName = nil
+  self.tradeAccepted = nil
+  self.tradeSucceeded = nil
+  self.tradeCanceled = nil
+  if successful then
+    self:StartQueuedTrade()
+  else
+    self.tradeQueue = {}
+  end
 end
 
 local function modeIncludesGear(mode)
