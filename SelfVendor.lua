@@ -710,6 +710,21 @@ function module:CheckAndInitiateTrade()
     self:ReportMissingItems(shortages)
     return
   end
+  local augmentMode = self.pendingAugmentsOverride
+    or not self.pendingFlexOverride and not self.pendingGlareOverride and db.profile.selfVendor.mode == "augments"
+  if augmentMode and not next(required) then
+    DoEmote("IMPRESSED", self.pendingName)
+    log("Augments already match for " .. self.pendingName)
+    self.pendingName = nil
+    self.pendingUnit = nil
+    self.pendingRequired = nil
+    self.pendingTradeItems = nil
+    self.pendingTradeIndex = nil
+    self.pendingGlareOverride = nil
+    self.pendingFlexOverride = nil
+    self.pendingAugmentsOverride = nil
+    return
+  end
   log("Inventory check passed; preparing exact stacks before trade")
   self.pendingRequired = required
   self:PrepareTradeItems(required)
