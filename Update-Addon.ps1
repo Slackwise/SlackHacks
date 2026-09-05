@@ -11,7 +11,7 @@ function Get-LatestCommitHash {
         [string]$Branch
     )
 
-    if ($RepoUrl -notmatch 'github\.com/(?<owner>[^/]+)/(?<repo>[^/]+?)(\.git)?/?$') {
+    if ($RepoUrl -notmatch 'github\.com/(?<owner>[^/]+)/(?<repo>[^/]+?)(\.git)?(/tree/(?<branch>[^/]+))?/?$') {
         throw "Unable to parse GitHub owner/repo from URL: $RepoUrl";
     }
 
@@ -20,12 +20,16 @@ function Get-LatestCommitHash {
     $headers = @{ 'User-Agent' = 'SlackHacks-Update-Addon' };
 
     if ([string]::IsNullOrEmpty($Branch)) {
-        # Look up the repo's default branch, since it isn't always "main" or "master".
-        $repoInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$owner/$repo" -Headers $headers;
-        $Branch = $repoInfo.default_branch;
+        # Fall back to a branch embedded in the URL (e.g. .../tree/<branch>); otherwise the API defaults to the repo's default branch.
+        $Branch = $Matches['branch'];
     }
 
-    $commitInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$owner/$repo/commits/$Branch" -Headers $headers;
+    $uri = "https://api.github.com/repos/$owner/$repo/commits";
+    if (-not [string]::IsNullOrEmpty($Branch)) {
+        $uri += "/$Branch";
+    }
+
+    $commitInfo = Invoke-RestMethod -Uri $uri -Headers $headers;
 
     return $commitInfo.sha;
 }
