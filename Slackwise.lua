@@ -810,7 +810,28 @@ BINDINGS = {
       AUGMENTATION = {
         { "ALT-CTRL-SHIFT-Z", "spell",   "Mass Return" },
       }
-    }
+    },
+    WARLOCK = {
+      CLASS = {
+        { "1",          "spell",   "Curse of Weakness" },
+        { "T",          "spell",   "Drain Life" },
+        { "F",          "spell",   "Fear" },
+        { "V",          "spell",   "Unending Resolve" },
+        { "Q",          "spell",   "Summon Imp" },
+        { "CTRL-Q",     "spell",   "Summon Voidwalker" },
+      },
+      AFFLICTION = {},
+      DEMONOLOGY = {},
+      DESTRUCTION = {
+        { "E",          "spell",   "Immolate" },
+        { "R",          "spell",   "Incinerate" },
+        { "V",          "spell",   "Unending Resolve" },
+        { "SHIFT-V",    "spell",   "Drain Life" },
+        { "CTRL-V",     "spell",   "Drain Life" },
+        { "Q",          "spell",   "Summon Imp" },
+        { "SHIFT-Q",    "spell",   "Summon Voidwalker" },
+      }
+    },
   },
   CLASSIC = {
     DRUID = {
