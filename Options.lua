@@ -31,17 +31,21 @@ options = {
   type = "group",
   args = {
     enable = {
-      name = "Enabled",
-      desc = "Enable/disable " .. addonName,
+      name = "Enable",
+      desc = "Fully enables/disables the entire addon",
       type = "toggle",
+      descStyle = "inline",
+      width = "full",
       get = function() return Self:IsEnabled() end,
       set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
       order = 0 -- first
     },
     debug = {
-      name = "Enable Debugging",
-      desc = "Enable debugging logs and stuff",
+      name = "Debug Mode",
+      desc = "Prints debug information to the chat window and logs to DB for later analysis",
       type = "toggle",
+      descStyle = "inline",
+      width = "full",
       get = function() return db.global.isDebugging end,
       set = function()
         db.global.isDebugging = not db.global.isDebugging
@@ -62,6 +66,8 @@ options = {
           name = "Auto Sell Grey Items",
           desc = "Automatically sell grey-quality items when visiting a merchant.",
           type = "toggle",
+          descStyle = "inline",
+          width = "full",
           get = function() return db.profile.general.autoSellGreyItems end,
           set = function(_, value) db.profile.general.autoSellGreyItems = value end,
           order = 1
@@ -70,6 +76,8 @@ options = {
           name = "Maximum Camera Zoom",
           desc = "Allow the camera to zoom out to its maximum distance.",
           type = "toggle",
+          descStyle = "inline",
+          width = "full",
           get = function() return db.profile.general.maximumCameraZoom end,
           set = function(_, value)
             db.profile.general.maximumCameraZoom = value
@@ -86,7 +94,10 @@ options = {
           args = {
             autoRepair = {
               name = "Enable Auto Repair",
+              desc = "Automatically repair all items when visiting a merchant.",
               type = "toggle",
+              descStyle = "inline",
+              width = "full",
               get = function() return db.profile.general.autoRepair end,
               set = function(_, value) db.profile.general.autoRepair = value end,
               order = 1
@@ -95,6 +106,7 @@ options = {
               name = "Funds",
               desc = "Choose which funds to use for automatic repairs.",
               type = "select",
+              width = "full",
               values = {
                 personal = "Personal Funds",
                 guild = "Guild Funds",
@@ -105,6 +117,12 @@ options = {
               set = function(_, value) db.profile.general.autoRepairMode = value end,
               disabled = function() return not db.profile.general.autoRepair end,
               order = 2
+            },
+            autoRepairModeDescription = {
+              type = "description",
+              name = "Choose which funds to use for automatic repairs.",
+              width = "full",
+              order = 3
             }
           },
         }
@@ -120,6 +138,8 @@ options = {
           name = "Enable Self Vendor",
           desc = "Open trades when an eligible party, raid, or guild member salutes you.",
           type = "toggle",
+          descStyle = "inline",
+          width = "full",
           get = function() return db.profile.selfVendor.enabled end,
           set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
           order = 1
@@ -128,6 +148,7 @@ options = {
           name = "Vendor Mode",
           desc = "Choose which recommendations are offered in the trade window.",
           type = "select",
+          width = "full",
           values = {
             everything = "Everything",
             augments = "Augments (Enchants and Gems)",
@@ -141,6 +162,12 @@ options = {
           get = function() return db.profile.selfVendor.mode end,
           set = function(_, value) Self.SelfVendor:SetMode(value) end,
           order = 2
+        },
+        modeDescription = {
+          type = "description",
+          name = "Choose which recommendations are offered in the trade window.",
+          width = "full",
+          order = 3
         }
       }
     },
