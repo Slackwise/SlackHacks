@@ -2,6 +2,22 @@ $ADDON_REPO = "https://github.com/Slackwise/SlackHacks";
 
 $LIB_REPOS = ,"https://github.com/WoWUIDev/Ace3";
 
+function Assert-GitInstalled {
+    if (Get-Command -Name git -ErrorAction SilentlyContinue) {
+        return;
+    }
+
+    Add-Type -AssemblyName System.Windows.Forms;
+    [System.Windows.Forms.MessageBox]::Show(
+        "Git is required to update this addon. Please install Git for Windows from https://git-scm.com/download/win and try again.",
+        "Git Not Found",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null;
+
+    exit 1;
+}
+
 function Get-LatestCommitInfo {
     param(
         [Parameter(Mandatory = $true)]
@@ -37,27 +53,4 @@ function Get-LatestCommitInfo {
         Branch = $Branch;
         Sha    = $commitInfo.sha;
     };
-}
-
-function Get-CommitArchiveUrl {
-    param(
-        [Parameter(Mandatory = $true)]
-        [PSCustomObject]$CommitInfo
-    )
-
-    return "https://github.com/$($CommitInfo.Owner)/$($CommitInfo.Repo)/archive/$($CommitInfo.Sha).zip";
-}
-
-function Save-CommitArchive {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Url,
-
-        [Parameter(Mandatory = $true)]
-        [string]$OutFile
-    )
-
-    Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers @{ 'User-Agent' = 'SlackHacks-Update-Addon' };
-
-    return $OutFile;
 }
