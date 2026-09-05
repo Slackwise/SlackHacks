@@ -2155,6 +2155,7 @@ MOUNT_IDS = { -- from https://wowpedia.fandom.com/wiki/MountID (Use the ID from 
   ["Grotto Netherwing Drake"]      = 1744,
   ["Algarian Stormrider"]          = 1792,
   ["Auspicious Arborwyrm"]         = 1795,
+  ["Incognitro, the Indecipherable Felcycle"] = 1943,
   ["Grizzly Hills Packmaster"]     = 2237,
   ["Coldflame Tempest"]            = 2261,
   ["Trader's Gilded Brutosaur"]    = 2265,
