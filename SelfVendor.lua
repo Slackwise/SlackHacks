@@ -404,6 +404,7 @@ function module:OnEnable()
   self:RegisterEvent("CHAT_MSG_TEXT_EMOTE")
   self:RegisterEvent("TRADE_SHOW")
   self:RegisterEvent("INSPECT_READY")
+  self:RegisterEvent("UI_INFO_MESSAGE")
 end
 
 function module:OnDisable()
@@ -554,6 +555,23 @@ function module:TRADE_SHOW()
   log("Trade window shown; pending player=" .. tostring(self.pendingName))
   if not self.pendingName then return end
   self:OpenPendingTrade()
+end
+
+function module:UI_INFO_MESSAGE(_, message)
+  if not self.pendingName or not message then return end
+  local lowerMessage = message:lower()
+  if not lowerMessage:find("too far", 1, true) and not lowerMessage:find("out of range", 1, true) then return end
+  log("Trade target is out of range; beckoning " .. self.pendingName)
+  TargetUnit(self.pendingName)
+  DoEmote("BECKON", self.pendingName)
+  self.pendingName = nil
+  self.pendingUnit = nil
+  self.pendingRequired = nil
+  self.pendingTradeItems = nil
+  self.pendingTradeIndex = nil
+  self.pendingGlareOverride = nil
+  self.pendingFlexOverride = nil
+  self.pendingAugmentsOverride = nil
 end
 
 local function modeIncludesGear(mode)
