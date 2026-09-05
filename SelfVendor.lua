@@ -117,6 +117,7 @@ local function finishTradePopulation(module, added)
   module.pendingRequired = nil
   module.pendingTradeItems = nil
   module.pendingTradeIndex = nil
+  module.pendingBegOverride = nil
 end
 
 local function itemName(itemID)
@@ -406,6 +407,7 @@ end
 function module:OnDisable()
   log("Self Vendor disabled; unregistering events")
   self.pendingBagUpdate = nil
+  self.pendingBegOverride = nil
   self:UnregisterAllEvents()
 end
 
@@ -442,6 +444,7 @@ function module:FailPendingTrade(message)
   self.pendingUnit = nil
   self.pendingRequired = nil
   self.inspectGUID = nil
+  self.pendingBegOverride = nil
 end
 
 function module:ReportMissingItems(shortages)
@@ -459,6 +462,7 @@ function module:ReportMissingItems(shortages)
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
   self.inspectGUID = nil
+  self.pendingBegOverride = nil
 end
 
 function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
@@ -473,14 +477,24 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
   end
   local playerName = UnitName("player")
   local addressedToPlayer = target and sameName(target, playerName)
+  local lowerMessage = message and message:lower()
   if not addressedToPlayer and message then
-    local lowerMessage = message:lower()
-    addressedToPlayer = message:find(playerName, 1, true) ~= nil or lowerMessage:find("salutes you", 1, true) ~= nil
+    addressedToPlayer = message:find(playerName, 1, true) ~= nil
+      or lowerMessage:find("salutes you", 1, true) ~= nil
+      or lowerMessage:find("begs you", 1, true) ~= nil
   end
   log("Text emote target check: player=" .. tostring(playerName) .. ", addressedToPlayer=" .. tostring(addressedToPlayer))
-  if addressedToPlayer and message and message:lower():find("salute", 1, true) then
+  if addressedToPlayer and lowerMessage and lowerMessage:find("beg", 1, true) then
+    log("Matching beg received from " .. tostring(sender))
+    self.pendingName = sender
+    self.pendingBegOverride = true
+    self.pendingUnit = groupUnitFor(sender)
+    if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
+    self:CheckAndInitiateTrade()
+  elseif addressedToPlayer and lowerMessage and lowerMessage:find("salute", 1, true) then
     log("Matching salute received from " .. tostring(sender))
     self.pendingName = sender
+    self.pendingBegOverride = nil
     self.pendingUnit = groupUnitFor(sender)
     if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
     if self.pendingUnit then
@@ -528,7 +542,7 @@ function module:GetRequiredItems()
     return nil, sourceKey
   end
   local required = {}
-  local mode = db.profile.selfVendor.mode
+  local mode = self.pendingBegOverride and "consumables" or db.profile.selfVendor.mode
   if modeIncludesGear(mode) then
     for _, slotKey in ipairs(recommendationData.slotKeys) do
       local slot = SLOT_IDS[slotKey]
@@ -566,7 +580,7 @@ function module:GetRequiredItems()
   end
   for _, item in ipairs(recommendationData.consumables) do
     if modeIncludesConsumable(mode, item.kind) then
-      local hasBuff = item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
+      local hasBuff = not self.pendingBegOverride and item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
       if item.kind == "oil" then
         log("Cannot verify Phoenix Oil on another player; temporary weapon enchant data is player-only")
       end
