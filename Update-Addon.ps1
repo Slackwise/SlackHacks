@@ -36,13 +36,14 @@ function Invoke-GitPull {
         [string]$Path
     )
 
-    git -C $Path pull
+    git -C $Path pull --ff-only
     if ($LASTEXITCODE -ne 0) {
         Show-ErrorMessageBox -Title 'Git Pull Failed' -Message "Failed to pull the latest changes for '$Path'. Please resolve any git issues and try again."
         exit 1
     }
 
-    git -C $Path submodule update --init --recursive
+    # No --remote: this checks out each submodule to the exact commit recorded by the superproject, not the latest on its branch.
+    git -C $Path submodule update --init --recursive --force
     if ($LASTEXITCODE -ne 0) {
         Show-ErrorMessageBox -Title 'Git Submodule Update Failed' -Message "Failed to update submodules for '$Path'. Please resolve any git issues and try again."
         exit 1
