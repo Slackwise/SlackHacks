@@ -2,7 +2,7 @@ $ADDON_REPO = "https://github.com/Slackwise/SlackHacks";
 
 $LIB_REPOS = ,"https://github.com/WoWUIDev/Ace3";
 
-function Get-LatestCommitHash {
+function Get-LatestCommitInfo {
     param(
         [Parameter(Mandatory = $true)]
         [string]$RepoUrl,
@@ -31,5 +31,33 @@ function Get-LatestCommitHash {
 
     $commitInfo = Invoke-RestMethod -Uri $uri -Headers $headers;
 
-    return $commitInfo.sha;
+    return [PSCustomObject]@{
+        Owner  = $owner;
+        Repo   = $repo;
+        Branch = $Branch;
+        Sha    = $commitInfo.sha;
+    };
+}
+
+function Get-CommitArchiveUrl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$CommitInfo
+    )
+
+    return "https://github.com/$($CommitInfo.Owner)/$($CommitInfo.Repo)/archive/$($CommitInfo.Sha).zip";
+}
+
+function Save-CommitArchive {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutFile
+    )
+
+    Invoke-WebRequest -Uri $Url -OutFile $OutFile -Headers @{ 'User-Agent' = 'SlackHacks-Update-Addon' };
+
+    return $OutFile;
 }
