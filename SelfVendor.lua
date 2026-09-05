@@ -527,10 +527,10 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
       or lowerMessage:find("salutes you", 1, true) ~= nil
         or lowerMessage:find("glares at you", 1, true) ~= nil
       or lowerMessage:find("flexes at you", 1, true) ~= nil
-        or lowerMessage:find("raises hand", 1, true) ~= nil
+        or lowerMessage:find("looks at you and raises", 1, true) ~= nil
   end
   log("Text emote target check: player=" .. tostring(playerName) .. ", addressedToPlayer=" .. tostring(addressedToPlayer))
-  if addressedToPlayer and lowerMessage and lowerMessage:find("raises hand", 1, true) then
+  if addressedToPlayer and lowerMessage and lowerMessage:find("looks at you and raises", 1, true) then
     log("Matching raise/volunteer received from " .. tostring(sender))
     self:BeginEmoteTrade(sender, "augments")
   elseif addressedToPlayer and lowerMessage and lowerMessage:find("flex", 1, true) then
