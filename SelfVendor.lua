@@ -408,7 +408,6 @@ function module:OnEnable()
   self:RegisterEvent("INSPECT_READY")
   self:RegisterEvent("UI_INFO_MESSAGE")
   self:RegisterEvent("TRADE_ACCEPT_UPDATE")
-  self:RegisterEvent("TRADE_SUCCEEDED")
   self:RegisterEvent("TRADE_CLOSED")
   self:RegisterEvent("TRADE_REQUEST_CANCEL")
 end
@@ -492,6 +491,8 @@ function module:BeginEmoteTrade(sender, mode)
     local currentName = self.activeTradeName or self.pendingName
     local position = #self.tradeQueue
     SendChatMessage("I'm busy servicing " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
+    print("SlackHacks: " .. sender .. " joined the Self Vendor queue (" .. position .. " in queue).")
+    log("Added " .. sender .. " to the Self Vendor queue; queue size=" .. position)
     return
   end
   self.pendingName = sender
@@ -562,7 +563,7 @@ function module:TRADE_SHOW()
   self:OpenPendingTrade()
 end
 
-function module:UI_INFO_MESSAGE(_, message)
+function module:UI_INFO_MESSAGE(_, _, message)
   if not self.pendingName or not message then return end
   local lowerMessage = message:lower()
   if not lowerMessage:find("too far", 1, true) and not lowerMessage:find("out of range", 1, true) then return end
@@ -581,15 +582,15 @@ end
 
 function module:TRADE_ACCEPT_UPDATE(_, playerAccepted, targetAccepted)
   self.tradeAccepted = playerAccepted and targetAccepted or nil
+  -- TRADE_SUCCEEDED is not a real client event; both parties accepting means the trade completed
+  if self.tradeAccepted then
+    self.tradeSucceeded = true
+  end
 end
 
 function module:TRADE_REQUEST_CANCEL()
   self.tradeCanceled = true
   self.tradeQueue = {}
-end
-
-function module:TRADE_SUCCEEDED()
-  self.tradeSucceeded = true
 end
 
 function module:StartQueuedTrade()
@@ -603,15 +604,28 @@ function module:StartQueuedTrade()
 end
 
 function module:TRADE_CLOSED()
+  local servicedName = self.activeTradeName
   local successful = self.activeTradeName and self.tradeSucceeded and not self.tradeCanceled
   self.activeTradeName = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
   if successful then
+    print("SlackHacks: finished servicing " .. servicedName .. ".")
+    log("Finished servicing " .. servicedName)
     self:StartQueuedTrade()
+    local remaining = self.tradeQueue and #self.tradeQueue or 0
+    if remaining > 0 then
+      print("SlackHacks: " .. remaining .. " still in the Self Vendor queue.")
+      log("Self Vendor queue has " .. remaining .. " remaining")
+    else
+      print("SlackHacks: Self Vendor queue is cleared.")
+      log("Self Vendor queue cleared")
+    end
   else
     self.tradeQueue = {}
+    print("SlackHacks: Self Vendor queue is cleared.")
+    log("Self Vendor queue cleared")
   end
 end
 
