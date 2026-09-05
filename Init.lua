@@ -23,7 +23,8 @@ dbDefaults = {
     general = {
       autoSellGreyItems = false,
       autoRepair = false,
-      autoRepairMode = "personal"
+      autoRepairMode = "personal",
+      maximumCameraZoom = false
     },
     selfVendor = {
       enabled = false,

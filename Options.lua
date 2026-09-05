@@ -66,12 +66,23 @@ options = {
           set = function(_, value) db.profile.general.autoSellGreyItems = value end,
           order = 1
         },
+        maximumCameraZoom = {
+          name = "Maximum Camera Zoom",
+          desc = "Allow the camera to zoom out to its maximum distance.",
+          type = "toggle",
+          get = function() return db.profile.general.maximumCameraZoom end,
+          set = function(_, value)
+            db.profile.general.maximumCameraZoom = value
+            setCVars()
+          end,
+          order = 2
+        },
         autoRepairGroup = {
           type = "group",
           name = "Auto Repair",
           desc = "Automatically repair all items when visiting a merchant.",
           inline = true,
-          order = 2,
+          order = 3,
           args = {
             autoRepair = {
               name = "Enable Auto Repair",
