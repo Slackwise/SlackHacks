@@ -457,12 +457,12 @@ end
 function module:ReportMissingItems(shortages)
   if self.pendingName then
     DoEmote("SORRY", self.pendingName)
+    SendChatMessage("Sorry, I'm missing these items and need to restock:", "WHISPER", nil, self.pendingName)
+    for itemID, quantity in pairs(shortages) do
+      SendChatMessage(shoppingListItem(itemID, quantity), "WHISPER", nil, self.pendingName)
+    end
   end
   log("Self Vendor trade blocked because required items are missing")
-  print("SlackHacks: buy these items from the auction house:")
-  for itemID, quantity in pairs(shortages) do
-    print(shoppingListItem(itemID, quantity))
-  end
   self.pendingName = nil
   self.pendingUnit = nil
   self.pendingRequired = nil
