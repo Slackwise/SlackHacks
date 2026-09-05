@@ -117,8 +117,9 @@ local function finishTradePopulation(module, added)
   module.pendingRequired = nil
   module.pendingTradeItems = nil
   module.pendingTradeIndex = nil
-  module.pendingBegOverride = nil
+  module.pendingGlareOverride = nil
   module.pendingFlexOverride = nil
+  module.pendingAugmentsOverride = nil
 end
 
 local function itemName(itemID)
@@ -408,8 +409,9 @@ end
 function module:OnDisable()
   log("Self Vendor disabled; unregistering events")
   self.pendingBagUpdate = nil
-  self.pendingBegOverride = nil
+  self.pendingGlareOverride = nil
   self.pendingFlexOverride = nil
+  self.pendingAugmentsOverride = nil
   self:UnregisterAllEvents()
 end
 
@@ -446,8 +448,9 @@ function module:FailPendingTrade(message)
   self.pendingUnit = nil
   self.pendingRequired = nil
   self.inspectGUID = nil
-  self.pendingBegOverride = nil
+  self.pendingGlareOverride = nil
   self.pendingFlexOverride = nil
+  self.pendingAugmentsOverride = nil
 end
 
 function module:ReportMissingItems(shortages)
@@ -465,8 +468,9 @@ function module:ReportMissingItems(shortages)
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
   self.inspectGUID = nil
-  self.pendingBegOverride = nil
+  self.pendingGlareOverride = nil
   self.pendingFlexOverride = nil
+  self.pendingAugmentsOverride = nil
 end
 
 function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
@@ -485,31 +489,44 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
   if not addressedToPlayer and message then
     addressedToPlayer = message:find(playerName, 1, true) ~= nil
       or lowerMessage:find("salutes you", 1, true) ~= nil
-      or lowerMessage:find("begs you", 1, true) ~= nil
+        or lowerMessage:find("glares at you", 1, true) ~= nil
       or lowerMessage:find("flexes at you", 1, true) ~= nil
+        or lowerMessage:find("raises hand", 1, true) ~= nil
   end
   log("Text emote target check: player=" .. tostring(playerName) .. ", addressedToPlayer=" .. tostring(addressedToPlayer))
-  if addressedToPlayer and lowerMessage and lowerMessage:find("flex", 1, true) then
-    log("Matching flex received from " .. tostring(sender))
+  if addressedToPlayer and lowerMessage and lowerMessage:find("raises hand", 1, true) then
+    log("Matching raise/volunteer received from " .. tostring(sender))
     self.pendingName = sender
-    self.pendingFlexOverride = true
-    self.pendingBegOverride = nil
+    self.pendingAugmentsOverride = true
+    self.pendingGlareOverride = nil
+    self.pendingFlexOverride = nil
     self.pendingUnit = groupUnitFor(sender)
     if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
     self:CheckAndInitiateTrade()
-  elseif addressedToPlayer and lowerMessage and lowerMessage:find("beg", 1, true) then
-    log("Matching beg received from " .. tostring(sender))
+  elseif addressedToPlayer and lowerMessage and lowerMessage:find("flex", 1, true) then
+    log("Matching flex received from " .. tostring(sender))
     self.pendingName = sender
-    self.pendingBegOverride = true
+    self.pendingFlexOverride = true
+    self.pendingGlareOverride = nil
+    self.pendingAugmentsOverride = nil
+    self.pendingUnit = groupUnitFor(sender)
+    if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
+    self:CheckAndInitiateTrade()
+    elseif addressedToPlayer and lowerMessage and lowerMessage:find("glare", 1, true) then
+      log("Matching glare received from " .. tostring(sender))
+    self.pendingName = sender
+      self.pendingGlareOverride = true
     self.pendingFlexOverride = nil
+    self.pendingAugmentsOverride = nil
     self.pendingUnit = groupUnitFor(sender)
     if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
     self:CheckAndInitiateTrade()
   elseif addressedToPlayer and lowerMessage and lowerMessage:find("salute", 1, true) then
     log("Matching salute received from " .. tostring(sender))
     self.pendingName = sender
-    self.pendingBegOverride = nil
+    self.pendingGlareOverride = nil
     self.pendingFlexOverride = nil
+    self.pendingAugmentsOverride = nil
     self.pendingUnit = groupUnitFor(sender)
     if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
     if self.pendingUnit then
@@ -557,8 +574,9 @@ function module:GetRequiredItems()
     return nil, sourceKey
   end
   local required = {}
-  local mode = self.pendingFlexOverride and "runes"
-    or self.pendingBegOverride and "consumables"
+    local mode = self.pendingAugmentsOverride and "augments"
+      or self.pendingFlexOverride and "runes"
+      or self.pendingGlareOverride and "consumables"
     or db.profile.selfVendor.mode
   if modeIncludesGear(mode) then
     for _, slotKey in ipairs(recommendationData.slotKeys) do
@@ -597,7 +615,7 @@ function module:GetRequiredItems()
   end
   for _, item in ipairs(recommendationData.consumables) do
     if modeIncludesConsumable(mode, item.kind) then
-      local hasBuff = not self.pendingBegOverride and not self.pendingFlexOverride
+      local hasBuff = not self.pendingGlareOverride and not self.pendingFlexOverride
         and item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
       if item.kind == "oil" then
         log("Cannot verify Phoenix Oil on another player; temporary weapon enchant data is player-only")
