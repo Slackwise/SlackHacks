@@ -830,6 +830,7 @@ BINDINGS = {
         { "Z",          "spell",   "Burning Rush" },
         { "1",          "spell",   "Curse of Weakness" },
         { "2",          "spell",   "Chaos Bolt" },
+        { "4",          "spell",   "Conflagrate" },
         { "T",          "spell",   "Drain Life" },
         { "F",          "spell",   "Fear" },
         { "V",          "spell",   "Unending Resolve" },
