@@ -6,9 +6,9 @@
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
-Init.lua
 ## Libs/lamda/dist/lamda.lua
 embeds.xml
+Init.lua
 Core.lua
 StaticData.lua
 SelfVendor.lua
