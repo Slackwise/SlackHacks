@@ -6,7 +6,6 @@
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
-## RequiredDeps: Ace3
 Init.lua
 ## Libs/lamda/dist/lamda.lua
 embeds.xml
