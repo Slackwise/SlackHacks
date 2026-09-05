@@ -2,7 +2,7 @@ setfenv(1, _G.SlackHacks)
 
 function handleDragonriding()
   -- log("Aura handling dragonriding...")
-  if isTester() then
+  if isSlackwise() then
     if isDragonriding() then
       -- log("BINDING dragonriding")
       bindDragonriding()
@@ -42,10 +42,11 @@ function unbindDragonriding()
 end
 
 SKYRIDING_SPELLID = 404464
+STEADYFLIGHT_SPELLID = 404468
 function isDragonriding()
   -- log("Checking if dragonriding...")
   local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
-  if C_UnitAuras.GetPlayerAuraBySpellID(SKYRIDING_SPELLID) and isActuallyFlyableArea() then
+  if not C_UnitAuras.GetPlayerAuraBySpellID(STEADYFLIGHT_SPELLID) and isActuallyFlyableArea() then
     if GetShapeshiftForm() == 3 then
       return true
     elseif IsMounted() then
