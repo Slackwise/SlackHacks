@@ -20,6 +20,11 @@ dbDefaults = {
     log = {}
   },
   profile = {
+    general = {
+      autoSellGreyItems = false,
+      autoRepair = false,
+      autoRepairMode = "personal"
+    },
     selfVendor = {
       enabled = false,
       mode = "consumables",
