@@ -52,6 +52,53 @@ options = {
         end
       end,
     },
+    general = {
+      type = "group",
+      name = "General",
+      desc = "Small quality-of-life features.",
+      order = 5,
+      args = {
+        autoSellGreyItems = {
+          name = "Auto Sell Grey Items",
+          desc = "Automatically sell grey-quality items when visiting a merchant.",
+          type = "toggle",
+          get = function() return db.profile.general.autoSellGreyItems end,
+          set = function(_, value) db.profile.general.autoSellGreyItems = value end,
+          order = 1
+        },
+        autoRepairGroup = {
+          type = "group",
+          name = "Auto Repair",
+          desc = "Automatically repair all items when visiting a merchant.",
+          inline = true,
+          order = 2,
+          args = {
+            autoRepair = {
+              name = "Enable Auto Repair",
+              type = "toggle",
+              get = function() return db.profile.general.autoRepair end,
+              set = function(_, value) db.profile.general.autoRepair = value end,
+              order = 1
+            },
+            autoRepairMode = {
+              name = "Funds",
+              desc = "Choose which funds to use for automatic repairs.",
+              type = "select",
+              values = {
+                personal = "Personal Funds",
+                guild = "Guild Funds",
+                guildRaid = "Guild Funds (Only in Raids)"
+              },
+              sorting = { "personal", "guild", "guildRaid" },
+              get = function() return db.profile.general.autoRepairMode end,
+              set = function(_, value) db.profile.general.autoRepairMode = value end,
+              disabled = function() return not db.profile.general.autoRepair end,
+              order = 2
+            }
+          },
+        }
+      }
+    },
     vendor = {
       type = "group",
       name = "Self Vendor",

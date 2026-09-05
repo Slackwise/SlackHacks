@@ -55,8 +55,12 @@ function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of comb
 end
 
 function Self:MERCHANT_SHOW(eventName)
-  repairAllItems()
-  sellGreyItems()
+  if db.profile.general.autoRepair then
+    repairAllItems()
+  end
+  if db.profile.general.autoSellGreyItems then
+    sellGreyItems()
+  end
 end
 
 function Self:PLAYER_REGEN_ENABLED(eventName) -- Out of combat
@@ -307,7 +311,11 @@ end
 
 function repairAllItems()
   if CanMerchantRepair() then
-    RepairAllItems() -- #TODO: pass `true` for guild repairs if currently raiding with guild
+    local useGuildRepair = db.profile.general.autoRepairMode == "guild"
+    if db.profile.general.autoRepairMode == "guildRaid" then
+      useGuildRepair = IsInRaid()
+    end
+    RepairAllItems(useGuildRepair)
   end
 end
 
