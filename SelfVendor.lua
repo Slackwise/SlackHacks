@@ -3,6 +3,17 @@ setfenv(1, _G.SlackHacks)
 local module = Self:NewModule("SelfVendor", "AceEvent-3.0")
 Self.SelfVendor = module
 local maxTradeSlots = MAX_TRADABLE_ITEMS or 6
+local VendorMode = Enum.SelfVendorMode
+
+local function modeConfiguration(mode)
+  return db.profile.selfVendor.modes[mode]
+end
+
+local function modeForCommand(command)
+  for mode, details in pairs(SELF_VENDOR_MODES) do
+    if details.command == command then return mode end
+  end
+end
 
 local function itemID(itemName)
   return ITEM_NAMES and ITEM_NAMES[itemName]
@@ -119,9 +130,7 @@ local function finishTradePopulation(module, added)
   module.pendingRequired = nil
   module.pendingTradeItems = nil
   module.pendingTradeIndex = nil
-  module.pendingGlareOverride = nil
-  module.pendingFlexOverride = nil
-  module.pendingAugmentsOverride = nil
+  module.pendingMode = nil
 end
 
 local function itemName(itemID)
@@ -342,19 +351,21 @@ function module:SendAugsForClassSpec(input)
   print("SlackHacks: BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
 end
 
-function module:SetEnabled(enabled)
-  db.profile.selfVendor.enabled = enabled
-  log("Self Vendor enabled state changed to " .. tostring(enabled))
-  if enabled then self:Enable() else self:Disable() end
+function module:SetModeEnabled(mode, enabled)
+  local configuration = modeConfiguration(mode)
+  if not configuration then return end
+  configuration.enabled = enabled
 end
 
-function module:SetMode(mode)
-  if mode == "buff" then mode = "consumable" end
-  if mode == "consumable" then mode = "consumables" end
-  if mode == "flaskoil" then mode = "flaskOil" end
-  if mode ~= "everything" and mode ~= "augments" and mode ~= "consumables" and mode ~= "flaskOil" and mode ~= "runes" and mode ~= "oil" and mode ~= "flasks" then return end
-  db.profile.selfVendor.mode = mode
-  log("Self Vendor mode changed to " .. mode)
+function module:SetModeTriggerEmote(mode, emote)
+  local configuration = modeConfiguration(mode)
+  if not configuration or not SELF_VENDOR_TRIGGER_EMOTES[emote] then return end
+  configuration.triggerEmote = emote
+end
+
+function module:SetRuneQuantity(value)
+  local configuration = modeConfiguration(VendorMode.RUNES)
+  if configuration then configuration.runeQuantity = math.max(1, math.min(100, tonumber(value) or 1)) end
 end
 
 function module:SetSource(sourceKey)
@@ -373,32 +384,30 @@ function module:HandleSlash(input)
     command = strtrim(command:sub(1, #command - #requestedSource))
     self:SetSource(sourceKey)
   end
-  local mode = command:match("^mode%s+(%S+)$") or command:match("^(everything)$") or command:match("^(augments)$") or command:match("^(buff)$") or command:match("^(consumable)$") or command:match("^(consumables)$") or command:match("^(flaskoil)$") or command:match("^(runes)$") or command:match("^(oil)$") or command:match("^(flasks)$")
-  if mode == "everything" or mode == "augments" or mode == "buff" or mode == "consumable" or mode == "consumables" or mode == "flaskoil" or mode == "runes" or mode == "oil" or mode == "flasks" then
-    self:SetMode(mode)
-    if not db.profile.selfVendor.enabled then self:SetEnabled(true) end
-    print("SlackHacks Self Vendor mode: " .. db.profile.selfVendor.mode .. " (" .. displayEnhancementSource(db.profile.selfVendor.source) .. ")")
+  local mode = modeForCommand(command)
+  if mode then
+    local targetName = UnitName("target")
+    if not targetName or not senderIsEligible(targetName) then
+      print("SlackHacks: target an eligible group, raid, or guild member first.")
+      return
+    end
+    if not modeConfiguration(mode).enabled then
+      print("SlackHacks: " .. SELF_VENDOR_MODES[mode].name .. " is disabled.")
+      return
+    end
+    self:BeginEmoteTrade(targetName, mode)
   elseif command == "mode" then
-    print("Usage: /slack vendor mode [everything|augments|consumables|flaskOil|runes|oil|flasks] [wowhead|icyveins|murlok]")
-  elseif command == "" or command == "toggle" then
-    self:SetEnabled(not db.profile.selfVendor.enabled)
-    print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
+    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
   else
-    print("Usage: /slack vendor [toggle|mode everything|augments|consumables|flaskOil|runes|oil|flasks] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [toggle|consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
   end
 end
 
 function module:OnInitialize()
-  if db.profile.selfVendor.mode == "gear" then
-    db.profile.selfVendor.mode = "augments"
-  elseif db.profile.selfVendor.mode == nil or db.profile.selfVendor.mode == "buff" or db.profile.selfVendor.mode == "consumable" then
-    db.profile.selfVendor.mode = "consumables"
-  end
   if not enhancementSourceKey(db.profile.selfVendor.source) then
     db.profile.selfVendor.source = DEFAULT_ENHANCEMENT_SOURCE
   end
-  log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled) .. ", mode=" .. db.profile.selfVendor.mode)
-  if not db.profile.selfVendor.enabled then self:Disable() end
+  log("Self Vendor initialized")
 end
 
 function module:OnEnable()
@@ -415,9 +424,7 @@ end
 function module:OnDisable()
   log("Self Vendor disabled; unregistering events")
   self.pendingBagUpdate = nil
-  self.pendingGlareOverride = nil
-  self.pendingFlexOverride = nil
-  self.pendingAugmentsOverride = nil
+  self.pendingMode = nil
   self.activeTradeName = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
@@ -459,9 +466,7 @@ function module:FailPendingTrade(message)
   self.pendingUnit = nil
   self.pendingRequired = nil
   self.inspectGUID = nil
-  self.pendingGlareOverride = nil
-  self.pendingFlexOverride = nil
-  self.pendingAugmentsOverride = nil
+  self.pendingMode = nil
 end
 
 function module:ReportMissingItems(shortages)
@@ -479,9 +484,7 @@ function module:ReportMissingItems(shortages)
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
   self.inspectGUID = nil
-  self.pendingGlareOverride = nil
-  self.pendingFlexOverride = nil
-  self.pendingAugmentsOverride = nil
+  self.pendingMode = nil
 end
 
 function module:BeginEmoteTrade(sender, mode)
@@ -496,12 +499,10 @@ function module:BeginEmoteTrade(sender, mode)
     return
   end
   self.pendingName = sender
-  self.pendingGlareOverride = mode == "consumables"
-  self.pendingFlexOverride = mode == "runes"
-  self.pendingAugmentsOverride = mode == "augments"
+  self.pendingMode = mode
   self.pendingUnit = groupUnitFor(sender)
   if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-  if mode == "salute" and self.pendingUnit then
+  if mode == VendorMode.AUGMENTS and self.pendingUnit then
     self.inspectGUID = UnitGUID(self.pendingUnit)
     NotifyInspect(self.pendingUnit)
   else
@@ -511,40 +512,26 @@ end
 
 function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
   log("Text emote received: message=" .. tostring(message) .. ", sender=" .. tostring(sender) .. ", target=" .. tostring(target) .. ", language=" .. tostring(languageName) .. ", channel=" .. tostring(channelName) .. ", senderGUID=" .. tostring(senderGUID))
-  if not db.profile.selfVendor.enabled then
-    log("Ignoring text emote because Self Vendor is disabled")
-    return
-  end
   if not senderIsEligible(sender) then
     log("Ignoring text emote because sender is not eligible")
     return
   end
-  local playerName = UnitName("player")
-  local addressedToPlayer = target and sameName(target, playerName)
-  local lowerMessage = message and message:lower()
-  if not addressedToPlayer and message then
-    addressedToPlayer = message:find(playerName, 1, true) ~= nil
-      or lowerMessage:find("salutes you", 1, true) ~= nil
-        or lowerMessage:find("glares angrily at you", 1, true) ~= nil
-      or lowerMessage:find("flexes at you", 1, true) ~= nil
-        or lowerMessage:find("looks at you and raises", 1, true) ~= nil
+  if not target or not sameName(target, UnitName("player")) or not message then
+    log("Ignoring text emote because it is not targeted to the player")
+    return
   end
-  log("Text emote target check: player=" .. tostring(playerName) .. ", addressedToPlayer=" .. tostring(addressedToPlayer))
-  if addressedToPlayer and lowerMessage and lowerMessage:find("looks at you and raises", 1, true) then
-    log("Matching raise/volunteer received from " .. tostring(sender))
-    self:BeginEmoteTrade(sender, "augments")
-  elseif addressedToPlayer and lowerMessage and lowerMessage:find("flex", 1, true) then
-    log("Matching flex received from " .. tostring(sender))
-    self:BeginEmoteTrade(sender, "runes")
-  elseif addressedToPlayer and lowerMessage and lowerMessage:find("glare", 1, true) then
-    log("Matching glare received from " .. tostring(sender))
-    self:BeginEmoteTrade(sender, "consumables")
-  elseif addressedToPlayer and lowerMessage and lowerMessage:find("salute", 1, true) then
-    log("Matching salute received from " .. tostring(sender))
-    self:BeginEmoteTrade(sender, "salute")
-  else
-    log("Ignoring text emote because it was not a targeted salute")
+  local lowerMessage = message:lower()
+  for mode, details in pairs(SELF_VENDOR_MODES) do
+    local configuration = modeConfiguration(mode)
+    local emote = configuration and SELF_VENDOR_TRIGGER_EMOTES[configuration.triggerEmote]
+    local token = configuration and configuration.triggerEmote and configuration.triggerEmote:lower()
+    if configuration and configuration.enabled and emote and (lowerMessage:find(emote.trigger, 1, true) or token and lowerMessage:find(token, 1, true)) then
+      log("Matching " .. details.name .. " trigger received from " .. tostring(sender))
+      self:BeginEmoteTrade(sender, mode)
+      return
+    end
   end
+  log("Ignoring text emote because it does not match an enabled trigger")
 end
 
 function module:INSPECT_READY(_, guid)
@@ -575,9 +562,7 @@ function module:UI_INFO_MESSAGE(_, _, message)
   self.pendingRequired = nil
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
-  self.pendingGlareOverride = nil
-  self.pendingFlexOverride = nil
-  self.pendingAugmentsOverride = nil
+  self.pendingMode = nil
 end
 
 function module:TRADE_ACCEPT_UPDATE(_, playerAccepted, targetAccepted)
@@ -630,15 +615,15 @@ function module:TRADE_CLOSED()
 end
 
 local function modeIncludesGear(mode)
-  return mode == "everything" or mode == "augments"
+  return mode == VendorMode.AUGMENTS
 end
 
 local function modeIncludesConsumable(mode, kind)
-  return mode == "everything" or mode == "consumables"
-    or mode == "flaskOil" and (kind == "flask" or kind == "oil")
-    or mode == "runes" and kind == "augmentRune"
-    or mode == "oil" and kind == "oil"
-    or mode == "flasks" and kind == "flask"
+  return mode == VendorMode.CONSUMABLES_MISSING
+    or mode == VendorMode.CONSUMABLES_ALL
+    or mode == VendorMode.CONSUMABLES_PERSISTENT and (kind == "flask" or kind == "oil")
+    or mode == VendorMode.RUNES and kind == "augmentRune"
+    or mode == VendorMode.OIL and kind == "oil"
 end
 
 function module:GetRequiredItems()
@@ -647,10 +632,7 @@ function module:GetRequiredItems()
     return nil, sourceKey
   end
   local required = {}
-    local mode = self.pendingAugmentsOverride and "augments"
-      or self.pendingFlexOverride and "runes"
-      or self.pendingGlareOverride and "consumables"
-    or db.profile.selfVendor.mode
+  local mode = self.pendingMode
   if modeIncludesGear(mode) then
     local equippedGemCounts = {}
     for _, slotKey in ipairs(recommendationData.slotKeys) do
@@ -690,14 +672,18 @@ function module:GetRequiredItems()
   end
   for _, item in ipairs(recommendationData.consumables) do
     if modeIncludesConsumable(mode, item.kind) then
-      local hasBuff = not self.pendingGlareOverride and not self.pendingFlexOverride
+      local quantity = item.quantity
+      if mode == VendorMode.RUNES then
+        quantity = modeConfiguration(VendorMode.RUNES).runeQuantity
+      end
+      local hasBuff = mode == VendorMode.CONSUMABLES_MISSING
         and item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
       if item.kind == "oil" then
         log("Cannot verify Phoenix Oil on another player; temporary weapon enchant data is player-only")
       end
       if not hasBuff then
-        addRequiredItem(required, item.itemID, item.quantity)
-        log("Consumable needed: " .. itemName(item.itemID) .. " x" .. (item.quantity or 1))
+        addRequiredItem(required, item.itemID, quantity)
+        log("Consumable needed: " .. itemName(item.itemID) .. " x" .. (quantity or 1))
       else
         log("Consumable already active; skipping " .. itemName(item.itemID))
       end
@@ -726,8 +712,7 @@ function module:CheckAndInitiateTrade()
     self:ReportMissingItems(shortages)
     return
   end
-  local augmentMode = self.pendingAugmentsOverride
-    or not self.pendingFlexOverride and not self.pendingGlareOverride and db.profile.selfVendor.mode == "augments"
+  local augmentMode = self.pendingMode == VendorMode.AUGMENTS
   if augmentMode and not next(required) then
     DoEmote("IMPRESSED", self.pendingName)
     log("Augments already match for " .. self.pendingName)
@@ -736,9 +721,7 @@ function module:CheckAndInitiateTrade()
     self.pendingRequired = nil
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
-    self.pendingGlareOverride = nil
-    self.pendingFlexOverride = nil
-    self.pendingAugmentsOverride = nil
+    self.pendingMode = nil
     return
   end
   log("Inventory check passed; preparing exact stacks before trade")

@@ -6,8 +6,7 @@ setfenv(1, _G.SlackHacks)
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "vendor" then
-    Self.SelfVendor:SetEnabled(false)
-    print("SlackHacks Self Vendor: OFF")
+    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
   elseif command:find("^vendor%s+") then
     Self.SelfVendor:HandleSlash(command:sub(8))
   elseif command:find("^sendaugs%s+") then
@@ -25,6 +24,77 @@ function handleSlashCommand(input)
   else
     LibStub("AceConfigCmd-3.0"):HandleCommand("slack", "SlackHacks", input or "")
   end
+end
+
+local selfVendorEmoteValues, selfVendorEmoteSorting = {}, {}
+for token, emote in pairs(SELF_VENDOR_TRIGGER_EMOTES) do
+  selfVendorEmoteValues[token] = emote.slashCommands
+  table.insert(selfVendorEmoteSorting, token)
+end
+table.sort(selfVendorEmoteSorting, function(left, right)
+  return selfVendorEmoteValues[left] < selfVendorEmoteValues[right]
+end)
+
+local selfVendorModeSorting = {
+  Enum.SelfVendorMode.CONSUMABLES_MISSING,
+  Enum.SelfVendorMode.CONSUMABLES_ALL,
+  Enum.SelfVendorMode.CONSUMABLES_PERSISTENT,
+  Enum.SelfVendorMode.OIL,
+  Enum.SelfVendorMode.RUNES,
+  Enum.SelfVendorMode.AUGMENTS,
+}
+
+local function selfVendorModeOptions()
+  local args = {}
+  for order, mode in ipairs(selfVendorModeSorting) do
+    local configuredMode = mode
+    local details = SELF_VENDOR_MODES[mode]
+    args[details.key] = {
+      type = "group",
+      name = false,
+      inline = true,
+      order = order,
+      args = {
+        enabled = {
+          name = details.name,
+          type = "toggle",
+          width = 1.4,
+          get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
+          set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
+          order = 1,
+        },
+        triggerEmote = {
+          name = "Trigger Emote",
+          type = "select",
+          width = 1.6,
+          values = selfVendorEmoteValues,
+          sorting = selfVendorEmoteSorting,
+          get = function() return db.profile.selfVendor.modes[configuredMode].triggerEmote end,
+          set = function(_, value) Self.SelfVendor:SetModeTriggerEmote(configuredMode, value) end,
+          order = 2,
+        },
+        description = {
+          type = "description",
+          name = details.description,
+          width = "full",
+          order = 3,
+        },
+      },
+    }
+    if mode == Enum.SelfVendorMode.RUNES then
+      args[details.key].args.runeQuantity = {
+        name = "Rune Stack Size",
+        type = "input",
+        width = 1.4,
+        get = function() return tostring(db.profile.selfVendor.modes[configuredMode].runeQuantity) end,
+        set = function(_, value) Self.SelfVendor:SetRuneQuantity(value) end,
+        validate = function(_, value) return tonumber(value) and tonumber(value) >= 1 and tonumber(value) <= 100 end,
+        order = 3,
+      }
+      args[details.key].args.description.order = 4
+    end
+  end
+  return args
 end
 
 options = {
@@ -131,45 +201,9 @@ options = {
     vendor = {
       type = "group",
       name = "Self Vendor",
-      desc = "Trade recommended enchants, gems, and consumables to nearby group or guild members who salute you.",
+      desc = "Trade recommended enchants, gems, and consumables to nearby group or guild members using targeted emotes.",
       order = 10,
-      args = {
-        enabled = {
-          name = "Enable Self Vendor",
-          desc = "Open trades when an eligible party, raid, or guild member salutes you.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.selfVendor.enabled end,
-          set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
-          order = 1
-        },
-        mode = {
-          name = "Vendor Mode",
-          desc = "Choose which recommendations are offered in the trade window.",
-          type = "select",
-          width = "full",
-          values = {
-            everything = "Everything",
-            augments = "Augments (Enchants and Gems)",
-            consumables = "Consumables",
-            flaskOil = "Flask and Oil",
-            runes = "Runes",
-            oil = "Oil",
-            flasks = "Flasks"
-          },
-          sorting = { "everything", "augments", "consumables", "flaskOil", "runes", "oil", "flasks" },
-          get = function() return db.profile.selfVendor.mode end,
-          set = function(_, value) Self.SelfVendor:SetMode(value) end,
-          order = 2
-        },
-        modeDescription = {
-          type = "description",
-          name = "Choose which recommendations are offered in the trade window.",
-          width = "full",
-          order = 3
-        }
-      }
+      args = selfVendorModeOptions()
     },
     bind = {
       type = "execute",

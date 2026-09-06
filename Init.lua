@@ -14,6 +14,15 @@ setfenv(1, Self) -- Namespace local to addon
 
 addonName, addonTable = ...
 
+Enum.SelfVendorMode = {
+  CONSUMABLES_MISSING = 1,
+  CONSUMABLES_ALL = 2,
+  CONSUMABLES_PERSISTENT = 3,
+  OIL = 4,
+  RUNES = 5,
+  AUGMENTS = 6,
+}
+
 dbDefaults = {
   global = {
     isDebugging = false,
@@ -27,9 +36,15 @@ dbDefaults = {
       maximumCameraZoom = false
     },
     selfVendor = {
-      enabled = false,
-      mode = "consumables",
-      source = "murlok"
+      source = "murlok",
+      modes = {
+        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = true, triggerEmote = "GLARE" },
+        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = true, triggerEmote = "BOW" },
+        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = true, triggerEmote = "SALUTE" },
+        [Enum.SelfVendorMode.OIL] = { enabled = true, triggerEmote = "CHEER" },
+        [Enum.SelfVendorMode.RUNES] = { enabled = true, triggerEmote = "FLEX", runeQuantity = 5 },
+        [Enum.SelfVendorMode.AUGMENTS] = { enabled = true, triggerEmote = "RAISE" },
+      }
     },
     mounts = {
       ["ground"] = nil,
