@@ -141,16 +141,6 @@ options = {
       desc = "Small quality-of-life features.",
       order = 5,
       args = {
-        autoSellGreyItems = {
-          name = "Auto Sell Grey Items",
-          desc = "Automatically sell grey-quality items when visiting a merchant.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.general.autoSellGreyItems end,
-          set = function(_, value) db.profile.general.autoSellGreyItems = value end,
-          order = 1
-        },
         maximumCameraZoom = {
           name = "Maximum Camera Zoom",
           desc = "Allow the camera to zoom out to its maximum distance.",
@@ -162,6 +152,16 @@ options = {
             db.profile.general.maximumCameraZoom = value
             setCVars()
           end,
+          order = 1
+        },
+        autoSellGreyItems = {
+          name = "Auto Sell Grey Items",
+          desc = "Automatically sell grey-quality items when visiting a merchant.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.general.autoSellGreyItems end,
+          set = function(_, value) db.profile.general.autoSellGreyItems = value end,
           order = 2
         },
         autoRepairGroup = {
