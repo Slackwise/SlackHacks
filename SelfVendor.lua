@@ -521,11 +521,12 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
     return
   end
   local lowerMessage = message:lower()
+  local playerName = UnitName("player")
   for mode, details in pairs(SELF_VENDOR_MODES) do
     local configuration = modeConfiguration(mode)
     local emote = configuration and SELF_VENDOR_TRIGGER_EMOTES[configuration.triggerEmote]
-    local token = configuration and configuration.triggerEmote and configuration.triggerEmote:lower()
-    if configuration and configuration.enabled and emote and (lowerMessage:find(emote.trigger, 1, true) or token and lowerMessage:find(token, 1, true)) then
+    local trigger = emote and emote.trigger:gsub("%%s", playerName:lower())
+    if configuration and configuration.enabled and trigger and lowerMessage:find(trigger, 1, true) then
       log("Matching " .. details.name .. " trigger received from " .. tostring(sender))
       self:BeginEmoteTrade(sender, mode)
       return
