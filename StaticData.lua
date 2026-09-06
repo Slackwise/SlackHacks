@@ -318,15 +318,6 @@ SELF_VENDOR_TRIGGER_EMOTES = {
   WORK = { slashCommands = "/work", example = "You work with %s.", trigger = "you work with %s." },
   YAWN = { slashCommands = "/yawn", example = "You yawn sleepily at %s.", trigger = "you yawn sleepily at %s." },
   YW = { slashCommands = "/yw", example = "You were happy to help %s.", trigger = "you were happy to help %s." },
-  ATTACKMYTARGET = { slashCommands = "DoEmote(\"ATTACKMYTARGET\")", example = "You tell everyone to attack %s.", trigger = "you tell everyone to attack %s." },
-  FAIL = { slashCommands = "DoEmote(\"FAIL\")", example = "You think %s has failed.", trigger = "you think %s has failed." },
-  FOLLOW = { slashCommands = "DoEmote(\"FOLLOW\")", example = "You motion for %s to follow.", trigger = "you motion for %s to follow." },
-  GOODLUCK = { slashCommands = "DoEmote(\"GOODLUCK\")", example = "You wish %s good luck.", trigger = "you wish %s good luck." },
-  PUZZLE = { slashCommands = "DoEmote(\"PUZZLE\")", example = "You are puzzled by %s.", trigger = "you are puzzled by %s." },
-  SHOUT = { slashCommands = "DoEmote(\"SHOUT\")", example = "You shout at %s.", trigger = "you shout at %s." },
-  SERIOUS = { slashCommands = "DoEmote(\"SERIOUS\")", example = "You think %s is serious.", trigger = "you think %s is serious." },
-  STOPATTACK = { slashCommands = "DoEmote(\"STOPATTACK\")", example = "You tell %s to stop attacking.", trigger = "you tell %s to stop attacking." },
-  TOAST = { slashCommands = "DoEmote(\"TOAST\")", example = "You raise a drink to %s. Cheers!", trigger = "you raise a drink to %s. cheers!" },
 }
 
 SELF_VENDOR_MODES = {
