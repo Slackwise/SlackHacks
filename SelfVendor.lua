@@ -351,6 +351,12 @@ function module:SendAugsForClassSpec(input)
   print("SlackHacks: BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
 end
 
+function module:SetEnabled(enabled)
+  db.profile.selfVendor.enabled = enabled
+  log("Self Vendor enabled state changed to " .. tostring(enabled))
+  if enabled then self:Enable() else self:Disable() end
+end
+
 function module:SetModeEnabled(mode, enabled)
   local configuration = modeConfiguration(mode)
   if not configuration then return end
@@ -393,6 +399,10 @@ function module:HandleSlash(input)
   end
   local mode = modeForCommand(command)
   if mode then
+    if not db.profile.selfVendor.enabled then
+      print("SlackHacks: Self Vendor is disabled.")
+      return
+    end
     local targetName = UnitName("target")
     if not targetName or not senderIsEligible(targetName) then
       print("SlackHacks: target an eligible group, raid, or guild member first.")
@@ -405,6 +415,9 @@ function module:HandleSlash(input)
     self:BeginEmoteTrade(targetName, mode)
   elseif command == "mode" then
     print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
+  elseif command == "toggle" then
+    self:SetEnabled(not db.profile.selfVendor.enabled)
+    print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   else
     print("Usage: /slack vendor [toggle|consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
   end
@@ -414,7 +427,8 @@ function module:OnInitialize()
   if not enhancementSourceKey(db.profile.selfVendor.source) then
     db.profile.selfVendor.source = DEFAULT_ENHANCEMENT_SOURCE
   end
-  log("Self Vendor initialized")
+  log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled))
+  if not db.profile.selfVendor.enabled then self:Disable() end
 end
 
 function module:OnEnable()

@@ -46,6 +46,16 @@ local selfVendorModeSorting = {
 
 local function selfVendorModeOptions()
   local args = {}
+  args.enabled = {
+    name = "Enable Self Vendor",
+    desc = "Enable or disable all Self Vendor emote and slash-command triggers.",
+    type = "toggle",
+    descStyle = "inline",
+    width = "full",
+    get = function() return db.profile.selfVendor.enabled end,
+    set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
+    order = 0,
+  }
   for order, mode in ipairs(selfVendorModeSorting) do
     local configuredMode = mode
     local details = SELF_VENDOR_MODES[mode]

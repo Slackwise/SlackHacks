@@ -36,14 +36,15 @@ dbDefaults = {
       maximumCameraZoom = false
     },
     selfVendor = {
+      enabled = false,
       source = "murlok",
       modes = {
-        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = true, triggerEmote = "GLARE" },
-        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = true, triggerEmote = "BOW" },
-        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = true, triggerEmote = "SALUTE" },
-        [Enum.SelfVendorMode.OIL] = { enabled = true, triggerEmote = "CHEER" },
-        [Enum.SelfVendorMode.RUNES] = { enabled = true, triggerEmote = "FLEX", runeQuantity = 5 },
-        [Enum.SelfVendorMode.AUGMENTS] = { enabled = true, triggerEmote = "RAISE" },
+        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = false, triggerEmote = "SALUTE" },
+        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = false, triggerEmote = "GLARE" },
+        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = false, triggerEmote = "GAZE" },
+        [Enum.SelfVendorMode.OIL] = { enabled = false, triggerEmote = "FLIRT" },
+        [Enum.SelfVendorMode.RUNES] = { enabled = false, triggerEmote = "FLEX", runeQuantity = 5 },
+        [Enum.SelfVendorMode.AUGMENTS] = { enabled = false, triggerEmote = "VICTORY" },
       }
     },
     mounts = {
