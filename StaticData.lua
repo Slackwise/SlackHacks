@@ -78,265 +78,256 @@ SLOT_IDS = {
 SECONDARY_GEM_QUANTITY = 6
 DEFAULT_ENHANCEMENT_SOURCE = "murlok"
 
-SELF_VENDOR_TRIGGER_EMOTES = {}
-local function addSelfVendorTriggerEmotes(entries)
-  for token, slashCommands, example in entries:gmatch("([A-Z]+)|([^|]+)|([^\n]+)") do
-    SELF_VENDOR_TRIGGER_EMOTES[token] = {
-      slashCommands = slashCommands,
-      example = example,
-      trigger = example:lower(),
-    }
-  end
-end
-
-addSelfVendorTriggerEmotes([[ABSENT|/absent|You look at %s absently.
-AGREE|/agree|You agree with %s.
-AMAZE|/amaze|You are amazed by %s!
-ANGRY|/angry /mad|You raise your fist in anger at %s.
-APOLOGIZE|/apologize /sorry|You apologize to %s. Sorry!
-APPLAUD|/applaud /bravo /applause|You applaud at %s. Bravo!
-ARM|/arm|You put your arm around %s's shoulder.
-ATTACKTARGET|/attacktarget|You tell everyone to attack %s.
-AWE|/awe|You stare at %s in awe.
-BADFEELING|/badfeeling /bad|You have a bad feeling about %s.
-BARK|/bark|You bark at %s.
-BASHFUL|/bashful|You are so bashful...too bashful to get %s's attention.
-BECKON|/beckon|You beckon %s over.
-BEG|/beg|You beg %s. How pathetic!
-BITE|/bite|You bite %s. Ouch!
-BLAME|/blame|You blame %s for everything.
-BLANK|/blank|You stare blankly at %s.
-BLINK|/blink|You blink at %s.
-BLUSH|/blush|You blush at %s.
-BOGGLE|/boggle|You boggle at %s.
-BONK|/bonk /doh|You bonk %s on the noggin. Doh!
-BOOP|/boop|You boop %s's nose.
-BOOT|/boot|You kick at %s.
-BORED|/bored|You are terribly bored with %s.
-BOUNCE|/bounce|You bounce up and down in front of %s.
-BOW|/bow|You bow before %s.
-BRANDISH|/brandish|You brandish your weapon fiercely at %s.
-BRB|/brb|You let %s know you'll be right back.
-BREATH|/breath|You tell %s to take a deep breath.
-BURP|/burp /belch|You burp rudely in %s's face.
-BYE|/bye /goodbye /farewell|You wave goodbye to %s. Farewell!
-CACKLE|/cackle|You cackle maniacally at %s.
-CALM|/calm|You try to calm %s down.
-CHALLENGE|/challenge|You challenge %s to a duel.
-CHARM|/charm|You think %s is charming.
-CHEER|/cheer /woot|You cheer at %s.
-CHICKEN|/chicken /flap /strut|With arms flapping, you strut around %s. Cluck, Cluck, Chicken!
-CHUCKLE|/chuckle|You chuckle at %s.
-CHUG|/chug|You encourage %s to chug. CHUG! CHUG! CHUG!
-CLAP|/clap|You clap excitedly for %s.
-COLD|/cold|You let %s know that you are cold.
-COMFORT|/comfort|You comfort %s.
-COMMEND|/commend|You commend %s on a job well done.
-CONFUSED|/confused|You look at %s with a confused look.
-CONGRATULATE|/congratulate /congrats /grats|You congratulate %s.
-COUGH|/cough|You cough at %s.
-COVEREARS|/coverears|You cover %s's ears.
-COWER|/cower /fear|You cower in fear at the sight of %s.
-CRACK|/crack /knuckles|You crack your knuckles while staring at %s.
-CRINGE|/cringe|You cringe away from %s.
-CROSSARMS|/crossarms|You cross your arms at %s. Hmph!
-CRY|/cry /sob /weep|You cry on %s's shoulder.
-CUDDLE|/cuddle /spoon|You cuddle up against %s.
-CURIOUS|/curious|You are curious what %s is up to.
-CURTSEY|/curtsey|You curtsey before %s.
-DANCE|/dance|You dance with %s.
-DING|/ding|You congratulate %s on a new level. DING!
-DISAGREE|/disagree|You disagree with %s.
-THREATEN|/threaten /doom /threat /wrath|You threaten %s with the wrath of doom.
-DOUBT|/doubt|You doubt %s.
-DRINK|/drink /shindig|You raise a drink to %s. Cheers!
-DROOL|/drool|You look at %s and begin to drool.
-DUCK|/duck|You duck behind %s.
-EAT|/eat /chew /feast|You begin to eat in front of %s.
-EMBARRASS|/embarrass|You are embarrassed by %s.
-ENCOURAGE|/encourage|You encourage %s.
-ENEMY|/enemy|You warn %s that an enemy is near.
-EYE|/eye|You eye %s up and down.
-EYEBROW|/eyebrow /brow|You raise your eyebrow inquisitively at %s.
-FACEPALM|/facepalm /palm|You look at %s and cover your face with your palm.
-FAINT|/faint|You faint at the sight of %s.
-FART|/fart|You brush up against %s and fart loudly.
-FIDGET|/fidget /impatient|You fidget impatiently while waiting for %s.
-FLEE|/flee /retreat|You yell for %s to flee!
-FLEX|/flex /strong|You flex at %s. Oooooh so strong!
-FLIRT|/flirt|You flirt with %s.
-FLOP|/flop|You flop about helplessly around %s.
-FOLLOWME|/followme|You motion for %s to follow.
-FROWN|/frown /disappointed|You frown with disappointment at %s.
-GASP|/gasp|You gasp at %s.
-GAZE|/gaze|You gaze longingly at %s.
-GIGGLE|/giggle|You giggle at %s.
-GLARE|/glare|You glare angrily at %s.
-GLOAT|/gloat|You gloat over %s's misfortune.
-GLOWER|/glower|You glower at %s.
-GO|/go|You tell %s to go.
-GOING|/going|You tell %s that you must be going.
-GOLFCLAP|/golfclap|You clap for %s, clearly unimpressed.
-GREET|/greet /greetings|You greet %s warmly.
-GRIN|/grin /wicked /wickedly|You grin wickedly at %s.
-GROAN|/groan|You look at %s and groan.
-GROVEL|/grovel /peon|You grovel before %s like a subservient peon.
-GROWL|/growl|You growl menacingly at %s.
-GUFFAW|/guffaw|You take one look at %s and let out a guffaw!
-HAIL|/hail|You hail %s.
-HAPPY|/happy /glad /yay|You are very happy with %s!
-HEADACHE|/headache|You are getting a headache from %s's antics.
-HELLO|/hello /hi|You greet %s with a hearty hello!
-HIGHFIVE|/highfive|You give %s a high five!
-HISS|/hiss|You hiss at %s.
-HOLDHAND|/holdhand|You hold %s's hand.
-HUG|/hug|You hug %s.
-HUNGRY|/hungry /food /pizza|You are hungry. Maybe %s has some food...
-HURRY|/hurry|You tell %s to hurry up.
-HUZZAH|/huzzah|You cheer boisterously for %s! Huzzah!
-IMPRESSED|/impressed|You clap vigorously for %s, clearly impressed.
-INCOMING|/incoming|You point out %s as an incoming enemy!
-INSULT|/insult|You think %s is the son of a motherless ogre.
-INTRODUCE|/introduce|You introduce yourself to %s.
-JEALOUS|/jealous|You are jealous of %s.
-JK|/jk|You let %s know that you were just kidding!
-KISS|/kiss /blow|You blow a kiss to %s.
-KNEEL|/kneel|You kneel before %s.
-LAUGH|/laugh /lol|You laugh at %s.
-LAYDOWN|/laydown /liedown /lay /lie|You lie down before %s.
-LICK|/lick|You lick %s.
-LISTEN|/listen|You listen intently to %s.
-LOOK|/look|You look at %s.
-LOST|/lost|You want %s to know that you are hopelessly lost.
-LOVE|/love|You love %s.
-LUCK|/luck|You wish %s the best of luck.
-MAGNIFICENT|/magnificent|You nod approvingly at %s. Magnificent job!
-MASSAGE|/massage|You massage %s's shoulders.
-MEOW|/meow|You meow at %s.
-MERCY|/mercy|You plead with %s for mercy.
-MOAN|/moan|You moan suggestively at %s.
-MOCK|/mock|You mock the foolishness of %s.
-MOO|/moo|You moo at %s. Mooooooooooo.
-MOON|/moon|You drop your trousers and moon %s.
-MOURN|/mourn|In quiet contemplation, you mourn the death of %s.
-MUTTER|/mutter|You mutter angrily at %s. Hmmmph!
-NERVOUS|/nervous|You look at %s nervously.
-NO|/no|You tell %s NO. Not going to happen.
-NOD|/nod /yes|You nod at %s.
-NOSEPICK|/nosepick /pick|You pick your nose and show it to %s.
-OBJECT|/object /objection /holdit|You object to %s.
-OFFER|/offer|You attempt to make %s an offer they can't refuse.
-PANIC|/panic|You take one look at %s and panic.
-PAT|/pat|You gently pat %s.
-PEER|/peer|You peer at %s searchingly.
-PET|/pet|You pet %s.
-PINCH|/pinch|You pinch %s.
-PITY|/pity|You look down upon %s with pity.
-PLEAD|/plead|You plead with %s.
-POINT|/point|You point at %s.
-POKE|/poke|You poke %s. Hey!
-PONDER|/ponder|You ponder %s's actions.
-POUNCE|/pounce|You pounce on top of %s.
-POUT|/pout|You pout at %s.
-PRAISE|/praise /lavish|You lavish praise upon %s.
-PRAY|/pray|You say a prayer for %s.
-PROMISE|/promise|You make %s a promise.
-PROUD|/proud|You are proud of %s.
-PULSE|/pulse|You check %s for a pulse. Oh no!
-PUNCH|/punch|You punch %s's shoulder.
-PURR|/purr|You purr at %s.
-PUZZLED|/puzzled|You are puzzled by %s.
-QUACK|/quack|You quack at %s. Quack!
-RAISE|/raise /volunteer|You look at %s and raise your hand.
-RASP|/rasp|You make a rude gesture at %s.
-READY|/ready /rdy|You let %s know that you are ready!
-REGRET|/regret|You think that %s will regret it.
-REVENGE|/revenge|You vow revenge on %s.
-ROAR|/roar /rawr|You roar with bestial vigor at %s. So fierce!
-ROFL|/rofl|You roll on the floor laughing at %s.
-ROLLEYES|/rolleyes /eyeroll|You roll your eyes at %s.
-RUDE|/rude|You make a rude gesture at %s.
-RUFFLE|/ruffle|You ruffle %s's hair.
-SALUTE|/salute|You salute %s with respect.
-SCARED|/scared|You are scared of %s.
-SCOFF|/scoff|You scoff at %s.
-SCOLD|/scold|You scold %s.
-SCOWL|/scowl|You scowl at %s.
-SCRATCH|/scratch /cat /catty|You scratch %s. How catty!
-SEARCH|/search|You search %s for something.
-SEXY|/sexy|You think %s is a sexy devil.
-SHAKE|/shake /rear|You shake your rear at %s.
-SHAKEFIST|/shakefist /fist|You shake your fist at %s.
-SHIFTY|/shifty|You give %s a shifty look.
-SHIMMY|/shimmy|You shimmy before %s.
-SHIVER|/shiver|You shiver beside %s. Chilling!
-SHOO|/shoo /pest|You shoo %s away. Be gone pest!
-HOLLER|/holler|You shout at %s.
-SHRUG|/shrug|You shrug at %s. Who knows?
-SHUDDER|/shudder|You shudder at the sight of %s.
-SHY|/shy|You smile shyly at %s.
-SIGH|/sigh|You sigh at %s.
-SIGNAL|/signal|You give %s the signal.
-SILENCE|/silence /shush|You tell %s to be quiet. Shhh!
-SILLY|/silly|You tell %s a joke.
-SING|/sing|You serenade %s with a song.
-SLAP|/slap|You slap %s across the face. Ouch!
-SMACK|/smack|You smack %s upside the head.
-SMILE|/smile|You smile at %s.
-SMIRK|/smirk|You smirk slyly at %s.
-SNAP|/snap|You snap your fingers at %s.
-SNARL|/snarl|You bare your teeth and snarl at %s.
-SNEAK|/sneak|You try to sneak away from %s.
-SNEEZE|/sneeze|You sneeze on %s. Achoo!
-SNICKER|/snicker|You snicker at %s.
-SNIFF|/sniff|You sniff %s.
-SNORT|/snort|You snort derisively at %s.
-SNUB|/snub|You snub %s.
-SOOTHE|/soothe|You soothe %s. There, there...things will be ok.
-SPIT|/spit|You spit on %s.
-SQUEAL|/squeal|You squeal at %s.
-STARE|/stare|You stare %s down.
-STINK|/stink /smell|You smell %s. Wow, someone stinks!
-SURPRISED|/surprised|You are surprised by %s's actions.
-SURRENDER|/surrender|You surrender before %s. Such is the agony of defeat...
-SUSPICIOUS|/suspicious|You are suspicious of %s.
-SWEAT|/sweat|You sweat at the sight of %s.
-TALK|/talk|You want to talk things over with %s.
-TALKEX|/talkex /excited|You talk excitedly with %s.
-TALKQ|/talkq /question|You question %s.
-TAP|/tap|You tap your foot as you wait for %s.
-TAUNT|/taunt|You make a taunting gesture at %s. Bring it!
-TEASE|/tease|You tease %s.
-THANK|/thank /thanks /ty|You thank %s.
-THINK|/think|You think about %s.
-THIRSTY|/thirsty|You let %s know you are thirsty. Spare a drink?
-TICKLE|/tickle|You tickle %s. Hee hee!
-TIRED|/tired|You let %s know that you are tired.
-TRUCE|/truce|You offer %s a truce.
-VETO|/veto|You veto %s's motion.
-VICTORY|/victory|You bask in the glory of victory with %s.
-VIOLIN|/violin|You play the world's smallest violin for %s.
-WAIT|/wait|You ask %s to wait.
-WARN|/warn|You warn %s.
-WAVE|/wave|You wave at %s.
-WELCOME|/welcome|You welcome %s.
-WHINE|/whine|You whine pathetically at %s.
-WHISTLE|/whistle|You whistle at %s.
-WHOA|/whoa|You are blown away by %s.
-WINCE|/wince|You wince sympathetically at %s. That looked like it hurt!
-WINK|/wink|You wink slyly at %s.
-WORK|/work|You work with %s.
-YAWN|/yawn|You yawn sleepily at %s.
-YW|/yw|You were happy to help %s.
-ATTACKMYTARGET|DoEmote("ATTACKMYTARGET")|You tell everyone to attack %s.
-FAIL|DoEmote("FAIL")|You think %s has failed.
-FOLLOW|DoEmote("FOLLOW")|You motion for %s to follow.
-GOODLUCK|DoEmote("GOODLUCK")|You wish %s good luck.
-PUZZLE|DoEmote("PUZZLE")|You are puzzled by %s.
-SHOUT|DoEmote("SHOUT")|You shout at %s.
-SERIOUS|DoEmote("SERIOUS")|You think %s is serious.
-STOPATTACK|DoEmote("STOPATTACK")|You tell %s to stop attacking.
-TOAST|DoEmote("TOAST")|You raise a drink to %s. Cheers!]])
+SELF_VENDOR_TRIGGER_EMOTES = {
+  ABSENT = { slashCommands = "/absent", example = "You look at %s absently.", trigger = "you look at %s absently." },
+  AGREE = { slashCommands = "/agree", example = "You agree with %s.", trigger = "you agree with %s." },
+  AMAZE = { slashCommands = "/amaze", example = "You are amazed by %s!", trigger = "you are amazed by %s!" },
+  ANGRY = { slashCommands = "/angry /mad", example = "You raise your fist in anger at %s.", trigger = "you raise your fist in anger at %s." },
+  APOLOGIZE = { slashCommands = "/apologize /sorry", example = "You apologize to %s. Sorry!", trigger = "you apologize to %s. sorry!" },
+  APPLAUD = { slashCommands = "/applaud /bravo /applause", example = "You applaud at %s. Bravo!", trigger = "you applaud at %s. bravo!" },
+  ARM = { slashCommands = "/arm", example = "You put your arm around %s's shoulder.", trigger = "you put your arm around %s's shoulder." },
+  ATTACKTARGET = { slashCommands = "/attacktarget", example = "You tell everyone to attack %s.", trigger = "you tell everyone to attack %s." },
+  AWE = { slashCommands = "/awe", example = "You stare at %s in awe.", trigger = "you stare at %s in awe." },
+  BADFEELING = { slashCommands = "/badfeeling /bad", example = "You have a bad feeling about %s.", trigger = "you have a bad feeling about %s." },
+  BARK = { slashCommands = "/bark", example = "You bark at %s.", trigger = "you bark at %s." },
+  BASHFUL = { slashCommands = "/bashful", example = "You are so bashful...too bashful to get %s's attention.", trigger = "you are so bashful...too bashful to get %s's attention." },
+  BECKON = { slashCommands = "/beckon", example = "You beckon %s over.", trigger = "you beckon %s over." },
+  BEG = { slashCommands = "/beg", example = "You beg %s. How pathetic!", trigger = "you beg %s. how pathetic!" },
+  BITE = { slashCommands = "/bite", example = "You bite %s. Ouch!", trigger = "you bite %s. ouch!" },
+  BLAME = { slashCommands = "/blame", example = "You blame %s for everything.", trigger = "you blame %s for everything." },
+  BLANK = { slashCommands = "/blank", example = "You stare blankly at %s.", trigger = "you stare blankly at %s." },
+  BLINK = { slashCommands = "/blink", example = "You blink at %s.", trigger = "you blink at %s." },
+  BLUSH = { slashCommands = "/blush", example = "You blush at %s.", trigger = "you blush at %s." },
+  BOGGLE = { slashCommands = "/boggle", example = "You boggle at %s.", trigger = "you boggle at %s." },
+  BONK = { slashCommands = "/bonk /doh", example = "You bonk %s on the noggin. Doh!", trigger = "you bonk %s on the noggin. doh!" },
+  BOOP = { slashCommands = "/boop", example = "You boop %s's nose.", trigger = "you boop %s's nose." },
+  BOOT = { slashCommands = "/boot", example = "You kick at %s.", trigger = "you kick at %s." },
+  BORED = { slashCommands = "/bored", example = "You are terribly bored with %s.", trigger = "you are terribly bored with %s." },
+  BOUNCE = { slashCommands = "/bounce", example = "You bounce up and down in front of %s.", trigger = "you bounce up and down in front of %s." },
+  BOW = { slashCommands = "/bow", example = "You bow before %s.", trigger = "you bow before %s." },
+  BRANDISH = { slashCommands = "/brandish", example = "You brandish your weapon fiercely at %s.", trigger = "you brandish your weapon fiercely at %s." },
+  BRB = { slashCommands = "/brb", example = "You let %s know you'll be right back.", trigger = "you let %s know you'll be right back." },
+  BREATH = { slashCommands = "/breath", example = "You tell %s to take a deep breath.", trigger = "you tell %s to take a deep breath." },
+  BURP = { slashCommands = "/burp /belch", example = "You burp rudely in %s's face.", trigger = "you burp rudely in %s's face." },
+  BYE = { slashCommands = "/bye /goodbye /farewell", example = "You wave goodbye to %s. Farewell!", trigger = "you wave goodbye to %s. farewell!" },
+  CACKLE = { slashCommands = "/cackle", example = "You cackle maniacally at %s.", trigger = "you cackle maniacally at %s." },
+  CALM = { slashCommands = "/calm", example = "You try to calm %s down.", trigger = "you try to calm %s down." },
+  CHALLENGE = { slashCommands = "/challenge", example = "You challenge %s to a duel.", trigger = "you challenge %s to a duel." },
+  CHARM = { slashCommands = "/charm", example = "You think %s is charming.", trigger = "you think %s is charming." },
+  CHEER = { slashCommands = "/cheer /woot", example = "You cheer at %s.", trigger = "you cheer at %s." },
+  CHICKEN = { slashCommands = "/chicken /flap /strut", example = "With arms flapping, you strut around %s. Cluck, Cluck, Chicken!", trigger = "with arms flapping, you strut around %s. cluck, cluck, chicken!" },
+  CHUCKLE = { slashCommands = "/chuckle", example = "You chuckle at %s.", trigger = "you chuckle at %s." },
+  CHUG = { slashCommands = "/chug", example = "You encourage %s to chug. CHUG! CHUG! CHUG!", trigger = "you encourage %s to chug. chug! chug! chug!" },
+  CLAP = { slashCommands = "/clap", example = "You clap excitedly for %s.", trigger = "you clap excitedly for %s." },
+  COLD = { slashCommands = "/cold", example = "You let %s know that you are cold.", trigger = "you let %s know that you are cold." },
+  COMFORT = { slashCommands = "/comfort", example = "You comfort %s.", trigger = "you comfort %s." },
+  COMMEND = { slashCommands = "/commend", example = "You commend %s on a job well done.", trigger = "you commend %s on a job well done." },
+  CONFUSED = { slashCommands = "/confused", example = "You look at %s with a confused look.", trigger = "you look at %s with a confused look." },
+  CONGRATULATE = { slashCommands = "/congratulate /congrats /grats", example = "You congratulate %s.", trigger = "you congratulate %s." },
+  COUGH = { slashCommands = "/cough", example = "You cough at %s.", trigger = "you cough at %s." },
+  COVEREARS = { slashCommands = "/coverears", example = "You cover %s's ears.", trigger = "you cover %s's ears." },
+  COWER = { slashCommands = "/cower /fear", example = "You cower in fear at the sight of %s.", trigger = "you cower in fear at the sight of %s." },
+  CRACK = { slashCommands = "/crack /knuckles", example = "You crack your knuckles while staring at %s.", trigger = "you crack your knuckles while staring at %s." },
+  CRINGE = { slashCommands = "/cringe", example = "You cringe away from %s.", trigger = "you cringe away from %s." },
+  CROSSARMS = { slashCommands = "/crossarms", example = "You cross your arms at %s. Hmph!", trigger = "you cross your arms at %s. hmph!" },
+  CRY = { slashCommands = "/cry /sob /weep", example = "You cry on %s's shoulder.", trigger = "you cry on %s's shoulder." },
+  CUDDLE = { slashCommands = "/cuddle /spoon", example = "You cuddle up against %s.", trigger = "you cuddle up against %s." },
+  CURIOUS = { slashCommands = "/curious", example = "You are curious what %s is up to.", trigger = "you are curious what %s is up to." },
+  CURTSEY = { slashCommands = "/curtsey", example = "You curtsey before %s.", trigger = "you curtsey before %s." },
+  DANCE = { slashCommands = "/dance", example = "You dance with %s.", trigger = "you dance with %s." },
+  DING = { slashCommands = "/ding", example = "You congratulate %s on a new level. DING!", trigger = "you congratulate %s on a new level. ding!" },
+  DISAGREE = { slashCommands = "/disagree", example = "You disagree with %s.", trigger = "you disagree with %s." },
+  THREATEN = { slashCommands = "/threaten /doom /threat /wrath", example = "You threaten %s with the wrath of doom.", trigger = "you threaten %s with the wrath of doom." },
+  DOUBT = { slashCommands = "/doubt", example = "You doubt %s.", trigger = "you doubt %s." },
+  DRINK = { slashCommands = "/drink /shindig", example = "You raise a drink to %s. Cheers!", trigger = "you raise a drink to %s. cheers!" },
+  DROOL = { slashCommands = "/drool", example = "You look at %s and begin to drool.", trigger = "you look at %s and begin to drool." },
+  DUCK = { slashCommands = "/duck", example = "You duck behind %s.", trigger = "you duck behind %s." },
+  EAT = { slashCommands = "/eat /chew /feast", example = "You begin to eat in front of %s.", trigger = "you begin to eat in front of %s." },
+  EMBARRASS = { slashCommands = "/embarrass", example = "You are embarrassed by %s.", trigger = "you are embarrassed by %s." },
+  ENCOURAGE = { slashCommands = "/encourage", example = "You encourage %s.", trigger = "you encourage %s." },
+  ENEMY = { slashCommands = "/enemy", example = "You warn %s that an enemy is near.", trigger = "you warn %s that an enemy is near." },
+  EYE = { slashCommands = "/eye", example = "You eye %s up and down.", trigger = "you eye %s up and down." },
+  EYEBROW = { slashCommands = "/eyebrow /brow", example = "You raise your eyebrow inquisitively at %s.", trigger = "you raise your eyebrow inquisitively at %s." },
+  FACEPALM = { slashCommands = "/facepalm /palm", example = "You look at %s and cover your face with your palm.", trigger = "you look at %s and cover your face with your palm." },
+  FAINT = { slashCommands = "/faint", example = "You faint at the sight of %s.", trigger = "you faint at the sight of %s." },
+  FART = { slashCommands = "/fart", example = "You brush up against %s and fart loudly.", trigger = "you brush up against %s and fart loudly." },
+  FIDGET = { slashCommands = "/fidget /impatient", example = "You fidget impatiently while waiting for %s.", trigger = "you fidget impatiently while waiting for %s." },
+  FLEE = { slashCommands = "/flee /retreat", example = "You yell for %s to flee!", trigger = "you yell for %s to flee!" },
+  FLEX = { slashCommands = "/flex /strong", example = "You flex at %s. Oooooh so strong!", trigger = "you flex at %s. oooooh so strong!" },
+  FLIRT = { slashCommands = "/flirt", example = "You flirt with %s.", trigger = "you flirt with %s." },
+  FLOP = { slashCommands = "/flop", example = "You flop about helplessly around %s.", trigger = "you flop about helplessly around %s." },
+  FOLLOWME = { slashCommands = "/followme", example = "You motion for %s to follow.", trigger = "you motion for %s to follow." },
+  FROWN = { slashCommands = "/frown /disappointed", example = "You frown with disappointment at %s.", trigger = "you frown with disappointment at %s." },
+  GASP = { slashCommands = "/gasp", example = "You gasp at %s.", trigger = "you gasp at %s." },
+  GAZE = { slashCommands = "/gaze", example = "You gaze longingly at %s.", trigger = "you gaze longingly at %s." },
+  GIGGLE = { slashCommands = "/giggle", example = "You giggle at %s.", trigger = "you giggle at %s." },
+  GLARE = { slashCommands = "/glare", example = "You glare angrily at %s.", trigger = "you glare angrily at %s." },
+  GLOAT = { slashCommands = "/gloat", example = "You gloat over %s's misfortune.", trigger = "you gloat over %s's misfortune." },
+  GLOWER = { slashCommands = "/glower", example = "You glower at %s.", trigger = "you glower at %s." },
+  GO = { slashCommands = "/go", example = "You tell %s to go.", trigger = "you tell %s to go." },
+  GOING = { slashCommands = "/going", example = "You tell %s that you must be going.", trigger = "you tell %s that you must be going." },
+  GOLFCLAP = { slashCommands = "/golfclap", example = "You clap for %s, clearly unimpressed.", trigger = "you clap for %s, clearly unimpressed." },
+  GREET = { slashCommands = "/greet /greetings", example = "You greet %s warmly.", trigger = "you greet %s warmly." },
+  GRIN = { slashCommands = "/grin /wicked /wickedly", example = "You grin wickedly at %s.", trigger = "you grin wickedly at %s." },
+  GROAN = { slashCommands = "/groan", example = "You look at %s and groan.", trigger = "you look at %s and groan." },
+  GROVEL = { slashCommands = "/grovel /peon", example = "You grovel before %s like a subservient peon.", trigger = "you grovel before %s like a subservient peon." },
+  GROWL = { slashCommands = "/growl", example = "You growl menacingly at %s.", trigger = "you growl menacingly at %s." },
+  GUFFAW = { slashCommands = "/guffaw", example = "You take one look at %s and let out a guffaw!", trigger = "you take one look at %s and let out a guffaw!" },
+  HAIL = { slashCommands = "/hail", example = "You hail %s.", trigger = "you hail %s." },
+  HAPPY = { slashCommands = "/happy /glad /yay", example = "You are very happy with %s!", trigger = "you are very happy with %s!" },
+  HEADACHE = { slashCommands = "/headache", example = "You are getting a headache from %s's antics.", trigger = "you are getting a headache from %s's antics." },
+  HELLO = { slashCommands = "/hello /hi", example = "You greet %s with a hearty hello!", trigger = "you greet %s with a hearty hello!" },
+  HIGHFIVE = { slashCommands = "/highfive", example = "You give %s a high five!", trigger = "you give %s a high five!" },
+  HISS = { slashCommands = "/hiss", example = "You hiss at %s.", trigger = "you hiss at %s." },
+  HOLDHAND = { slashCommands = "/holdhand", example = "You hold %s's hand.", trigger = "you hold %s's hand." },
+  HUG = { slashCommands = "/hug", example = "You hug %s.", trigger = "you hug %s." },
+  HUNGRY = { slashCommands = "/hungry /food /pizza", example = "You are hungry. Maybe %s has some food...", trigger = "you are hungry. maybe %s has some food..." },
+  HURRY = { slashCommands = "/hurry", example = "You tell %s to hurry up.", trigger = "you tell %s to hurry up." },
+  HUZZAH = { slashCommands = "/huzzah", example = "You cheer boisterously for %s! Huzzah!", trigger = "you cheer boisterously for %s! huzzah!" },
+  IMPRESSED = { slashCommands = "/impressed", example = "You clap vigorously for %s, clearly impressed.", trigger = "you clap vigorously for %s, clearly impressed." },
+  INCOMING = { slashCommands = "/incoming", example = "You point out %s as an incoming enemy!", trigger = "you point out %s as an incoming enemy!" },
+  INSULT = { slashCommands = "/insult", example = "You think %s is the son of a motherless ogre.", trigger = "you think %s is the son of a motherless ogre." },
+  INTRODUCE = { slashCommands = "/introduce", example = "You introduce yourself to %s.", trigger = "you introduce yourself to %s." },
+  JEALOUS = { slashCommands = "/jealous", example = "You are jealous of %s.", trigger = "you are jealous of %s." },
+  JK = { slashCommands = "/jk", example = "You let %s know that you were just kidding!", trigger = "you let %s know that you were just kidding!" },
+  KISS = { slashCommands = "/kiss /blow", example = "You blow a kiss to %s.", trigger = "you blow a kiss to %s." },
+  KNEEL = { slashCommands = "/kneel", example = "You kneel before %s.", trigger = "you kneel before %s." },
+  LAUGH = { slashCommands = "/laugh /lol", example = "You laugh at %s.", trigger = "you laugh at %s." },
+  LAYDOWN = { slashCommands = "/laydown /liedown /lay /lie", example = "You lie down before %s.", trigger = "you lie down before %s." },
+  LICK = { slashCommands = "/lick", example = "You lick %s.", trigger = "you lick %s." },
+  LISTEN = { slashCommands = "/listen", example = "You listen intently to %s.", trigger = "you listen intently to %s." },
+  LOOK = { slashCommands = "/look", example = "You look at %s.", trigger = "you look at %s." },
+  LOST = { slashCommands = "/lost", example = "You want %s to know that you are hopelessly lost.", trigger = "you want %s to know that you are hopelessly lost." },
+  LOVE = { slashCommands = "/love", example = "You love %s.", trigger = "you love %s." },
+  LUCK = { slashCommands = "/luck", example = "You wish %s the best of luck.", trigger = "you wish %s the best of luck." },
+  MAGNIFICENT = { slashCommands = "/magnificent", example = "You nod approvingly at %s. Magnificent job!", trigger = "you nod approvingly at %s. magnificent job!" },
+  MASSAGE = { slashCommands = "/massage", example = "You massage %s's shoulders.", trigger = "you massage %s's shoulders." },
+  MEOW = { slashCommands = "/meow", example = "You meow at %s.", trigger = "you meow at %s." },
+  MERCY = { slashCommands = "/mercy", example = "You plead with %s for mercy.", trigger = "you plead with %s for mercy." },
+  MOAN = { slashCommands = "/moan", example = "You moan suggestively at %s.", trigger = "you moan suggestively at %s." },
+  MOCK = { slashCommands = "/mock", example = "You mock the foolishness of %s.", trigger = "you mock the foolishness of %s." },
+  MOO = { slashCommands = "/moo", example = "You moo at %s. Mooooooooooo.", trigger = "you moo at %s. mooooooooooo." },
+  MOON = { slashCommands = "/moon", example = "You drop your trousers and moon %s.", trigger = "you drop your trousers and moon %s." },
+  MOURN = { slashCommands = "/mourn", example = "In quiet contemplation, you mourn the death of %s.", trigger = "in quiet contemplation, you mourn the death of %s." },
+  MUTTER = { slashCommands = "/mutter", example = "You mutter angrily at %s. Hmmmph!", trigger = "you mutter angrily at %s. hmmmph!" },
+  NERVOUS = { slashCommands = "/nervous", example = "You look at %s nervously.", trigger = "you look at %s nervously." },
+  NO = { slashCommands = "/no", example = "You tell %s NO. Not going to happen.", trigger = "you tell %s no. not going to happen." },
+  NOD = { slashCommands = "/nod /yes", example = "You nod at %s.", trigger = "you nod at %s." },
+  NOSEPICK = { slashCommands = "/nosepick /pick", example = "You pick your nose and show it to %s.", trigger = "you pick your nose and show it to %s." },
+  OBJECT = { slashCommands = "/object /objection /holdit", example = "You object to %s.", trigger = "you object to %s." },
+  OFFER = { slashCommands = "/offer", example = "You attempt to make %s an offer they can't refuse.", trigger = "you attempt to make %s an offer they can't refuse." },
+  PANIC = { slashCommands = "/panic", example = "You take one look at %s and panic.", trigger = "you take one look at %s and panic." },
+  PAT = { slashCommands = "/pat", example = "You gently pat %s.", trigger = "you gently pat %s." },
+  PEER = { slashCommands = "/peer", example = "You peer at %s searchingly.", trigger = "you peer at %s searchingly." },
+  PET = { slashCommands = "/pet", example = "You pet %s.", trigger = "you pet %s." },
+  PINCH = { slashCommands = "/pinch", example = "You pinch %s.", trigger = "you pinch %s." },
+  PITY = { slashCommands = "/pity", example = "You look down upon %s with pity.", trigger = "you look down upon %s with pity." },
+  PLEAD = { slashCommands = "/plead", example = "You plead with %s.", trigger = "you plead with %s." },
+  POINT = { slashCommands = "/point", example = "You point at %s.", trigger = "you point at %s." },
+  POKE = { slashCommands = "/poke", example = "You poke %s. Hey!", trigger = "you poke %s. hey!" },
+  PONDER = { slashCommands = "/ponder", example = "You ponder %s's actions.", trigger = "you ponder %s's actions." },
+  POUNCE = { slashCommands = "/pounce", example = "You pounce on top of %s.", trigger = "you pounce on top of %s." },
+  POUT = { slashCommands = "/pout", example = "You pout at %s.", trigger = "you pout at %s." },
+  PRAISE = { slashCommands = "/praise /lavish", example = "You lavish praise upon %s.", trigger = "you lavish praise upon %s." },
+  PRAY = { slashCommands = "/pray", example = "You say a prayer for %s.", trigger = "you say a prayer for %s." },
+  PROMISE = { slashCommands = "/promise", example = "You make %s a promise.", trigger = "you make %s a promise." },
+  PROUD = { slashCommands = "/proud", example = "You are proud of %s.", trigger = "you are proud of %s." },
+  PULSE = { slashCommands = "/pulse", example = "You check %s for a pulse. Oh no!", trigger = "you check %s for a pulse. oh no!" },
+  PUNCH = { slashCommands = "/punch", example = "You punch %s's shoulder.", trigger = "you punch %s's shoulder." },
+  PURR = { slashCommands = "/purr", example = "You purr at %s.", trigger = "you purr at %s." },
+  PUZZLED = { slashCommands = "/puzzled", example = "You are puzzled by %s.", trigger = "you are puzzled by %s." },
+  QUACK = { slashCommands = "/quack", example = "You quack at %s. Quack!", trigger = "you quack at %s. quack!" },
+  RAISE = { slashCommands = "/raise /volunteer", example = "You look at %s and raise your hand.", trigger = "you look at %s and raise your hand." },
+  RASP = { slashCommands = "/rasp", example = "You make a rude gesture at %s.", trigger = "you make a rude gesture at %s." },
+  READY = { slashCommands = "/ready /rdy", example = "You let %s know that you are ready!", trigger = "you let %s know that you are ready!" },
+  REGRET = { slashCommands = "/regret", example = "You think that %s will regret it.", trigger = "you think that %s will regret it." },
+  REVENGE = { slashCommands = "/revenge", example = "You vow revenge on %s.", trigger = "you vow revenge on %s." },
+  ROAR = { slashCommands = "/roar /rawr", example = "You roar with bestial vigor at %s. So fierce!", trigger = "you roar with bestial vigor at %s. so fierce!" },
+  ROFL = { slashCommands = "/rofl", example = "You roll on the floor laughing at %s.", trigger = "you roll on the floor laughing at %s." },
+  ROLLEYES = { slashCommands = "/rolleyes /eyeroll", example = "You roll your eyes at %s.", trigger = "you roll your eyes at %s." },
+  RUDE = { slashCommands = "/rude", example = "You make a rude gesture at %s.", trigger = "you make a rude gesture at %s." },
+  RUFFLE = { slashCommands = "/ruffle", example = "You ruffle %s's hair.", trigger = "you ruffle %s's hair." },
+  SALUTE = { slashCommands = "/salute", example = "You salute %s with respect.", trigger = "you salute %s with respect." },
+  SCARED = { slashCommands = "/scared", example = "You are scared of %s.", trigger = "you are scared of %s." },
+  SCOFF = { slashCommands = "/scoff", example = "You scoff at %s.", trigger = "you scoff at %s." },
+  SCOLD = { slashCommands = "/scold", example = "You scold %s.", trigger = "you scold %s." },
+  SCOWL = { slashCommands = "/scowl", example = "You scowl at %s.", trigger = "you scowl at %s." },
+  SCRATCH = { slashCommands = "/scratch /cat /catty", example = "You scratch %s. How catty!", trigger = "you scratch %s. how catty!" },
+  SEARCH = { slashCommands = "/search", example = "You search %s for something.", trigger = "you search %s for something." },
+  SEXY = { slashCommands = "/sexy", example = "You think %s is a sexy devil.", trigger = "you think %s is a sexy devil." },
+  SHAKE = { slashCommands = "/shake /rear", example = "You shake your rear at %s.", trigger = "you shake your rear at %s." },
+  SHAKEFIST = { slashCommands = "/shakefist /fist", example = "You shake your fist at %s.", trigger = "you shake your fist at %s." },
+  SHIFTY = { slashCommands = "/shifty", example = "You give %s a shifty look.", trigger = "you give %s a shifty look." },
+  SHIMMY = { slashCommands = "/shimmy", example = "You shimmy before %s.", trigger = "you shimmy before %s." },
+  SHIVER = { slashCommands = "/shiver", example = "You shiver beside %s. Chilling!", trigger = "you shiver beside %s. chilling!" },
+  SHOO = { slashCommands = "/shoo /pest", example = "You shoo %s away. Be gone pest!", trigger = "you shoo %s away. be gone pest!" },
+  HOLLER = { slashCommands = "/holler", example = "You shout at %s.", trigger = "you shout at %s." },
+  SHRUG = { slashCommands = "/shrug", example = "You shrug at %s. Who knows?", trigger = "you shrug at %s. who knows?" },
+  SHUDDER = { slashCommands = "/shudder", example = "You shudder at the sight of %s.", trigger = "you shudder at the sight of %s." },
+  SHY = { slashCommands = "/shy", example = "You smile shyly at %s.", trigger = "you smile shyly at %s." },
+  SIGH = { slashCommands = "/sigh", example = "You sigh at %s.", trigger = "you sigh at %s." },
+  SIGNAL = { slashCommands = "/signal", example = "You give %s the signal.", trigger = "you give %s the signal." },
+  SILENCE = { slashCommands = "/silence /shush", example = "You tell %s to be quiet. Shhh!", trigger = "you tell %s to be quiet. shhh!" },
+  SILLY = { slashCommands = "/silly", example = "You tell %s a joke.", trigger = "you tell %s a joke." },
+  SING = { slashCommands = "/sing", example = "You serenade %s with a song.", trigger = "you serenade %s with a song." },
+  SLAP = { slashCommands = "/slap", example = "You slap %s across the face. Ouch!", trigger = "you slap %s across the face. ouch!" },
+  SMACK = { slashCommands = "/smack", example = "You smack %s upside the head.", trigger = "you smack %s upside the head." },
+  SMILE = { slashCommands = "/smile", example = "You smile at %s.", trigger = "you smile at %s." },
+  SMIRK = { slashCommands = "/smirk", example = "You smirk slyly at %s.", trigger = "you smirk slyly at %s." },
+  SNAP = { slashCommands = "/snap", example = "You snap your fingers at %s.", trigger = "you snap your fingers at %s." },
+  SNARL = { slashCommands = "/snarl", example = "You bare your teeth and snarl at %s.", trigger = "you bare your teeth and snarl at %s." },
+  SNEAK = { slashCommands = "/sneak", example = "You try to sneak away from %s.", trigger = "you try to sneak away from %s." },
+  SNEEZE = { slashCommands = "/sneeze", example = "You sneeze on %s. Achoo!", trigger = "you sneeze on %s. achoo!" },
+  SNICKER = { slashCommands = "/snicker", example = "You snicker at %s.", trigger = "you snicker at %s." },
+  SNIFF = { slashCommands = "/sniff", example = "You sniff %s.", trigger = "you sniff %s." },
+  SNORT = { slashCommands = "/snort", example = "You snort derisively at %s.", trigger = "you snort derisively at %s." },
+  SNUB = { slashCommands = "/snub", example = "You snub %s.", trigger = "you snub %s." },
+  SOOTHE = { slashCommands = "/soothe", example = "You soothe %s. There, there...things will be ok.", trigger = "you soothe %s. there, there...things will be ok." },
+  SPIT = { slashCommands = "/spit", example = "You spit on %s.", trigger = "you spit on %s." },
+  SQUEAL = { slashCommands = "/squeal", example = "You squeal at %s.", trigger = "you squeal at %s." },
+  STARE = { slashCommands = "/stare", example = "You stare %s down.", trigger = "you stare %s down." },
+  STINK = { slashCommands = "/stink /smell", example = "You smell %s. Wow, someone stinks!", trigger = "you smell %s. wow, someone stinks!" },
+  SURPRISED = { slashCommands = "/surprised", example = "You are surprised by %s's actions.", trigger = "you are surprised by %s's actions." },
+  SURRENDER = { slashCommands = "/surrender", example = "You surrender before %s. Such is the agony of defeat...", trigger = "you surrender before %s. such is the agony of defeat..." },
+  SUSPICIOUS = { slashCommands = "/suspicious", example = "You are suspicious of %s.", trigger = "you are suspicious of %s." },
+  SWEAT = { slashCommands = "/sweat", example = "You sweat at the sight of %s.", trigger = "you sweat at the sight of %s." },
+  TALK = { slashCommands = "/talk", example = "You want to talk things over with %s.", trigger = "you want to talk things over with %s." },
+  TALKEX = { slashCommands = "/talkex /excited", example = "You talk excitedly with %s.", trigger = "you talk excitedly with %s." },
+  TALKQ = { slashCommands = "/talkq /question", example = "You question %s.", trigger = "you question %s." },
+  TAP = { slashCommands = "/tap", example = "You tap your foot as you wait for %s.", trigger = "you tap your foot as you wait for %s." },
+  TAUNT = { slashCommands = "/taunt", example = "You make a taunting gesture at %s. Bring it!", trigger = "you make a taunting gesture at %s. bring it!" },
+  TEASE = { slashCommands = "/tease", example = "You tease %s.", trigger = "you tease %s." },
+  THANK = { slashCommands = "/thank /thanks /ty", example = "You thank %s.", trigger = "you thank %s." },
+  THINK = { slashCommands = "/think", example = "You think about %s.", trigger = "you think about %s." },
+  THIRSTY = { slashCommands = "/thirsty", example = "You let %s know you are thirsty. Spare a drink?", trigger = "you let %s know you are thirsty. spare a drink?" },
+  TICKLE = { slashCommands = "/tickle", example = "You tickle %s. Hee hee!", trigger = "you tickle %s. hee hee!" },
+  TIRED = { slashCommands = "/tired", example = "You let %s know that you are tired.", trigger = "you let %s know that you are tired." },
+  TRUCE = { slashCommands = "/truce", example = "You offer %s a truce.", trigger = "you offer %s a truce." },
+  VETO = { slashCommands = "/veto", example = "You veto %s's motion.", trigger = "you veto %s's motion." },
+  VICTORY = { slashCommands = "/victory", example = "You bask in the glory of victory with %s.", trigger = "you bask in the glory of victory with %s." },
+  VIOLIN = { slashCommands = "/violin", example = "You play the world's smallest violin for %s.", trigger = "you play the world's smallest violin for %s." },
+  WAIT = { slashCommands = "/wait", example = "You ask %s to wait.", trigger = "you ask %s to wait." },
+  WARN = { slashCommands = "/warn", example = "You warn %s.", trigger = "you warn %s." },
+  WAVE = { slashCommands = "/wave", example = "You wave at %s.", trigger = "you wave at %s." },
+  WELCOME = { slashCommands = "/welcome", example = "You welcome %s.", trigger = "you welcome %s." },
+  WHINE = { slashCommands = "/whine", example = "You whine pathetically at %s.", trigger = "you whine pathetically at %s." },
+  WHISTLE = { slashCommands = "/whistle", example = "You whistle at %s.", trigger = "you whistle at %s." },
+  WHOA = { slashCommands = "/whoa", example = "You are blown away by %s.", trigger = "you are blown away by %s." },
+  WINCE = { slashCommands = "/wince", example = "You wince sympathetically at %s. That looked like it hurt!", trigger = "you wince sympathetically at %s. that looked like it hurt!" },
+  WINK = { slashCommands = "/wink", example = "You wink slyly at %s.", trigger = "you wink slyly at %s." },
+  WORK = { slashCommands = "/work", example = "You work with %s.", trigger = "you work with %s." },
+  YAWN = { slashCommands = "/yawn", example = "You yawn sleepily at %s.", trigger = "you yawn sleepily at %s." },
+  YW = { slashCommands = "/yw", example = "You were happy to help %s.", trigger = "you were happy to help %s." },
+  ATTACKMYTARGET = { slashCommands = "DoEmote(\"ATTACKMYTARGET\")", example = "You tell everyone to attack %s.", trigger = "you tell everyone to attack %s." },
+  FAIL = { slashCommands = "DoEmote(\"FAIL\")", example = "You think %s has failed.", trigger = "you think %s has failed." },
+  FOLLOW = { slashCommands = "DoEmote(\"FOLLOW\")", example = "You motion for %s to follow.", trigger = "you motion for %s to follow." },
+  GOODLUCK = { slashCommands = "DoEmote(\"GOODLUCK\")", example = "You wish %s good luck.", trigger = "you wish %s good luck." },
+  PUZZLE = { slashCommands = "DoEmote(\"PUZZLE\")", example = "You are puzzled by %s.", trigger = "you are puzzled by %s." },
+  SHOUT = { slashCommands = "DoEmote(\"SHOUT\")", example = "You shout at %s.", trigger = "you shout at %s." },
+  SERIOUS = { slashCommands = "DoEmote(\"SERIOUS\")", example = "You think %s is serious.", trigger = "you think %s is serious." },
+  STOPATTACK = { slashCommands = "DoEmote(\"STOPATTACK\")", example = "You tell %s to stop attacking.", trigger = "you tell %s to stop attacking." },
+  TOAST = { slashCommands = "DoEmote(\"TOAST\")", example = "You raise a drink to %s. Cheers!", trigger = "you raise a drink to %s. cheers!" },
+}
 
 SELF_VENDOR_MODES = {
   [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { key = "consumablesmissing", name = "Consumables (Missing Only)", description = "Trades a flask, oil, and five runes only when the target is missing the flask or runes.", command = "consumablesmissing" },
