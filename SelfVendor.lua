@@ -360,7 +360,14 @@ end
 function module:SetModeTriggerEmote(mode, emote)
   local configuration = modeConfiguration(mode)
   if not configuration or not SELF_VENDOR_TRIGGER_EMOTES[emote] then return end
+  for otherMode, otherConfiguration in pairs(db.profile.selfVendor.modes) do
+    if otherMode ~= mode and otherConfiguration.triggerEmote == emote then
+      print("SlackHacks: " .. SELF_VENDOR_MODES[otherMode].name .. " already uses that trigger emote.")
+      return false
+    end
+  end
   configuration.triggerEmote = emote
+  return true
 end
 
 function module:SetRuneQuantity(value)
