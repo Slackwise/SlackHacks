@@ -78,6 +78,275 @@ SLOT_IDS = {
 SECONDARY_GEM_QUANTITY = 6
 DEFAULT_ENHANCEMENT_SOURCE = "murlok"
 
+SELF_VENDOR_TRIGGER_EMOTES = {}
+local function addSelfVendorTriggerEmotes(entries)
+  for token, slashCommands, example in entries:gmatch("([A-Z]+)|([^|]+)|([^\n]+)") do
+    SELF_VENDOR_TRIGGER_EMOTES[token] = {
+      slashCommands = slashCommands,
+      example = example,
+      trigger = example:lower(),
+    }
+  end
+end
+
+addSelfVendorTriggerEmotes([[ABSENT|/absent|You look at %s absently.
+AGREE|/agree|You agree with %s.
+AMAZE|/amaze|You are amazed by %s!
+ANGRY|/angry /mad|You raise your fist in anger at %s.
+APOLOGIZE|/apologize /sorry|You apologize to %s. Sorry!
+APPLAUD|/applaud /bravo /applause|You applaud at %s. Bravo!
+ARM|/arm|You put your arm around %s's shoulder.
+ATTACKTARGET|/attacktarget|You tell everyone to attack %s.
+AWE|/awe|You stare at %s in awe.
+BADFEELING|/badfeeling /bad|You have a bad feeling about %s.
+BARK|/bark|You bark at %s.
+BASHFUL|/bashful|You are so bashful...too bashful to get %s's attention.
+BECKON|/beckon|You beckon %s over.
+BEG|/beg|You beg %s. How pathetic!
+BITE|/bite|You bite %s. Ouch!
+BLAME|/blame|You blame %s for everything.
+BLANK|/blank|You stare blankly at %s.
+BLINK|/blink|You blink at %s.
+BLUSH|/blush|You blush at %s.
+BOGGLE|/boggle|You boggle at %s.
+BONK|/bonk /doh|You bonk %s on the noggin. Doh!
+BOOP|/boop|You boop %s's nose.
+BOOT|/boot|You kick at %s.
+BORED|/bored|You are terribly bored with %s.
+BOUNCE|/bounce|You bounce up and down in front of %s.
+BOW|/bow|You bow before %s.
+BRANDISH|/brandish|You brandish your weapon fiercely at %s.
+BRB|/brb|You let %s know you'll be right back.
+BREATH|/breath|You tell %s to take a deep breath.
+BURP|/burp /belch|You burp rudely in %s's face.
+BYE|/bye /goodbye /farewell|You wave goodbye to %s. Farewell!
+CACKLE|/cackle|You cackle maniacally at %s.
+CALM|/calm|You try to calm %s down.
+CHALLENGE|/challenge|You challenge %s to a duel.
+CHARM|/charm|You think %s is charming.
+CHEER|/cheer /woot|You cheer at %s.
+CHICKEN|/chicken /flap /strut|With arms flapping, you strut around %s. Cluck, Cluck, Chicken!
+CHUCKLE|/chuckle|You chuckle at %s.
+CHUG|/chug|You encourage %s to chug. CHUG! CHUG! CHUG!
+CLAP|/clap|You clap excitedly for %s.
+COLD|/cold|You let %s know that you are cold.
+COMFORT|/comfort|You comfort %s.
+COMMEND|/commend|You commend %s on a job well done.
+CONFUSED|/confused|You look at %s with a confused look.
+CONGRATULATE|/congratulate /congrats /grats|You congratulate %s.
+COUGH|/cough|You cough at %s.
+COVEREARS|/coverears|You cover %s's ears.
+COWER|/cower /fear|You cower in fear at the sight of %s.
+CRACK|/crack /knuckles|You crack your knuckles while staring at %s.
+CRINGE|/cringe|You cringe away from %s.
+CROSSARMS|/crossarms|You cross your arms at %s. Hmph!
+CRY|/cry /sob /weep|You cry on %s's shoulder.
+CUDDLE|/cuddle /spoon|You cuddle up against %s.
+CURIOUS|/curious|You are curious what %s is up to.
+CURTSEY|/curtsey|You curtsey before %s.
+DANCE|/dance|You dance with %s.
+DING|/ding|You congratulate %s on a new level. DING!
+DISAGREE|/disagree|You disagree with %s.
+THREATEN|/threaten /doom /threat /wrath|You threaten %s with the wrath of doom.
+DOUBT|/doubt|You doubt %s.
+DRINK|/drink /shindig|You raise a drink to %s. Cheers!
+DROOL|/drool|You look at %s and begin to drool.
+DUCK|/duck|You duck behind %s.
+EAT|/eat /chew /feast|You begin to eat in front of %s.
+EMBARRASS|/embarrass|You are embarrassed by %s.
+ENCOURAGE|/encourage|You encourage %s.
+ENEMY|/enemy|You warn %s that an enemy is near.
+EYE|/eye|You eye %s up and down.
+EYEBROW|/eyebrow /brow|You raise your eyebrow inquisitively at %s.
+FACEPALM|/facepalm /palm|You look at %s and cover your face with your palm.
+FAINT|/faint|You faint at the sight of %s.
+FART|/fart|You brush up against %s and fart loudly.
+FIDGET|/fidget /impatient|You fidget impatiently while waiting for %s.
+FLEE|/flee /retreat|You yell for %s to flee!
+FLEX|/flex /strong|You flex at %s. Oooooh so strong!
+FLIRT|/flirt|You flirt with %s.
+FLOP|/flop|You flop about helplessly around %s.
+FOLLOWME|/followme|You motion for %s to follow.
+FROWN|/frown /disappointed|You frown with disappointment at %s.
+GASP|/gasp|You gasp at %s.
+GAZE|/gaze|You gaze longingly at %s.
+GIGGLE|/giggle|You giggle at %s.
+GLARE|/glare|You glare angrily at %s.
+GLOAT|/gloat|You gloat over %s's misfortune.
+GLOWER|/glower|You glower at %s.
+GO|/go|You tell %s to go.
+GOING|/going|You tell %s that you must be going.
+GOLFCLAP|/golfclap|You clap for %s, clearly unimpressed.
+GREET|/greet /greetings|You greet %s warmly.
+GRIN|/grin /wicked /wickedly|You grin wickedly at %s.
+GROAN|/groan|You look at %s and groan.
+GROVEL|/grovel /peon|You grovel before %s like a subservient peon.
+GROWL|/growl|You growl menacingly at %s.
+GUFFAW|/guffaw|You take one look at %s and let out a guffaw!
+HAIL|/hail|You hail %s.
+HAPPY|/happy /glad /yay|You are very happy with %s!
+HEADACHE|/headache|You are getting a headache from %s's antics.
+HELLO|/hello /hi|You greet %s with a hearty hello!
+HIGHFIVE|/highfive|You give %s a high five!
+HISS|/hiss|You hiss at %s.
+HOLDHAND|/holdhand|You hold %s's hand.
+HUG|/hug|You hug %s.
+HUNGRY|/hungry /food /pizza|You are hungry. Maybe %s has some food...
+HURRY|/hurry|You tell %s to hurry up.
+HUZZAH|/huzzah|You cheer boisterously for %s! Huzzah!
+IMPRESSED|/impressed|You clap vigorously for %s, clearly impressed.
+INCOMING|/incoming|You point out %s as an incoming enemy!
+INSULT|/insult|You think %s is the son of a motherless ogre.
+INTRODUCE|/introduce|You introduce yourself to %s.
+JEALOUS|/jealous|You are jealous of %s.
+JK|/jk|You let %s know that you were just kidding!
+KISS|/kiss /blow|You blow a kiss to %s.
+KNEEL|/kneel|You kneel before %s.
+LAUGH|/laugh /lol|You laugh at %s.
+LAYDOWN|/laydown /liedown /lay /lie|You lie down before %s.
+LICK|/lick|You lick %s.
+LISTEN|/listen|You listen intently to %s.
+LOOK|/look|You look at %s.
+LOST|/lost|You want %s to know that you are hopelessly lost.
+LOVE|/love|You love %s.
+LUCK|/luck|You wish %s the best of luck.
+MAGNIFICENT|/magnificent|You nod approvingly at %s. Magnificent job!
+MASSAGE|/massage|You massage %s's shoulders.
+MEOW|/meow|You meow at %s.
+MERCY|/mercy|You plead with %s for mercy.
+MOAN|/moan|You moan suggestively at %s.
+MOCK|/mock|You mock the foolishness of %s.
+MOO|/moo|You moo at %s. Mooooooooooo.
+MOON|/moon|You drop your trousers and moon %s.
+MOURN|/mourn|In quiet contemplation, you mourn the death of %s.
+MUTTER|/mutter|You mutter angrily at %s. Hmmmph!
+NERVOUS|/nervous|You look at %s nervously.
+NO|/no|You tell %s NO. Not going to happen.
+NOD|/nod /yes|You nod at %s.
+NOSEPICK|/nosepick /pick|You pick your nose and show it to %s.
+OBJECT|/object /objection /holdit|You object to %s.
+OFFER|/offer|You attempt to make %s an offer they can't refuse.
+PANIC|/panic|You take one look at %s and panic.
+PAT|/pat|You gently pat %s.
+PEER|/peer|You peer at %s searchingly.
+PET|/pet|You pet %s.
+PINCH|/pinch|You pinch %s.
+PITY|/pity|You look down upon %s with pity.
+PLEAD|/plead|You plead with %s.
+POINT|/point|You point at %s.
+POKE|/poke|You poke %s. Hey!
+PONDER|/ponder|You ponder %s's actions.
+POUNCE|/pounce|You pounce on top of %s.
+POUT|/pout|You pout at %s.
+PRAISE|/praise /lavish|You lavish praise upon %s.
+PRAY|/pray|You say a prayer for %s.
+PROMISE|/promise|You make %s a promise.
+PROUD|/proud|You are proud of %s.
+PULSE|/pulse|You check %s for a pulse. Oh no!
+PUNCH|/punch|You punch %s's shoulder.
+PURR|/purr|You purr at %s.
+PUZZLED|/puzzled|You are puzzled by %s.
+QUACK|/quack|You quack at %s. Quack!
+RAISE|/raise /volunteer|You look at %s and raise your hand.
+RASP|/rasp|You make a rude gesture at %s.
+READY|/ready /rdy|You let %s know that you are ready!
+REGRET|/regret|You think that %s will regret it.
+REVENGE|/revenge|You vow revenge on %s.
+ROAR|/roar /rawr|You roar with bestial vigor at %s. So fierce!
+ROFL|/rofl|You roll on the floor laughing at %s.
+ROLLEYES|/rolleyes /eyeroll|You roll your eyes at %s.
+RUDE|/rude|You make a rude gesture at %s.
+RUFFLE|/ruffle|You ruffle %s's hair.
+SALUTE|/salute|You salute %s with respect.
+SCARED|/scared|You are scared of %s.
+SCOFF|/scoff|You scoff at %s.
+SCOLD|/scold|You scold %s.
+SCOWL|/scowl|You scowl at %s.
+SCRATCH|/scratch /cat /catty|You scratch %s. How catty!
+SEARCH|/search|You search %s for something.
+SEXY|/sexy|You think %s is a sexy devil.
+SHAKE|/shake /rear|You shake your rear at %s.
+SHAKEFIST|/shakefist /fist|You shake your fist at %s.
+SHIFTY|/shifty|You give %s a shifty look.
+SHIMMY|/shimmy|You shimmy before %s.
+SHIVER|/shiver|You shiver beside %s. Chilling!
+SHOO|/shoo /pest|You shoo %s away. Be gone pest!
+HOLLER|/holler|You shout at %s.
+SHRUG|/shrug|You shrug at %s. Who knows?
+SHUDDER|/shudder|You shudder at the sight of %s.
+SHY|/shy|You smile shyly at %s.
+SIGH|/sigh|You sigh at %s.
+SIGNAL|/signal|You give %s the signal.
+SILENCE|/silence /shush|You tell %s to be quiet. Shhh!
+SILLY|/silly|You tell %s a joke.
+SING|/sing|You serenade %s with a song.
+SLAP|/slap|You slap %s across the face. Ouch!
+SMACK|/smack|You smack %s upside the head.
+SMILE|/smile|You smile at %s.
+SMIRK|/smirk|You smirk slyly at %s.
+SNAP|/snap|You snap your fingers at %s.
+SNARL|/snarl|You bare your teeth and snarl at %s.
+SNEAK|/sneak|You try to sneak away from %s.
+SNEEZE|/sneeze|You sneeze on %s. Achoo!
+SNICKER|/snicker|You snicker at %s.
+SNIFF|/sniff|You sniff %s.
+SNORT|/snort|You snort derisively at %s.
+SNUB|/snub|You snub %s.
+SOOTHE|/soothe|You soothe %s. There, there...things will be ok.
+SPIT|/spit|You spit on %s.
+SQUEAL|/squeal|You squeal at %s.
+STARE|/stare|You stare %s down.
+STINK|/stink /smell|You smell %s. Wow, someone stinks!
+SURPRISED|/surprised|You are surprised by %s's actions.
+SURRENDER|/surrender|You surrender before %s. Such is the agony of defeat...
+SUSPICIOUS|/suspicious|You are suspicious of %s.
+SWEAT|/sweat|You sweat at the sight of %s.
+TALK|/talk|You want to talk things over with %s.
+TALKEX|/talkex /excited|You talk excitedly with %s.
+TALKQ|/talkq /question|You question %s.
+TAP|/tap|You tap your foot as you wait for %s.
+TAUNT|/taunt|You make a taunting gesture at %s. Bring it!
+TEASE|/tease|You tease %s.
+THANK|/thank /thanks /ty|You thank %s.
+THINK|/think|You think about %s.
+THIRSTY|/thirsty|You let %s know you are thirsty. Spare a drink?
+TICKLE|/tickle|You tickle %s. Hee hee!
+TIRED|/tired|You let %s know that you are tired.
+TRUCE|/truce|You offer %s a truce.
+VETO|/veto|You veto %s's motion.
+VICTORY|/victory|You bask in the glory of victory with %s.
+VIOLIN|/violin|You play the world's smallest violin for %s.
+WAIT|/wait|You ask %s to wait.
+WARN|/warn|You warn %s.
+WAVE|/wave|You wave at %s.
+WELCOME|/welcome|You welcome %s.
+WHINE|/whine|You whine pathetically at %s.
+WHISTLE|/whistle|You whistle at %s.
+WHOA|/whoa|You are blown away by %s.
+WINCE|/wince|You wince sympathetically at %s. That looked like it hurt!
+WINK|/wink|You wink slyly at %s.
+WORK|/work|You work with %s.
+YAWN|/yawn|You yawn sleepily at %s.
+YW|/yw|You were happy to help %s.
+ATTACKMYTARGET|DoEmote("ATTACKMYTARGET")|You tell everyone to attack %s.
+FAIL|DoEmote("FAIL")|You think %s has failed.
+FOLLOW|DoEmote("FOLLOW")|You motion for %s to follow.
+GOODLUCK|DoEmote("GOODLUCK")|You wish %s good luck.
+PUZZLE|DoEmote("PUZZLE")|You are puzzled by %s.
+SHOUT|DoEmote("SHOUT")|You shout at %s.
+SERIOUS|DoEmote("SERIOUS")|You think %s is serious.
+STOPATTACK|DoEmote("STOPATTACK")|You tell %s to stop attacking.
+TOAST|DoEmote("TOAST")|You raise a drink to %s. Cheers!]])
+
+SELF_VENDOR_MODES = {
+  [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { key = "consumablesmissing", name = "Consumables (Missing Only)", description = "Trades a flask, oil, and five runes only when the target is missing the flask or runes.", command = "consumablesmissing" },
+  [Enum.SelfVendorMode.CONSUMABLES_ALL] = { key = "consumables", name = "Consumables", description = "Always trades a flask, oil, and five runes.", command = "consumables" },
+  [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { key = "flaskandoil", name = "Flask and Oil", description = "Always trades one flask and one oil.", command = "flaskandoil" },
+  [Enum.SelfVendorMode.OIL] = { key = "oil", name = "Oil", description = "Always trades one oil.", command = "oil" },
+  [Enum.SelfVendorMode.RUNES] = { key = "runes", name = "Runes", description = "Always trades the selected number of runes as one stack.", command = "runes" },
+  [Enum.SelfVendorMode.AUGMENTS] = { key = "augments", name = "Augments", description = "Trades the target's missing recommended enchants, gems, and armor kits.", command = "augments" },
+}
+
 ENHANCEMENTS_BIS = {
   icyveins = {
     DEATHKNIGHT = {
