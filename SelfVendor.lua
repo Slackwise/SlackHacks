@@ -15,6 +15,12 @@ local function modeForCommand(command)
   end
 end
 
+local function emoteForTargetedMessage(message)
+  for token, emote in pairs(SELF_VENDOR_TRIGGER_EMOTES) do
+    if message:find(emote.trigger, 1, true) then return token end
+  end
+end
+
 local function itemID(itemName)
   return ITEM_NAMES and ITEM_NAMES[itemName]
 end
@@ -537,17 +543,18 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
     log("Ignoring text emote because sender is not eligible")
     return
   end
-  if not target or not sameName(target, UnitName("player")) or not message then
-    log("Ignoring text emote because it is not targeted to the player")
+  if not message then
+    log("Ignoring text emote because it has no message text")
     return
   end
-  local lowerMessage = message:lower()
-  local playerName = UnitName("player")
+  local emoteToken = emoteForTargetedMessage(message:lower())
+  if not emoteToken then
+    log("Ignoring text emote because it does not match a configured target-emote pattern")
+    return
+  end
   for mode, details in pairs(SELF_VENDOR_MODES) do
     local configuration = modeConfiguration(mode)
-    local emote = configuration and SELF_VENDOR_TRIGGER_EMOTES[configuration.triggerEmote]
-    local trigger = emote and emote.trigger:gsub("%%s", playerName:lower())
-    if configuration and configuration.enabled and trigger and lowerMessage:find(trigger, 1, true) then
+    if configuration and configuration.enabled and configuration.triggerEmote == emoteToken then
       log("Matching " .. details.name .. " trigger received from " .. tostring(sender))
       self:BeginEmoteTrade(sender, mode)
       return
