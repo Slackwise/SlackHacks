@@ -495,6 +495,12 @@ function module:NotifyTradeUnavailable(name)
   DoEmote("BECKON", name)
 end
 
+local TRADE_INTERACT_DISTANCE = 2
+
+local function inTradeRange(unit)
+  return unit and CheckInteractDistance(unit, TRADE_INTERACT_DISTANCE)
+end
+
 function module:FailPendingTrade(message)
   self:NotifyTradeUnavailable(self.pendingName)
   log("Self Vendor failed: " .. message)
@@ -771,6 +777,18 @@ function module:CheckAndInitiateTrade()
     log("Trade check skipped because there is no pending player")
     return
   end
+  if self.pendingUnit and not inTradeRange(self.pendingUnit) then
+    log(self.pendingName .. " is out of trade range; notifying and skipping")
+    self:NotifyTradeUnavailable(self.pendingName)
+    self.pendingName = nil
+    self.pendingUnit = nil
+    self.pendingRequired = nil
+    self.pendingTradeItems = nil
+    self.pendingTradeIndex = nil
+    self.pendingMode = nil
+    self:StartNextQueuedTrade()
+    return
+  end
   log("Checking inventory for pending player " .. self.pendingName)
   local required, sourceKey = self:GetRequiredItems()
   if not required then
@@ -824,6 +842,11 @@ function module:PrepareTradeItems(required)
   local function prepareNextItem()
     if not self.pendingName then return end
     if itemIndex > #itemIDs then
+      if self.pendingUnit and not inTradeRange(self.pendingUnit) then
+        log(self.pendingName .. " moved out of trade range during item prep")
+        self:FailPendingTrade(self.pendingName .. " moved out of trade range")
+        return
+      end
       log("Exact trade stacks prepared; initiating trade with " .. self.pendingName)
       InitiateTrade(self.pendingName)
       return
