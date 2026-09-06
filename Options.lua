@@ -51,7 +51,7 @@ local function selfVendorModeOptions()
     local details = SELF_VENDOR_MODES[mode]
     args[details.key] = {
       type = "group",
-      name = false,
+      name = "",
       inline = true,
       order = order,
       args = {
