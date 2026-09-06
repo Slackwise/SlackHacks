@@ -652,6 +652,7 @@ function module:GetRequiredItems()
       or self.pendingGlareOverride and "consumables"
     or db.profile.selfVendor.mode
   if modeIncludesGear(mode) then
+    local equippedGemCounts = {}
     for _, slotKey in ipairs(recommendationData.slotKeys) do
       local slot = SLOT_IDS[slotKey]
       local link = self.pendingUnit and GetInventoryItemLink(self.pendingUnit, slot)
@@ -660,24 +661,25 @@ function module:GetRequiredItems()
       if expectedEnchantID and enchantID ~= expectedEnchantID then
         addRequiredItem(required, expectedEnchantID)
       end
-      local hasMatchingGem = false
       if link then
         for gemIndex = 1, 3 do
           local gemLink = select(2, C_Item.GetItemGem(link, gemIndex))
           local gemID = gemLink and C_Item.GetItemInfoInstant(gemLink)
           if gemID and tContains(recommendationData.gemIDs, gemID) then
-            hasMatchingGem = true
-            break
+            equippedGemCounts[gemID] = (equippedGemCounts[gemID] or 0) + 1
           end
         end
       end
-      if not hasMatchingGem and link then
-        for _, gem in ipairs(recommendationData.gemEntries or {}) do
-          addRequiredItem(required, gem.itemID, gem.quantity)
+    end
+    if self.pendingUnit then
+      for _, gem in ipairs(recommendationData.gemEntries or {}) do
+        local equippedQuantity = equippedGemCounts[gem.itemID] or 0
+        local missingQuantity = (gem.quantity or 1) - equippedQuantity
+        if missingQuantity > 0 then
+          addRequiredItem(required, gem.itemID, missingQuantity)
         end
       end
-    end
-    if not self.pendingUnit then
+    else
       for _, enchantID in pairs(recommendationData.enchantIDs) do
         addRequiredItem(required, enchantID)
       end
