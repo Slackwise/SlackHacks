@@ -51,32 +51,32 @@ local function selfVendorModeOptions()
     local details = SELF_VENDOR_MODES[mode]
     args[details.key] = {
       type = "group",
-      name = "",
+      name = details.name,
       inline = true,
       order = order,
       args = {
-        enabled = {
-          name = details.name,
-          type = "toggle",
-          width = 1.4,
-          get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
-          set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
-          order = 1,
-        },
-        triggerEmote = {
-          name = "Trigger Emote",
-          type = "select",
-          width = 1.6,
-          values = selfVendorEmoteValues,
-          sorting = selfVendorEmoteSorting,
-          get = function() return db.profile.selfVendor.modes[configuredMode].triggerEmote end,
-          set = function(_, value) Self.SelfVendor:SetModeTriggerEmote(configuredMode, value) end,
-          order = 2,
-        },
         description = {
           type = "description",
           name = details.description,
           width = "full",
+          order = 1,
+        },
+        enabled = {
+          name = "Enable",
+          type = "toggle",
+          width = 1.1,
+          get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
+          set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
+          order = 2,
+        },
+        triggerEmote = {
+          name = "Trigger Emote",
+          type = "select",
+          width = 1.9,
+          values = selfVendorEmoteValues,
+          sorting = selfVendorEmoteSorting,
+          get = function() return db.profile.selfVendor.modes[configuredMode].triggerEmote end,
+          set = function(_, value) Self.SelfVendor:SetModeTriggerEmote(configuredMode, value) end,
           order = 3,
         },
       },
@@ -85,13 +85,12 @@ local function selfVendorModeOptions()
       args[details.key].args.runeQuantity = {
         name = "Rune Stack Size",
         type = "input",
-        width = 1.4,
+        width = 0.7,
         get = function() return tostring(db.profile.selfVendor.modes[configuredMode].runeQuantity) end,
         set = function(_, value) Self.SelfVendor:SetRuneQuantity(value) end,
         validate = function(_, value) return tonumber(value) and tonumber(value) >= 1 and tonumber(value) <= 100 end,
-        order = 3,
+        order = 4,
       }
-      args[details.key].args.description.order = 4
     end
   end
   return args
