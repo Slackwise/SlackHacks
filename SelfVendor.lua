@@ -424,8 +424,13 @@ function module:HandleSlash(input)
   elseif command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
+  elseif command == "clearqueue" then
+    local count = self.tradeQueue and #self.tradeQueue or 0
+    self.tradeQueue = {}
+    log("Self Vendor queue manually cleared; removed " .. count .. " entries")
+    print("SlackHacks: cleared " .. count .. " player(s) from the Self Vendor queue.")
   else
-    print("Usage: /slack vendor [toggle|consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [toggle|clearqueue|consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
   end
 end
 
@@ -483,17 +488,25 @@ function module:PollPreparedStack(bag, slot, itemID, quantity, onSuccess, onFail
   C_Timer.After(delay, check)
 end
 
+function module:NotifyTradeUnavailable(name)
+  if not name then return end
+  SendChatMessage("You're too far away to trade with me. Move closer and I'll try again.", "WHISPER", nil, name)
+  TargetUnit(name)
+  DoEmote("BECKON", name)
+end
+
 function module:FailPendingTrade(message)
-  if self.pendingName then
-    DoEmote("CRY", self.pendingName)
-  end
+  self:NotifyTradeUnavailable(self.pendingName)
   log("Self Vendor failed: " .. message)
   if message then print("SlackHacks: " .. message) end
   self.pendingName = nil
   self.pendingUnit = nil
   self.pendingRequired = nil
+  self.pendingTradeItems = nil
+  self.pendingTradeIndex = nil
   self.inspectGUID = nil
   self.pendingMode = nil
+  self:StartNextQueuedTrade()
 end
 
 function module:ReportMissingItems(shortages)
@@ -512,12 +525,42 @@ function module:ReportMissingItems(shortages)
   self.pendingTradeIndex = nil
   self.inspectGUID = nil
   self.pendingMode = nil
+  self:StartNextQueuedTrade()
 end
 
+local function queuePositionFor(queue, name)
+  if not queue then return nil end
+  for index, entry in ipairs(queue) do
+    if sameName(entry.name, name) then return index end
+  end
+end
+
+-- A name should never be both actively serviced and sitting in the waiting array; purge stray duplicates whenever we notice one
+local function removeQueueEntries(queue, name)
+  if not queue then return end
+  for index = #queue, 1, -1 do
+    if sameName(queue[index].name, name) then table.remove(queue, index) end
+  end
+end
+
+-- Enqueue immediately so the player holds a queue position before any async work (inspect, bag checks) begins
 function module:BeginEmoteTrade(sender, mode)
+  self.tradeQueue = self.tradeQueue or {}
+  if sameName(self.pendingName, sender) or sameName(self.activeTradeName, sender) then
+    removeQueueEntries(self.tradeQueue, sender)
+    print("SlackHacks: " .. sender .. " is already being serviced.")
+    log(tostring(sender) .. " emoted again while already being serviced; ignoring duplicate")
+    return
+  end
+  local existingPosition = queuePositionFor(self.tradeQueue, sender)
+  if existingPosition then
+    SendChatMessage("You're already in the queue at position #" .. existingPosition .. ". Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
+    print("SlackHacks: " .. sender .. " is already in the Self Vendor queue (position #" .. existingPosition .. ").")
+    log(tostring(sender) .. " emoted again while already queued at position " .. existingPosition)
+    return
+  end
+  table.insert(self.tradeQueue, { name = sender, mode = mode })
   if self.pendingName or self.activeTradeName then
-    self.tradeQueue = self.tradeQueue or {}
-    table.insert(self.tradeQueue, { name = sender, mode = mode })
     local currentName = self.activeTradeName or self.pendingName
     local position = #self.tradeQueue
     SendChatMessage("I'm busy servicing " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
@@ -525,16 +568,7 @@ function module:BeginEmoteTrade(sender, mode)
     log("Added " .. sender .. " to the Self Vendor queue; queue size=" .. position)
     return
   end
-  self.pendingName = sender
-  self.pendingMode = mode
-  self.pendingUnit = groupUnitFor(sender)
-  if not self.pendingUnit and sameName(UnitName("target"), sender) then self.pendingUnit = "target" end
-  if mode == VendorMode.AUGMENTS and self.pendingUnit then
-    self.inspectGUID = UnitGUID(self.pendingUnit)
-    NotifyInspect(self.pendingUnit)
-  else
-    self:CheckAndInitiateTrade()
-  end
+  self:StartNextQueuedTrade()
 end
 
 function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
@@ -583,15 +617,15 @@ function module:UI_INFO_MESSAGE(_, _, message)
   if not self.pendingName or not message then return end
   local lowerMessage = message:lower()
   if not lowerMessage:find("too far", 1, true) and not lowerMessage:find("out of range", 1, true) then return end
-  log("Trade target is out of range; beckoning " .. self.pendingName)
-  TargetUnit(self.pendingName)
-  DoEmote("BECKON", self.pendingName)
+  log("Trade target is out of range; notifying " .. self.pendingName)
+  self:NotifyTradeUnavailable(self.pendingName)
   self.pendingName = nil
   self.pendingUnit = nil
   self.pendingRequired = nil
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
   self.pendingMode = nil
+  self:StartNextQueuedTrade()
 end
 
 function module:TRADE_ACCEPT_UPDATE(_, playerAccepted, targetAccepted)
@@ -607,14 +641,24 @@ function module:TRADE_REQUEST_CANCEL()
   self.tradeQueue = {}
 end
 
-function module:StartQueuedTrade()
+function module:StartNextQueuedTrade()
   if not self.tradeQueue or #self.tradeQueue == 0 then return end
   local queuedTrade = table.remove(self.tradeQueue, 1)
+  removeQueueEntries(self.tradeQueue, queuedTrade.name)
   self.activeTradeName = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
-  self:BeginEmoteTrade(queuedTrade.name, queuedTrade.mode)
+  self.pendingName = queuedTrade.name
+  self.pendingMode = queuedTrade.mode
+  self.pendingUnit = groupUnitFor(queuedTrade.name)
+  if not self.pendingUnit and sameName(UnitName("target"), queuedTrade.name) then self.pendingUnit = "target" end
+  if queuedTrade.mode == VendorMode.AUGMENTS and self.pendingUnit then
+    self.inspectGUID = UnitGUID(self.pendingUnit)
+    NotifyInspect(self.pendingUnit)
+  else
+    self:CheckAndInitiateTrade()
+  end
 end
 
 function module:TRADE_CLOSED()
@@ -627,7 +671,7 @@ function module:TRADE_CLOSED()
   if successful then
     print("SlackHacks: finished servicing " .. servicedName .. ".")
     log("Finished servicing " .. servicedName)
-    self:StartQueuedTrade()
+    self:StartNextQueuedTrade()
     local remaining = self.tradeQueue and #self.tradeQueue or 0
     if remaining > 0 then
       print("SlackHacks: " .. remaining .. " still in the Self Vendor queue.")
@@ -637,6 +681,7 @@ function module:TRADE_CLOSED()
       log("Self Vendor queue cleared")
     end
   else
+    self:NotifyTradeUnavailable(servicedName)
     self.tradeQueue = {}
     print("SlackHacks: Self Vendor queue is cleared.")
     log("Self Vendor queue cleared")
@@ -730,6 +775,14 @@ function module:CheckAndInitiateTrade()
   local required, sourceKey = self:GetRequiredItems()
   if not required then
     print("SlackHacks: no " .. displayEnhancementSource(sourceKey or db.profile.selfVendor.source) .. " BIS data found for your current class/spec.")
+    log("No BIS data found for pending player " .. self.pendingName .. "; clearing pending trade")
+    self.pendingName = nil
+    self.pendingUnit = nil
+    self.pendingRequired = nil
+    self.pendingTradeItems = nil
+    self.pendingTradeIndex = nil
+    self.pendingMode = nil
+    self:StartNextQueuedTrade()
     return
   end
   local shortages = {}
@@ -751,6 +804,7 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
+    self:StartNextQueuedTrade()
     return
   end
   log("Inventory check passed; preparing exact stacks before trade")
