@@ -96,6 +96,19 @@ function isAlternativeMountRequested()
   return IsModifierKeyDown() -- This will ignore any modifiers used to trigger off a keybinding!
 end
 
+-- Adds a "Test" option to the Blizzard right-click context menu for mounts in the Mount Journal
+if Menu and Menu.ModifyMenu then
+  Menu.ModifyMenu("MENU_MOUNT_COLLECTION_MOUNT", function(owner, rootDescription, contextData)
+    -- The mount button frame stores its mountID directly; drag buttons store it on their parent row
+    local mountFrame = owner and (owner.mountID and owner or owner:GetParent())
+    local mountID = mountFrame and mountFrame.mountID
+    local mountName = mountID and C_MountJournal.GetMountInfoByID(mountID)
+    rootDescription:CreateButton("Test", function()
+      print("Test: " .. (mountName or "Unknown mount"))
+    end)
+  end)
+end
+
 function mount()  
   if IsMounted() then
     Dismount()
