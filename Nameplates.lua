@@ -14,8 +14,10 @@ local function isEnemyUnit(unitTarget)
 		return false
 	end
 
-	-- bossN unit tokens aren't valid for GetNamePlateForUnit and throw if used.
-	if unitTarget:lower():match("^boss%d+$") then
+	-- bossN/raidN/partyN/raidpetN/partypetN unit tokens aren't valid for GetNamePlateForUnit and throw if used.
+	if unitTarget:lower():match("^boss%d+$") or unitTarget:lower():match("^raid%d+$")
+		or unitTarget:lower():match("^party%d+$") or unitTarget:lower():match("^raidpet%d+$")
+		or unitTarget:lower():match("^partypet%d+$") then
 		return false
 	end
 
