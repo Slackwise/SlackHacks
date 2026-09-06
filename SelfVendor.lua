@@ -525,7 +525,7 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
   if not addressedToPlayer and message then
     addressedToPlayer = message:find(playerName, 1, true) ~= nil
       or lowerMessage:find("salutes you", 1, true) ~= nil
-        or lowerMessage:find("glares at you", 1, true) ~= nil
+        or lowerMessage:find("glares angrily at you", 1, true) ~= nil
       or lowerMessage:find("flexes at you", 1, true) ~= nil
         or lowerMessage:find("looks at you and raises", 1, true) ~= nil
   end
