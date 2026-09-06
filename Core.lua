@@ -159,7 +159,9 @@ function shortName(name)
 end
 
 function sameName(left, right)
-  return shortName(left) == shortName(right)
+  -- Unit names can be "secret" values (e.g. combat anti-bot protections) that error when compared.
+  local ok, isSame = pcall(function() return shortName(left) == shortName(right) end)
+  return ok and isSame
 end
 
 function characterFullName(characterName, realmName)
