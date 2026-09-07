@@ -1,8 +1,8 @@
-## Interface: 110205, 110207, 120000
+## Interface: 120100
 ## Title: SlackHacks: Slackwise's Hacks & UI Tweaks
 ## Notes: A compilation of little feature hacks and minimalistic tweaks to the default UI.
 ## Author: Slack — Moon Guard
-## Version: 0.3
+## Version: 0.4
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
