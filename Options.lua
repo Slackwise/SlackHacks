@@ -156,7 +156,7 @@ options = {
         },
         showAllMinimapTracking = {
           name = "Show All Minimap Tracking",
-          desc = "Show all minimap tracking options, including the option to turn off target tracking.",
+          desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
