@@ -220,6 +220,27 @@ options = {
         }
       }
     },
+    combat = {
+      type = "group",
+      name = "Combat",
+      desc = "Combat-related features.",
+      order = 6,
+      args = {
+        raiseCastingNameplates = {
+          name = "Raise Casting Nameplates",
+          desc = "Raise enemy nameplates while they are casting.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.combat.raiseCastingNameplates end,
+          set = function(_, value)
+            db.profile.combat.raiseCastingNameplates = value
+            resetNameplateCastLift()
+          end,
+          order = 1
+        }
+      }
+    },
     vendor = {
       type = "group",
       name = "Self Vendor",

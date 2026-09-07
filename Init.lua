@@ -36,6 +36,9 @@ dbDefaults = {
       maximumCameraZoom = false,
       showAllMinimapTracking = false
     },
+    combat = {
+      raiseCastingNameplates = false
+    },
     selfVendor = {
       enabled = false,
       source = "murlok",

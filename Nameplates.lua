@@ -58,6 +58,10 @@ function raiseCastingNameplate(unitTarget)
 end
 
 function handleCasts(addonSelf, eventName, unitTarget)
+	if not db.profile.combat.raiseCastingNameplates then
+		return
+	end
+
 	if not isEnemyUnit(unitTarget) then
 		return
 	end
