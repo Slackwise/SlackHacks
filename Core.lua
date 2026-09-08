@@ -280,6 +280,8 @@ end
 function setCVars()
   if db.profile.general.maximumCameraZoom then
     ensureCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoon
+  else
+    ensureCVar("cameraDistanceMaxZoomFactor", GetCVarDefault("cameraDistanceMaxZoomFactor"))
   end
   ensureCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
 
