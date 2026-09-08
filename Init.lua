@@ -31,7 +31,7 @@ dbDefaults = {
   global = {
     configVersion = CONFIG_VERSION,
     isDebugging = false,
-    log = {},
+    logs = {},
     logPurgeEnabled = true,
     logPurgeHours = 48
   },
@@ -150,11 +150,11 @@ function log(message, ...)
     local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
     print(grey(timestamp) .. "  " .. message)
     if isInitialized() then -- we have a DB to save to:
-      table.insert(Self.db.global.log, { timestamp, message })
+      table.insert(Self.db.global.logs, { timestamp, message })
       if arg then
         for i, v in ipairs(arg) do
           print("Arg " .. i .. " = " .. v)
-          table.insert(Self.db.global.log, { timestamp, "Arg " .. i .. " = " .. v })
+          table.insert(Self.db.global.logs, { timestamp, "Arg " .. i .. " = " .. v })
         end
       end
     end
@@ -170,14 +170,18 @@ function purgeOldLogs()
   end
   local cutoff = time() - (Self.db.global.logPurgeHours * 60 * 60)
   local kept = {}
-  for _, entry in ipairs(Self.db.global.log) do
+  for _, entry in ipairs(Self.db.global.logs) do
     local year, month, day, hour, min, sec = entry[1]:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
     local entryTime = year and time({ year = year, month = month, day = day, hour = hour, min = min, sec = sec })
     if not entryTime or entryTime >= cutoff then
       table.insert(kept, entry)
     end
   end
-  Self.db.global.log = kept
+  Self.db.global.logs = kept
+end
+
+function clearLogs()
+  wipe(Self.db.global.logs)
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
