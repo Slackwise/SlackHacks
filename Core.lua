@@ -52,6 +52,9 @@ function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of comb
   setCVars()
   setupEkil()
   handleDragonriding()
+  if isLogin then
+    C_Timer.After(5, purgeOldLogs)
+  end
 end
 
 function Self:MERCHANT_SHOW(eventName)
