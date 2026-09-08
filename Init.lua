@@ -16,6 +16,8 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
+CONFIG_VERSION = 1
+
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
   CONSUMABLES_ALL = 2,
@@ -27,6 +29,7 @@ Enum.SelfVendorMode = {
 
 dbDefaults = {
   global = {
+    configVersion = CONFIG_VERSION,
     isDebugging = false,
     log = {},
     logPurgeEnabled = true,
@@ -177,9 +180,27 @@ function purgeOldLogs()
   Self.db.global.log = kept
 end
 
+-- Maps a target config version to the function that migrates from (target - 1) to it.
+CONFIG_MIGRATIONS = {
+  -- [2] = function() ... end,
+}
+
+function migrateConfig()
+  local version = Self.db.global.configVersion or 0
+  while version < CONFIG_VERSION do
+    version = version + 1
+    local migrate = CONFIG_MIGRATIONS[version]
+    if migrate then
+      migrate()
+    end
+    Self.db.global.configVersion = version
+  end
+end
+
 --Event Handlers
 function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
+  migrateConfig()
   config:RegisterOptionsTable("SlackHacks", options)
   Self:RegisterChatCommand("slack", handleSlashCommand)
   Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
