@@ -108,6 +108,7 @@ end
 
 options = {
   type = "group",
+  icon = SLACKHACKS_ICON,
   args = {
     enable = {
       name = "Enable",
@@ -208,6 +209,7 @@ options = {
       type = "group",
       name = "Debug",
       desc = "Debugging and logging options.",
+      icon = SLACKHACKS_ICON,
       order = 6,
       args = {
         debug = {

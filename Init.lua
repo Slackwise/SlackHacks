@@ -14,6 +14,8 @@ setfenv(1, Self) -- Namespace local to addon
 
 addonName, addonTable = ...
 
+SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
+
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
   CONSUMABLES_ALL = 2,
