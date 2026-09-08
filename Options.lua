@@ -209,7 +209,6 @@ options = {
       type = "group",
       name = "Debug",
       desc = "Debugging and logging options.",
-      icon = SLACKHACKS_ICON,
       order = 6,
       args = {
         debug = {
