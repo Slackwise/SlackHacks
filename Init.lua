@@ -156,6 +156,21 @@ function log(message, ...)
   end
 end
 
+LOG_MAX_AGE_SECONDS = 3 * 24 * 60 * 60 -- 3 days
+
+function purgeOldLogs()
+  local cutoff = time() - LOG_MAX_AGE_SECONDS
+  local kept = {}
+  for _, entry in ipairs(Self.db.global.log) do
+    local year, month, day, hour, min, sec = entry[1]:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
+    local entryTime = year and time({ year = year, month = month, day = day, hour = hour, min = min, sec = sec })
+    if not entryTime or entryTime >= cutoff then
+      table.insert(kept, entry)
+    end
+  end
+  Self.db.global.log = kept
+end
+
 --Event Handlers
 function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
