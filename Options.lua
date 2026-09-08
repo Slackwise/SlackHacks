@@ -154,6 +154,19 @@ options = {
           end,
           order = 1
         },
+        showAllMinimapTracking = {
+          name = "Show All Minimap Tracking",
+          desc = "Show all minimap tracking options, including the option to turn off target tracking.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.general.showAllMinimapTracking end,
+          set = function(_, value)
+            db.profile.general.showAllMinimapTracking = value
+            setCVars()
+          end,
+          order = 2
+        },
         autoSellGreyItems = {
           name = "Auto Sell Grey Items",
           desc = "Automatically sell grey-quality items when visiting a merchant.",
@@ -162,7 +175,7 @@ options = {
           width = "full",
           get = function() return db.profile.general.autoSellGreyItems end,
           set = function(_, value) db.profile.general.autoSellGreyItems = value end,
-          order = 2
+          order = 3
         },
         autoRepairGroup = {
           type = "group",
