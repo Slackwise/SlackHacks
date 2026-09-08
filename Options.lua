@@ -7,6 +7,9 @@ function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "vendor" then
     print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
+  elseif command == "clearlogs" then
+    clearLogs()
+    print("SlackHacks: logs cleared")
   elseif command:find("^vendor%s+") then
     Self.SelfVendor:HandleSlash(command:sub(8))
   elseif command:find("^sendaugs%s+") then
@@ -233,7 +236,7 @@ options = {
           desc = "Clear all debug logs stored in SlackHacksDB.",
           type = "execute",
           func = function()
-            wipe(db.global.log)
+            clearLogs()
             print("SlackHacks: logs cleared")
           end,
           confirm = true,
