@@ -136,13 +136,14 @@ grey = color("AAAAAA")
 
 function log(message, ...)
   if isDebugging() then
-    print(grey(date()) .. "  " .. message)
+    local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
+    print(grey(timestamp) .. "  " .. message)
     if isInitialized() then -- we have a DB to save to:
-      table.insert(Self.db.global.log, date() .. "  " .. message)
+      table.insert(Self.db.global.log, { timestamp, message })
       if arg then
         for i, v in ipairs(arg) do
           print("Arg " .. i .. " = " .. v)
-          table.insert(Self.db.global.log, "Arg " .. i .. " = " .. v)
+          table.insert(Self.db.global.log, { timestamp, "Arg " .. i .. " = " .. v })
         end
       end
     end
