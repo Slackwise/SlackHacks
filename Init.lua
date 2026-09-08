@@ -28,7 +28,9 @@ Enum.SelfVendorMode = {
 dbDefaults = {
   global = {
     isDebugging = false,
-    log = {}
+    log = {},
+    logPurgeEnabled = true,
+    logPurgeHours = 48
   },
   profile = {
     general = {
@@ -156,10 +158,14 @@ function log(message, ...)
   end
 end
 
-LOG_MAX_AGE_SECONDS = 3 * 24 * 60 * 60 -- 3 days
+LOG_PURGE_MIN_HOURS = 1
+LOG_PURGE_MAX_HOURS = 24 * 30 -- 30 days
 
 function purgeOldLogs()
-  local cutoff = time() - LOG_MAX_AGE_SECONDS
+  if not Self.db.global.logPurgeEnabled then
+    return
+  end
+  local cutoff = time() - (Self.db.global.logPurgeHours * 60 * 60)
   local kept = {}
   for _, entry in ipairs(Self.db.global.log) do
     local year, month, day, hour, min, sec = entry[1]:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
