@@ -136,6 +136,10 @@ end
 
 grey = color("AAAAAA")
 
+function icon(size)
+  return "\124T" .. SLACKHACKS_ICON .. ":" .. (size or 16) .. "\124t"
+end
+
 function log(message, ...)
   if isDebugging() then
     local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
@@ -157,7 +161,7 @@ function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
   config:RegisterOptionsTable("SlackHacks", options)
   Self:RegisterChatCommand("slack", handleSlashCommand)
-  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks")
+  Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
 
   -- Disabling ActionCam warning/confirmation popup: https://github.com/mpstark/DynamicCam/blob/master/Core.lua#L628C1-L629C68
   UIParent:UnregisterEvent("EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED")
