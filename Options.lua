@@ -119,22 +119,6 @@ options = {
       set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
       order = 0 -- first
     },
-    debug = {
-      name = "Debug Mode",
-      desc = "Prints debug information to the chat window and logs to DB for later analysis",
-      type = "toggle",
-      descStyle = "inline",
-      width = "full",
-      get = function() return db.global.isDebugging end,
-      set = function()
-        db.global.isDebugging = not db.global.isDebugging
-        if db.global.isDebugging then
-          print("SlackHacks Debugging ON")
-        else
-          print("SlackHacks Debugging OFF")
-        end
-      end,
-    },
     general = {
       type = "group",
       name = "General",
@@ -220,11 +204,47 @@ options = {
         }
       }
     },
+    debug = {
+      type = "group",
+      name = "Debug",
+      desc = "Debugging and logging options.",
+      order = 6,
+      args = {
+        debug = {
+          name = "Debug Mode",
+          desc = "Prints debug information to the chat window and logs to DB for later analysis",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.global.isDebugging end,
+          set = function()
+            db.global.isDebugging = not db.global.isDebugging
+            if db.global.isDebugging then
+              print("SlackHacks Debugging ON")
+            else
+              print("SlackHacks Debugging OFF")
+            end
+          end,
+          order = 1
+        },
+        clearLogs = {
+          name = "Clear Logs",
+          desc = "Clear all debug logs stored in SlackHacksDB.",
+          type = "execute",
+          func = function()
+            wipe(db.global.log)
+            print("SlackHacks: logs cleared")
+          end,
+          confirm = true,
+          order = 2
+        }
+      }
+    },
     combat = {
       type = "group",
       name = "Combat",
       desc = "Combat-related features.",
-      order = 6,
+      order = 7,
       args = {
         raiseCastingNameplates = {
           name = "Raise Casting Nameplates",
