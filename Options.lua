@@ -238,6 +238,49 @@ options = {
           end,
           confirm = true,
           order = 2
+        },
+        logPurgeGroup = {
+          type = "group",
+          name = "Log Purging",
+          desc = "Automatically remove old debug logs so SlackHacksDB doesn't grow unbounded.",
+          inline = true,
+          order = 3,
+          args = {
+            logPurgeEnabled = {
+              name = "Automatically Purge Old Logs",
+              desc = "Once per login, remove logged entries older than the configured number of hours.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.global.logPurgeEnabled end,
+              set = function(_, value) db.global.logPurgeEnabled = value end,
+              order = 1
+            },
+            logPurgeHours = {
+              name = "Keep Logs For (Hours)",
+              desc = "Number of hours to keep a log entry before it is eligible for automatic purging.",
+              type = "input",
+              width = "full",
+              get = function() return tostring(db.global.logPurgeHours) end,
+              set = function(_, value) db.global.logPurgeHours = tonumber(value) end,
+              validate = function(_, value)
+                local hours = tonumber(value)
+                return hours and hours >= LOG_PURGE_MIN_HOURS and hours <= LOG_PURGE_MAX_HOURS
+              end,
+              disabled = function() return not db.global.logPurgeEnabled end,
+              order = 2
+            },
+            purgeNow = {
+              name = "Purge Old Logs Now",
+              desc = "Immediately remove logged entries older than the configured number of hours.",
+              type = "execute",
+              func = function()
+                purgeOldLogs()
+                print("SlackHacks: old logs purged")
+              end,
+              order = 3
+            }
+          }
         }
       }
     },
