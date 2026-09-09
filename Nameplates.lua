@@ -10,6 +10,13 @@ local activeCasters = {}
 local castLiftTicker = nil
 local castLiftTickerInterval = 0.1
 
+local function stopCastLiftTicker()
+	if castLiftTicker then
+		castLiftTicker:Cancel()
+		castLiftTicker = nil
+	end
+end
+
 local function isEnemyUnit(unitTarget)
 	if type(unitTarget) ~= "string" then
 		return false
@@ -65,12 +72,9 @@ local function applyCasterLevels()
 			activeCasters[unitTarget] = nil
 		end
 	end
-end
 
-local function stopCastLiftTicker()
-	if castLiftTicker then
-		castLiftTicker:Cancel()
-		castLiftTicker = nil
+	if next(activeCasters) == nil then
+		stopCastLiftTicker()
 	end
 end
 
@@ -136,6 +140,30 @@ function lowerCastingNameplate(unitTarget)
 			stopCastLiftTicker()
 		end
 	end
+end
+
+function handleNameplateAdded(addonSelf, eventName, unitTarget)
+	if not db.profile.combat.raiseCastingNameplates or next(activeCasters) == nil then
+		return
+	end
+
+	local nameplate = C_NamePlate.GetNamePlateForUnit(unitTarget)
+	local targetFrame = getSafeNameplateFrame(nameplate)
+	if not targetFrame then
+		return
+	end
+
+	local currentLevel = targetFrame:GetFrameLevel()
+	syncNameplateCastLiftBase(currentLevel)
+	if currentLevel >= lastNameplateLevel then
+		local levelIncrease = currentLevel - lastNameplateLevel + 1
+		for casterUnit, level in pairs(activeCasters) do
+			activeCasters[casterUnit] = level + levelIncrease
+		end
+		lastNameplateLevel = lastNameplateLevel + levelIncrease
+	end
+
+	applyCasterLevels()
 end
 
 function handleCasts(addonSelf, eventName, unitTarget)

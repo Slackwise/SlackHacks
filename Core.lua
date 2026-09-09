@@ -40,11 +40,12 @@ function Self:OnEnable()
   self:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED", "handleCastStops")
   self:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP", "handleCastStops")
   self:RegisterEvent("UNIT_SPELLCAST_EMPOWER_STOP", "handleCastStops")
-  -- self:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+  self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "handleNameplateAdded")
   -- self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 end
 
 function Self:OnDisable()
+  resetNameplateCastLift()
 end
 
 function Self:BAG_UPDATE_DELAYED() -- Fires after all BAG_UPDATE's are done
