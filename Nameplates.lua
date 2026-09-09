@@ -8,7 +8,7 @@ lastNameplateLevel = 0
 -- a ticker must keep reasserting the level for as long as the unit is casting.
 local activeCasters = {}
 local castLiftTicker = nil
-local castLiftTickerInterval = 0.1
+local castLiftTickerInterval = 0.2
 
 local function stopCastLiftTicker()
 	if castLiftTicker then
@@ -53,7 +53,55 @@ local function getSafeNameplateFrame(nameplate)
 	return nil
 end
 
+local function reconcileCasterLevels()
+	if next(activeCasters) == nil then
+		stopCastLiftTicker()
+		return
+	end
+
+	local casterFrames = {}
+	local lowestCasterLevel
+	for unitTarget, level in pairs(activeCasters) do
+		local nameplate = C_NamePlate.GetNamePlateForUnit(unitTarget)
+		local targetFrame = getSafeNameplateFrame(nameplate)
+		if targetFrame then
+			casterFrames[targetFrame] = true
+			if not lowestCasterLevel or level < lowestCasterLevel then
+				lowestCasterLevel = level
+			end
+		else
+			activeCasters[unitTarget] = nil
+		end
+	end
+
+	if not lowestCasterLevel then
+		stopCastLiftTicker()
+		return
+	end
+
+	local highestOtherLevel = nil
+	for _, nameplate in ipairs(C_NamePlate.GetNamePlates()) do
+		local targetFrame = getSafeNameplateFrame(nameplate)
+		if targetFrame and not casterFrames[targetFrame] then
+			local frameLevel = targetFrame:GetFrameLevel()
+			if not highestOtherLevel or frameLevel > highestOtherLevel then
+				highestOtherLevel = frameLevel
+			end
+		end
+	end
+
+	if highestOtherLevel and highestOtherLevel >= lowestCasterLevel then
+		local levelIncrease = highestOtherLevel - lowestCasterLevel + 1
+		for unitTarget, level in pairs(activeCasters) do
+			activeCasters[unitTarget] = level + levelIncrease
+		end
+		lastNameplateLevel = lastNameplateLevel + levelIncrease
+	end
+end
+
 local function applyCasterLevels()
+	reconcileCasterLevels()
+
 	for unitTarget, level in pairs(activeCasters) do
 		local nameplate = C_NamePlate.GetNamePlateForUnit(unitTarget)
 		local targetFrame = getSafeNameplateFrame(nameplate)
@@ -84,17 +132,6 @@ local function startCastLiftTicker()
 	end
 end
 
-local function syncNameplateCastLiftBase(frameLevel)
-	if type(frameLevel) ~= "number" then
-		return
-	end
-
-	if frameLevel > nameplateCastLiftBase then
-		nameplateCastLiftBase = frameLevel
-		nameplateCastLift = frameLevel
-	end
-end
-
 function resetNameplateCastLift()
 	nameplateCastLift = nameplateCastLiftBase
 	lastNameplateLevel = 0
@@ -111,7 +148,6 @@ function raiseCastingNameplate(unitTarget)
 	local targetFrame = getSafeNameplateFrame(nameplate)
 	if targetFrame then
 		local currentLevel = targetFrame:GetFrameLevel()
-		syncNameplateCastLiftBase(currentLevel)
 		if lastNameplateLevel == 0 then
 			-- Starting off, we want to bump the first caster by a big amount so they're at the top:
 			lastNameplateLevel = currentLevel + nameplateCastLift
@@ -151,16 +187,6 @@ function handleNameplateAdded(addonSelf, eventName, unitTarget)
 	local targetFrame = getSafeNameplateFrame(nameplate)
 	if not targetFrame then
 		return
-	end
-
-	local currentLevel = targetFrame:GetFrameLevel()
-	syncNameplateCastLiftBase(currentLevel)
-	if currentLevel >= lastNameplateLevel then
-		local levelIncrease = currentLevel - lastNameplateLevel + 1
-		for casterUnit, level in pairs(activeCasters) do
-			activeCasters[casterUnit] = level + levelIncrease
-		end
-		lastNameplateLevel = lastNameplateLevel + levelIncrease
 	end
 
 	applyCasterLevels()
