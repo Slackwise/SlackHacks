@@ -80,6 +80,17 @@ local function startCastLiftTicker()
 	end
 end
 
+local function syncNameplateCastLiftBase(frameLevel)
+	if type(frameLevel) ~= "number" then
+		return
+	end
+
+	if frameLevel > nameplateCastLiftBase then
+		nameplateCastLiftBase = frameLevel
+		nameplateCastLift = frameLevel
+	end
+end
+
 function resetNameplateCastLift()
 	nameplateCastLift = nameplateCastLiftBase
 	lastNameplateLevel = 0
@@ -96,6 +107,7 @@ function raiseCastingNameplate(unitTarget)
 	local targetFrame = getSafeNameplateFrame(nameplate)
 	if targetFrame then
 		local currentLevel = targetFrame:GetFrameLevel()
+		syncNameplateCastLiftBase(currentLevel)
 		if lastNameplateLevel == 0 then
 			-- Starting off, we want to bump the first caster by a big amount so they're at the top:
 			lastNameplateLevel = currentLevel + nameplateCastLift
@@ -104,7 +116,7 @@ function raiseCastingNameplate(unitTarget)
 			lastNameplateLevel = lastNameplateLevel + 1
 		end
 
-		log("unit=" .. tostring(unitTarget) .. " level=" .. tostring(lastNameplateLevel))
+		log("unit=" .. tostring(unitTarget) .. " level=" .. tostring(lastNameplateLevel) .. " base=" .. tostring(nameplateCastLiftBase))
 		activeCasters[unitTarget] = lastNameplateLevel
 		startCastLiftTicker()
 		applyCasterLevels()
