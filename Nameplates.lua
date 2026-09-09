@@ -169,7 +169,7 @@ function raiseCastingNameplate(unitTarget)
 	end
 end
 
-function lowerCastingNameplate(unitTarget)
+function stopTrackingCastingNameplate(unitTarget)
 	if activeCasters[unitTarget] then
 		activeCasters[unitTarget] = nil
 		if next(activeCasters) == nil then
@@ -205,6 +205,6 @@ function handleCasts(addonSelf, eventName, unitTarget)
 end
 
 function handleCastStops(addonSelf, eventName, unitTarget)
-	lowerCastingNameplate(unitTarget)
+	stopTrackingCastingNameplate(unitTarget)
 end
 
