@@ -3,7 +3,7 @@
 ## Notes: A compilation of small feature hacks and minimalistic tweaks to the default UI.
 ## IconTexture: Interface\Icons\inv_12_profession_blacksmithing_blacksmithstoolkit_green
 ## Author: Slack — Moon Guard
-## Version: 0.4
+## Version: 0.5
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
