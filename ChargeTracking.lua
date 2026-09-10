@@ -4,13 +4,11 @@ local module = Self:NewModule("ChargeTracking", "AceEvent-3.0")
 Self.ChargeTracking = module
 
 local HOLY_SHOCK_SPELL_ID = 20473
-local CHARGE_ICON_SIZE = 30
-local CHARGE_ICON_SPACING = 6
+local CHARGE_ICON_SIZE = 36
 local CHARGE_ICON_ANCHOR_GAP = 6
 local CHARGE_ICON_BORDER_COLOR = { 1, 0.82, 0 }
 
 local container
-local icons = {}
 local anchorVisibilityHooked = false
 local trackedCharges
 local maxCharges = 2 -- static fact about Holy Shock; used whenever the real value isn't safely readable
@@ -32,47 +30,40 @@ local function stopRechargeTimer()
   end
 end
 
-local function createChargeIcon(parent, index)
-  local iconFrame = CreateFrame("Frame", nil, parent)
-  iconFrame:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
+local function createChargeTrackingFrame()
+  if container then return end
+
+  container = CreateFrame("Frame", "SlackHacksHolyShockChargeTracker", UIParent)
+  container:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
+  container:Hide()
 
   -- Ring drawn behind the icon; must use a real texture (not SetColorTexture) for SetMask to crop it into a circle.
-  local border = iconFrame:CreateTexture(nil, "BACKGROUND")
+  local border = container:CreateTexture(nil, "BACKGROUND")
   border:SetPoint("CENTER")
   border:SetSize(CHARGE_ICON_SIZE + 4, CHARGE_ICON_SIZE + 4)
   border:SetTexture("Interface\\Buttons\\WHITE8x8")
   border:SetVertexColor(CHARGE_ICON_BORDER_COLOR[1], CHARGE_ICON_BORDER_COLOR[2], CHARGE_ICON_BORDER_COLOR[3])
   border:SetMask("Interface\\Masks\\CircleMaskScalable")
 
-  local icon = iconFrame:CreateTexture(nil, "BORDER")
-  icon:SetAllPoints(iconFrame)
+  local icon = container:CreateTexture(nil, "BORDER")
+  icon:SetAllPoints(container)
   icon:SetTexture(C_Spell.GetSpellTexture(HOLY_SHOCK_SPELL_ID))
   icon:SetMask("Interface\\Masks\\CircleMaskScalable")
 
-  local cooldown = CreateFrame("Cooldown", nil, iconFrame, "CooldownFrameTemplate")
-  cooldown:SetAllPoints(iconFrame)
+  local cooldown = CreateFrame("Cooldown", nil, container, "CooldownFrameTemplate")
+  cooldown:SetAllPoints(container)
   cooldown:SetHideCountdownNumbers(false)
   cooldown:SetDrawBling(false)
   cooldown:SetDrawEdge(true)
 
-  iconFrame.icon = icon
-  iconFrame.cooldown = cooldown
-  iconFrame.border = border
-  return iconFrame
-end
+  -- Same corner/font convention Blizzard action buttons use for their charge count text.
+  local count = container:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+  count:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -2, 2)
 
-local function createChargeTrackingFrame()
-  if container then return end
-
-  container = CreateFrame("Frame", "SlackHacksHolyShockChargeTracker", UIParent)
-  container:SetSize(CHARGE_ICON_SIZE * 2 + CHARGE_ICON_SPACING, CHARGE_ICON_SIZE)
-  container:Hide()
-
-  for index = 1, 2 do
-    local iconFrame = createChargeIcon(container, index)
-    iconFrame:SetPoint("LEFT", container, "LEFT", (index - 1) * (CHARGE_ICON_SIZE + CHARGE_ICON_SPACING), 0)
-    icons[index] = iconFrame
-  end
+  container.icon = icon
+  container.cooldown = cooldown
+  container.border = border
+  container.count = count
 end
 
 local function hookAnchorVisibility(anchorFrame)
@@ -103,21 +94,19 @@ function module:RefreshDisplay(chargeInfo)
   chargeInfo = chargeInfo or C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
   if not chargeInfo then return end
 
-  for index, iconFrame in ipairs(icons) do
-    if index <= trackedCharges then
-      iconFrame.cooldown:Clear()
-      iconFrame.icon:SetDesaturated(false)
-      iconFrame.icon:SetAlpha(1)
-    elseif index == trackedCharges + 1 then
-      -- The real timing fields may be secret; SetCooldown is a sanctioned direct sink for them either way.
-      iconFrame.cooldown:SetCooldown(chargeInfo.cooldownStartTime, chargeInfo.cooldownDuration, chargeInfo.chargeModRate)
-      iconFrame.icon:SetDesaturated(true)
-      iconFrame.icon:SetAlpha(0.55)
-    else
-      iconFrame.cooldown:Clear()
-      iconFrame.icon:SetDesaturated(true)
-      iconFrame.icon:SetAlpha(0.3)
-    end
+  -- trackedCharges is our own locally-simulated number (never read from a secret field), so it's always
+  -- safe to display directly -- unlike currentCharges, which can be secret and isn't safe to format/compare.
+  container.count:SetText(trackedCharges)
+
+  if trackedCharges >= maxCharges then
+    container.cooldown:Clear()
+    container.icon:SetDesaturated(false)
+    container.icon:SetAlpha(1)
+  else
+    -- The real timing fields may be secret; SetCooldown is a sanctioned direct sink for them either way.
+    container.cooldown:SetCooldown(chargeInfo.cooldownStartTime, chargeInfo.cooldownDuration, chargeInfo.chargeModRate)
+    container.icon:SetDesaturated(trackedCharges == 0)
+    container.icon:SetAlpha(trackedCharges == 0 and 0.55 or 1)
   end
 end
 
