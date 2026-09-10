@@ -14,6 +14,7 @@ Core.lua
 StaticData.lua
 SelfVendor.lua
 Nameplates.lua
+ChargeTracking.lua
 Bindings.lua
 Options.lua
 Mount.lua
