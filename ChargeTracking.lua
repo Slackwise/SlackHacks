@@ -36,12 +36,19 @@ local function createChargeTrackingFrame()
   container:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
   container:Hide()
 
-  -- Same border art the Blizzard TotemFrame uses for its totem buttons (Blizzard_UnitFrame/TotemFrame.xml);
-  -- it's always-loaded (unlike the Cooldown Manager's atlases) and has the metallic gold look natively.
-  local border = container:CreateTexture(nil, "OVERLAY")
-  border:SetSize(CHARGE_ICON_SIZE + 6, CHARGE_ICON_SIZE + 6)
+  -- The TotemFrame ring art bakes its thickness in as a fixed ~13% of its own size, so scaling it never
+  -- makes it visually thinner -- the hole shrinks right along with the outer edge. A plain color clipped
+  -- by the same circular mask has no such ratio, so its thickness is just however much bigger it is than
+  -- the icon, giving direct control over how thin the ring appears.
+  local border = container:CreateTexture(nil, "BACKGROUND")
   border:SetPoint("CENTER")
-  border:SetAtlas("UI-HUD-UnitFrame-TotemFrame", false)
+  border:SetSize(CHARGE_ICON_SIZE + 2, CHARGE_ICON_SIZE + 2)
+  border:SetColorTexture(1, 0.82, 0)
+
+  local borderMask = container:CreateMaskTexture(nil, "BACKGROUND")
+  borderMask:SetAllPoints(border)
+  borderMask:SetAtlas("CircleMaskScalable", false)
+  border:AddMaskTexture(borderMask)
 
   local icon = container:CreateTexture(nil, "BORDER")
   icon:SetAllPoints(container)
