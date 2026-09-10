@@ -6,7 +6,6 @@ Self.ChargeTracking = module
 local HOLY_SHOCK_SPELL_ID = 20473
 local CHARGE_ICON_SIZE = 36
 local CHARGE_ICON_ANCHOR_GAP = 6
-local CHARGE_ICON_BORDER_COLOR = { 1, 0.82, 0 }
 
 local container
 local anchorVisibilityHooked = false
@@ -37,17 +36,12 @@ local function createChargeTrackingFrame()
   container:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
   container:Hide()
 
-  -- Ring drawn behind the icon; SetMask expects a file path and silently no-ops on an atlas name, so
-  -- circular clipping requires a real MaskTexture object bound via AddMaskTexture (same as DK rune icons).
-  local border = container:CreateTexture(nil, "BACKGROUND")
+  -- Same border art the Blizzard TotemFrame uses for its totem buttons (Blizzard_UnitFrame/TotemFrame.xml);
+  -- it's always-loaded (unlike the Cooldown Manager's atlases) and has the metallic gold look natively.
+  local border = container:CreateTexture(nil, "OVERLAY")
+  border:SetSize(CHARGE_ICON_SIZE + 6, CHARGE_ICON_SIZE + 6)
   border:SetPoint("CENTER")
-  border:SetSize(CHARGE_ICON_SIZE + 4, CHARGE_ICON_SIZE + 4)
-  border:SetColorTexture(CHARGE_ICON_BORDER_COLOR[1], CHARGE_ICON_BORDER_COLOR[2], CHARGE_ICON_BORDER_COLOR[3])
-
-  local borderMask = container:CreateMaskTexture(nil, "BACKGROUND")
-  borderMask:SetAllPoints(border)
-  borderMask:SetAtlas("CircleMaskScalable", false)
-  border:AddMaskTexture(borderMask)
+  border:SetAtlas("UI-HUD-UnitFrame-TotemFrame", false)
 
   local icon = container:CreateTexture(nil, "BORDER")
   icon:SetAllPoints(container)
