@@ -44,7 +44,11 @@ dbDefaults = {
       showAllMinimapTracking = false
     },
     combat = {
-      raiseCastingNameplates = false
+      raiseCastingNameplates = false,
+      paladin = {
+        trackHolyShockCharges = false,
+        holyShockChargesPosition = "below"
+      }
     },
     selfVendor = {
       enabled = false,

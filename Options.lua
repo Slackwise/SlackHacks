@@ -293,18 +293,65 @@ options = {
       desc = "Combat-related features.",
       order = 7,
       args = {
-        raiseCastingNameplates = {
-          name = "Raise Casting Nameplates",
-          desc = "Raise enemy nameplates while they are casting.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.combat.raiseCastingNameplates end,
-          set = function(_, value)
-            db.profile.combat.raiseCastingNameplates = value
-            resetNameplateCastLift()
-          end,
-          order = 1
+        general = {
+          type = "group",
+          name = "General",
+          desc = "Combat features that apply to all classes.",
+          order = 1,
+          args = {
+            raiseCastingNameplates = {
+              name = "Raise Casting Nameplates",
+              desc = "Raise enemy nameplates while they are casting.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.combat.raiseCastingNameplates end,
+              set = function(_, value)
+                db.profile.combat.raiseCastingNameplates = value
+                resetNameplateCastLift()
+              end,
+              order = 1
+            }
+          }
+        },
+        paladin = {
+          type = "group",
+          name = "Paladin",
+          desc = "Combat features specific to Paladins.",
+          order = 2,
+          args = {
+            trackHolyShockCharges = {
+              name = "Track Holy Shock Charges",
+              desc = "Show two circular charge trackers next to the Holy Power bar for Holy Shock.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.combat.paladin.trackHolyShockCharges end,
+              set = function(_, value)
+                db.profile.combat.paladin.trackHolyShockCharges = value
+                Self.ChargeTracking:Refresh()
+              end,
+              order = 1
+            },
+            holyShockChargesPosition = {
+              name = "Position",
+              desc = "Where to anchor the Holy Shock charge trackers relative to the Holy Power bar.",
+              type = "select",
+              width = "full",
+              values = {
+                above = "Above Holy Power Bar",
+                below = "Below Holy Power Bar"
+              },
+              sorting = { "above", "below" },
+              get = function() return db.profile.combat.paladin.holyShockChargesPosition end,
+              set = function(_, value)
+                db.profile.combat.paladin.holyShockChargesPosition = value
+                Self.ChargeTracking:Refresh()
+              end,
+              disabled = function() return not db.profile.combat.paladin.trackHolyShockCharges end,
+              order = 2
+            }
+          }
         }
       }
     },
