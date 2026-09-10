@@ -11,6 +11,7 @@ local CHARGE_ICON_BORDER_COLOR = { 1, 0.82, 0 }
 
 local container
 local icons = {}
+local anchorVisibilityHooked = false
 
 local function createChargeIcon(parent, index)
   local iconFrame = CreateFrame("Frame", nil, parent)
@@ -57,11 +58,18 @@ local function createChargeTrackingFrame()
   end
 end
 
+local function hookAnchorVisibility(anchorFrame)
+  if anchorVisibilityHooked or not anchorFrame then return end
+  anchorVisibilityHooked = true
+  anchorFrame:HookScript("OnShow", function() module:Refresh() end)
+  anchorFrame:HookScript("OnHide", function() module:Refresh() end)
+end
+
 local function updatePosition()
   if not container then return end
 
   container:ClearAllPoints()
-  local anchorFrame = _G.PaladinPowerBarFrame
+  local anchorFrame = _G.PersonalResourceDisplayFrame
   if anchorFrame then
     if db.profile.combat.paladin.holyShockChargesPosition == "above" then
       container:SetPoint("BOTTOM", anchorFrame, "TOP", 0, CHARGE_ICON_ANCHOR_GAP)
@@ -98,8 +106,11 @@ end
 
 function module:Refresh()
   createChargeTrackingFrame()
+  hookAnchorVisibility(_G.PersonalResourceDisplayFrame)
 
   local shouldShow = isRetail() and getClassName() == "PALADIN" and db.profile.combat.paladin.trackHolyShockCharges
+  local anchorFrame = _G.PersonalResourceDisplayFrame
+  shouldShow = shouldShow and anchorFrame and anchorFrame:IsShown()
   if shouldShow then
     updatePosition()
     container:Show()
