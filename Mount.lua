@@ -45,11 +45,16 @@ SKYRIDING_SPELLID = 404464
 STEADYFLIGHT_SPELLID = 404468
 function isDragonriding()
   -- log("Checking if dragonriding...")
+  -- Do not inspect mount auras while dismounted. Flight form is treated as mounted by this feature,
+  -- even on clients where IsMounted() does not report it consistently.
+  local isMounted = IsMounted() or GetShapeshiftForm() == 3
+  if not isMounted then return false end
+
   local dragonridingSpellIds = C_MountJournal.GetCollectedDragonridingMounts()
   if not C_UnitAuras.GetPlayerAuraBySpellID(STEADYFLIGHT_SPELLID) and isActuallyFlyableArea() then
     if GetShapeshiftForm() == 3 then
       return true
-    elseif IsMounted() then
+    else
       for _, mountId in ipairs(dragonridingSpellIds) do
         local spellId = select(2, C_MountJournal.GetMountInfoByID(mountId))
         if C_UnitAuras.GetPlayerAuraBySpellID(spellId) then
