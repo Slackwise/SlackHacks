@@ -60,7 +60,7 @@ dbDefaults = {
         wellFed = false,
         flask = false,
         oil = false,
-        augmentRune = false
+        rune = false
       }
     },
     selfVendor = {

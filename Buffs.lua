@@ -28,7 +28,7 @@ local BUFF_CATEGORIES = {
     dbKey = "wellFed",
     label = "Food",
     icon = 133943,
-    itemNames = { "Royal Roast" },
+    itemNames = FOOD_ITEM_NAMES,
     itemIDs = FOOD_ITEM_IDS,
     matchAura = function(auraName) return auraName == "Well Fed" end,
   },
@@ -36,12 +36,7 @@ local BUFF_CATEGORIES = {
     dbKey = "flask",
     label = "Flask",
     icon = 132380,
-    itemNames = {
-      "Flask of the Magisters",
-      "Flask of the Blood Knights",
-      "Flask of the Shattered Sun",
-      "Flask of Thalassian Resistance",
-    },
+    itemNames = FLASK_ITEM_NAMES,
     itemIDs = FLASK_ITEM_IDS,
     matchAura = function(auraName, _, itemNameSet) return itemNameSet[auraName] == true end,
   },
@@ -49,15 +44,16 @@ local BUFF_CATEGORIES = {
     dbKey = "oil",
     label = "Oil",
     icon = 7548987,
-    itemNames = { "Thalassian Phoenix Oil" },
-    itemIDs = { 243733, 243734 },
+    itemNames = OIL_ITEM_NAMES,
+    itemIDs = OIL_ITEM_IDS,
     matchAura = function(_, spellID) return spellID == 1237006 end,
   },
   {
-    dbKey = "augmentRune",
+    dbKey = "rune",
     label = "Augment Rune",
     icon = 4549099,
-    itemNames = { "Void-Touched Augment Rune" },
+    itemNames = RUNE_ITEM_NAMES,
+    itemIDs = RUNE_ITEM_IDS,
     matchAura = function(_, spellID) return spellID == 1264426 end,
   },
 }
@@ -212,7 +208,7 @@ local function activeCategories()
   if InCombatLockdown() then
     -- Only the augment rune reminder is useful mid-fight, and only while it's actually missing.
     for _, category in ipairs(BUFF_CATEGORIES) do
-      if category.dbKey == "augmentRune" and db.profile.buffs.categories.augmentRune then
+      if category.dbKey == "rune" and db.profile.buffs.categories.rune then
         if categoryBuffExpiration(category) == nil then return { category } end
       end
     end
@@ -264,7 +260,7 @@ local function createIconButton(index)
       print("SlackHacks: No " .. self.category.label .. " items in inventory.")
       return
     end
-    if self.category.dbKey == "augmentRune" then
+    if self.category.dbKey == "rune" then
       if items[1].bag and items[1].slot then
         C_Container.UseContainerItem(items[1].bag, items[1].slot)
       end
