@@ -29,6 +29,7 @@ local BUFF_CATEGORIES = {
     label = "Food",
     icon = 133943,
     itemNames = { "Royal Roast" },
+    itemIDs = FOOD_ITEM_IDS,
     matchAura = function(auraName) return auraName == "Well Fed" end,
   },
   {
@@ -41,7 +42,7 @@ local BUFF_CATEGORIES = {
       "Flask of the Shattered Sun",
       "Flask of Thalassian Resistance",
     },
-    itemIDs = { 241322, 241323, 241324, 241325, 241326, 241327, 241320, 241321 },
+    itemIDs = FLASK_ITEM_IDS,
     matchAura = function(auraName, _, itemNameSet) return itemNameSet[auraName] == true end,
   },
   {
