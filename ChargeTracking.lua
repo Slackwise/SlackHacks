@@ -17,10 +17,12 @@ local function createChargeIcon(parent, index)
   local iconFrame = CreateFrame("Frame", nil, parent)
   iconFrame:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
 
+  -- Ring drawn behind the icon; must use a real texture (not SetColorTexture) for SetMask to crop it into a circle.
   local border = iconFrame:CreateTexture(nil, "BACKGROUND")
   border:SetPoint("CENTER")
   border:SetSize(CHARGE_ICON_SIZE + 4, CHARGE_ICON_SIZE + 4)
-  border:SetColorTexture(CHARGE_ICON_BORDER_COLOR[1], CHARGE_ICON_BORDER_COLOR[2], CHARGE_ICON_BORDER_COLOR[3])
+  border:SetTexture("Interface\\Buttons\\WHITE8x8")
+  border:SetVertexColor(CHARGE_ICON_BORDER_COLOR[1], CHARGE_ICON_BORDER_COLOR[2], CHARGE_ICON_BORDER_COLOR[3])
   border:SetMask("Interface\\Masks\\CircleMaskScalable")
 
   local icon = iconFrame:CreateTexture(nil, "BORDER")
@@ -33,10 +35,6 @@ local function createChargeIcon(parent, index)
   cooldown:SetHideCountdownNumbers(false)
   cooldown:SetDrawBling(false)
   cooldown:SetDrawEdge(true)
-
-  local label = iconFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  label:SetPoint("BOTTOMRIGHT", iconFrame, "BOTTOMRIGHT", 2, -2)
-  label:SetText(tostring(index))
 
   iconFrame.icon = icon
   iconFrame.cooldown = cooldown
@@ -108,7 +106,7 @@ function module:Refresh()
   createChargeTrackingFrame()
   hookAnchorVisibility(_G.PersonalResourceDisplayFrame)
 
-  local shouldShow = isRetail() and getClassName() == "PALADIN" and db.profile.combat.paladin.trackHolyShockCharges
+  local shouldShow = isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and db.profile.combat.paladin.trackHolyShockCharges
   local anchorFrame = _G.PersonalResourceDisplayFrame
   shouldShow = shouldShow and anchorFrame and anchorFrame:IsShown()
   if shouldShow then
