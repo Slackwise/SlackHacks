@@ -13,7 +13,24 @@ local container
 local icons = {}
 local anchorVisibilityHooked = false
 local trackedCharges
-local wasRecharging = false
+local maxCharges = 2 -- static fact about Holy Shock; used whenever the real value isn't safely readable
+local rechargeDuration -- cached seconds; refreshed opportunistically whenever it's a clean number
+local rechargeTimer
+
+local function isSecret(value)
+  return _G.issecretvalue and _G.issecretvalue(value) or false
+end
+
+local function isCleanNumber(value)
+  return not isSecret(value) and type(value) == "number"
+end
+
+local function stopRechargeTimer()
+  if rechargeTimer then
+    rechargeTimer:Cancel()
+    rechargeTimer = nil
+  end
+end
 
 local function createChargeIcon(parent, index)
   local iconFrame = CreateFrame("Frame", nil, parent)
@@ -81,30 +98,18 @@ local function updatePosition()
   end
 end
 
-function module:UpdateHolyShockCharges()
-  if not container or not container:IsShown() then return end
-
-  local chargeInfo = C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
+function module:RefreshDisplay(chargeInfo)
+  if not container or not container:IsShown() or trackedCharges == nil then return end
+  chargeInfo = chargeInfo or C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
   if not chargeInfo then return end
-
-  -- currentCharges/cooldownStartTime/cooldownDuration/chargeModRate are "secret" while in combat and can't
-  -- be compared in Lua, but `isActive` stays plain and SetCooldown is a sanctioned direct sink for the
-  -- secret timing fields, so we derive our own non-secret charge counter from `isActive` transitions.
-  if not InCombatLockdown() then
-    trackedCharges = chargeInfo.currentCharges
-  elseif trackedCharges == nil then
-    trackedCharges = chargeInfo.maxCharges
-  elseif wasRecharging and not chargeInfo.isActive then
-    trackedCharges = math.min(trackedCharges + 1, chargeInfo.maxCharges)
-  end
-  wasRecharging = chargeInfo.isActive
 
   for index, iconFrame in ipairs(icons) do
     if index <= trackedCharges then
       iconFrame.cooldown:Clear()
       iconFrame.icon:SetDesaturated(false)
       iconFrame.icon:SetAlpha(1)
-    elseif chargeInfo.isActive and index == trackedCharges + 1 then
+    elseif index == trackedCharges + 1 then
+      -- The real timing fields may be secret; SetCooldown is a sanctioned direct sink for them either way.
       iconFrame.cooldown:SetCooldown(chargeInfo.cooldownStartTime, chargeInfo.cooldownDuration, chargeInfo.chargeModRate)
       iconFrame.icon:SetDesaturated(true)
       iconFrame.icon:SetAlpha(0.55)
@@ -116,17 +121,70 @@ function module:UpdateHolyShockCharges()
   end
 end
 
-function module:OnHolyShockCast(_, unitTarget, _, spellID)
-  if unitTarget == "player" and spellID == HOLY_SHOCK_SPELL_ID and trackedCharges then
-    trackedCharges = math.max(trackedCharges - 1, 0)
-    self:UpdateHolyShockCharges()
+local function startRechargeTimer()
+  if rechargeTimer or not rechargeDuration or trackedCharges == nil or trackedCharges >= maxCharges then return end
+  rechargeTimer = C_Timer.NewTimer(rechargeDuration, function()
+    rechargeTimer = nil
+    trackedCharges = math.min((trackedCharges or 0) + 1, maxCharges)
+    module:RefreshDisplay()
+    startRechargeTimer() -- only one charge recharges at a time; chain if still below max
+  end)
+end
+
+-- Learns the static facts (max charges, recharge duration) whenever they happen to be clean, and
+-- resyncs our local simulation to the real charge count/remaining time whenever THAT is clean too.
+-- Neither is guaranteed to be readable in combat, so this is opportunistic, not combat-gated.
+function module:UpdateHolyShockCharges()
+  if not container or not container:IsShown() then return end
+
+  local chargeInfo = C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
+  if not chargeInfo then return end
+
+  if isCleanNumber(chargeInfo.maxCharges) and chargeInfo.maxCharges > 0 then
+    maxCharges = chargeInfo.maxCharges
   end
+  if isCleanNumber(chargeInfo.cooldownDuration) and chargeInfo.cooldownDuration > 0 then
+    rechargeDuration = chargeInfo.cooldownDuration
+  end
+
+  if isCleanNumber(chargeInfo.currentCharges) then
+    trackedCharges = chargeInfo.currentCharges
+    stopRechargeTimer()
+    if trackedCharges < maxCharges then
+      if isCleanNumber(chargeInfo.cooldownStartTime) and isCleanNumber(chargeInfo.cooldownDuration) then
+        local remaining = (chargeInfo.cooldownStartTime + chargeInfo.cooldownDuration) - GetTime()
+        if remaining > 0 then
+          rechargeTimer = C_Timer.NewTimer(remaining, function()
+            rechargeTimer = nil
+            trackedCharges = math.min((trackedCharges or 0) + 1, maxCharges)
+            module:RefreshDisplay()
+            startRechargeTimer()
+          end)
+        end
+      else
+        startRechargeTimer()
+      end
+    end
+  elseif trackedCharges == nil then
+    trackedCharges = maxCharges -- best guess until either a real read or a cast tells us otherwise
+  end
+
+  self:RefreshDisplay(chargeInfo)
+end
+
+function module:OnHolyShockCast(_, unitTarget, _, spellID)
+  if unitTarget ~= "player" or spellID ~= HOLY_SHOCK_SPELL_ID then return end
+  if trackedCharges == nil then trackedCharges = maxCharges end
+  trackedCharges = math.max(trackedCharges - 1, 0)
+  startRechargeTimer() -- no-op if a recharge is already in progress (only one runs at a time)
+  self:RefreshDisplay()
 end
 
 function module:Refresh()
   createChargeTrackingFrame()
   hookAnchorVisibility(_G.PersonalResourceDisplayFrame)
-  trackedCharges = nil -- resync from scratch; safe since Refresh only runs outside active combat updates
+  stopRechargeTimer()
+  trackedCharges = nil -- resync from scratch
 
   local shouldShow = isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and db.profile.combat.paladin.trackHolyShockCharges
   local anchorFrame = _G.PersonalResourceDisplayFrame
@@ -154,6 +212,7 @@ end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
+  stopRechargeTimer()
   if container then container:Hide() end
 end
 
