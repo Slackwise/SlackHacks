@@ -37,18 +37,26 @@ local function createChargeTrackingFrame()
   container:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
   container:Hide()
 
-  -- Ring drawn behind the icon; must use a real texture (not SetColorTexture) for SetMask to crop it into a circle.
+  -- Ring drawn behind the icon; SetMask expects a file path and silently no-ops on an atlas name, so
+  -- circular clipping requires a real MaskTexture object bound via AddMaskTexture (same as DK rune icons).
   local border = container:CreateTexture(nil, "BACKGROUND")
   border:SetPoint("CENTER")
   border:SetSize(CHARGE_ICON_SIZE + 4, CHARGE_ICON_SIZE + 4)
-  border:SetTexture("Interface\\Buttons\\WHITE8x8")
-  border:SetVertexColor(CHARGE_ICON_BORDER_COLOR[1], CHARGE_ICON_BORDER_COLOR[2], CHARGE_ICON_BORDER_COLOR[3])
-  border:SetMask("Interface\\Masks\\CircleMaskScalable")
+  border:SetColorTexture(CHARGE_ICON_BORDER_COLOR[1], CHARGE_ICON_BORDER_COLOR[2], CHARGE_ICON_BORDER_COLOR[3])
+
+  local borderMask = container:CreateMaskTexture(nil, "BACKGROUND")
+  borderMask:SetAllPoints(border)
+  borderMask:SetAtlas("CircleMaskScalable", false)
+  border:AddMaskTexture(borderMask)
 
   local icon = container:CreateTexture(nil, "BORDER")
   icon:SetAllPoints(container)
   icon:SetTexture(C_Spell.GetSpellTexture(HOLY_SHOCK_SPELL_ID))
-  icon:SetMask("Interface\\Masks\\CircleMaskScalable")
+
+  local iconMask = container:CreateMaskTexture(nil, "BORDER")
+  iconMask:SetAllPoints(icon)
+  iconMask:SetAtlas("CircleMaskScalable", false)
+  icon:AddMaskTexture(iconMask)
 
   local cooldown = CreateFrame("Cooldown", nil, container, "CooldownFrameTemplate")
   cooldown:SetAllPoints(container)
