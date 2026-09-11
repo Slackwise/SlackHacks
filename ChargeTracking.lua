@@ -12,6 +12,17 @@ local CHARGE_ICON_BORDER_COLOR = { 1, 0.82, 0 }
 local container
 local icons = {}
 local anchorVisibilityHooked = false
+local spellBookSlotIndex
+local spellBookSpellBank
+local trackedCharges
+local wasRecharging = false
+
+local function findSpellBookSlot()
+  if not spellBookSlotIndex then
+    spellBookSlotIndex, spellBookSpellBank = C_SpellBook.FindSpellBookSlotForSpell(HOLY_SHOCK_SPELL_ID)
+  end
+  return spellBookSlotIndex, spellBookSpellBank
+end
 
 local function createChargeIcon(parent, index)
   local iconFrame = CreateFrame("Frame", nil, parent)
@@ -85,13 +96,32 @@ function module:UpdateHolyShockCharges()
   local chargeInfo = C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
   if not chargeInfo then return end
 
+  -- Fetch the recharge time as an opaque duration object; it can be handed straight to the native
+  -- Cooldown widget without ever reading the underlying secret start/duration numbers ourselves.
+  local slotIndex, spellBank = findSpellBookSlot()
+  local durationObj = slotIndex and C_SpellBook.GetSpellBookItemChargeDuration(slotIndex, spellBank)
+  local isRecharging = durationObj ~= nil
+
+  -- currentCharges itself can't be compared while in combat, so we derive our own non-secret counter:
+  -- a recharge finishing (isRecharging drops to false) always means a charge was just gained. Casting
+  -- a charge away is tracked separately via UNIT_SPELLCAST_SUCCEEDED. Outside combat we can safely
+  -- resync against the real value to correct for any drift (e.g. talents that grant bonus charges).
+  if not InCombatLockdown() then
+    trackedCharges = chargeInfo.currentCharges
+  elseif trackedCharges == nil then
+    trackedCharges = chargeInfo.maxCharges
+  elseif wasRecharging and not isRecharging then
+    trackedCharges = math.min(trackedCharges + 1, chargeInfo.maxCharges)
+  end
+  wasRecharging = isRecharging
+
   for index, iconFrame in ipairs(icons) do
-    if index <= chargeInfo.currentCharges then
+    if index <= trackedCharges then
       iconFrame.cooldown:Clear()
       iconFrame.icon:SetDesaturated(false)
       iconFrame.icon:SetAlpha(1)
-    elseif index == chargeInfo.currentCharges + 1 and chargeInfo.cooldownDuration and chargeInfo.cooldownDuration > 0 then
-      iconFrame.cooldown:SetCooldown(chargeInfo.cooldownStartTime, chargeInfo.cooldownDuration, chargeInfo.chargeModRate)
+    elseif durationObj and index == trackedCharges + 1 then
+      iconFrame.cooldown:SetCooldownFromDurationObject(durationObj)
       iconFrame.icon:SetDesaturated(true)
       iconFrame.icon:SetAlpha(0.55)
     else
@@ -102,9 +132,18 @@ function module:UpdateHolyShockCharges()
   end
 end
 
+function module:OnHolyShockCast(_, unitTarget, _, spellID)
+  if unitTarget == "player" and spellID == HOLY_SHOCK_SPELL_ID and trackedCharges then
+    trackedCharges = math.max(trackedCharges - 1, 0)
+    self:UpdateHolyShockCharges()
+  end
+end
+
 function module:Refresh()
   createChargeTrackingFrame()
   hookAnchorVisibility(_G.PersonalResourceDisplayFrame)
+  spellBookSlotIndex, spellBookSpellBank = nil, nil -- spellbook slot can shift on spec/loadout change
+  trackedCharges = nil -- resync from scratch; safe since Refresh only runs outside active combat updates
 
   local shouldShow = isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and db.profile.combat.paladin.trackHolyShockCharges
   local anchorFrame = _G.PersonalResourceDisplayFrame
@@ -126,6 +165,7 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "Refresh")
   self:RegisterEvent("SPELL_UPDATE_CHARGES", "UpdateHolyShockCharges")
+  self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", "OnHolyShockCast")
   self:Refresh()
 end
 
