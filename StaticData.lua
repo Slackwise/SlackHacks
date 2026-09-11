@@ -107,6 +107,7 @@ RUNE_ITEM_NAMES = {
   "Void-Touched Augment Rune", "Ethereal Augment Rune", "Soulgorged Augment Rune",
   "Dreambound Augment Rune", "Draconic Augment Rune", "Crystallized Augment Rune", "Veiled Augment Rune",
 }
+RUNE_BUFF_IDS = { 1264426, 1234969, 1242347, 393438, 453250, 347901 }
 
 SLOT_IDS = {
   HEAD = 1,
