@@ -12,7 +12,6 @@ Self.Buffs = module
 
 local ICON_SIZE = 45 -- Native 30px aura button scaled by 150%.
 local AURA_BUTTON_WIDTH = 30
-local AURA_BUTTON_HEIGHT = 40
 local ICON_GAP = 6
 local TOP_OFFSET = 130 -- Rough approximation of "2 inches" from the top of a typical display.
 local ANCHOR_GAP = 8
@@ -197,13 +196,13 @@ end
 local function createContainer()
   if container then return end
   container = CreateFrame("Frame", "SlackHacksBuffReminders", UIParent)
-  container:SetSize(ICON_SIZE, AURA_BUTTON_HEIGHT * 1.5)
+  container:SetSize(ICON_SIZE, ICON_SIZE)
   container:Hide()
 end
 
 local function createIconButton(index)
   local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate")
-  button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_HEIGHT)
+  button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   button:SetScale(1.5)
 
   local icon = button.Icon
