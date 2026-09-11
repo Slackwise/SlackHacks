@@ -125,6 +125,11 @@ function mount()
     return
   end
 
+  if not isSlackwise() then
+    C_MountJournal.SummonByID(0)
+    return
+  end
+
   if IsOutdoors() then
     if isActuallyFlyableArea() and not IsSubmerged() then -- Summon flying mount
       -- log("FLYING AREA")
