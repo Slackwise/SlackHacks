@@ -21,6 +21,7 @@ local RAID_DIFFICULTY_IDS = { [14] = true, [15] = true, [16] = true } -- Normal,
 
 local MYTHIC_DUNGEON_THRESHOLD_SECONDS = 40 * 60
 local RAID_THRESHOLD_SECONDS = 15 * 60
+local runeBuffIDSet = {}
 
 -- Buff categories, in display order. `itemNames` key into StaticData's ITEM_NAMES table.
 local BUFF_CATEGORIES = {
@@ -54,7 +55,7 @@ local BUFF_CATEGORIES = {
     icon = 4549099,
     itemNames = RUNE_ITEM_NAMES,
     itemIDs = RUNE_ITEM_IDS,
-    matchAura = function(_, spellID) return spellID == 1264426 end,
+    matchAura = function(_, spellID) return runeBuffIDSet[spellID] == true end,
   },
 }
 
@@ -66,8 +67,18 @@ for _, category in ipairs(BUFF_CATEGORIES) do
   category.itemNameSet = itemNameSet
 end
 
+for _, spellID in ipairs(RUNE_BUFF_IDS) do
+  runeBuffIDSet[spellID] = true
+end
+
 local container
 local iconButtons = {}
+
+local function useBuffItem(bag, slot)
+  if not bag or not slot then return end
+  C_Container.UseContainerItem(bag, slot)
+  C_Timer.After(0.2, function() module:Refresh() end)
+end
 
 local QUALITY_ATLAS_BY_ITEM_ID = {
   [241320] = "Professions-Icon-Quality-12-Tier2-Inv",
@@ -261,9 +272,7 @@ local function createIconButton(index)
       return
     end
     if self.category.dbKey == "rune" then
-      if items[1].bag and items[1].slot then
-        C_Container.UseContainerItem(items[1].bag, items[1].slot)
-      end
+      useBuffItem(items[1].bag, items[1].slot)
       return
     end
     MenuUtil.CreateContextMenu(self, function(_, rootDescription)
@@ -271,9 +280,7 @@ local function createIconButton(index)
       for _, item in ipairs(items) do
         local itemMarkup = item.icon and CreateSimpleTextureMarkup(item.icon, 20, 20, 0, -2) or ""
         rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " " .. item.qualityMarkup .. " (" .. item.count .. ")", function()
-          if item.bag and item.slot then
-            C_Container.UseContainerItem(item.bag, item.slot)
-          end
+          useBuffItem(item.bag, item.slot)
         end)
       end
     end)

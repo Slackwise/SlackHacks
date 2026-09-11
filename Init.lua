@@ -16,7 +16,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
@@ -203,7 +203,15 @@ end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
 CONFIG_MIGRATIONS = {
-  -- [2] = function() ... end,
+  [2] = function()
+    local categories = Self.db.profile.buffs and Self.db.profile.buffs.categories
+    if categories and categories.rune == nil then
+      categories.rune = categories.augmentRune == true
+    end
+    if categories then
+      categories.augmentRune = nil
+    end
+  end,
 }
 
 function migrateConfig()
