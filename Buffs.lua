@@ -161,7 +161,7 @@ local function categoryBagItems(category)
         bag = bag,
         slot = slot,
         icon = C_Item.GetItemIconByID(itemID),
-        qualityMarkup = qualityAtlas and "|A:" .. qualityAtlas .. ":18:18|a" or "",
+        qualityMarkup = qualityAtlas and "|A:" .. qualityAtlas .. ":24:24:0:0|a" or "",
       })
     end
   end
@@ -271,8 +271,8 @@ local function createIconButton(index)
     MenuUtil.CreateContextMenu(self, function(_, rootDescription)
       rootDescription:SetTag("SLACKHACKS_BUFF_" .. self.category.dbKey)
       for _, item in ipairs(items) do
-        local itemMarkup = item.icon and CreateTextureMarkup(item.icon, 18, 18, 18, 18, 0, 1, 0, 1) or ""
-        rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " (" .. item.count .. ")" .. item.qualityMarkup, function()
+        local itemMarkup = item.icon and CreateSimpleTextureMarkup(item.icon, 20, 20, 0, -2) or ""
+        rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " " .. item.qualityMarkup .. "(" .. item.count .. ")", function()
           if item.bag and item.slot then
             C_Container.UseContainerItem(item.bag, item.slot)
           end
