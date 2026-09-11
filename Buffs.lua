@@ -273,7 +273,7 @@ local function createIconButton(index)
       rootDescription:SetTag("SLACKHACKS_BUFF_" .. self.category.dbKey)
       for _, item in ipairs(items) do
         local itemMarkup = item.icon and CreateSimpleTextureMarkup(item.icon, 20, 20, 0, -2) or ""
-        rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " " .. item.qualityMarkup .. "(" .. item.count .. ")", function()
+        rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " " .. item.qualityMarkup .. " (" .. item.count .. ")", function()
           if item.bag and item.slot then
             C_Container.UseContainerItem(item.bag, item.slot)
           end
