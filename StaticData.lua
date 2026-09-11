@@ -67,9 +67,45 @@ FOOD_ITEM_IDS = {
   242776, 266985, 266986, 266996, 267000, 268679, 268680, 275262,
 }
 
+FOOD_ITEM_NAMES = {
+  "Quel'dorei Medley", "Blooming Feast", "Champion's Bento", "Braised Blood Hunter",
+  "Crimson Calamari", "Tasty Smoked Tetra", "Buttered Root Crab", "Rootland Surprise",
+  "Sun-Seared Lumifin", "Void-Kissed Fish Rolls", "Warped Wise Wings", "Hearty Quel'dorei Medley",
+  "Hearty Blooming Feast", "Hearty Champion's Bento", "Hearty Braised Blood Hunter", "Hearty Crimson Calamari",
+  "Hearty Tasty Smoked Tetra", "Hearty Buttered Root Crab", "Hearty Rootland Surprise", "Hearty Sun-Seared Lumifin",
+  "Hearty Void-Kissed Fish Rolls", "Hearty Warped Wise Wings", "Hearty Silvermoon Standard", "Hearty Quick Sandwich",
+  "Hearty Portable Snack", "Hearty Forager's Medley", "Hearty Farstrider Rations", "Hearty Spiced Biscuits",
+  "Hearty Bloom Skewers", "Hearty Fel-Kissed Filet", "Hearty Eversong Pudding", "Hearty Spellfire Filet",
+  "Hearty Sunwell Delight", "Hearty Twilight Angler's Medley", "Hearty Mana-Infused Stew", "Hearty Hearthflame Supper",
+  "Hearty Wise Tails", "Hearty Fried Bloomtail", "Hearty Bloodthistle-Wrapped Cutlets", "Hearty Felberry Figs",
+  "Hearty Arcano Cutlets", "Hearty Null and Void Plate", "Hearty Glitter Skewers", "Hearty Buttered Root Crab",
+  "Hearty Quick Sandwich", "Hearty Silvermoon Parade", "Hearty Harandar Celebration", "Hearty Flora Frenzy",
+  "Hearty Impossibly Royal Roast", "Royal Roast", "Quick Sandwich", "Portable Snack", "Silvermoon Standard",
+  "Forager's Medley", "Farstrider Rations", "Spiced Biscuits", "Bloom Skewers", "Hearthflame Supper",
+  "Wise Tails", "Fried Bloomtail", "Eversong Pudding", "Spellfire Filet", "Sunwell Delight",
+  "Twilight Angler's Medley", "Bloodthistle-wrapped Cutlets", "Felberry Figs", "Arcano Cutlets",
+  "Fel-Kissed Filet", "Null and Void Plate", "Void-Kissed Fish Rolls", "Glitter Skewers", "Impossibly Royal Roast",
+  "Tasty Smoked Tetra", "Crimson Calamari", "Champion's Bento", "Sun-Seared Lumifin", "Baked Lucky Loa",
+  "Harandar Celebration", "Flora Frenzy", "Silvermoon Parade", "Puffer Plate", "Hearty Puffer Plate",
+}
+
 FLASK_ITEM_IDS = {
   241320, 241321, 241322, 241323, 241324, 241325, 241326, 241327,
   245926, 245927, 245928, 245929, 245930, 245931, 245932, 245933,
+}
+
+FLASK_ITEM_NAMES = {
+  "Flask of the Magisters", "Flask of the Blood Knights", "Flask of the Shattered Sun",
+  "Flask of Thalassian Resistance",
+}
+
+OIL_ITEM_IDS = { 243733, 243734, 243735, 243736, 243737, 243738 }
+OIL_ITEM_NAMES = { "Thalassian Phoenix Oil", "Oil of Dawn", "Smuggler's Enchanted Edge" }
+
+RUNE_ITEM_IDS = { 259085, 243191, 246492, 211495, 201325, 224572, 181468 }
+RUNE_ITEM_NAMES = {
+  "Void-Touched Augment Rune", "Ethereal Augment Rune", "Soulgorged Augment Rune",
+  "Dreambound Augment Rune", "Draconic Augment Rune", "Crystallized Augment Rune", "Veiled Augment Rune",
 }
 
 SLOT_IDS = {

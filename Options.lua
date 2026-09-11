@@ -437,14 +437,14 @@ options = {
               end,
               order = 3
             },
-            augmentRune = {
+            rune = {
               name = "Augment Rune Buff",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.buffs.categories.augmentRune end,
+              get = function() return db.profile.buffs.categories.rune end,
               set = function(_, value)
-                db.profile.buffs.categories.augmentRune = value
+                db.profile.buffs.categories.rune = value
                 Self.Buffs:Refresh()
               end,
               order = 4
