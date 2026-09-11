@@ -68,13 +68,14 @@ local container
 local iconButtons = {}
 
 local function setNativeOverlayGlow(button, enabled)
-  if enabled and ActionButton_ShowOverlayGlow then
-    ActionButton_ShowOverlayGlow(button)
-    local overlay = button.overlay or button.SpellActivationAlert
-    if overlay then
-      overlay:SetFrameLevel(button:GetFrameLevel() + 10)
-      overlay:Show()
+  if ActionButtonSpellAlertManager then
+    if enabled then
+      ActionButtonSpellAlertManager:ShowAlert(button)
+    else
+      ActionButtonSpellAlertManager:HideAlert(button)
     end
+  elseif enabled and ActionButton_ShowOverlayGlow then
+    ActionButton_ShowOverlayGlow(button)
   elseif not enabled and ActionButton_HideOverlayGlow then
     ActionButton_HideOverlayGlow(button)
   end
@@ -287,11 +288,7 @@ local function layoutIcons(active)
 
     local bagItems = categoryBagItems(category)
     button.hasItems = #bagItems > 0
-    if button.hasItems then
-      setNativeOverlayGlow(button, true)
-    else
-      setNativeOverlayGlow(button, false)
-    end
+    setNativeOverlayGlow(button, button.hasItems)
 
     button:ClearAllPoints()
     local offsetX = (index - 1) * (ICON_SIZE + ICON_GAP)
