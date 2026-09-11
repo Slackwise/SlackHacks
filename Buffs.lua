@@ -27,12 +27,14 @@ local BUFF_CATEGORIES = {
   {
     dbKey = "wellFed",
     label = "Well Fed",
+    icon = 133943,
     itemNames = { "Royal Roast" },
     matchAura = function(auraName) return auraName == "Well Fed" end,
   },
   {
     dbKey = "flask",
     label = "Flask",
+    icon = 132380,
     itemNames = {
       "Flask of the Magisters",
       "Flask of the Blood Knights",
@@ -44,12 +46,14 @@ local BUFF_CATEGORIES = {
   {
     dbKey = "oil",
     label = "Oil",
+    icon = 7548987,
     itemNames = { "Thalassian Phoenix Oil" },
     matchAura = function(_, spellID) return spellID == 1237006 end,
   },
   {
     dbKey = "augmentRune",
     label = "Augment Rune",
+    icon = 4549099,
     itemNames = { "Void-Touched Augment Rune" },
     matchAura = function(_, spellID) return spellID == 1264426 end,
   },
@@ -90,11 +94,7 @@ local function categoryItemIDs(category)
 end
 
 local function categoryIcon(category)
-  for _, itemID in ipairs(categoryItemIDs(category)) do
-    local icon = C_Item.GetItemIconByID(itemID)
-    if icon then return icon end
-  end
-  return SLACKHACKS_ICON
+  return category.icon or SLACKHACKS_ICON
 end
 
 local function forEachPlayerBuff(callback)
