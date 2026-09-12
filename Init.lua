@@ -60,6 +60,7 @@ dbDefaults = {
       iconGap = 6,
       showGlow = true,
       showIfExpiring = true,
+      durationPosition = "below",
       contentTypes = {
         mythicDungeons = true,
         nonLfrRaids = true
