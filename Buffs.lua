@@ -299,7 +299,16 @@ local function contextIsEnabled(context)
 end
 
 local function thresholdSecondsForContext(context)
-  if context == "mythicDungeon" then return MYTHIC_DUNGEON_THRESHOLD_SECONDS end
+  if context == "mythicDungeon" then
+    if C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID then
+      local mapChallengeModeID = C_ChallengeMode.GetActiveChallengeMapID()
+      if mapChallengeModeID then
+        local _, _, timeLimit = C_ChallengeMode.GetMapUIInfo(mapChallengeModeID)
+        if timeLimit then return timeLimit end
+      end
+    end
+    return MYTHIC_DUNGEON_THRESHOLD_SECONDS
+  end
   if context == "raid" then return RAID_THRESHOLD_SECONDS end
 end
 
@@ -310,6 +319,7 @@ local function categoryShouldShow(category, context)
   local expiration = categoryBuffExpiration(category)
   if not expiration then return true end -- buff missing entirely
   if expiration == 0 then return false end -- permanent buff present, nothing to remind about
+  if not db.profile.buffs.showIfExpiring then return false end
   local threshold = thresholdSecondsForContext(context)
   if not threshold then return false end
   return (expiration - GetTime()) <= threshold
