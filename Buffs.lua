@@ -246,9 +246,10 @@ end
 
 local function activeCategories()
   if InCombatLockdown() then return {} end
+  local debugging = isDebugging()
   local context = currentContentContext()
-  if not context or not contextIsEnabled(context) then return {} end
-  if not (IsInGroup() or IsInRaid()) then return {} end
+  if not debugging and (not context or not contextIsEnabled(context)) then return {} end
+  if not debugging and not (IsInGroup() or IsInRaid()) then return {} end
 
   local active = {}
   for _, category in ipairs(BUFF_CATEGORIES) do
