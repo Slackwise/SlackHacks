@@ -59,13 +59,13 @@ dbDefaults = {
       showGlow = true,
       showIfExpiring = true,
       contentTypes = {
-        mythicDungeons = false,
-        nonLfrRaids = false
+        mythicDungeons = true,
+        nonLfrRaids = true
       },
       categories = {
-        wellFed = false,
-        flask = false,
-        oil = false,
+        wellFed = true,
+        flask = true,
+        oil = true,
         rune = false
       }
     },
