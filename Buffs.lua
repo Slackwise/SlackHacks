@@ -27,7 +27,7 @@ local BUFF_CATEGORIES = {
     icon = 133943,
     itemNames = FOOD_ITEM_NAMES,
     itemIDs = FOOD_ITEM_IDS,
-    matchAura = function(auraName) return auraName == "Well Fed" end,
+    matchAura = function(auraName) return auraName == "Well Fed" or auraName == "Hearty Well Fed" end,
   },
   {
     dbKey = "flask",
