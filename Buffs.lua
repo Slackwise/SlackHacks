@@ -241,6 +241,7 @@ local function categoryShouldShow(category, context)
   if not expiration then return true end -- buff missing entirely
   if expiration == 0 then return false end -- permanent buff present, nothing to remind about
   local threshold = thresholdSecondsForContext(context)
+  if not threshold then return false end
   return (expiration - GetTime()) <= threshold
 end
 
