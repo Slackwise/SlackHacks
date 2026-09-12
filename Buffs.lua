@@ -76,6 +76,8 @@ local iconButtons = {}
 local menuFrame
 local menuRows = {}
 local menuCloseTimer
+local auraEventRegistered = false
+local combatHideTimer
 
 local function closeContextMenu()
   if InCombatLockdown() then return end
@@ -233,6 +235,11 @@ local function currentContentContext()
   return nil
 end
 
+local function shouldTrackAuras()
+  local debugging = isDebugging()
+  return (debugging or currentContentContext()) and (debugging or IsInGroup() or IsInRaid())
+end
+
 local function contextIsEnabled(context)
   if context == "mythicDungeon" then return db.profile.buffs.contentTypes.mythicDungeons end
   if context == "raid" then return db.profile.buffs.contentTypes.nonLfrRaids end
@@ -268,6 +275,31 @@ local function activeCategories()
     if categoryShouldShow(category, context) then table.insert(active, category) end
   end
   return active
+end
+
+local function updateAuraEventRegistration()
+  local shouldRegister = not InCombatLockdown() and shouldTrackAuras()
+  if shouldRegister and not auraEventRegistered then
+    module:RegisterEvent("UNIT_AURA")
+    auraEventRegistered = true
+  elseif not shouldRegister and auraEventRegistered then
+    module:UnregisterEvent("UNIT_AURA")
+    auraEventRegistered = false
+  end
+end
+
+function module:UNIT_AURA(_, unit)
+  if unit ~= "player" or InCombatLockdown() then return end
+  self:Refresh()
+end
+
+local function hideBuffs()
+  if not container then return end
+  closeContextMenu()
+  container:Hide()
+  for _, button in pairs(iconButtons) do
+    button:Hide()
+  end
 end
 
 local function createContainer()
@@ -537,8 +569,8 @@ local function updatePosition()
   end
 end
 
-local function layoutIcons(active)
-  if InCombatLockdown() then return end
+local function layoutIcons(active, allowCombatDisplay)
+  if InCombatLockdown() and not allowCombatDisplay then return end
 
   local count = #active
   if count == 0 then
@@ -567,9 +599,9 @@ local function layoutIcons(active)
     button.hasMultipleItems = countItems > 1
     button.activeItem = bagItems[1]
 
-    if countItems == 1 then
+    if countItems == 1 and not InCombatLockdown() then
       setButtonAction(button, category, bagItems[1], true)
-    else
+    elseif not InCombatLockdown() then
       setButtonAction(button, nil, nil, false)
     end
 
@@ -591,31 +623,58 @@ local function layoutIcons(active)
 end
 
 function module:Refresh()
+  updateAuraEventRegistration()
   if InCombatLockdown() then return end
   createContainer()
   layoutIcons(activeCategories())
 end
 
+function module:PLAYER_ALIVE()
+  if not InCombatLockdown() or not shouldTrackAuras() then return end
+  local runeCategory = BUFF_CATEGORIES[4]
+  if not db.profile.buffs.categories[runeCategory.dbKey] then return end
+  if categoryBuffExpiration(runeCategory) then return end
+  layoutIcons({ runeCategory }, true)
+end
+
 function module:OnInitialize()
   createContainer()
+  for index in ipairs(BUFF_CATEGORIES) do
+    iconButton(index)
+  end
 end
 
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "Refresh")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
-  self:RegisterEvent("PLAYER_REGEN_ENABLED", "Refresh")
+  self:RegisterEvent("PLAYER_REGEN_ENABLED")
+  self:RegisterEvent("PLAYER_ALIVE")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:Refresh()
 end
 
 function module:PLAYER_REGEN_DISABLED()
-  closeContextMenu()
+  updateAuraEventRegistration()
+  hideBuffs()
+  if combatHideTimer then combatHideTimer:Cancel() end
+  combatHideTimer = C_Timer.NewTimer(30, function()
+    combatHideTimer = nil
+    if InCombatLockdown() then hideBuffs() end
+  end)
+end
+
+function module:PLAYER_REGEN_ENABLED()
+  if combatHideTimer then combatHideTimer:Cancel() end
+  combatHideTimer = nil
   self:Refresh()
 end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
+  auraEventRegistered = false
+  if combatHideTimer then combatHideTimer:Cancel() end
+  combatHideTimer = nil
   closeContextMenu()
   if container then container:Hide() end
 end
