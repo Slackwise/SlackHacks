@@ -638,16 +638,8 @@ local function createIconButton(index)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
     local article = (self.category.label:sub(1,1):match("[AEIOUaeiou]") and "an " or "a ")
-    if self.hasMultipleItems or self.category.dbKey == "oil" then
-      if self.hasItems then
-        GameTooltip:AddLine("Click to select " .. article .. self.category.label .. " item to use.", 1, 1, 1)
-      else
-        GameTooltip:AddLine("No " .. self.category.label .. " items in inventory.", 1, 1, 1)
-      end
-    elseif self.activeItem then
-      GameTooltip:AddLine("Click to use " .. self.activeItem.itemName .. " (" .. self.activeItem.count .. ").", 1, 1, 1)
-    elseif self.hasItems then
-      GameTooltip:AddLine("Click to use an item.", 1, 1, 1)
+    if self.hasItems then
+      GameTooltip:AddLine("Click to select " .. article .. self.category.label .. " item to use.", 1, 1, 1)
     else
       GameTooltip:AddLine("No " .. self.category.label .. " items in inventory.", 1, 1, 1)
     end
@@ -670,15 +662,7 @@ local function createIconButton(index)
       return
     end
 
-    if #items > 1 or mouseButton == "RightButton" or self.category.dbKey == "oil" then
-      openContextMenu(self, self.category, items)
-    end
-  end)
-
-  button:SetScript("PostClick", function(self, mouseButton)
-    if mouseButton == "LeftButton" and self.category.dbKey ~= "oil" and (not self.hasMultipleItems) and self.hasItems then
-      C_Timer.After(0.2, function() module:Refresh() end)
-    end
+    openContextMenu(self, self.category, items)
   end)
 
   return button
@@ -723,14 +707,9 @@ local function layoutIcons(active, allowCombatDisplay)
     button:Show()
 
     local bagItems = categoryBagItems(category)
-    local countItems = #bagItems
-    button.hasItems = countItems > 0
-    button.hasMultipleItems = countItems > 1
-    button.activeItem = bagItems[1]
+    button.hasItems = #bagItems > 0
 
-    if not isEditing and countItems == 1 and category.dbKey ~= "oil" and not InCombatLockdown() then
-      setButtonAction(button, category, bagItems[1], true)
-    elseif not InCombatLockdown() then
+    if not InCombatLockdown() then
       setButtonAction(button, nil, nil, false)
     end
 
