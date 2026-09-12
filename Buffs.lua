@@ -153,7 +153,8 @@ local function categoryBagItems(category)
     if count > 0 then
       local bag, slot = findBagItem(itemID)
       local itemName = C_Item.GetItemNameByID(itemID) or ITEM_NAMES_BY_ID and ITEM_NAMES_BY_ID[itemID] or tostring(itemID)
-      local qualityAtlas = QUALITY_ATLAS_BY_ITEM_ID[itemID]
+      local qualityInfo = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityInfo and C_TradeSkillUI.GetItemReagentQualityInfo(itemID)
+      local qualityAtlas = qualityInfo and qualityInfo.iconChat or QUALITY_ATLAS_BY_ITEM_ID[itemID]
       table.insert(items, {
         itemID = itemID,
         itemName = itemName,
@@ -161,7 +162,7 @@ local function categoryBagItems(category)
         bag = bag,
         slot = slot,
         icon = C_Item.GetItemIconByID(itemID),
-        qualityMarkup = qualityAtlas and "|A:" .. qualityAtlas .. ":24:24:0:0|a" or "",
+        qualityMarkup = qualityAtlas and CreateAtlasMarkup(qualityAtlas, 24, 24, 0, 0) or "",
       })
     end
   end
