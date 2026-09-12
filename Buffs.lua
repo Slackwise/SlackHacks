@@ -423,8 +423,9 @@ local function createContainer()
   container:SetMovable(true)
   container:SetClampedToScreen(true)
   container:SetDontSavePosition(true)
-  local iconSize = AURA_BUTTON_WIDTH * db.profile.buffs.iconSize / 100
-  container:SetSize(iconSize, iconSize)
+  local scale = (db.profile.buffs.iconSize or 100) / 100
+  container:SetScale(scale)
+  container:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   updatePosition()
   container:Hide()
 end
@@ -607,7 +608,6 @@ end
 local function createIconButton(index)
   local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
-  button:SetScale(db.profile.buffs.iconSize / 100)
   button:RegisterForClicks("AnyUp")
 
   local icon = button.Icon
@@ -697,14 +697,14 @@ local function layoutIcons(active, allowCombatDisplay)
     return
   end
 
-  local iconSize = AURA_BUTTON_WIDTH * db.profile.buffs.iconSize / 100
-  local totalWidth = (count * iconSize) + ((count - 1) * db.profile.buffs.iconGap)
-  container:SetSize(math.max(totalWidth, iconSize), iconSize)
+  local scale = (db.profile.buffs.iconSize or 100) / 100
+  container:SetScale(scale)
+  local totalWidth = (count * AURA_BUTTON_WIDTH) + ((count - 1) * db.profile.buffs.iconGap)
+  container:SetSize(math.max(totalWidth, AURA_BUTTON_WIDTH), AURA_BUTTON_WIDTH)
   updatePosition()
 
   for index, category in ipairs(active) do
     local button = iconButton(index)
-    button:SetScale(db.profile.buffs.iconSize / 100)
     button.category = category
     button.expirationTime = categoryBuffExpiration(category)
     button.durationElapsed = 1
@@ -731,7 +731,7 @@ local function layoutIcons(active, allowCombatDisplay)
     setNativeOverlayGlow(button, (not isEditing) and db.profile.buffs.showGlow and button.hasItems)
 
     button:ClearAllPoints()
-    local offsetX = (index - 1) * (iconSize + db.profile.buffs.iconGap)
+    local offsetX = (index - 1) * (AURA_BUTTON_WIDTH + db.profile.buffs.iconGap)
     button:SetPoint("LEFT", container, "LEFT", offsetX, 0)
   end
 
