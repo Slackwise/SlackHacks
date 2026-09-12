@@ -403,8 +403,10 @@ local function createMenuRow(index)
   row:RegisterForClicks("AnyUp", "AnyDown") -- secure item/macro click only fires reliably with both registered
 
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-  highlight:SetAllPoints()
-  highlight:SetColorTexture(1, 1, 1, 0.15)
+  highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+  highlight:SetPoint("TOPLEFT", row, "TOPLEFT", 2, -1)
+  highlight:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -2, 1)
+  highlight:SetVertexColor(1, 1, 1, 0.35)
   highlight:SetBlendMode("ADD")
   row.highlight = highlight
 
@@ -465,15 +467,15 @@ local function createContextMenu()
   menuFrame:SetClampedToScreen(true)
   menuFrame:EnableMouse(true)
   menuFrame:SetBackdrop({
-    bgFile = "Interface\\Buttons\\WHITE8x8",
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
     tile = true,
     tileSize = 16,
     edgeSize = 14,
     insets = { left = 3, right = 3, top = 3, bottom = 3 },
   })
-  menuFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.9)
-  menuFrame:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
+  menuFrame:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+  menuFrame:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
   menuFrame:SetScript("OnEnter", cancelMenuClose)
   menuFrame:SetScript("OnLeave", scheduleMenuClose)
   menuFrame:Hide()
