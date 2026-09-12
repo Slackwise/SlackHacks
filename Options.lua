@@ -483,7 +483,7 @@ options = {
             db.profile.buffs.position = value
             Self.Buffs:Refresh()
           end,
-          order = 3
+          order = 5
         },
         iconSize = {
           name = "Icon Size",
@@ -499,7 +499,7 @@ options = {
             local size = tonumber(value)
             return size and size >= 50 and size <= 300 and size == math.floor(size)
           end,
-          order = 4
+          order = 6
         },
         anchorOffset = {
           name = "Anchor Offset",
@@ -515,7 +515,7 @@ options = {
             local offset = tonumber(value)
             return offset and offset >= 0 and offset <= 1000 and offset == math.floor(offset)
           end,
-          order = 5
+          order = 7
         },
         iconGap = {
           name = "Icon Gap",
@@ -531,7 +531,7 @@ options = {
             local gap = tonumber(value)
             return gap and gap >= 0 and gap <= 100 and gap == math.floor(gap)
           end,
-          order = 6
+          order = 8
         },
         showIfExpiring = {
           name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
@@ -544,7 +544,7 @@ options = {
             db.profile.buffs.showIfExpiring = value
             Self.Buffs:Refresh()
           end,
-          order = 7
+          order = 0.6
         },
         showGlow = {
           name = "Show Item Glow",
@@ -557,7 +557,7 @@ options = {
             db.profile.buffs.showGlow = value
             Self.Buffs:Refresh()
           end,
-          order = 8
+          order = 0.5
         }
       }
     },
