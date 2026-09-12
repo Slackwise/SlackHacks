@@ -236,8 +236,16 @@ end
 
 local function oilBuffExpiration()
   if not GetWeaponEnchantInfo then return nil end
-  local hasMainHandEnchant, _, _, hasOffHandEnchant = GetWeaponEnchantInfo()
-  if hasMainHandEnchant or hasOffHandEnchant then return 0 end
+  local hasMainHandEnchant, mainHandExpiration, _, _, hasOffHandEnchant, offHandExpiration = GetWeaponEnchantInfo()
+  local expiration
+  if hasMainHandEnchant and mainHandExpiration then
+    expiration = GetTime() + (mainHandExpiration / 1000)
+  end
+  if hasOffHandEnchant and offHandExpiration then
+    local offHandEnd = GetTime() + (offHandExpiration / 1000)
+    expiration = not expiration and offHandEnd or math.max(expiration, offHandEnd)
+  end
+  if expiration then return expiration end
   return nil
 end
 
@@ -366,6 +374,33 @@ local function hideBuffs()
   for _, button in pairs(iconButtons) do
     button:Hide()
   end
+end
+
+local function updateDuration(button)
+  if GetCVarBool and not GetCVarBool("buffDurations") then
+    button.duration:Hide()
+    return
+  end
+
+  local expiration = button.expirationTime
+  if not expiration or expiration <= 0 then
+    button.duration:Hide()
+    return
+  end
+
+  local timeLeft = math.max(expiration - GetTime(), 0)
+  if timeLeft <= 0 then
+    button.duration:Hide()
+    return
+  end
+
+  button.duration:SetFormattedText(SecondsToTimeAbbrev(timeLeft))
+  if timeLeft < (BUFF_DURATION_WARNING_TIME or 90) then
+    button.duration:SetTextColor(HIGHLIGHT_FONT_COLOR:GetRGB())
+  else
+    button.duration:SetTextColor(NORMAL_FONT_COLOR:GetRGB())
+  end
+  button.duration:Show()
 end
 
 local function createContainer()
@@ -560,8 +595,18 @@ local function createIconButton(index)
   button.icon = icon
   button.TempEnchantBorder:Hide()
 
+  local duration = button:CreateFontString(nil, "OVERLAY", DEFAULT_AURA_DURATION_FONT or "GameFontNormalSmall")
+  duration:SetPoint("BOTTOM", button, "TOP", 0, 2)
+  duration:SetJustifyH("CENTER")
+  duration:Hide()
+  button.duration = duration
+  button:SetScript("OnUpdate", function(self)
+    updateDuration(self)
+  end)
+
   button:SetScript("OnHide", function(self)
     setNativeOverlayGlow(self, false)
+    self.duration:Hide()
   end)
 
   button:SetScript("OnEnter", function(self)
@@ -652,6 +697,7 @@ local function layoutIcons(active, allowCombatDisplay)
   for index, category in ipairs(active) do
     local button = iconButton(index)
     button.category = category
+    button.expirationTime = categoryBuffExpiration(category)
     button.icon:SetTexture(categoryIcon(category))
     button:Show()
 
