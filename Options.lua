@@ -358,10 +358,23 @@ options = {
     },
     buffs = {
       type = "group",
-      name = "Buffs",
+      name = "Consumable Buff Reminders",
       desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
       order = 8,
       args = {
+        enabled = {
+          name = "Enable",
+          desc = "Show consumable buff reminders.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.buffs.enabled end,
+          set = function(_, value)
+            db.profile.buffs.enabled = value
+            Self.Buffs:Refresh()
+          end,
+          order = 0
+        },
         contentGroup = {
           type = "group",
           name = "Where to Remind",
