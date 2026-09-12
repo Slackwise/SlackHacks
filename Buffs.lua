@@ -570,7 +570,6 @@ local function createIconButton(index)
       GameTooltip:AddLine("Click to select a " .. self.category.label .. " item to use.", 1, 1, 1)
     elseif self.activeItem then
       GameTooltip:AddLine("Click to use " .. self.activeItem.itemName .. " (" .. self.activeItem.count .. ").", 1, 1, 1)
-      GameTooltip:AddLine("Right-click to select from inventory.", 0.7, 0.7, 0.7)
     elseif self.hasItems then
       GameTooltip:AddLine("Click to use an item.", 1, 1, 1)
     else
