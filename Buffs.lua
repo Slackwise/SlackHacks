@@ -73,6 +73,21 @@ end
 
 local container
 local iconButtons = {}
+local menuFrame
+local menuRows = {}
+local menuDismissal
+
+local function closeContextMenu()
+  if InCombatLockdown() then return end
+  if menuFrame then
+    menuFrame:Hide()
+    menuFrame.anchorButton = nil
+    menuFrame.category = nil
+  end
+  if menuDismissal then
+    menuDismissal:Hide()
+  end
+end
 
 local QUALITY_ATLAS_BY_ITEM_ID = {
   [241320] = "Professions-Icon-Quality-12-Tier2-Inv",
@@ -164,6 +179,7 @@ local function categoryBagItems(category)
         bag = bag,
         slot = slot,
         icon = C_Item.GetItemIconByID(itemID),
+        qualityAtlas = qualityAtlas,
         qualityMarkup = qualityAtlas and CreateAtlasMarkup(qualityAtlas, 24, 24, 0, 0) or "",
       })
     end
@@ -225,27 +241,186 @@ local function createContainer()
   container:Hide()
 end
 
-local function setButtonAction(button, category, item)
+local function setButtonAction(button, category, item, onlyLeftClick)
   if not button or InCombatLockdown() then return end
-  if not item or not category then
-    button:SetAttribute("type", nil)
-    button:SetAttribute("item", nil)
-    button:SetAttribute("macrotext", nil)
-    button:SetAttribute("unit", nil)
+
+  button:SetAttribute("type", nil)
+  button:SetAttribute("item", nil)
+  button:SetAttribute("macrotext", nil)
+  button:SetAttribute("unit", nil)
+  button:SetAttribute("type1", nil)
+  button:SetAttribute("item1", nil)
+  button:SetAttribute("macrotext1", nil)
+  button:SetAttribute("unit1", nil)
+
+  if not item or not category then return end
+
+  local typeAttr = onlyLeftClick and "type1" or "type"
+  local itemAttr = onlyLeftClick and "item1" or "item"
+  local macroAttr = onlyLeftClick and "macrotext1" or "macrotext"
+  local unitAttr = onlyLeftClick and "unit1" or "unit"
+
+  if category.dbKey == "oil" then
+    button:SetAttribute(typeAttr, "macro")
+    button:SetAttribute(macroAttr, "/use item:" .. item.itemID .. "\n/use 16")
+  else
+    button:SetAttribute(typeAttr, "item")
+    button:SetAttribute(itemAttr, "item:" .. item.itemID)
+    button:SetAttribute(unitAttr, "player")
+  end
+end
+
+local function createMenuRow(index)
+  local row = CreateFrame("Button", "SlackHacksBuffMenuRow" .. index, menuFrame, "BackdropTemplate, SecureActionButtonTemplate")
+  row:SetHeight(24)
+  row:RegisterForClicks("AnyUp", "AnyDown")
+
+  local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+  highlight:SetAllPoints()
+  highlight:SetColorTexture(1, 1, 1, 0.15)
+  highlight:SetBlendMode("ADD")
+  row.highlight = highlight
+
+  local icon = row:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(20, 20)
+  icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  row.icon = icon
+
+  local quality = row:CreateTexture(nil, "OVERLAY")
+  quality:SetSize(16, 16)
+  quality:SetPoint("LEFT", icon, "RIGHT", 4, 0)
+  row.quality = quality
+
+  local count = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  count:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+  count:SetJustifyH("RIGHT")
+  row.count = count
+
+  local name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  name:SetPoint("LEFT", quality, "RIGHT", 4, 0)
+  name:SetPoint("RIGHT", count, "LEFT", -6, 0)
+  name:SetJustifyH("LEFT")
+  name:SetWordWrap(false)
+  row.name = name
+
+  row:SetScript("OnEnter", function(self)
+    if self.itemID then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetItemByID(self.itemID)
+      GameTooltip:Show()
+    end
+  end)
+
+  row:SetScript("OnLeave", GameTooltip_Hide)
+
+  row:SetScript("PostClick", function()
+    closeContextMenu()
+    C_Timer.After(0.2, function() module:Refresh() end)
+  end)
+
+  return row
+end
+
+local function getMenuRow(index)
+  menuRows[index] = menuRows[index] or createMenuRow(index)
+  return menuRows[index]
+end
+
+local function createContextMenu()
+  if menuFrame then return end
+
+  menuDismissal = CreateFrame("Button", "SlackHacksBuffMenuDismissal", UIParent)
+  menuDismissal:SetFrameStrata("DIALOG")
+  menuDismissal:SetAllPoints(UIParent)
+  menuDismissal:EnableMouse(true)
+  menuDismissal:SetScript("OnClick", function() closeContextMenu() end)
+  menuDismissal:Hide()
+
+  menuFrame = CreateFrame("Frame", "SlackHacksBuffContextMenu", UIParent, "BackdropTemplate")
+  menuFrame:SetFrameStrata("DIALOG")
+  menuFrame:SetClampedToScreen(true)
+  menuFrame:SetBackdrop({
+    bgFile = "Interface\\Buttons\\WHITE8x8",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true,
+    tileSize = 16,
+    edgeSize = 14,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 },
+  })
+  menuFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.9)
+  menuFrame:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
+  menuFrame:Hide()
+end
+
+local function openContextMenu(anchorButton, category, items)
+  if InCombatLockdown() then return end
+  createContextMenu()
+
+  if menuFrame:IsShown() and menuFrame.anchorButton == anchorButton then
+    closeContextMenu()
     return
   end
 
-  if category.dbKey == "oil" then
-    button:SetAttribute("item", nil)
-    button:SetAttribute("unit", nil)
-    button:SetAttribute("type", "macro")
-    button:SetAttribute("macrotext", "/use item:" .. item.itemID .. "\n/use 16")
-  else
-    button:SetAttribute("macrotext", nil)
-    button:SetAttribute("type", "item")
-    button:SetAttribute("item", "item:" .. item.itemID)
-    button:SetAttribute("unit", "player")
+  if not items or #items == 0 then
+    closeContextMenu()
+    return
   end
+
+  menuFrame.anchorButton = anchorButton
+  menuFrame.category = category
+
+  local rowHeight = 24
+  local rowGap = 2
+  local padding = 6
+  local menuWidth = 240
+
+  for index, item in ipairs(items) do
+    local row = getMenuRow(index)
+    row.itemID = item.itemID
+    row:SetWidth(menuWidth - (padding * 2))
+    row:SetHeight(rowHeight)
+    row.icon:SetTexture(item.icon or SLACKHACKS_ICON)
+
+    if item.qualityAtlas then
+      row.quality:SetAtlas(item.qualityAtlas)
+      row.quality:Show()
+      row.name:SetPoint("LEFT", row.quality, "RIGHT", 4, 0)
+    else
+      row.quality:Hide()
+      row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
+    end
+
+    row.name:SetText(item.itemName or "")
+    row.count:SetText("(" .. (item.count or 0) .. ")")
+
+    setButtonAction(row, category, item, false)
+    row:ClearAllPoints()
+    local offsetY = -padding - ((index - 1) * (rowHeight + rowGap))
+    row:SetPoint("TOPLEFT", menuFrame, "TOPLEFT", padding, offsetY)
+    row:Show()
+  end
+
+  for index = #items + 1, #menuRows do
+    local row = menuRows[index]
+    row:Hide()
+    setButtonAction(row, nil, nil, false)
+  end
+
+  local totalHeight = (padding * 2) + (#items * rowHeight) + ((#items - 1) * rowGap)
+  menuFrame:SetSize(menuWidth, totalHeight)
+
+  menuFrame:ClearAllPoints()
+  local top = anchorButton:GetTop() or 0
+  if top > (GetScreenHeight() / 2) then
+    menuFrame:SetPoint("TOPLEFT", anchorButton, "BOTTOMLEFT", 0, -4)
+  else
+    menuFrame:SetPoint("BOTTOMLEFT", anchorButton, "TOPLEFT", 0, 4)
+  end
+
+  menuDismissal:Show()
+  menuFrame:SetFrameLevel(menuDismissal:GetFrameLevel() + 5)
+  menuFrame:Show()
 end
 
 local function createIconButton(index)
@@ -265,8 +440,11 @@ local function createIconButton(index)
   button:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
-    if self.activeItem then
+    if self.hasMultipleItems then
+      GameTooltip:AddLine("Click to select a " .. self.category.label .. " item to use.", 1, 1, 1)
+    elseif self.activeItem then
       GameTooltip:AddLine("Click to use " .. self.activeItem.itemName .. " (" .. self.activeItem.count .. ").", 1, 1, 1)
+      GameTooltip:AddLine("Right-click to select from inventory.", 0.7, 0.7, 0.7)
     elseif self.hasItems then
       GameTooltip:AddLine("Click to use an item.", 1, 1, 1)
     else
@@ -276,8 +454,25 @@ local function createIconButton(index)
   end)
   button:SetScript("OnLeave", GameTooltip_Hide)
 
-  button:SetScript("PostClick", function(self)
-    C_Timer.After(0.2, function() module:Refresh() end)
+  button:SetScript("PreClick", function(self, mouseButton)
+    if InCombatLockdown() then return end
+    local items = categoryBagItems(self.category)
+    if #items == 0 then
+      if mouseButton == "LeftButton" or mouseButton == "RightButton" then
+        print("SlackHacks: No " .. self.category.label .. " items in inventory.")
+      end
+      return
+    end
+
+    if #items > 1 or mouseButton == "RightButton" then
+      openContextMenu(self, self.category, items)
+    end
+  end)
+
+  button:SetScript("PostClick", function(self, mouseButton)
+    if mouseButton == "LeftButton" and (not self.hasMultipleItems) and self.hasItems then
+      C_Timer.After(0.2, function() module:Refresh() end)
+    end
   end)
 
   return button
@@ -309,10 +504,11 @@ local function layoutIcons(active)
 
   local count = #active
   if count == 0 then
+    closeContextMenu()
     container:Hide()
     for _, button in pairs(iconButtons) do
       button:Hide()
-      setButtonAction(button, nil, nil)
+      setButtonAction(button, nil, nil, false)
     end
     return
   end
@@ -328,10 +524,17 @@ local function layoutIcons(active)
     button:Show()
 
     local bagItems = categoryBagItems(category)
-    local bestItem = bagItems[1]
-    button.activeItem = bestItem
-    button.hasItems = bestItem ~= nil
-    setButtonAction(button, category, bestItem)
+    local countItems = #bagItems
+    button.hasItems = countItems > 0
+    button.hasMultipleItems = countItems > 1
+    button.activeItem = bagItems[1]
+
+    if countItems == 1 then
+      setButtonAction(button, category, bagItems[1], true)
+    else
+      setButtonAction(button, nil, nil, false)
+    end
+
     setNativeOverlayGlow(button, button.hasItems)
 
     button:ClearAllPoints()
@@ -342,7 +545,7 @@ local function layoutIcons(active)
   for index, button in pairs(iconButtons) do
     if index > count then
       button:Hide()
-      setButtonAction(button, nil, nil)
+      setButtonAction(button, nil, nil, false)
     end
   end
 
@@ -362,13 +565,19 @@ end
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "Refresh")
-  self:RegisterEvent("PLAYER_REGEN_DISABLED", "Refresh")
+  self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "Refresh")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:Refresh()
 end
 
+function module:PLAYER_REGEN_DISABLED()
+  closeContextMenu()
+  self:Refresh()
+end
+
 function module:OnDisable()
   self:UnregisterAllEvents()
+  closeContextMenu()
   if container then container:Hide() end
 end
