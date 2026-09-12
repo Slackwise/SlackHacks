@@ -600,7 +600,11 @@ local function createIconButton(index)
   duration:SetJustifyH("CENTER")
   duration:Hide()
   button.duration = duration
-  button:SetScript("OnUpdate", function(self)
+  button.durationElapsed = 0
+  button:SetScript("OnUpdate", function(self, elapsed)
+    self.durationElapsed = self.durationElapsed + elapsed
+    if self.durationElapsed < 1 then return end
+    self.durationElapsed = self.durationElapsed - math.floor(self.durationElapsed)
     updateDuration(self)
   end)
 
@@ -700,6 +704,8 @@ local function layoutIcons(active, allowCombatDisplay)
     button:SetScale(db.profile.buffs.iconSize / 100)
     button.category = category
     button.expirationTime = categoryBuffExpiration(category)
+    button.durationElapsed = 1
+    updateDuration(button)
     button.icon:SetTexture(categoryIcon(category))
     button:Show()
 
