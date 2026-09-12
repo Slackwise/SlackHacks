@@ -26,7 +26,8 @@ setfenv(1, _G.SlackHacks)
 function Self:OnEnable()
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("PLAYER_ENTERING_WORLD")
-  self:RegisterEvent("UNIT_AURA")
+  self:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+  self:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   -- self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
@@ -78,6 +79,10 @@ function Self:PLAYER_REGEN_ENABLED(eventName) -- Out of combat
   resetNameplateCastLift()
 end
 
+function Self:PLAYER_MOUNT_DISPLAY_CHANGED(eventName)
+  handleDragonriding()
+end
+
 function Self:PLAYER_REGEN_DISABLED(eventName) -- In combat
 end
 
@@ -85,10 +90,8 @@ function Self:ACTIVE_TALENT_GROUP_CHANGED(currentSpecID, previousSpecID)
   setBindings()
 end
 
-function Self:UNIT_AURA(eventName, unitTarget, updateInfo) -- https://warcraft.wiki.gg/wiki/UNIT_AURA
-  if unitTarget == "player" then
-    handleDragonriding()
-  end
+function Self:UPDATE_SHAPESHIFT_FORM(eventName)
+  handleDragonriding()
 end
 
 -- --- "Vignettes" are pop-up events on the minimap or world map like rare mobs or treasures: https://warcraft.wiki.gg/wiki/Vignette
