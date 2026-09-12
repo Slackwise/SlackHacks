@@ -74,12 +74,6 @@ end
 local container
 local iconButtons = {}
 
-local function useBuffItem(bag, slot)
-  if not bag or not slot then return end
-  C_Container.UseContainerItem(bag, slot)
-  C_Timer.After(0.2, function() module:Refresh() end)
-end
-
 local QUALITY_ATLAS_BY_ITEM_ID = {
   [241320] = "Professions-Icon-Quality-12-Tier2-Inv",
   [241321] = "Professions-Icon-Quality-12-Tier1-Inv",
@@ -212,19 +206,10 @@ local function categoryShouldShow(category, context)
 end
 
 local function activeCategories()
+  if InCombatLockdown() then return {} end
   local context = currentContentContext()
   if not context or not contextIsEnabled(context) then return {} end
   if not (IsInGroup() or IsInRaid()) then return {} end
-
-  if InCombatLockdown() then
-    -- Only the augment rune reminder is useful mid-fight, and only while it's actually missing.
-    for _, category in ipairs(BUFF_CATEGORIES) do
-      if category.dbKey == "rune" and db.profile.buffs.categories.rune then
-        if categoryBuffExpiration(category) == nil then return { category } end
-      end
-    end
-    return {}
-  end
 
   local active = {}
   for _, category in ipairs(BUFF_CATEGORIES) do
@@ -240,10 +225,34 @@ local function createContainer()
   container:Hide()
 end
 
+local function setButtonAction(button, category, item)
+  if not button or InCombatLockdown() then return end
+  if not item or not category then
+    button:SetAttribute("type", nil)
+    button:SetAttribute("item", nil)
+    button:SetAttribute("macrotext", nil)
+    button:SetAttribute("unit", nil)
+    return
+  end
+
+  if category.dbKey == "oil" then
+    button:SetAttribute("item", nil)
+    button:SetAttribute("unit", nil)
+    button:SetAttribute("type", "macro")
+    button:SetAttribute("macrotext", "/use item:" .. item.itemID .. "\n/use 16")
+  else
+    button:SetAttribute("macrotext", nil)
+    button:SetAttribute("type", "item")
+    button:SetAttribute("item", "item:" .. item.itemID)
+    button:SetAttribute("unit", "player")
+  end
+end
+
 local function createIconButton(index)
-  local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate")
+  local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   button:SetScale(1.5)
+  button:RegisterForClicks("AnyUp", "AnyDown")
 
   local icon = button.Icon
   button.icon = icon
@@ -256,7 +265,9 @@ local function createIconButton(index)
   button:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
-    if self.hasItems then
+    if self.activeItem then
+      GameTooltip:AddLine("Click to use " .. self.activeItem.itemName .. " (" .. self.activeItem.count .. ").", 1, 1, 1)
+    elseif self.hasItems then
       GameTooltip:AddLine("Click to use an item.", 1, 1, 1)
     else
       GameTooltip:AddLine("No " .. self.category.label .. " items in inventory.", 1, 1, 1)
@@ -265,25 +276,8 @@ local function createIconButton(index)
   end)
   button:SetScript("OnLeave", GameTooltip_Hide)
 
-  button:SetScript("OnClick", function(self)
-    local items = categoryBagItems(self.category)
-    if #items == 0 then
-      print("SlackHacks: No " .. self.category.label .. " items in inventory.")
-      return
-    end
-    if self.category.dbKey == "rune" then
-      useBuffItem(items[1].bag, items[1].slot)
-      return
-    end
-    MenuUtil.CreateContextMenu(self, function(_, rootDescription)
-      rootDescription:SetTag("SLACKHACKS_BUFF_" .. self.category.dbKey)
-      for _, item in ipairs(items) do
-        local itemMarkup = item.icon and CreateSimpleTextureMarkup(item.icon, 20, 20, 0, -2) or ""
-        rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " " .. item.qualityMarkup .. " (" .. item.count .. ")", function()
-          useBuffItem(item.bag, item.slot)
-        end)
-      end
-    end)
+  button:SetScript("PostClick", function(self)
+    C_Timer.After(0.2, function() module:Refresh() end)
   end)
 
   return button
@@ -311,10 +305,15 @@ local function updatePosition()
 end
 
 local function layoutIcons(active)
+  if InCombatLockdown() then return end
+
   local count = #active
   if count == 0 then
     container:Hide()
-    for _, button in pairs(iconButtons) do button:Hide() end
+    for _, button in pairs(iconButtons) do
+      button:Hide()
+      setButtonAction(button, nil, nil)
+    end
     return
   end
 
@@ -329,7 +328,10 @@ local function layoutIcons(active)
     button:Show()
 
     local bagItems = categoryBagItems(category)
-    button.hasItems = #bagItems > 0
+    local bestItem = bagItems[1]
+    button.activeItem = bestItem
+    button.hasItems = bestItem ~= nil
+    setButtonAction(button, category, bestItem)
     setNativeOverlayGlow(button, button.hasItems)
 
     button:ClearAllPoints()
@@ -338,13 +340,17 @@ local function layoutIcons(active)
   end
 
   for index, button in pairs(iconButtons) do
-    if index > count then button:Hide() end
+    if index > count then
+      button:Hide()
+      setButtonAction(button, nil, nil)
+    end
   end
 
   container:Show()
 end
 
 function module:Refresh()
+  if InCombatLockdown() then return end
   createContainer()
   layoutIcons(activeCategories())
 end
