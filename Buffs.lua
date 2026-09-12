@@ -747,6 +747,16 @@ function module:Refresh()
   layoutIcons(activeCategories())
 end
 
+function module:OnDatabaseReset()
+  wipe(trackedAuras)
+  wipe(cachedAuraExpirations)
+  auraCacheInitialized = false
+  if combatHideTimer then combatHideTimer:Cancel() end
+  combatHideTimer = nil
+  hideBuffs()
+  self:Refresh()
+end
+
 function module:PLAYER_ALIVE()
   if not InCombatLockdown() or not shouldTrackAuras() then return end
   rebuildAuraCache()
@@ -761,6 +771,7 @@ function module:OnInitialize()
   for index in ipairs(BUFF_CATEGORIES) do
     iconButton(index)
   end
+  db:RegisterCallback("OnDatabaseReset", module.OnDatabaseReset, module)
 end
 
 function module:OnEnable()
