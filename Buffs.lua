@@ -310,22 +310,21 @@ local function createMenuRow(index)
   icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
   row.icon = icon
 
-  local quality = row:CreateTexture(nil, "OVERLAY")
-  quality:SetSize(16, 16)
-  quality:SetPoint("LEFT", icon, "RIGHT", 4, 0)
-  row.quality = quality
-
   local count = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   count:SetPoint("RIGHT", row, "RIGHT", -6, 0)
   count:SetJustifyH("RIGHT")
   row.count = count
 
   local name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  name:SetPoint("LEFT", quality, "RIGHT", 4, 0)
-  name:SetPoint("RIGHT", count, "LEFT", -6, 0)
+  name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+  name:SetPoint("RIGHT", count, "LEFT", -26, 0) -- leaves room for the quality icon after the name
   name:SetJustifyH("LEFT")
   name:SetWordWrap(false)
   row.name = name
+
+  local quality = row:CreateTexture(nil, "OVERLAY")
+  quality:SetSize(16, 16)
+  row.quality = quality
 
   row:SetScript("OnEnter", function(self)
     cancelMenuClose()
@@ -404,18 +403,17 @@ local function openContextMenu(anchorButton, category, items)
     row:SetWidth(menuWidth - (padding * 2))
     row:SetHeight(rowHeight)
     row.icon:SetTexture(item.icon or SLACKHACKS_ICON)
-
-    if item.qualityAtlas then
-      row.quality:SetAtlas(item.qualityAtlas)
-      row.quality:Show()
-      row.name:SetPoint("LEFT", row.quality, "RIGHT", 4, 0)
-    else
-      row.quality:Hide()
-      row.name:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
-    end
-
     row.name:SetText(item.itemName or "")
     row.count:SetText("(" .. (item.count or 0) .. ")")
+
+    row.quality:ClearAllPoints()
+    if item.qualityAtlas then
+      row.quality:SetAtlas(item.qualityAtlas)
+      row.quality:SetPoint("LEFT", row.name, "LEFT", (row.name:GetStringWidth() or 0) + 4, 0)
+      row.quality:Show()
+    else
+      row.quality:Hide()
+    end
 
     setButtonAction(row, category, item, false)
     row:ClearAllPoints()
