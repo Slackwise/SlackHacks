@@ -52,8 +52,10 @@ dbDefaults = {
     },
     buffs = {
       enabled = false,
-      position = "top",
-      anchorOffset = 130,
+      point = "TOP",
+      relativePoint = "TOP",
+      x = 0,
+      y = -130,
       iconSize = 150,
       iconGap = 6,
       showGlow = true,

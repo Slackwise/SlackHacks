@@ -69,6 +69,8 @@ end
 
 local container
 local iconButtons = {}
+local selection
+local isEditing = false
 local menuFrame
 local menuRows = {}
 local menuCloseTimer
@@ -404,11 +406,26 @@ local function updateDuration(button)
   button.duration:Show()
 end
 
+local function updatePosition()
+  if not container then return end
+  container:ClearAllPoints()
+  local buffsDb = db.profile.buffs
+  local point = buffsDb.point or "TOP"
+  local relativePoint = buffsDb.relativePoint or point
+  local x = buffsDb.x or 0
+  local y = buffsDb.y or -130
+  container:SetPoint(point, UIParent, relativePoint, x, y)
+end
+
 local function createContainer()
   if container then return end
   container = CreateFrame("Frame", "SlackHacksBuffReminders", UIParent)
+  container:SetMovable(true)
+  container:SetClampedToScreen(true)
+  container:SetDontSavePosition(true)
   local iconSize = AURA_BUTTON_WIDTH * db.profile.buffs.iconSize / 100
   container:SetSize(iconSize, iconSize)
+  updatePosition()
   container:Hide()
 end
 
@@ -666,27 +683,11 @@ local function iconButton(index)
   return iconButtons[index]
 end
 
-local function updatePosition()
-  container:ClearAllPoints()
-  local position = db.profile.buffs.position
-  if position == "aboveBuffs" and _G.BuffFrame then
-    container:SetPoint("BOTTOM", _G.BuffFrame, "TOP", 0, db.profile.buffs.anchorOffset)
-  elseif position == "belowBuffs" and _G.BuffFrame then
-    container:SetPoint("TOP", _G.BuffFrame, "BOTTOM", 0, -db.profile.buffs.anchorOffset)
-  elseif position == "abovePlayerFrame" and _G.PlayerFrame then
-    container:SetPoint("BOTTOM", _G.PlayerFrame, "TOP", 0, db.profile.buffs.anchorOffset)
-  elseif position == "belowPlayerFrame" and _G.PlayerFrame then
-    container:SetPoint("TOP", _G.PlayerFrame, "BOTTOM", 0, -db.profile.buffs.anchorOffset)
-  else
-    container:SetPoint("TOP", UIParent, "TOP", 0, -db.profile.buffs.anchorOffset)
-  end
-end
-
 local function layoutIcons(active, allowCombatDisplay)
   if InCombatLockdown() and not allowCombatDisplay then return end
 
   local count = #active
-  if count == 0 then
+  if count == 0 and not isEditing then
     closeContextMenu()
     container:Hide()
     for _, button in pairs(iconButtons) do
@@ -698,7 +699,7 @@ local function layoutIcons(active, allowCombatDisplay)
 
   local iconSize = AURA_BUTTON_WIDTH * db.profile.buffs.iconSize / 100
   local totalWidth = (count * iconSize) + ((count - 1) * db.profile.buffs.iconGap)
-  container:SetSize(totalWidth, iconSize)
+  container:SetSize(math.max(totalWidth, iconSize), iconSize)
   updatePosition()
 
   for index, category in ipairs(active) do
@@ -707,7 +708,11 @@ local function layoutIcons(active, allowCombatDisplay)
     button.category = category
     button.expirationTime = categoryBuffExpiration(category)
     button.durationElapsed = 1
-    updateDuration(button)
+    if not isEditing then
+      updateDuration(button)
+    else
+      button.duration:Hide()
+    end
     button.icon:SetTexture(categoryIcon(category))
     button:Show()
 
@@ -717,13 +722,13 @@ local function layoutIcons(active, allowCombatDisplay)
     button.hasMultipleItems = countItems > 1
     button.activeItem = bagItems[1]
 
-    if countItems == 1 and category.dbKey ~= "oil" and not InCombatLockdown() then
+    if not isEditing and countItems == 1 and category.dbKey ~= "oil" and not InCombatLockdown() then
       setButtonAction(button, category, bagItems[1], true)
     elseif not InCombatLockdown() then
       setButtonAction(button, nil, nil, false)
     end
 
-    setNativeOverlayGlow(button, db.profile.buffs.showGlow and button.hasItems)
+    setNativeOverlayGlow(button, (not isEditing) and db.profile.buffs.showGlow and button.hasItems)
 
     button:ClearAllPoints()
     local offsetX = (index - 1) * (iconSize + db.profile.buffs.iconGap)
@@ -740,7 +745,126 @@ local function layoutIcons(active, allowCombatDisplay)
   container:Show()
 end
 
+local function onDragStart()
+  if InCombatLockdown() then return end
+  if container then
+    container:StartMoving()
+  end
+end
+
+local function onDragStop()
+  if InCombatLockdown() then return end
+  if not container then return end
+  container:StopMovingOrSizing()
+
+  local point, relativeTo, relativePoint, x, y = container:GetPoint(1)
+  if point then
+    db.profile.buffs.point = point
+    db.profile.buffs.relativePoint = relativePoint or point
+    db.profile.buffs.x = math.floor(x + 0.5)
+    db.profile.buffs.y = math.floor(y + 0.5)
+  end
+  updatePosition()
+end
+
+local function createSelection()
+  if selection then return selection end
+  if not container then createContainer() end
+
+  local success, sel = pcall(CreateFrame, "Frame", "SlackHacksBuffsEditModeSelection", container, "EditModeSystemSelectionTemplate")
+  if success and sel then
+    selection = sel
+    selection:SetAllPoints(container)
+    selection:SetFrameStrata(container:GetFrameStrata())
+    selection:SetFrameLevel(container:GetFrameLevel() + 20)
+    selection:EnableMouse(true)
+    selection:RegisterForDrag("LeftButton")
+    selection:SetScript("OnDragStart", onDragStart)
+    selection:SetScript("OnDragStop", onDragStop)
+    selection.system = {
+      GetSystemName = function()
+        return "Buff Reminders"
+      end
+    }
+    if selection.SetSelectionText then
+      selection:SetSelectionText("Buff Reminders")
+    elseif selection.Label then
+      selection.Label:SetText("Buff Reminders")
+    end
+    selection:SetScript("OnMouseDown", function(self)
+      if InCombatLockdown() then return end
+      if EditModeManagerFrame and EditModeManagerFrame.ClearSelectedSystem then
+        EditModeManagerFrame:ClearSelectedSystem()
+      end
+      if self.ShowSelected then
+        self:ShowSelected(true)
+      end
+    end)
+  else
+    local f = CreateFrame("Frame", "SlackHacksBuffsEditModeSelection", container, "BackdropTemplate")
+    f:SetAllPoints(container)
+    f:SetFrameStrata(container:GetFrameStrata())
+    f:SetFrameLevel(container:GetFrameLevel() + 20)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetBackdrop({
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      edgeSize = 12,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    f:SetBackdropBorderColor(0.2, 0.6, 1.0, 0.8)
+    local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("CENTER", f, "CENTER", 0, 0)
+    label:SetText("Buff Reminders")
+    f.Label = label
+    f.ShowHighlighted = function(self)
+      self:SetBackdropBorderColor(0.2, 0.6, 1.0, 0.8)
+      self:Show()
+    end
+    f.ShowSelected = function(self)
+      self:SetBackdropBorderColor(1.0, 0.82, 0.0, 1.0)
+      self:Show()
+    end
+    f:SetScript("OnDragStart", onDragStart)
+    f:SetScript("OnDragStop", onDragStop)
+    f:SetScript("OnMouseDown", function(self)
+      self:ShowSelected()
+    end)
+    selection = f
+  end
+
+  return selection
+end
+
+local function enterEditMode()
+  if isEditing or InCombatLockdown() then return end
+  isEditing = true
+  createContainer()
+  layoutIcons(BUFF_CATEGORIES, true)
+  local sel = createSelection()
+  if sel then
+    sel:Show()
+    if sel.ShowHighlighted then
+      sel:ShowHighlighted()
+    end
+  end
+end
+
+local function exitEditMode()
+  if not isEditing then return end
+  isEditing = false
+  if selection then
+    selection:Hide()
+  end
+  module:Refresh()
+end
+
 function module:Refresh()
+  if isEditing then
+    createContainer()
+    layoutIcons(BUFF_CATEGORIES, true)
+    return
+  end
   updateAuraEventRegistration()
   if InCombatLockdown() then return end
   createContainer()
@@ -753,6 +877,7 @@ function module:OnDatabaseReset()
   auraCacheInitialized = false
   if combatHideTimer then combatHideTimer:Cancel() end
   combatHideTimer = nil
+  isEditing = false
   hideBuffs()
   self:Refresh()
 end
@@ -772,6 +897,16 @@ function module:OnInitialize()
     iconButton(index)
   end
   db:RegisterCallback("OnDatabaseReset", module.OnDatabaseReset, module)
+
+  if EventRegistry and EventRegistry.RegisterCallback then
+    EventRegistry:RegisterCallback("EditMode.Enter", enterEditMode, module)
+    EventRegistry:RegisterCallback("EditMode.Exit", exitEditMode, module)
+  end
+
+  if EditModeManagerFrame then
+    hooksecurefunc(EditModeManagerFrame, "EnterEditMode", enterEditMode)
+    hooksecurefunc(EditModeManagerFrame, "ExitEditMode", exitEditMode)
+  end
 end
 
 function module:OnEnable()
@@ -781,10 +916,17 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_ALIVE")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
-  self:Refresh()
+  if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive and EditModeManagerFrame:IsEditModeActive() then
+    enterEditMode()
+  else
+    self:Refresh()
+  end
 end
 
 function module:PLAYER_REGEN_DISABLED()
+  if isEditing then
+    exitEditMode()
+  end
   updateAuraEventRegistration()
   hideBuffs()
   if combatHideTimer then combatHideTimer:Cancel() end
@@ -806,5 +948,9 @@ function module:OnDisable()
   if combatHideTimer then combatHideTimer:Cancel() end
   combatHideTimer = nil
   closeContextMenu()
-  if container then container:Hide() end
+  if isEditing then
+    exitEditMode()
+  elseif container then
+    container:Hide()
+  end
 end
