@@ -603,6 +603,7 @@ local function openContextMenu(anchorButton, category, items)
     menuFrame:SetPoint("BOTTOMLEFT", anchorButton, "TOPLEFT", 0, 4)
   end
 
+  GameTooltip_Hide()
   menuFrame:Show()
 end
 
@@ -635,6 +636,9 @@ local function createIconButton(index)
 
   button:SetScript("OnEnter", function(self)
     cancelMenuClose()
+    if menuFrame and menuFrame:IsShown() and menuFrame.anchorButton == self then
+      return
+    end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
     local article = (self.category.label:sub(1,1):match("[AEIOUaeiou]") and "an " or "a ")
