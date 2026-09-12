@@ -897,10 +897,6 @@ local function createEditModeDialog()
   end
 
   local curY = -46
-  curY = addCheckbox("Enable Consumables Reminders",
-    function() return db.profile.buffs.enabled end,
-    function(v) db.profile.buffs.enabled = v end,
-    curY, "Enable or disable all consumable buff reminder icons.")
   curY = addCheckbox("Show Item Proc Glow",
     function() return db.profile.buffs.showGlow end,
     function(v) db.profile.buffs.showGlow = v end,
