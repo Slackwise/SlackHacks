@@ -10,7 +10,9 @@ setfenv(1, _G.SlackHacks)
 local module = Self:NewModule("Buffs", "AceEvent-3.0")
 Self.Buffs = module
 
-local ICON_SIZE = 36 -- Blizzard's default buff icon is ~24px; this is 50% bigger.
+local ICON_SIZE = 45 -- Native 30px aura button scaled by 150%.
+local AURA_BUTTON_WIDTH = 30
+local AURA_BUTTON_HEIGHT = 40
 local ICON_GAP = 6
 local TOP_OFFSET = 130 -- Rough approximation of "2 inches" from the top of a typical display.
 local ANCHOR_GAP = 8
@@ -64,6 +66,19 @@ end
 
 local container
 local iconButtons = {}
+
+local function setNativeOverlayGlow(button, enabled)
+  if enabled and ActionButton_ShowOverlayGlow then
+    ActionButton_ShowOverlayGlow(button)
+    local overlay = button.overlay or button.SpellActivationAlert
+    if overlay then
+      overlay:SetFrameLevel(button:GetFrameLevel() + 10)
+      overlay:Show()
+    end
+  elseif not enabled and ActionButton_HideOverlayGlow then
+    ActionButton_HideOverlayGlow(button)
+  end
+end
 
 local function categoryItemIDs(category)
   local ids = {}
@@ -181,52 +196,22 @@ end
 local function createContainer()
   if container then return end
   container = CreateFrame("Frame", "SlackHacksBuffReminders", UIParent)
-  container:SetSize(ICON_SIZE, ICON_SIZE)
+  container:SetSize(ICON_SIZE, AURA_BUTTON_HEIGHT * 1.5)
   container:Hide()
 end
 
 local function createIconButton(index)
-  local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container)
-  button:SetSize(ICON_SIZE, ICON_SIZE)
+  local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate")
+  button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_HEIGHT)
+  button:SetScale(1.5)
 
-  local border = button:CreateTexture(nil, "BACKGROUND")
-  border:SetPoint("CENTER")
-  border:SetSize(ICON_SIZE + 4, ICON_SIZE + 4)
-  border:SetColorTexture(1, 0.82, 0)
-
-  local icon = button:CreateTexture(nil, "ARTWORK")
-  icon:SetAllPoints(button)
-  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- Matches Blizzard's default buff icon cropping.
-
-  button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-
-  local glow = button:CreateTexture(nil, "OVERLAY")
-  glow:SetTexture("Interface\\Buttons\\WHITE8x8")
-  glow:SetBlendMode("ADD")
-  glow:SetPoint("CENTER")
-  glow:SetSize(ICON_SIZE + 14, ICON_SIZE + 14)
-  glow:SetVertexColor(1, 0.82, 0, 0.5)
-
-  local glowAnimation = glow:CreateAnimationGroup()
-  glowAnimation:SetLooping("REPEAT")
-  local fadeOut = glowAnimation:CreateAnimation("Alpha")
-  fadeOut:SetFromAlpha(0.6)
-  fadeOut:SetToAlpha(0.15)
-  fadeOut:SetDuration(0.8)
-  fadeOut:SetOrder(1)
-  fadeOut:SetSmoothing("IN_OUT")
-  local fadeIn = glowAnimation:CreateAnimation("Alpha")
-  fadeIn:SetFromAlpha(0.15)
-  fadeIn:SetToAlpha(0.6)
-  fadeIn:SetDuration(0.8)
-  fadeIn:SetOrder(2)
-  fadeIn:SetSmoothing("IN_OUT")
-  glowAnimation:Play()
-
-  button.border = border
+  local icon = button.Icon
   button.icon = icon
-  button.glow = glow
-  button.glowAnimation = glowAnimation
+  button.TempEnchantBorder:Hide()
+
+  button:SetScript("OnHide", function(self)
+    setNativeOverlayGlow(self, false)
+  end)
 
   button:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -298,20 +283,19 @@ local function layoutIcons(active)
     local button = iconButton(index)
     button.category = category
     button.icon:SetTexture(categoryIcon(category))
+    button:Show()
 
     local bagItems = categoryBagItems(category)
     button.hasItems = #bagItems > 0
-    local highlight = button:GetHighlightTexture()
     if button.hasItems then
-      highlight:SetVertexColor(1, 0.82, 0) -- Gold: fulfillable via click.
+      setNativeOverlayGlow(button, true)
     else
-      highlight:SetVertexColor(1, 0, 0) -- Red: nothing in bags to fulfill it.
+      setNativeOverlayGlow(button, false)
     end
 
     button:ClearAllPoints()
     local offsetX = (index - 1) * (ICON_SIZE + ICON_GAP)
     button:SetPoint("LEFT", container, "LEFT", offsetX, 0)
-    button:Show()
   end
 
   for index, button in pairs(iconButtons) do
