@@ -472,6 +472,22 @@ options = {
           end,
           order = 3
         },
+        iconSize = {
+          name = "Icon Size",
+          desc = "Size of the buff reminder icons as a percentage of the standard aura icon size.",
+          type = "input",
+          width = "full",
+          get = function() return tostring(db.profile.buffs.iconSize) end,
+          set = function(_, value)
+            db.profile.buffs.iconSize = tonumber(value)
+            Self.Buffs:Refresh()
+          end,
+          validate = function(_, value)
+            local size = tonumber(value)
+            return size and size >= 50 and size <= 300 and size == math.floor(size)
+          end,
+          order = 4
+        },
         anchorOffset = {
           name = "Anchor Offset",
           desc = "Distance between the buff icons and their selected anchor.",
@@ -486,7 +502,7 @@ options = {
             local offset = tonumber(value)
             return offset and offset >= 0 and offset <= 1000 and offset == math.floor(offset)
           end,
-          order = 4
+          order = 5
         },
         iconGap = {
           name = "Icon Gap",
@@ -502,7 +518,7 @@ options = {
             local gap = tonumber(value)
             return gap and gap >= 0 and gap <= 100 and gap == math.floor(gap)
           end,
-          order = 5
+          order = 6
         },
         showIfExpiring = {
           name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
@@ -515,7 +531,7 @@ options = {
             db.profile.buffs.showIfExpiring = value
             Self.Buffs:Refresh()
           end,
-          order = 6
+          order = 7
         },
         showGlow = {
           name = "Show Item Glow",
@@ -528,7 +544,7 @@ options = {
             db.profile.buffs.showGlow = value
             Self.Buffs:Refresh()
           end,
-          order = 7
+          order = 8
         }
       }
     },
