@@ -665,7 +665,7 @@ local function layoutIcons(active, allowCombatDisplay)
       setButtonAction(button, nil, nil, false)
     end
 
-    setNativeOverlayGlow(button, button.hasItems)
+    setNativeOverlayGlow(button, db.profile.buffs.showGlow and button.hasItems)
 
     button:ClearAllPoints()
     local offsetX = (index - 1) * (ICON_SIZE + ICON_GAP)

@@ -359,7 +359,7 @@ options = {
     buffs = {
       type = "group",
       name = "Buffs",
-      desc = "Reminds you to keep up raid/dungeon consumables with clickable icons.",
+      desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
       order = 8,
       args = {
         contentGroup = {
@@ -370,7 +370,7 @@ options = {
           args = {
             mythicDungeons = {
               name = "In Mythic Dungeons",
-              desc = "Show buff reminders while in a Mythic (or Mythic Keystone) dungeon with a group.",
+              desc = "Show buff reminders while in a Mythic (or Mythic Keystone)\ndungeon with a group.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -382,8 +382,8 @@ options = {
               order = 1
             },
             nonLfrRaids = {
-              name = "In Non-LFR Raids",
-              desc = "Show buff reminders while in a Normal, Heroic, or Mythic raid with a group.",
+              name = "In (Non-LFR) Raids",
+              desc = "Show buff reminders while in a Normal, Heroic, or Mythic raid\nwith a group.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -471,6 +471,19 @@ options = {
             Self.Buffs:Refresh()
           end,
           order = 3
+        },
+        showGlow = {
+          name = "Show Item Glow",
+          desc = "Show the proc golden glow on the icons to catch your attention.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.buffs.showGlow end,
+          set = function(_, value)
+            db.profile.buffs.showGlow = value
+            Self.Buffs:Refresh()
+          end,
+          order = 4
         }
       }
     },
