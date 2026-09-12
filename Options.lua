@@ -375,6 +375,47 @@ options = {
           end,
           order = 0
         },
+        openEditMode = {
+          name = "Position Buff Icons via Edit Mode",
+          desc = "Open Blizzard's Edit Mode to position the buff reminder icons.",
+          type = "execute",
+          func = function()
+            if InCombatLockdown() then return end
+            if SettingsPanel and SettingsPanel:IsShown() then
+              HideUIPanel(SettingsPanel)
+            end
+            if EditModeManagerFrame then
+              ShowUIPanel(EditModeManagerFrame)
+            end
+          end,
+          order = 0.1
+        },
+        showGlow = {
+          name = "Show Item Glow",
+          desc = "Show the proc golden glow on the icons to catch your attention.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.buffs.showGlow end,
+          set = function(_, value)
+            db.profile.buffs.showGlow = value
+            Self.Buffs:Refresh()
+          end,
+          order = 0.5
+        },
+        showIfExpiring = {
+          name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
+          desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or estimated raid boss fight ends.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.buffs.showIfExpiring end,
+          set = function(_, value)
+            db.profile.buffs.showIfExpiring = value
+            Self.Buffs:Refresh()
+          end,
+          order = 0.6
+        },
         contentGroup = {
           type = "group",
           name = "Where to Remind",
@@ -465,99 +506,33 @@ options = {
             }
           }
         },
-        position = {
-          name = "Position",
-          desc = "Where to render the buff reminder icons.",
-          type = "select",
-          width = "full",
-          values = {
-            top = "Top Center of Screen",
-            aboveBuffs = "Anchored Above Buffs",
-            belowBuffs = "Anchored Below Buffs",
-            abovePlayerFrame = "Anchored Above Player Frame",
-            belowPlayerFrame = "Anchored Below Player Frame"
-          },
-          sorting = { "top", "aboveBuffs", "belowBuffs", "abovePlayerFrame", "belowPlayerFrame" },
-          get = function() return db.profile.buffs.position end,
+        iconSize = {
+          name = "Icon Size",
+          desc = "Size of the buff reminder icons as a percentage of the standard aura icon size.",
+          type = "range",
+          min = 50,
+          max = 300,
+          step = 5,
+          get = function() return db.profile.buffs.iconSize end,
           set = function(_, value)
-            db.profile.buffs.position = value
+            db.profile.buffs.iconSize = value
             Self.Buffs:Refresh()
           end,
           order = 5
         },
-        iconSize = {
-          name = "Icon Size",
-          desc = "Size of the buff reminder icons as a percentage of the standard aura icon size.",
-          type = "input",
-          width = "full",
-          get = function() return tostring(db.profile.buffs.iconSize) end,
-          set = function(_, value)
-            db.profile.buffs.iconSize = tonumber(value)
-            Self.Buffs:Refresh()
-          end,
-          validate = function(_, value)
-            local size = tonumber(value)
-            return size and size >= 50 and size <= 300 and size == math.floor(size)
-          end,
-          order = 6
-        },
-        anchorOffset = {
-          name = "Anchor Offset",
-          desc = "Distance between the buff icons and their selected anchor.",
-          type = "input",
-          width = "full",
-          get = function() return tostring(db.profile.buffs.anchorOffset) end,
-          set = function(_, value)
-            db.profile.buffs.anchorOffset = tonumber(value)
-            Self.Buffs:Refresh()
-          end,
-          validate = function(_, value)
-            local offset = tonumber(value)
-            return offset and offset >= 0 and offset <= 1000 and offset == math.floor(offset)
-          end,
-          order = 7
-        },
         iconGap = {
           name = "Icon Gap",
           desc = "Space between the buff reminder icons.",
-          type = "input",
-          width = "full",
-          get = function() return tostring(db.profile.buffs.iconGap) end,
+          type = "range",
+          min = 0,
+          max = 100,
+          step = 1,
+          get = function() return db.profile.buffs.iconGap end,
           set = function(_, value)
-            db.profile.buffs.iconGap = tonumber(value)
+            db.profile.buffs.iconGap = value
             Self.Buffs:Refresh()
           end,
-          validate = function(_, value)
-            local gap = tonumber(value)
-            return gap and gap >= 0 and gap <= 100 and gap == math.floor(gap)
-          end,
-          order = 8
-        },
-        showIfExpiring = {
-          name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
-          desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or estimated raid boss fight ends.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.buffs.showIfExpiring end,
-          set = function(_, value)
-            db.profile.buffs.showIfExpiring = value
-            Self.Buffs:Refresh()
-          end,
-          order = 0.6
-        },
-        showGlow = {
-          name = "Show Item Glow",
-          desc = "Show the proc golden glow on the icons to catch your attention.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.buffs.showGlow end,
-          set = function(_, value)
-            db.profile.buffs.showGlow = value
-            Self.Buffs:Refresh()
-          end,
-          order = 0.5
+          order = 6
         }
       }
     },
