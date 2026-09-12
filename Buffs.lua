@@ -463,16 +463,11 @@ local function createContextMenu()
   menuFrame:SetFrameStrata("DIALOG")
   menuFrame:SetClampedToScreen(true)
   menuFrame:EnableMouse(true)
-  menuFrame:SetBackdrop({
-    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true,
-    tileSize = 16,
-    edgeSize = 14,
-    insets = { left = 3, right = 3, top = 3, bottom = 3 },
-  })
-  menuFrame:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-  menuFrame:SetBackdropColor(0.1, 0.1, 0.1, 0.95)
+  local background = menuFrame:CreateTexture(nil, "BACKGROUND")
+  background:SetAtlas("common-dropdown-c-bg")
+  background:SetPoint("TOPLEFT", -17, 12)
+  background:SetPoint("BOTTOMRIGHT", 17, -22)
+  menuFrame.background = background
   menuFrame:SetScript("OnEnter", cancelMenuClose)
   menuFrame:SetScript("OnLeave", scheduleMenuClose)
   menuFrame:Hide()
