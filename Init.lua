@@ -51,6 +51,7 @@ dbDefaults = {
       }
     },
     buffs = {
+      enabled = false,
       position = "top",
       anchorOffset = 130,
       iconSize = 150,

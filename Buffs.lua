@@ -295,6 +295,7 @@ local function currentContentContext()
 end
 
 local function shouldTrackAuras()
+  if not db.profile.buffs.enabled then return false end
   local debugging = isDebugging()
   return (debugging or currentContentContext()) and (debugging or IsInGroup() or IsInRaid())
 end
@@ -334,6 +335,7 @@ end
 
 local function activeCategories()
   if InCombatLockdown() then return {} end
+  if not db.profile.buffs.enabled then return {} end
   local debugging = isDebugging()
   local context = currentContentContext()
   if not debugging and (not context or not contextIsEnabled(context)) then return {} end
