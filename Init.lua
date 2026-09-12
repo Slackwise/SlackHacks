@@ -53,6 +53,7 @@ dbDefaults = {
     buffs = {
       position = "top",
       anchorOffset = 130,
+      iconSize = 150,
       iconGap = 6,
       showGlow = true,
       showIfExpiring = true,

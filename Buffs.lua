@@ -10,7 +10,6 @@ setfenv(1, _G.SlackHacks)
 local module = Self:NewModule("Buffs", "AceEvent-3.0")
 Self.Buffs = module
 
-local ICON_SIZE = 45 -- Native 30px aura button scaled by 150%.
 local AURA_BUTTON_WIDTH = 30
 
 local MYTHIC_DUNGEON_DIFFICULTY_IDS = { [8] = true, [23] = true } -- Mythic Keystone, Mythic (non-keystone)
@@ -406,7 +405,8 @@ end
 local function createContainer()
   if container then return end
   container = CreateFrame("Frame", "SlackHacksBuffReminders", UIParent)
-  container:SetSize(ICON_SIZE, ICON_SIZE)
+  local iconSize = AURA_BUTTON_WIDTH * db.profile.buffs.iconSize / 100
+  container:SetSize(iconSize, iconSize)
   container:Hide()
 end
 
@@ -588,7 +588,7 @@ end
 local function createIconButton(index)
   local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
-  button:SetScale(1.5)
+  button:SetScale(db.profile.buffs.iconSize / 100)
   button:RegisterForClicks("AnyUp")
 
   local icon = button.Icon
@@ -690,12 +690,14 @@ local function layoutIcons(active, allowCombatDisplay)
     return
   end
 
-  local totalWidth = (count * ICON_SIZE) + ((count - 1) * db.profile.buffs.iconGap)
-  container:SetWidth(totalWidth)
+  local iconSize = AURA_BUTTON_WIDTH * db.profile.buffs.iconSize / 100
+  local totalWidth = (count * iconSize) + ((count - 1) * db.profile.buffs.iconGap)
+  container:SetSize(totalWidth, iconSize)
   updatePosition()
 
   for index, category in ipairs(active) do
     local button = iconButton(index)
+    button:SetScale(db.profile.buffs.iconSize / 100)
     button.category = category
     button.expirationTime = categoryBuffExpiration(category)
     button.icon:SetTexture(categoryIcon(category))
@@ -716,7 +718,7 @@ local function layoutIcons(active, allowCombatDisplay)
     setNativeOverlayGlow(button, db.profile.buffs.showGlow and button.hasItems)
 
     button:ClearAllPoints()
-    local offsetX = (index - 1) * (ICON_SIZE + db.profile.buffs.iconGap)
+    local offsetX = (index - 1) * (iconSize + db.profile.buffs.iconGap)
     button:SetPoint("LEFT", container, "LEFT", offsetX, 0)
   end
 
