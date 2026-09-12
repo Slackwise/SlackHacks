@@ -169,9 +169,20 @@ local function forEachPlayerBuff(callback)
   end
 end
 
+local function oilBuffExpiration()
+  if not GetWeaponEnchantInfo then return nil end
+  local hasMainHandEnchant, _, _, hasOffHandEnchant = GetWeaponEnchantInfo()
+  if hasMainHandEnchant or hasOffHandEnchant then return 0 end
+  return nil
+end
+
 --- Returns the latest expiration time (seconds, epoch-relative via GetTime()) for a matching buff on the
 --- player, `0` if a matching permanent buff is found, or `nil` if the buff isn't active at all.
 local function categoryBuffExpiration(category)
+  if category.dbKey == "oil" then
+    return oilBuffExpiration()
+  end
+
   local expiration
   forEachPlayerBuff(function(aura)
     if category.matchAura(aura.name, aura.spellId, category.itemNameSet) then
