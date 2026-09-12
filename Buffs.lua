@@ -75,17 +75,40 @@ local container
 local iconButtons = {}
 local menuFrame
 local menuRows = {}
-local menuDismissal
+local menuCloseTimer
 
 local function closeContextMenu()
   if InCombatLockdown() then return end
+  if menuCloseTimer then
+    menuCloseTimer:Cancel()
+    menuCloseTimer = nil
+  end
   if menuFrame then
     menuFrame:Hide()
     menuFrame.anchorButton = nil
     menuFrame.category = nil
   end
-  if menuDismissal then
-    menuDismissal:Hide()
+end
+
+--- Closes the menu shortly after the mouse leaves both the anchor icon and the menu panel.
+local function scheduleMenuClose()
+  if menuCloseTimer then
+    menuCloseTimer:Cancel()
+  end
+  menuCloseTimer = C_Timer.NewTimer(0.25, function()
+    menuCloseTimer = nil
+    if not menuFrame then return end
+    if menuFrame:IsMouseOver() then return end
+    local anchor = menuFrame.anchorButton
+    if anchor and anchor:IsMouseOver() then return end
+    closeContextMenu()
+  end)
+end
+
+local function cancelMenuClose()
+  if menuCloseTimer then
+    menuCloseTimer:Cancel()
+    menuCloseTimer = nil
   end
 end
 
@@ -273,7 +296,7 @@ end
 local function createMenuRow(index)
   local row = CreateFrame("Button", "SlackHacksBuffMenuRow" .. index, menuFrame, "BackdropTemplate, SecureActionButtonTemplate")
   row:SetHeight(24)
-  row:RegisterForClicks("AnyUp", "AnyDown")
+  row:RegisterForClicks("AnyUp", "AnyDown") -- secure item/macro click only fires reliably with both registered
 
   local highlight = row:CreateTexture(nil, "HIGHLIGHT")
   highlight:SetAllPoints()
@@ -305,6 +328,7 @@ local function createMenuRow(index)
   row.name = name
 
   row:SetScript("OnEnter", function(self)
+    cancelMenuClose()
     if self.itemID then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetItemByID(self.itemID)
@@ -312,7 +336,10 @@ local function createMenuRow(index)
     end
   end)
 
-  row:SetScript("OnLeave", GameTooltip_Hide)
+  row:SetScript("OnLeave", function(self)
+    GameTooltip_Hide()
+    scheduleMenuClose()
+  end)
 
   row:SetScript("PostClick", function()
     closeContextMenu()
@@ -330,16 +357,10 @@ end
 local function createContextMenu()
   if menuFrame then return end
 
-  menuDismissal = CreateFrame("Button", "SlackHacksBuffMenuDismissal", UIParent)
-  menuDismissal:SetFrameStrata("DIALOG")
-  menuDismissal:SetAllPoints(UIParent)
-  menuDismissal:EnableMouse(true)
-  menuDismissal:SetScript("OnClick", function() closeContextMenu() end)
-  menuDismissal:Hide()
-
   menuFrame = CreateFrame("Frame", "SlackHacksBuffContextMenu", UIParent, "BackdropTemplate")
   menuFrame:SetFrameStrata("DIALOG")
   menuFrame:SetClampedToScreen(true)
+  menuFrame:EnableMouse(true)
   menuFrame:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -350,6 +371,8 @@ local function createContextMenu()
   })
   menuFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.9)
   menuFrame:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
+  menuFrame:SetScript("OnEnter", cancelMenuClose)
+  menuFrame:SetScript("OnLeave", scheduleMenuClose)
   menuFrame:Hide()
 end
 
@@ -418,8 +441,6 @@ local function openContextMenu(anchorButton, category, items)
     menuFrame:SetPoint("BOTTOMLEFT", anchorButton, "TOPLEFT", 0, 4)
   end
 
-  menuDismissal:Show()
-  menuFrame:SetFrameLevel(menuDismissal:GetFrameLevel() + 5)
   menuFrame:Show()
 end
 
@@ -427,7 +448,7 @@ local function createIconButton(index)
   local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   button:SetScale(1.5)
-  button:RegisterForClicks("AnyUp", "AnyDown")
+  button:RegisterForClicks("AnyUp")
 
   local icon = button.Icon
   button.icon = icon
@@ -438,6 +459,7 @@ local function createIconButton(index)
   end)
 
   button:SetScript("OnEnter", function(self)
+    cancelMenuClose()
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
     if self.hasMultipleItems then
@@ -452,7 +474,12 @@ local function createIconButton(index)
     end
     GameTooltip:Show()
   end)
-  button:SetScript("OnLeave", GameTooltip_Hide)
+  button:SetScript("OnLeave", function(self)
+    GameTooltip_Hide()
+    if menuFrame and menuFrame:IsShown() and menuFrame.anchorButton == self then
+      scheduleMenuClose()
+    end
+  end)
 
   button:SetScript("PreClick", function(self, mouseButton)
     if InCombatLockdown() then return end
