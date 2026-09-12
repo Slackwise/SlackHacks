@@ -637,8 +637,13 @@ local function createIconButton(index)
     cancelMenuClose()
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
-    if self.hasMultipleItems then
-      GameTooltip:AddLine("Click to select a " .. self.category.label .. " item to use.", 1, 1, 1)
+    local article = (self.category.label:sub(1,1):match("[AEIOUaeiou]") and "an " or "a ")
+    if self.hasMultipleItems or self.category.dbKey == "oil" then
+      if self.hasItems then
+        GameTooltip:AddLine("Click to select " .. article .. self.category.label .. " item to use.", 1, 1, 1)
+      else
+        GameTooltip:AddLine("No " .. self.category.label .. " items in inventory.", 1, 1, 1)
+      end
     elseif self.activeItem then
       GameTooltip:AddLine("Click to use " .. self.activeItem.itemName .. " (" .. self.activeItem.count .. ").", 1, 1, 1)
     elseif self.hasItems then
