@@ -50,6 +50,19 @@ dbDefaults = {
         holyShockChargesPosition = "below"
       }
     },
+    buffs = {
+      position = "top",
+      contentTypes = {
+        mythicDungeons = false,
+        nonLfrRaids = false
+      },
+      categories = {
+        wellFed = false,
+        flask = false,
+        oil = false,
+        augmentRune = false
+      }
+    },
     selfVendor = {
       enabled = false,
       source = "murlok",

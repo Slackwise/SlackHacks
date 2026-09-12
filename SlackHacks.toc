@@ -16,6 +16,7 @@ SelfVendor.lua
 Nameplates.lua
 ChargeTracking.lua
 Bindings.lua
+Buffs.lua
 Options.lua
 Mount.lua
 Slackwise.lua

@@ -355,6 +355,124 @@ options = {
         }
       }
     },
+    buffs = {
+      type = "group",
+      name = "Buffs",
+      desc = "Reminds you to keep up raid/dungeon consumables with clickable icons.",
+      order = 8,
+      args = {
+        contentGroup = {
+          type = "group",
+          name = "Where to Remind",
+          inline = true,
+          order = 1,
+          args = {
+            mythicDungeons = {
+              name = "In Mythic Dungeons",
+              desc = "Show buff reminders while in a Mythic (or Mythic Keystone) dungeon with a group.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.contentTypes.mythicDungeons end,
+              set = function(_, value)
+                db.profile.buffs.contentTypes.mythicDungeons = value
+                Self.Buffs:Refresh()
+              end,
+              order = 1
+            },
+            nonLfrRaids = {
+              name = "In Non-LFR Raids",
+              desc = "Show buff reminders while in a Normal, Heroic, or Mythic raid with a group.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.contentTypes.nonLfrRaids end,
+              set = function(_, value)
+                db.profile.buffs.contentTypes.nonLfrRaids = value
+                Self.Buffs:Refresh()
+              end,
+              order = 2
+            }
+          }
+        },
+        categoriesGroup = {
+          type = "group",
+          name = "Buffs to Track",
+          inline = true,
+          order = 2,
+          args = {
+            wellFed = {
+              name = "Food \"Well Fed\" Buff",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.categories.wellFed end,
+              set = function(_, value)
+                db.profile.buffs.categories.wellFed = value
+                Self.Buffs:Refresh()
+              end,
+              order = 1
+            },
+            flask = {
+              name = "Flask Buff",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.categories.flask end,
+              set = function(_, value)
+                db.profile.buffs.categories.flask = value
+                Self.Buffs:Refresh()
+              end,
+              order = 2
+            },
+            oil = {
+              name = "Oil Buff",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.categories.oil end,
+              set = function(_, value)
+                db.profile.buffs.categories.oil = value
+                Self.Buffs:Refresh()
+              end,
+              order = 3
+            },
+            augmentRune = {
+              name = "Augment Rune Buff",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.categories.augmentRune end,
+              set = function(_, value)
+                db.profile.buffs.categories.augmentRune = value
+                Self.Buffs:Refresh()
+              end,
+              order = 4
+            }
+          }
+        },
+        position = {
+          name = "Position",
+          desc = "Where to render the buff reminder icons.",
+          type = "select",
+          width = "full",
+          values = {
+            top = "Top Center of Screen",
+            aboveBuffs = "Anchored Above Buffs",
+            belowBuffs = "Anchored Below Buffs",
+            abovePlayerFrame = "Anchored Above Player Frame",
+            belowPlayerFrame = "Anchored Below Player Frame"
+          },
+          sorting = { "top", "aboveBuffs", "belowBuffs", "abovePlayerFrame", "belowPlayerFrame" },
+          get = function() return db.profile.buffs.position end,
+          set = function(_, value)
+            db.profile.buffs.position = value
+            Self.Buffs:Refresh()
+          end,
+          order = 3
+        }
+      }
+    },
     vendor = {
       type = "group",
       name = "Self Vendor",
