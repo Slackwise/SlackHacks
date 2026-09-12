@@ -55,6 +55,7 @@ dbDefaults = {
       anchorOffset = 130,
       iconGap = 6,
       showGlow = true,
+      showIfExpiring = true,
       contentTypes = {
         mythicDungeons = false,
         nonLfrRaids = false

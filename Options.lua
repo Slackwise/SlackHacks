@@ -504,6 +504,19 @@ options = {
           end,
           order = 5
         },
+        showIfExpiring = {
+          name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
+          desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or estimated raid boss fight ends.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.buffs.showIfExpiring end,
+          set = function(_, value)
+            db.profile.buffs.showIfExpiring = value
+            Self.Buffs:Refresh()
+          end,
+          order = 6
+        },
         showGlow = {
           name = "Show Item Glow",
           desc = "Show the proc golden glow on the icons to catch your attention.",
@@ -515,7 +528,7 @@ options = {
             db.profile.buffs.showGlow = value
             Self.Buffs:Refresh()
           end,
-          order = 6
+          order = 7
         }
       }
     },
