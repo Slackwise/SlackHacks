@@ -26,7 +26,7 @@ local RAID_THRESHOLD_SECONDS = 15 * 60
 local BUFF_CATEGORIES = {
   {
     dbKey = "wellFed",
-    label = "Well Fed",
+    label = "Food",
     icon = 133943,
     itemNames = { "Royal Roast" },
     matchAura = function(auraName) return auraName == "Well Fed" end,
