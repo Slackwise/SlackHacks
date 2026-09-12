@@ -52,6 +52,8 @@ dbDefaults = {
     },
     buffs = {
       position = "top",
+      anchorOffset = 130,
+      iconGap = 6,
       showGlow = true,
       contentTypes = {
         mythicDungeons = false,
