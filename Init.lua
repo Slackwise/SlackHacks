@@ -52,6 +52,7 @@ dbDefaults = {
     },
     buffs = {
       position = "top",
+      showGlow = true,
       contentTypes = {
         mythicDungeons = false,
         nonLfrRaids = false
