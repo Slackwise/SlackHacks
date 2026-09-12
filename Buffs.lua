@@ -338,10 +338,12 @@ local function updateAuraEventRegistration()
     rebuildAuraCache()
     module:RegisterEvent("UNIT_AURA")
     auraEventRegistered = true
+    log("Buffs: registered UNIT_AURA")
   elseif not shouldRegister and auraEventRegistered then
     module:UnregisterEvent("UNIT_AURA")
     auraEventRegistered = false
     auraCacheInitialized = false
+    log("Buffs: deregistered UNIT_AURA")
   end
 end
 
@@ -591,13 +593,13 @@ local function createIconButton(index)
       return
     end
 
-    if #items > 1 or mouseButton == "RightButton" then
+    if #items > 1 or mouseButton == "RightButton" or self.category.dbKey == "oil" then
       openContextMenu(self, self.category, items)
     end
   end)
 
   button:SetScript("PostClick", function(self, mouseButton)
-    if mouseButton == "LeftButton" and (not self.hasMultipleItems) and self.hasItems then
+    if mouseButton == "LeftButton" and self.category.dbKey ~= "oil" and (not self.hasMultipleItems) and self.hasItems then
       C_Timer.After(0.2, function() module:Refresh() end)
     end
   end)
@@ -656,7 +658,7 @@ local function layoutIcons(active, allowCombatDisplay)
     button.hasMultipleItems = countItems > 1
     button.activeItem = bagItems[1]
 
-    if countItems == 1 and not InCombatLockdown() then
+    if countItems == 1 and category.dbKey ~= "oil" and not InCombatLockdown() then
       setButtonAction(button, category, bagItems[1], true)
     elseif not InCombatLockdown() then
       setButtonAction(button, nil, nil, false)
