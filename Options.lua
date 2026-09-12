@@ -228,6 +228,7 @@ options = {
             else
               print("SlackHacks Debugging OFF")
             end
+            Self.Buffs:Refresh()
           end,
           order = 1
         },
