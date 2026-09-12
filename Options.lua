@@ -472,6 +472,38 @@ options = {
           end,
           order = 3
         },
+        anchorOffset = {
+          name = "Anchor Offset",
+          desc = "Distance between the buff icons and their selected anchor.",
+          type = "input",
+          width = "full",
+          get = function() return tostring(db.profile.buffs.anchorOffset) end,
+          set = function(_, value)
+            db.profile.buffs.anchorOffset = tonumber(value)
+            Self.Buffs:Refresh()
+          end,
+          validate = function(_, value)
+            local offset = tonumber(value)
+            return offset and offset >= 0 and offset <= 1000 and offset == math.floor(offset)
+          end,
+          order = 4
+        },
+        iconGap = {
+          name = "Icon Gap",
+          desc = "Space between the buff reminder icons.",
+          type = "input",
+          width = "full",
+          get = function() return tostring(db.profile.buffs.iconGap) end,
+          set = function(_, value)
+            db.profile.buffs.iconGap = tonumber(value)
+            Self.Buffs:Refresh()
+          end,
+          validate = function(_, value)
+            local gap = tonumber(value)
+            return gap and gap >= 0 and gap <= 100 and gap == math.floor(gap)
+          end,
+          order = 5
+        },
         showGlow = {
           name = "Show Item Glow",
           desc = "Show the proc golden glow on the icons to catch your attention.",
@@ -483,7 +515,7 @@ options = {
             db.profile.buffs.showGlow = value
             Self.Buffs:Refresh()
           end,
-          order = 4
+          order = 6
         }
       }
     },

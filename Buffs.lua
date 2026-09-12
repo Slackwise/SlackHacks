@@ -12,9 +12,6 @@ Self.Buffs = module
 
 local ICON_SIZE = 45 -- Native 30px aura button scaled by 150%.
 local AURA_BUTTON_WIDTH = 30
-local ICON_GAP = 6
-local TOP_OFFSET = 130 -- Rough approximation of "2 inches" from the top of a typical display.
-local ANCHOR_GAP = 8
 
 local MYTHIC_DUNGEON_DIFFICULTY_IDS = { [8] = true, [23] = true } -- Mythic Keystone, Mythic (non-keystone)
 local RAID_DIFFICULTY_IDS = { [14] = true, [15] = true, [16] = true } -- Normal, Heroic, Mythic raid (excludes LFR = 17)
@@ -617,15 +614,15 @@ local function updatePosition()
   container:ClearAllPoints()
   local position = db.profile.buffs.position
   if position == "aboveBuffs" and _G.BuffFrame then
-    container:SetPoint("BOTTOM", _G.BuffFrame, "TOP", 0, ANCHOR_GAP)
+    container:SetPoint("BOTTOM", _G.BuffFrame, "TOP", 0, db.profile.buffs.anchorOffset)
   elseif position == "belowBuffs" and _G.BuffFrame then
-    container:SetPoint("TOP", _G.BuffFrame, "BOTTOM", 0, -ANCHOR_GAP)
+    container:SetPoint("TOP", _G.BuffFrame, "BOTTOM", 0, -db.profile.buffs.anchorOffset)
   elseif position == "abovePlayerFrame" and _G.PlayerFrame then
-    container:SetPoint("BOTTOM", _G.PlayerFrame, "TOP", 0, ANCHOR_GAP)
+    container:SetPoint("BOTTOM", _G.PlayerFrame, "TOP", 0, db.profile.buffs.anchorOffset)
   elseif position == "belowPlayerFrame" and _G.PlayerFrame then
-    container:SetPoint("TOP", _G.PlayerFrame, "BOTTOM", 0, -ANCHOR_GAP)
+    container:SetPoint("TOP", _G.PlayerFrame, "BOTTOM", 0, -db.profile.buffs.anchorOffset)
   else
-    container:SetPoint("TOP", UIParent, "TOP", 0, -TOP_OFFSET)
+    container:SetPoint("TOP", UIParent, "TOP", 0, -db.profile.buffs.anchorOffset)
   end
 end
 
@@ -643,7 +640,7 @@ local function layoutIcons(active, allowCombatDisplay)
     return
   end
 
-  local totalWidth = (count * ICON_SIZE) + ((count - 1) * ICON_GAP)
+  local totalWidth = (count * ICON_SIZE) + ((count - 1) * db.profile.buffs.iconGap)
   container:SetWidth(totalWidth)
   updatePosition()
 
@@ -668,7 +665,7 @@ local function layoutIcons(active, allowCombatDisplay)
     setNativeOverlayGlow(button, db.profile.buffs.showGlow and button.hasItems)
 
     button:ClearAllPoints()
-    local offsetX = (index - 1) * (ICON_SIZE + ICON_GAP)
+    local offsetX = (index - 1) * (ICON_SIZE + db.profile.buffs.iconGap)
     button:SetPoint("LEFT", container, "LEFT", offsetX, 0)
   end
 
