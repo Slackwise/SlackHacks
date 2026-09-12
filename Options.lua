@@ -403,18 +403,44 @@ options = {
           end,
           order = 0.5
         },
-        showIfExpiring = {
-          name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
-          desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or estimated raid boss fight ends.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.buffs.showIfExpiring end,
-          set = function(_, value)
-            db.profile.buffs.showIfExpiring = value
-            Self.Buffs:Refresh()
-          end,
-          order = 0.6
+        showIfExpiringGroup = {
+          type = "group",
+          name = "Buff Expiration",
+          inline = true,
+          order = 0.6,
+          args = {
+            showIfExpiring = {
+              name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
+              desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or estimated raid boss fight ends.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.buffs.showIfExpiring end,
+              set = function(_, value)
+                db.profile.buffs.showIfExpiring = value
+                Self.Buffs:Refresh()
+              end,
+              order = 1
+            },
+            durationPosition = {
+              name = "Duration Remaining Position",
+              desc = "Where to show the buff's remaining duration relative to its icon.",
+              type = "select",
+              width = "full",
+              values = {
+                above = "Above Icon",
+                below = "Below Icon"
+              },
+              sorting = { "above", "below" },
+              get = function() return db.profile.buffs.durationPosition end,
+              set = function(_, value)
+                db.profile.buffs.durationPosition = value
+                Self.Buffs:Refresh()
+              end,
+              disabled = function() return not db.profile.buffs.showIfExpiring end,
+              order = 2
+            }
+          }
         },
         contentGroup = {
           type = "group",

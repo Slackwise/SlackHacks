@@ -607,6 +607,15 @@ local function openContextMenu(anchorButton, category, items)
   menuFrame:Show()
 end
 
+local function setDurationPosition(duration)
+  duration:ClearAllPoints()
+  if db.profile.buffs.durationPosition == "above" then
+    duration:SetPoint("BOTTOM", duration:GetParent(), "TOP", 0, 2)
+  else
+    duration:SetPoint("TOP", duration:GetParent(), "BOTTOM", 0, -2)
+  end
+end
+
 local function createIconButton(index)
   local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
@@ -617,7 +626,7 @@ local function createIconButton(index)
   button.TempEnchantBorder:Hide()
 
   local duration = button:CreateFontString(nil, "OVERLAY", DEFAULT_AURA_DURATION_FONT or "GameFontNormalSmall")
-  duration:SetPoint("BOTTOM", button, "TOP", 0, 2)
+  setDurationPosition(duration)
   duration:SetJustifyH("CENTER")
   duration:Hide()
   button.duration = duration
@@ -702,6 +711,7 @@ local function layoutIcons(active, allowCombatDisplay)
     button.category = category
     button.expirationTime = categoryBuffExpiration(category)
     button.durationElapsed = 1
+    setDurationPosition(button.duration)
     if not isEditing then
       updateDuration(button)
     else
@@ -806,14 +816,22 @@ local function createEditModeDialog()
     return yOffset - 22
   end
 
-  local function addCheckbox(label, getFunc, setFunc, yOffset, tooltip)
+  local function addCheckbox(label, getFunc, setFunc, yOffset, tooltip, dependents)
     local cb = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
     cb:SetPoint("TOPLEFT", dialog, "TOPLEFT", 18, yOffset)
     cb.text:SetText(label)
     cb.text:SetFontObject("GameFontHighlight")
+    local function updateDependents(checked)
+      if dependents then
+        for _, dep in ipairs(dependents) do
+          dep:SetEnabled(checked)
+        end
+      end
+    end
     cb:SetScript("OnClick", function(self)
       local isChecked = self:GetChecked()
       setFunc(isChecked)
+      updateDependents(isChecked)
       if isEditing then
         layoutIcons(BUFF_CATEGORIES, true)
       else
@@ -831,8 +849,12 @@ local function createEditModeDialog()
         GameTooltip_Hide()
       end)
     end
-    table.insert(controls, function() cb:SetChecked(getFunc()) end)
-    return yOffset - 24
+    table.insert(controls, function()
+      local checked = getFunc()
+      cb:SetChecked(checked)
+      updateDependents(checked)
+    end)
+    return cb, yOffset - 24
   end
 
   local function addSlider(label, minVal, maxVal, step, getFunc, setFunc, yOffset, formatFunc)
@@ -884,42 +906,109 @@ local function createEditModeDialog()
     return yOffset - 44
   end
 
+  local dropdownCounter = 0
+  local function addDropdown(label, options, order, getFunc, setFunc, yOffset)
+    local frame = CreateFrame("Frame", nil, dialog)
+    frame:SetSize(300, 46)
+    frame:SetPoint("TOPLEFT", dialog, "TOPLEFT", 4, yOffset)
+
+    local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    lbl:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, 0)
+    lbl:SetText(label)
+
+    dropdownCounter = dropdownCounter + 1
+    local dropdown = CreateFrame("Frame", "SlackHacksBuffsEditModeDropdown" .. dropdownCounter, frame, "UIDropDownMenuTemplate")
+    dropdown:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", -16, -4)
+    UIDropDownMenu_SetWidth(dropdown, 260)
+
+    local function onSelect(_, value)
+      setFunc(value)
+      UIDropDownMenu_SetSelectedValue(dropdown, value)
+      UIDropDownMenu_SetText(dropdown, options[value])
+      if isEditing then
+        layoutIcons(BUFF_CATEGORIES, true)
+      else
+        module:Refresh()
+      end
+    end
+
+    UIDropDownMenu_Initialize(dropdown, function(_, level)
+      for _, value in ipairs(order) do
+        local info = UIDropDownMenu_CreateInfo()
+        info.text = options[value]
+        info.value = value
+        info.func = onSelect
+        info.checked = (getFunc() == value)
+        UIDropDownMenu_AddButton(info, level)
+      end
+    end)
+
+    frame.SetEnabled = function(_, enabled)
+      if enabled then
+        UIDropDownMenu_EnableDropDown(dropdown)
+      else
+        UIDropDownMenu_DisableDropDown(dropdown)
+      end
+    end
+
+    table.insert(controls, function()
+      local cur = getFunc()
+      UIDropDownMenu_SetSelectedValue(dropdown, cur)
+      UIDropDownMenu_SetText(dropdown, options[cur] or cur)
+    end)
+
+    return frame, yOffset - 46
+  end
+
   local curY = -46
-  curY = addCheckbox("Show Item Proc Glow",
+  _, curY = addCheckbox("Show Item Proc Glow",
     function() return db.profile.buffs.showGlow end,
     function(v) db.profile.buffs.showGlow = v end,
     curY, "Show the golden animated alert glow around items ready to use.")
-  curY = addCheckbox("Show Expiring Before Boss / Timer",
+
+  curY = addDivider(curY - 2)
+  curY = addHeader("Buff Expiration", curY)
+  local durationPositionDependents = {}
+  local showIfExpiringCb
+  showIfExpiringCb, curY = addCheckbox("Show Expiring Before Boss / Timer",
     function() return db.profile.buffs.showIfExpiring end,
     function(v) db.profile.buffs.showIfExpiring = v end,
-    curY, "Show reminders when a timed buff will expire before the instance/encounter ends.")
+    curY, "Show reminders when a timed buff will expire before the instance/encounter ends.",
+    durationPositionDependents)
+  local durationPositionFrame
+  durationPositionFrame, curY = addDropdown("Duration Remaining Position",
+    { above = "Above Icon", below = "Below Icon" }, { "above", "below" },
+    function() return db.profile.buffs.durationPosition end,
+    function(v) db.profile.buffs.durationPosition = v end,
+    curY)
+  table.insert(durationPositionDependents, durationPositionFrame)
 
   curY = addDivider(curY - 2)
   curY = addHeader("Where to Remind", curY)
-  curY = addCheckbox("In Mythic Dungeons",
+  _, curY = addCheckbox("In Mythic Dungeons",
     function() return db.profile.buffs.contentTypes.mythicDungeons end,
     function(v) db.profile.buffs.contentTypes.mythicDungeons = v end,
     curY)
-  curY = addCheckbox("In (Non-LFR) Raids",
+  _, curY = addCheckbox("In (Non-LFR) Raids",
     function() return db.profile.buffs.contentTypes.nonLfrRaids end,
     function(v) db.profile.buffs.contentTypes.nonLfrRaids = v end,
     curY)
 
   curY = addDivider(curY - 2)
   curY = addHeader("Buffs to Track", curY)
-  curY = addCheckbox("Food Buff",
+  _, curY = addCheckbox("Food Buff",
     function() return db.profile.buffs.categories.wellFed end,
     function(v) db.profile.buffs.categories.wellFed = v end,
     curY)
-  curY = addCheckbox("Flask Buff",
+  _, curY = addCheckbox("Flask Buff",
     function() return db.profile.buffs.categories.flask end,
     function(v) db.profile.buffs.categories.flask = v end,
     curY)
-  curY = addCheckbox("Oil Buff",
+  _, curY = addCheckbox("Oil Buff",
     function() return db.profile.buffs.categories.oil end,
     function(v) db.profile.buffs.categories.oil = v end,
     curY)
-  curY = addCheckbox("Augment Rune Buff",
+  _, curY = addCheckbox("Augment Rune Buff",
     function() return db.profile.buffs.categories.rune end,
     function(v) db.profile.buffs.categories.rune = v end,
     curY)
