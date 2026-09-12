@@ -70,6 +70,7 @@ end
 local container
 local iconButtons = {}
 local selection
+local editModeDialog
 local isEditing = false
 local menuFrame
 local menuRows = {}
@@ -767,6 +768,210 @@ local function onDragStop()
   updatePosition()
 end
 
+local function createEditModeDialog()
+  if editModeDialog then return editModeDialog end
+
+  local dialog = CreateFrame("Frame", "SlackHacksBuffsEditModeDialog", UIParent, "BackdropTemplate")
+  dialog:SetSize(340, 470)
+  dialog:SetPoint("CENTER", UIParent, "CENTER", 200, 0)
+  dialog:SetMovable(true)
+  dialog:SetClampedToScreen(true)
+  dialog:SetDontSavePosition(true)
+  dialog:SetFrameStrata("DIALOG")
+  dialog:SetFrameLevel(200)
+  dialog:EnableMouse(true)
+  dialog:RegisterForDrag("LeftButton")
+  dialog:SetScript("OnDragStart", dialog.StartMoving)
+  dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
+  dialog:Hide()
+
+  local border = CreateFrame("Frame", nil, dialog, "DialogBorderTranslucentTemplate")
+
+  local title = dialog:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+  title:SetPoint("TOP", dialog, "TOP", 0, -16)
+  title:SetText("Buff Reminders")
+  dialog.Title = title
+
+  local closeButton = CreateFrame("Button", nil, dialog, "UIPanelCloseButton")
+  closeButton:SetPoint("TOPRIGHT", dialog, "TOPRIGHT", -2, -2)
+  closeButton:SetScript("OnClick", function()
+    dialog:Hide()
+    if selection and selection.ShowHighlighted then
+      selection:ShowHighlighted()
+    end
+  end)
+
+  local controls = {}
+
+  local function addDivider(yOffset)
+    local divider = dialog:CreateTexture(nil, "ARTWORK")
+    divider:SetSize(300, 8)
+    divider:SetTexture("Interface\\FriendsFrame\\UI-FriendsFrame-OnlineDivider")
+    divider:SetPoint("TOP", dialog, "TOP", 0, yOffset)
+    return yOffset - 12
+  end
+
+  local function addHeader(text, yOffset)
+    local header = dialog:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    header:SetPoint("TOPLEFT", dialog, "TOPLEFT", 20, yOffset)
+    header:SetText(text)
+    return yOffset - 22
+  end
+
+  local function addCheckbox(label, getFunc, setFunc, yOffset, tooltip)
+    local cb = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+    cb:SetPoint("TOPLEFT", dialog, "TOPLEFT", 18, yOffset)
+    cb.text:SetText(label)
+    cb.text:SetFontObject("GameFontHighlight")
+    cb:SetScript("OnClick", function(self)
+      local isChecked = self:GetChecked()
+      setFunc(isChecked)
+      if isEditing then
+        layoutIcons(BUFF_CATEGORIES, true)
+      else
+        module:Refresh()
+      end
+    end)
+    if tooltip then
+      cb:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(label, 1, 1, 1)
+        GameTooltip:AddLine(tooltip, nil, nil, nil, true)
+        GameTooltip:Show()
+      end)
+      cb:SetScript("OnLeave", function()
+        GameTooltip_Hide()
+      end)
+    end
+    table.insert(controls, function() cb:SetChecked(getFunc()) end)
+    return yOffset - 24
+  end
+
+  local function addSlider(label, minVal, maxVal, step, getFunc, setFunc, yOffset, formatFunc)
+    local frame = CreateFrame("Frame", nil, dialog)
+    frame:SetSize(300, 36)
+    frame:SetPoint("TOPLEFT", dialog, "TOPLEFT", 20, yOffset)
+
+    local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    lbl:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    lbl:SetText(label)
+
+    local valText = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    valText:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, 0)
+
+    local slider = CreateFrame("Slider", nil, frame, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", 0, -4)
+    slider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -4)
+    slider:SetMinMaxValues(minVal, maxVal)
+    slider:SetValueStep(step)
+    slider:SetObeyStepOnDrag(true)
+    slider.Low:SetText("")
+    slider.High:SetText("")
+    slider.Text:SetText("")
+
+    local function updateValue(val)
+      if formatFunc then
+        valText:SetText(formatFunc(val))
+      else
+        valText:SetText(tostring(math.floor(val + 0.5)))
+      end
+    end
+
+    slider:SetScript("OnValueChanged", function(self, val)
+      updateValue(val)
+      setFunc(val)
+      if isEditing then
+        layoutIcons(BUFF_CATEGORIES, true)
+      else
+        module:Refresh()
+      end
+    end)
+
+    table.insert(controls, function()
+      local cur = getFunc() or minVal
+      slider:SetValue(cur)
+      updateValue(cur)
+    end)
+
+    return yOffset - 44
+  end
+
+  local curY = -46
+  curY = addCheckbox("Enable Consumables Reminders",
+    function() return db.profile.buffs.enabled end,
+    function(v) db.profile.buffs.enabled = v end,
+    curY, "Enable or disable all consumable buff reminder icons.")
+  curY = addCheckbox("Show Item Proc Glow",
+    function() return db.profile.buffs.showGlow end,
+    function(v) db.profile.buffs.showGlow = v end,
+    curY, "Show the golden animated alert glow around items ready to use.")
+  curY = addCheckbox("Show Expiring Before Boss / Timer",
+    function() return db.profile.buffs.showIfExpiring end,
+    function(v) db.profile.buffs.showIfExpiring = v end,
+    curY, "Show reminders when a timed buff will expire before the instance/encounter ends.")
+
+  curY = addDivider(curY - 2)
+  curY = addHeader("Where to Remind", curY)
+  curY = addCheckbox("In Mythic Dungeons",
+    function() return db.profile.buffs.contentTypes.mythicDungeons end,
+    function(v) db.profile.buffs.contentTypes.mythicDungeons = v end,
+    curY)
+  curY = addCheckbox("In (Non-LFR) Raids",
+    function() return db.profile.buffs.contentTypes.nonLfrRaids end,
+    function(v) db.profile.buffs.contentTypes.nonLfrRaids = v end,
+    curY)
+
+  curY = addDivider(curY - 2)
+  curY = addHeader("Buffs to Track", curY)
+  curY = addCheckbox("Food Buff",
+    function() return db.profile.buffs.categories.wellFed end,
+    function(v) db.profile.buffs.categories.wellFed = v end,
+    curY)
+  curY = addCheckbox("Flask Buff",
+    function() return db.profile.buffs.categories.flask end,
+    function(v) db.profile.buffs.categories.flask = v end,
+    curY)
+  curY = addCheckbox("Oil Buff",
+    function() return db.profile.buffs.categories.oil end,
+    function(v) db.profile.buffs.categories.oil = v end,
+    curY)
+  curY = addCheckbox("Augment Rune Buff",
+    function() return db.profile.buffs.categories.rune end,
+    function(v) db.profile.buffs.categories.rune = v end,
+    curY)
+
+  curY = addDivider(curY - 2)
+  curY = addSlider("Icon Size", 50, 300, 5,
+    function() return db.profile.buffs.iconSize end,
+    function(v) db.profile.buffs.iconSize = v end,
+    curY, function(v) return math.floor(v + 0.5) .. "%" end)
+  curY = addSlider("Icon Gap", 0, 100, 1,
+    function() return db.profile.buffs.iconGap end,
+    function(v) db.profile.buffs.iconGap = v end,
+    curY, function(v) return math.floor(v + 0.5) .. "px" end)
+
+  dialog:SetHeight(math.abs(curY) + 24)
+
+  function dialog:RefreshValues()
+    for _, fn in ipairs(controls) do
+      fn()
+    end
+  end
+
+  editModeDialog = dialog
+  return dialog
+end
+
+local function showEditModeDialog(show)
+  local dlg = createEditModeDialog()
+  if show then
+    dlg:RefreshValues()
+    dlg:Show()
+  else
+    dlg:Hide()
+  end
+end
+
 local function createSelection()
   if selection then return selection end
   if not container then createContainer() end
@@ -799,6 +1004,7 @@ local function createSelection()
       if self.ShowSelected then
         self:ShowSelected(true)
       end
+      showEditModeDialog(true)
     end)
   else
     local f = CreateFrame("Frame", "SlackHacksBuffsEditModeSelection", container, "BackdropTemplate")
@@ -829,6 +1035,7 @@ local function createSelection()
     f:SetScript("OnDragStop", onDragStop)
     f:SetScript("OnMouseDown", function(self)
       self:ShowSelected()
+      showEditModeDialog(true)
     end)
     selection = f
   end
@@ -853,6 +1060,7 @@ end
 local function exitEditMode()
   if not isEditing then return end
   isEditing = false
+  showEditModeDialog(false)
   if selection then
     selection:Hide()
   end
@@ -906,6 +1114,23 @@ function module:OnInitialize()
   if EditModeManagerFrame then
     hooksecurefunc(EditModeManagerFrame, "EnterEditMode", enterEditMode)
     hooksecurefunc(EditModeManagerFrame, "ExitEditMode", exitEditMode)
+    if EditModeManagerFrame.SelectSystem then
+      hooksecurefunc(EditModeManagerFrame, "SelectSystem", function()
+        showEditModeDialog(false)
+        if selection and selection.ShowHighlighted then
+          selection:ShowHighlighted()
+        end
+      end)
+    end
+  end
+
+  if EditModeSystemSettingsDialog then
+    EditModeSystemSettingsDialog:HookScript("OnShow", function()
+      showEditModeDialog(false)
+      if selection and selection.ShowHighlighted then
+        selection:ShowHighlighted()
+      end
+    end)
   end
 end
 
