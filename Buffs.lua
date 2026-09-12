@@ -78,6 +78,9 @@ local menuRows = {}
 local menuCloseTimer
 local auraEventRegistered = false
 local combatHideTimer
+local trackedAuras = {}
+local cachedAuraExpirations = {}
+local auraCacheInitialized = false
 
 local function closeContextMenu()
   if InCombatLockdown() then return end
@@ -171,6 +174,69 @@ local function forEachPlayerBuff(callback)
   end
 end
 
+local function recalculateAuraExpirations()
+  wipe(cachedAuraExpirations)
+  for _, aura in pairs(trackedAuras) do
+    local current = cachedAuraExpirations[aura.categoryKey]
+    if aura.expiration == 0 then
+      cachedAuraExpirations[aura.categoryKey] = 0
+    elseif current ~= 0 and (not current or aura.expiration > current) then
+      cachedAuraExpirations[aura.categoryKey] = aura.expiration
+    end
+  end
+end
+
+local function trackAura(aura)
+  local auraInstanceID = aura and aura.auraInstanceID
+  if not auraInstanceID then return end
+
+  local previous = trackedAuras[auraInstanceID]
+  trackedAuras[auraInstanceID] = nil
+  for _, category in ipairs(BUFF_CATEGORIES) do
+    if category.dbKey ~= "oil" and category.matchAura(aura.name, aura.spellId, category.itemNameSet) then
+      trackedAuras[auraInstanceID] = {
+        categoryKey = category.dbKey,
+        expiration = aura.expirationTime or 0,
+      }
+      local current = trackedAuras[auraInstanceID]
+      return not previous
+        or previous.categoryKey ~= current.categoryKey
+        or previous.expiration ~= current.expiration
+    end
+  end
+  return previous ~= nil
+end
+
+local function rebuildAuraCache()
+  wipe(trackedAuras)
+  forEachPlayerBuff(trackAura)
+  recalculateAuraExpirations()
+  auraCacheInitialized = true
+end
+
+local function updateAuraCache(updateInfo)
+  if not auraCacheInitialized or not updateInfo or updateInfo.isFullUpdate then
+    rebuildAuraCache()
+    return true
+  end
+
+  local changed = false
+  for _, auraInstanceID in ipairs(updateInfo.removedAuraInstanceIDs or {}) do
+    if trackedAuras[auraInstanceID] then
+      trackedAuras[auraInstanceID] = nil
+      changed = true
+    end
+  end
+  for _, aura in ipairs(updateInfo.addedAuras or {}) do
+    changed = trackAura(aura) or changed
+  end
+  for _, auraInstanceID in ipairs(updateInfo.updatedAuraInstanceIDs or {}) do
+    changed = trackAura(C_UnitAuras.GetAuraDataByAuraInstanceID("player", auraInstanceID)) or changed
+  end
+  if changed then recalculateAuraExpirations() end
+  return changed
+end
+
 local function oilBuffExpiration()
   if not GetWeaponEnchantInfo then return nil end
   local hasMainHandEnchant, _, _, hasOffHandEnchant = GetWeaponEnchantInfo()
@@ -184,18 +250,7 @@ local function categoryBuffExpiration(category)
   if category.dbKey == "oil" then
     return oilBuffExpiration()
   end
-
-  local expiration
-  forEachPlayerBuff(function(aura)
-    if category.matchAura(aura.name, aura.spellId, category.itemNameSet) then
-      if aura.expirationTime == 0 then
-        expiration = 0
-      elseif not expiration or (expiration ~= 0 and aura.expirationTime > expiration) then
-        expiration = aura.expirationTime
-      end
-    end
-  end)
-  return expiration
+  return cachedAuraExpirations[category.dbKey]
 end
 
 --- Which items in the player's bags can currently fulfill this category, with their bag/slot/count.
@@ -280,17 +335,19 @@ end
 local function updateAuraEventRegistration()
   local shouldRegister = not InCombatLockdown() and shouldTrackAuras()
   if shouldRegister and not auraEventRegistered then
+    rebuildAuraCache()
     module:RegisterEvent("UNIT_AURA")
     auraEventRegistered = true
   elseif not shouldRegister and auraEventRegistered then
     module:UnregisterEvent("UNIT_AURA")
     auraEventRegistered = false
+    auraCacheInitialized = false
   end
 end
 
-function module:UNIT_AURA(_, unit)
+function module:UNIT_AURA(_, unit, updateInfo)
   if unit ~= "player" or InCombatLockdown() then return end
-  self:Refresh()
+  if updateAuraCache(updateInfo) then self:Refresh() end
 end
 
 local function hideBuffs()
@@ -631,6 +688,7 @@ end
 
 function module:PLAYER_ALIVE()
   if not InCombatLockdown() or not shouldTrackAuras() then return end
+  rebuildAuraCache()
   local runeCategory = BUFF_CATEGORIES[4]
   if not db.profile.buffs.categories[runeCategory.dbKey] then return end
   if categoryBuffExpiration(runeCategory) then return end
