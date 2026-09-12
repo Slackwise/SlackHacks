@@ -41,6 +41,7 @@ local BUFF_CATEGORIES = {
       "Flask of the Shattered Sun",
       "Flask of Thalassian Resistance",
     },
+    itemIDs = { 241322, 241323, 241324, 241325, 241326, 241327, 241320, 241321 },
     matchAura = function(auraName, _, itemNameSet) return itemNameSet[auraName] == true end,
   },
   {
@@ -48,6 +49,7 @@ local BUFF_CATEGORIES = {
     label = "Oil",
     icon = 7548987,
     itemNames = { "Thalassian Phoenix Oil" },
+    itemIDs = { 243733, 243734 },
     matchAura = function(_, spellID) return spellID == 1237006 end,
   },
   {
@@ -70,6 +72,19 @@ end
 local container
 local iconButtons = {}
 
+local QUALITY_ATLAS_BY_ITEM_ID = {
+  [241320] = "Professions-Icon-Quality-12-Tier2-Inv",
+  [241321] = "Professions-Icon-Quality-12-Tier1-Inv",
+  [241322] = "Professions-Icon-Quality-12-Tier2-Inv",
+  [241323] = "Professions-Icon-Quality-12-Tier1-Inv",
+  [241324] = "Professions-Icon-Quality-12-Tier2-Inv",
+  [241325] = "Professions-Icon-Quality-12-Tier1-Inv",
+  [241326] = "Professions-Icon-Quality-12-Tier2-Inv",
+  [241327] = "Professions-Icon-Quality-12-Tier1-Inv",
+  [243733] = "Professions-Icon-Quality-12-Tier1-Inv",
+  [243734] = "Professions-Icon-Quality-12-Tier2-Inv",
+}
+
 local function setNativeOverlayGlow(button, enabled)
   if ActionButtonSpellAlertManager then
     if enabled then
@@ -85,10 +100,19 @@ local function setNativeOverlayGlow(button, enabled)
 end
 
 local function categoryItemIDs(category)
-  local ids = {}
+  local ids, seen = {}, {}
   for _, itemName in ipairs(category.itemNames) do
     local itemID = ITEM_NAMES and ITEM_NAMES[itemName]
-    if itemID then table.insert(ids, itemID) end
+    if itemID and not seen[itemID] then
+      seen[itemID] = true
+      table.insert(ids, itemID)
+    end
+  end
+  for _, itemID in ipairs(category.itemIDs or {}) do
+    if not seen[itemID] then
+      seen[itemID] = true
+      table.insert(ids, itemID)
+    end
   end
   return ids
 end
@@ -124,14 +148,21 @@ end
 --- Which items in the player's bags can currently fulfill this category, with their bag/slot/count.
 local function categoryBagItems(category)
   local items = {}
-  for _, itemName in ipairs(category.itemNames) do
-    local itemID = ITEM_NAMES and ITEM_NAMES[itemName]
-    if itemID then
-      local count = bagItemCount(itemID)
-      if count > 0 then
-        local bag, slot = findBagItem(itemID)
-        table.insert(items, { itemID = itemID, itemName = itemName, count = count, bag = bag, slot = slot })
-      end
+  for _, itemID in ipairs(categoryItemIDs(category)) do
+    local count = bagItemCount(itemID)
+    if count > 0 then
+      local bag, slot = findBagItem(itemID)
+      local itemName = C_Item.GetItemNameByID(itemID) or ITEM_NAMES_BY_ID and ITEM_NAMES_BY_ID[itemID] or tostring(itemID)
+      local qualityAtlas = QUALITY_ATLAS_BY_ITEM_ID[itemID]
+      table.insert(items, {
+        itemID = itemID,
+        itemName = itemName,
+        count = count,
+        bag = bag,
+        slot = slot,
+        icon = C_Item.GetItemIconByID(itemID),
+        qualityMarkup = qualityAtlas and "|A:" .. qualityAtlas .. ":18:18|a" or "",
+      })
     end
   end
   return items
@@ -231,10 +262,17 @@ local function createIconButton(index)
       print("SlackHacks: No " .. self.category.label .. " items in inventory.")
       return
     end
+    if self.category.dbKey == "augmentRune" then
+      if items[1].bag and items[1].slot then
+        C_Container.UseContainerItem(items[1].bag, items[1].slot)
+      end
+      return
+    end
     MenuUtil.CreateContextMenu(self, function(_, rootDescription)
       rootDescription:SetTag("SLACKHACKS_BUFF_" .. self.category.dbKey)
       for _, item in ipairs(items) do
-        rootDescription:CreateButton(item.itemName .. " (" .. item.count .. ")", function()
+        local itemMarkup = item.icon and CreateTextureMarkup(item.icon, 18, 18, 18, 18, 0, 1, 0, 1) or ""
+        rootDescription:CreateButton(itemMarkup .. " " .. item.itemName .. " (" .. item.count .. ")" .. item.qualityMarkup, function()
           if item.bag and item.slot then
             C_Container.UseContainerItem(item.bag, item.slot)
           end
