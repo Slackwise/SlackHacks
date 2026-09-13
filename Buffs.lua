@@ -214,7 +214,19 @@ local function rebuildAuraCache()
 end
 
 local function updateAuraCache(updateInfo)
-  if not auraCacheInitialized or not updateInfo or updateInfo.isFullUpdate then
+  if not auraCacheInitialized or not updateInfo then
+    rebuildAuraCache()
+    return true
+  end
+
+  -- In restricted contexts (combat/instances), aura update fields can be "secret" values/tables that
+  -- our tainted code isn't allowed to boolean-test or use as table keys; fall back to a full (safe)
+  -- rebuild whenever that's the case, since a full rebuild never depends on reading those fields.
+  local isSecretUpdate = (issecretvalue and issecretvalue(updateInfo.isFullUpdate))
+    or (issecrettable and (issecrettable(updateInfo.removedAuraInstanceIDs)
+      or issecrettable(updateInfo.updatedAuraInstanceIDs)
+      or issecrettable(updateInfo.addedAuras)))
+  if isSecretUpdate or updateInfo.isFullUpdate then
     rebuildAuraCache()
     return true
   end
