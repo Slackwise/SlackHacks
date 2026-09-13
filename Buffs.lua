@@ -4,7 +4,8 @@ setfenv(1, _G.SlackHacks)
   Reminds the player to keep up raid/dungeon consumables (food, flask, oil, augment rune) by showing
   clickable icons, similar in spirit to the "ClickableRaidBuffs" addon -- but event-driven instead of
   polling aura events constantly. Auras/bags are only rescanned on: PLAYER_ENTERING_WORLD (login/zoning
-  into an instance), entering/leaving combat, joining/leaving a group, and bag changes (using an item).
+  into an instance), CHALLENGE_MODE_START (key start), entering/leaving combat, joining/leaving a
+  group, and bag changes (using an item).
 ]]--
 
 local module = Self:NewModule("Buffs", "AceEvent-3.0")
@@ -165,15 +166,17 @@ local function categoryIcon(category)
   return category.icon or SLACKHACKS_ICON
 end
 
+--- Returns false if a secret aura (e.g. right as a Mythic+ key or encounter starts) aborted the scan
+--- partway through, so the caller knows not to trust it as a complete picture of the player's auras.
 local function forEachPlayerBuff(callback)
   for i = 1, 40 do
-    -- A secret aura (e.g. certain encounter mechanics) throws instead of returning nil while tainted.
+    -- A secret aura throws instead of returning nil while tainted; stop rather than keep hitting it.
     local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
-    if ok then
-      if not aura then break end
-      callback(aura)
-    end
+    if not ok then return false end
+    if not aura then break end
+    callback(aura)
   end
+  return true
 end
 
 local function recalculateAuraExpirations()
@@ -210,10 +213,15 @@ local function trackAura(aura)
 end
 
 local function rebuildAuraCache()
-  wipe(trackedAuras)
-  forEachPlayerBuff(trackAura)
-  recalculateAuraExpirations()
-  auraCacheInitialized = true
+  local previousTrackedAuras = trackedAuras
+  trackedAuras = {}
+  if forEachPlayerBuff(trackAura) then
+    recalculateAuraExpirations()
+    auraCacheInitialized = true
+  else
+    -- Auras are secret for now; keep the last known-good state instead of showing every buff as missing.
+    trackedAuras = previousTrackedAuras
+  end
 end
 
 local function updateAuraCache(updateInfo)
@@ -1234,6 +1242,7 @@ end
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "Refresh")
+  self:RegisterEvent("CHALLENGE_MODE_START", "Refresh")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_ALIVE")
