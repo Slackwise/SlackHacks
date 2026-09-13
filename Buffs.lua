@@ -1176,7 +1176,13 @@ function module:OnDatabaseReset()
 end
 
 function module:PLAYER_ALIVE()
-  if not InCombatLockdown() or not shouldTrackAuras() then return end
+  if not shouldTrackAuras() then return end
+  if not InCombatLockdown() then
+    -- Out of combat, a normal refresh covers every category (including rune).
+    self:Refresh()
+    return
+  end
+  -- Refresh() is a no-op in combat, so battle-rezzes need this direct path to warn about a missing rune.
   rebuildAuraCache()
   local runeCategory = BUFF_CATEGORIES[4]
   if not db.profile.buffs.categories[runeCategory.dbKey] then return end
