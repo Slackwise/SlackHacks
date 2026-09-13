@@ -167,9 +167,12 @@ end
 
 local function forEachPlayerBuff(callback)
   for i = 1, 40 do
-    local aura = C_UnitAuras.GetAuraDataByIndex("player", i, "HELPFUL")
-    if not aura then break end
-    callback(aura)
+    -- A secret aura (e.g. certain encounter mechanics) throws instead of returning nil while tainted.
+    local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
+    if ok then
+      if not aura then break end
+      callback(aura)
+    end
   end
 end
 
@@ -242,7 +245,10 @@ local function updateAuraCache(updateInfo)
     changed = trackAura(aura) or changed
   end
   for _, auraInstanceID in ipairs(updateInfo.updatedAuraInstanceIDs or {}) do
-    changed = trackAura(C_UnitAuras.GetAuraDataByAuraInstanceID("player", auraInstanceID)) or changed
+    local ok, aura = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, "player", auraInstanceID)
+    if ok then
+      changed = trackAura(aura) or changed
+    end
   end
   if changed then recalculateAuraExpirations() end
   return changed
