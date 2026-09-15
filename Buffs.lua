@@ -77,7 +77,6 @@ local menuFrame
 local menuRows = {}
 local menuCloseTimer
 local auraEventRegistered = false
-local combatHideTimer
 local trackedAuras = {}
 local cachedAuraExpirations = {}
 local auraCacheInitialized = false
@@ -400,6 +399,7 @@ end
 local function hideBuffs()
   if not container then return end
   closeContextMenu()
+  if InCombatLockdown() then return end -- the visibility state driver already hides it in combat
   container:Hide()
   for _, button in pairs(iconButtons) do
     button:Hide()
@@ -454,6 +454,11 @@ local function createContainer()
   container:SetScale(scale)
   container:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   updatePosition()
+  container:Hide()
+  -- Hide()/Show() are protected in combat once secure buttons are parented here, so a plain Hide()
+  -- call from our (tainted) code would be blocked; a state driver hides it via secure code instead,
+  -- which also genuinely hides it from clicks rather than just visually fading it.
+  RegisterStateDriver(container, "visibility", "[combat] hide; show")
   container:Hide()
 end
 
@@ -1182,8 +1187,6 @@ function module:OnDatabaseReset()
   wipe(trackedAuras)
   wipe(cachedAuraExpirations)
   auraCacheInitialized = false
-  if combatHideTimer then combatHideTimer:Cancel() end
-  combatHideTimer = nil
   isEditing = false
   hideBuffs()
   self:Refresh()
@@ -1259,25 +1262,15 @@ function module:PLAYER_REGEN_DISABLED()
     exitEditMode()
   end
   updateAuraEventRegistration()
-  hideBuffs()
-  if combatHideTimer then combatHideTimer:Cancel() end
-  combatHideTimer = C_Timer.NewTimer(30, function()
-    combatHideTimer = nil
-    if InCombatLockdown() then hideBuffs() end
-  end)
 end
 
 function module:PLAYER_REGEN_ENABLED()
-  if combatHideTimer then combatHideTimer:Cancel() end
-  combatHideTimer = nil
   self:Refresh()
 end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
   auraEventRegistered = false
-  if combatHideTimer then combatHideTimer:Cancel() end
-  combatHideTimer = nil
   closeContextMenu()
   if isEditing then
     exitEditMode()
