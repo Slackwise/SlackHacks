@@ -1199,12 +1199,11 @@ function module:PLAYER_ALIVE()
     self:Refresh()
     return
   end
-  -- Refresh() is a no-op in combat, so battle-rezzes need this direct path to warn about a missing rune.
+  -- Still update the cache so a missing rune shows immediately once PLAYER_REGEN_ENABLED refreshes.
+  -- We can't lay out/show the reminder here: the container's secure button children make Show/SetSize/
+  -- SetPoint protected in combat, and forcing it via allowCombatDisplay risks tainting Blizzard's UI
+  -- and causing a wall of ADDON_ACTION_BLOCKED errors (and the CPU cost of generating them) every frame.
   rebuildAuraCache()
-  local runeCategory = BUFF_CATEGORIES[4]
-  if not db.profile.buffs.categories[runeCategory.dbKey] then return end
-  if categoryBuffExpiration(runeCategory) then return end
-  layoutIcons({ runeCategory }, true)
 end
 
 function module:OnInitialize()
