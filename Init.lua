@@ -84,6 +84,10 @@ dbDefaults = {
         [Enum.SelfVendorMode.AUGMENTS] = { enabled = false, triggerEmote = "VICTORY" },
       }
     },
+    weeklies = {
+      enabled = false,
+      trackDelves = true
+    },
     mounts = {
       ["ground"] = nil,
       ["ground-showoff"] = nil,
