@@ -88,7 +88,17 @@ local function delveRenownLevel()
   local seasonFactionID = delvesSeasonFactionID()
   if not seasonFactionID or not C_MajorFactions then return nil end
   local ok, info = pcall(C_MajorFactions.GetMajorFactionRenownInfo, seasonFactionID)
-  return ok and info and info.renownLevel or nil
+  if not ok or not info or not info.renownLevel then return nil end
+
+  local maxLevel
+  if C_MajorFactions.GetRenownLevels then
+    local ok2, levels = pcall(C_MajorFactions.GetRenownLevels, seasonFactionID)
+    if ok2 and type(levels) == "table" and #levels > 0 then
+      maxLevel = #levels
+    end
+  end
+
+  return { level = info.renownLevel, maxLevel = maxLevel }
 end
 
 local function createButton()
@@ -146,7 +156,13 @@ function module.ShowTooltip(self)
   end
 
   local renown = delveRenownLevel()
-  GameTooltip:AddLine("Delve Renown: " .. (renown and ("Level " .. renown) or "Unknown"), 1, 0.82, 0)
+  if renown and renown.maxLevel then
+    GameTooltip:AddLine("Delve Renown: " .. renown.level .. " / " .. renown.maxLevel, 1, 0.82, 0)
+  elseif renown then
+    GameTooltip:AddLine("Delve Renown: Level " .. renown.level, 1, 0.82, 0)
+  else
+    GameTooltip:AddLine("Delve Renown: Unknown", 1, 0.82, 0)
+  end
 
   GameTooltip:Show()
 end
