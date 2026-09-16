@@ -20,6 +20,14 @@ local function delvesSeasonFactionID()
 end
 
 local function gildedStashInfo()
+  if C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve() then
+    -- The widget goes blank while inside a delve, so fall back to the last value we saw outside one.
+    local remaining = db.char.cache.lastKnownGildedStashesRemaining
+    if remaining == nil then return nil end
+    local current = GILDED_STASH_REQUIRED - remaining
+    return { current = current, max = GILDED_STASH_REQUIRED, completed = remaining <= 0 }
+  end
+
   if not C_UIWidgetManager or not C_UIWidgetManager.GetSpellDisplayVisualizationInfo then return nil end
   local ok, widgetInfo = pcall(C_UIWidgetManager.GetSpellDisplayVisualizationInfo, GILDED_STASH_WIDGET_ID)
   if not ok or not widgetInfo or not widgetInfo.spellInfo then return nil end
@@ -37,11 +45,16 @@ local function gildedStashInfo()
       current, max = foundCurrent, foundMax
     end
   end
+  max = max or GILDED_STASH_REQUIRED
+
+  if current then
+    db.char.cache.lastKnownGildedStashesRemaining = max - current
+  end
 
   return {
     current = current,
-    max = max or GILDED_STASH_REQUIRED,
-    completed = current and (max or GILDED_STASH_REQUIRED) and current >= (max or GILDED_STASH_REQUIRED)
+    max = max,
+    completed = current and current >= max
   }
 end
 
