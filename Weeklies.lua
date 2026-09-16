@@ -8,7 +8,9 @@ Self.Weeklies = module
 -- of hardcoding the weekly cap since Blizzard has changed that number between seasons.
 local GILDED_STASH_WIDGET_ID = 6659
 local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
-local DELVES_ICON_FALLBACK = 132320 -- INV_Misc_Chest_02; used until the Gilded Stash spell icon is available
+-- Same door icons used for delve entrances on the world map (glowing = bountiful, plain = regular).
+local DELVES_ICON_ATLAS_PENDING = "delves-bountiful"
+local DELVES_ICON_ATLAS_DONE = "delves-regular"
 local BUTTON_SIZE = 18
 
 local button
@@ -68,6 +70,7 @@ local function createButton()
 
   local icon = button:CreateTexture(nil, "ARTWORK")
   icon:SetAllPoints()
+  icon:SetAtlas(DELVES_ICON_ATLAS_PENDING, false)
   button.icon = icon
 
   local count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
@@ -130,8 +133,8 @@ function module:Refresh()
   end
 
   local stash = gildedStashInfo()
-  local iconTexture = stash and stash.spellID and C_Spell.GetSpellTexture(stash.spellID)
-  button.icon:SetTexture(iconTexture or DELVES_ICON_FALLBACK)
+  local allDone = stash and stash.completed and trovehuntersBountyCompleted()
+  button.icon:SetAtlas(allDone and DELVES_ICON_ATLAS_DONE or DELVES_ICON_ATLAS_PENDING, false)
 
   if stash and stash.completed then
     button.check:Show()
