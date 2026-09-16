@@ -3,10 +3,10 @@ setfenv(1, _G.SlackHacks)
 local module = Self:NewModule("Weeklies", "AceEvent-3.0")
 Self.Weeklies = module
 
--- Widget backing the "Gilded Stash" counter shown on the Delver's Journey (rank 4 reward). Verified against
--- the live tooltip text via C_UIWidgetManager.GetSpellDisplayVisualizationInfo; the tooltip is parsed instead
--- of hardcoding the weekly cap since Blizzard has changed that number between seasons.
-local GILDED_STASH_WIDGET_ID = 6659
+-- Widget backing the "Gilded Stash" counter shown on the Delver's Journey (rank 4 reward). Widget ID and
+-- required count confirmed against MidnightRoutine's Delves.lua, which reads the same live tooltip text.
+local GILDED_STASH_WIDGET_ID = 7591
+local GILDED_STASH_REQUIRED = 4
 local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
 -- Same door icons used for delve entrances on the world map (glowing = bountiful, plain = regular).
 local DELVES_ICON_ATLAS_PENDING = "delves-bountiful"
@@ -24,13 +24,24 @@ local function gildedStashInfo()
   local ok, widgetInfo = pcall(C_UIWidgetManager.GetSpellDisplayVisualizationInfo, GILDED_STASH_WIDGET_ID)
   if not ok or not widgetInfo or not widgetInfo.spellInfo then return nil end
   local tooltip = widgetInfo.spellInfo.tooltip
-  local current, max = tooltip and tooltip:match("(%d+)%s-/%s-(%d+)")
-  current, max = tonumber(current), tonumber(max)
+  if type(tooltip) ~= "string" or tooltip == "" then return nil end
+
+  -- Prefer the number pair matching the known weekly cap, in case the tooltip mentions other counts too.
+  local current, max
+  for foundCurrent, foundMax in tooltip:gmatch("(%d+)%s*/%s*(%d+)") do
+    foundCurrent, foundMax = tonumber(foundCurrent), tonumber(foundMax)
+    if foundCurrent and foundMax == GILDED_STASH_REQUIRED then
+      current, max = foundCurrent, foundMax
+      break
+    elseif not current and foundCurrent and foundMax then
+      current, max = foundCurrent, foundMax
+    end
+  end
+
   return {
     current = current,
-    max = max,
-    spellID = widgetInfo.spellInfo.spellID,
-    completed = current and max and current >= max
+    max = max or GILDED_STASH_REQUIRED,
+    completed = current and (max or GILDED_STASH_REQUIRED) and current >= (max or GILDED_STASH_REQUIRED)
   }
 end
 
