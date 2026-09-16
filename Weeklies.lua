@@ -13,6 +13,15 @@ local DELVES_ICON_ATLAS_PENDING = "delves-bountiful"
 local DELVES_ICON_ATLAS_DONE = "delves-regular"
 local BUTTON_SIZE = 18
 
+-- Icon/border/mask combo lifted from the Delve entry UI (Blizzard_DelvesCompanionConfiguration's curio
+-- slots use the same circular border atlas over a masked icon), used to render the 4 weekly stash slots.
+local GILDED_STASH_ICON_ID = 5872049
+local STASH_ICON_BORDER_ATLAS = "delves-curios-icon-border"
+local STASH_ICON_MASK_ATLAS = "CircleMaskScalable"
+local STASH_ICON_SIZE = 14
+local STASH_ICON_GAP = 2
+local STASH_ICON_COUNT = 4
+
 local button
 
 local function delvesSeasonFactionID()
@@ -101,6 +110,28 @@ local function delveRenownLevel()
   return { level = info.renownLevel, maxLevel = maxLevel }
 end
 
+local function createStashIcon(parent)
+  local frame = CreateFrame("Frame", nil, parent)
+  frame:SetSize(STASH_ICON_SIZE, STASH_ICON_SIZE)
+
+  local icon = frame:CreateTexture(nil, "ARTWORK")
+  icon:SetAllPoints()
+  icon:SetTexture(GILDED_STASH_ICON_ID)
+
+  local mask = frame:CreateMaskTexture(nil, "ARTWORK")
+  mask:SetAllPoints(icon)
+  mask:SetAtlas(STASH_ICON_MASK_ATLAS, false)
+  icon:AddMaskTexture(mask)
+
+  local border = frame:CreateTexture(nil, "OVERLAY")
+  border:SetAtlas(STASH_ICON_BORDER_ATLAS, false)
+  border:SetPoint("CENTER")
+  border:SetSize(STASH_ICON_SIZE, STASH_ICON_SIZE)
+
+  frame.icon = icon
+  return frame
+end
+
 local function createButton()
   if button then return end
   local header = ObjectiveTrackerFrame and ObjectiveTrackerFrame.Header
@@ -134,37 +165,86 @@ local function createButton()
   button:Hide()
 end
 
+-- Created lazily and parented directly to GameTooltip so it hides along with it; anchored over the
+-- right column of the "Gilded Stashes Remaining" double line since GameTooltip has no native slot for
+-- custom textures within a line.
+local tooltipStashIcons
+
+local function getTooltipStashIcons()
+  if tooltipStashIcons then return tooltipStashIcons end
+  local container = CreateFrame("Frame", nil, GameTooltip)
+  container:SetSize(STASH_ICON_COUNT * STASH_ICON_SIZE + (STASH_ICON_COUNT - 1) * STASH_ICON_GAP, STASH_ICON_SIZE)
+
+  local icons = {}
+  local previous
+  for index = 1, STASH_ICON_COUNT do
+    local stashIcon = createStashIcon(container)
+    if previous then
+      stashIcon:SetPoint("LEFT", previous, "RIGHT", STASH_ICON_GAP, 0)
+    else
+      stashIcon:SetPoint("LEFT", container, "LEFT", 0, 0)
+    end
+    icons[index] = stashIcon
+    previous = stashIcon
+  end
+  container.icons = icons
+
+  tooltipStashIcons = container
+  return container
+end
+
 function module.ShowTooltip(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:SetText("Delves", 1, 1, 1)
 
+  -- Leading spaces on the right column widen the tooltip without shifting the right-justified text,
+  -- which opens up a gap between the two columns.
+  local COLUMN_GAP = "   "
+
   local stash = gildedStashInfo()
+  local iconLineIndex
   if stash and stash.current and stash.max then
-    local remaining = stash.max - stash.current
-    GameTooltip:AddLine("Gilded Stashes Remaining: " .. (remaining > 0 and remaining or "Done!"), 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("Gilded Stashes Remaining", COLUMN_GAP .. " ", 1, 0.82, 0, 1, 0.82, 0)
+    iconLineIndex = GameTooltip:NumLines()
   else
-    GameTooltip:AddLine("Gilded Stashes Remaining: unavailable", 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine("Gilded Stashes Remaining", COLUMN_GAP .. "unavailable", 1, 0.82, 0, 0.6, 0.6, 0.6)
   end
 
-  GameTooltip:AddLine("Trovehunter's Bounty: " .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0)
+  GameTooltip:AddDoubleLine("Trovehunter's Bounty", COLUMN_GAP .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0, 1, 0.82, 0)
 
   local companion = companionReputation()
   if companion then
-    GameTooltip:AddLine(companion.name .. ": " .. companion.level .. " / " .. companion.maxLevel, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(companion.name or "Valeera", COLUMN_GAP .. companion.level .. " / " .. companion.maxLevel, 1, 0.82, 0, 1, 0.82, 0)
   else
-    GameTooltip:AddLine("Valeera: Unknown", 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("Valeera", COLUMN_GAP .. "Unknown", 1, 0.82, 0, 1, 0.82, 0)
   end
 
   local renown = delveRenownLevel()
   if renown and renown.maxLevel then
-    GameTooltip:AddLine("Delve Renown: " .. renown.level .. " / " .. renown.maxLevel, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("Delve Renown", COLUMN_GAP .. renown.level .. " / " .. renown.maxLevel, 1, 0.82, 0, 1, 0.82, 0)
   elseif renown then
-    GameTooltip:AddLine("Delve Renown: Level " .. renown.level, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("Delve Renown", COLUMN_GAP .. "Level " .. renown.level, 1, 0.82, 0, 1, 0.82, 0)
   else
-    GameTooltip:AddLine("Delve Renown: Unknown", 1, 0.82, 0)
+    GameTooltip:AddDoubleLine("Delve Renown", COLUMN_GAP .. "Unknown", 1, 0.82, 0, 1, 0.82, 0)
   end
 
   GameTooltip:Show()
+
+  if iconLineIndex then
+    local container = getTooltipStashIcons()
+    local lineFrame = _G["GameTooltipTextRight" .. iconLineIndex]
+    container:ClearAllPoints()
+    container:SetPoint("RIGHT", lineFrame, "RIGHT", 0, 0)
+    container:Show()
+
+    for index, stashIcon in ipairs(container.icons) do
+      local isClaimed = index <= stash.current
+      stashIcon.icon:SetDesaturated(isClaimed)
+      stashIcon.icon:SetVertexColor(isClaimed and 0.4 or 1, isClaimed and 0.4 or 1, isClaimed and 0.4 or 1)
+    end
+  elseif tooltipStashIcons then
+    tooltipStashIcons:Hide()
+  end
 end
 
 function module.OnClick()
