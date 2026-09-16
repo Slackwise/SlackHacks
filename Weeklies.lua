@@ -121,9 +121,10 @@ function module.ShowTooltip(self)
 
   local stash = gildedStashInfo()
   if stash and stash.current and stash.max then
-    GameTooltip:AddLine(("Gilded Stash: %d/%d"):format(stash.current, stash.max), 1, 0.82, 0)
+    local remaining = stash.max - stash.current
+    GameTooltip:AddLine("Gilded Stashes Remaining: " .. (remaining > 0 and remaining or "Done!"), 1, 0.82, 0)
   else
-    GameTooltip:AddLine("Gilded Stash: unavailable", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine("Gilded Stashes Remaining: unavailable", 0.6, 0.6, 0.6)
   end
 
   GameTooltip:AddLine("Trovehunter's Bounty: " .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0)
@@ -166,7 +167,7 @@ function module:Refresh()
   else
     button.check:Hide()
     if stash and stash.current and stash.max then
-      button.count:SetText(stash.current)
+      button.count:SetText(stash.max - stash.current)
       button.count:Show()
     else
       button.count:Hide()
