@@ -62,17 +62,26 @@ local function trovehuntersBountyCompleted()
   return C_QuestLog.IsQuestFlaggedCompleted(TROVEHUNTERS_BOUNTY_QUEST_ID)
 end
 
--- Valeera/Brann's own companion level; distinct from the seasonal Delver's Journey renown below.
-local function companionLevel()
-  local seasonFactionID = delvesSeasonFactionID()
-  if not seasonFactionID or not C_MajorFactions or not C_DelvesUI then return nil end
-  local ok, majorFactionData = pcall(C_MajorFactions.GetMajorFactionData, seasonFactionID)
-  local companionID = ok and majorFactionData and majorFactionData.playerCompanionID
-  if not companionID or not C_DelvesUI.GetFactionForCompanion then return nil end
-  local ok2, companionFactionID = pcall(C_DelvesUI.GetFactionForCompanion, companionID)
-  if not ok2 or not companionFactionID then return nil end
-  local ok3, level = pcall(C_MajorFactions.GetCurrentRenownLevel, companionFactionID)
-  return ok3 and level or nil
+-- Valeera/Brann's own companion level; a Friendship-style reputation, distinct from the seasonal
+-- Delver's Journey renown below (its rank/max come from GetFriendshipReputationRanks, not renown levels).
+-- Calling GetFactionForCompanion with no argument defaults to the player's active companion, same as
+-- Blizzard's own DelvesCompanionConfigurationFrameMixin:Refresh (avoids relying on playerCompanionID).
+local function companionReputation()
+  if not C_DelvesUI or not C_DelvesUI.GetFactionForCompanion then return nil end
+  local ok, companionFactionID = pcall(C_DelvesUI.GetFactionForCompanion)
+  if not ok or not companionFactionID or companionFactionID == 0 then return nil end
+
+  if not C_GossipInfo or not C_GossipInfo.GetFriendshipReputationRanks then return nil end
+  local ok3, rankInfo = pcall(C_GossipInfo.GetFriendshipReputationRanks, companionFactionID)
+  if not ok3 or not rankInfo or not rankInfo.maxLevel then return nil end
+
+  local name
+  if C_Reputation and C_Reputation.GetFactionDataByID then
+    local ok4, factionData = pcall(C_Reputation.GetFactionDataByID, companionFactionID)
+    name = ok4 and factionData and factionData.name
+  end
+
+  return { name = name or "Valeera", level = rankInfo.currentLevel, maxLevel = rankInfo.maxLevel }
 end
 
 local function delveRenownLevel()
@@ -129,8 +138,12 @@ function module.ShowTooltip(self)
 
   GameTooltip:AddLine("Trovehunter's Bounty: " .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0)
 
-  local companion = companionLevel()
-  GameTooltip:AddLine("Valeera: " .. (companion and ("Level " .. companion) or "Unknown"), 1, 0.82, 0)
+  local companion = companionReputation()
+  if companion then
+    GameTooltip:AddLine(companion.name .. ": " .. companion.level .. " / " .. companion.maxLevel, 1, 0.82, 0)
+  else
+    GameTooltip:AddLine("Valeera: Unknown", 1, 0.82, 0)
+  end
 
   local renown = delveRenownLevel()
   GameTooltip:AddLine("Delve Renown: " .. (renown and ("Level " .. renown) or "Unknown"), 1, 0.82, 0)
