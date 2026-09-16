@@ -13,10 +13,9 @@ local DELVES_ICON_ATLAS_PENDING = "delves-bountiful"
 local DELVES_ICON_ATLAS_DONE = "delves-regular"
 local BUTTON_SIZE = 18
 
--- Icon/border/mask combo lifted from the Delve entry UI (Blizzard_DelvesCompanionConfiguration's curio
--- slots use the same circular border atlas over a masked icon), used to render the 4 weekly stash slots.
+-- The Gilded Stash reward icon already has its ornate gold border baked into the art; a circular mask
+-- just crops the square texture down to that coin shape, used to render the 4 weekly stash slots.
 local GILDED_STASH_ICON_ID = 5872049
-local STASH_ICON_BORDER_ATLAS = "delves-curios-icon-border"
 local STASH_ICON_MASK_ATLAS = "CircleMaskScalable"
 local STASH_ICON_SIZE = 14
 local STASH_ICON_GAP = 2
@@ -122,11 +121,6 @@ local function createStashIcon(parent)
   mask:SetAllPoints(icon)
   mask:SetAtlas(STASH_ICON_MASK_ATLAS, false)
   icon:AddMaskTexture(mask)
-
-  local border = frame:CreateTexture(nil, "OVERLAY")
-  border:SetAtlas(STASH_ICON_BORDER_ATLAS, false)
-  border:SetPoint("CENTER")
-  border:SetSize(STASH_ICON_SIZE, STASH_ICON_SIZE)
 
   frame.icon = icon
   return frame
