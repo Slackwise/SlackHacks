@@ -183,6 +183,10 @@ local function getTooltipStashIcons()
   end
   container.icons = icons
 
+  -- GameTooltip is shared by every tooltip in the game; without this the icons would keep showing
+  -- (still parented/anchored from our last use) whenever the tooltip is reused for something else.
+  GameTooltip:HookScript("OnTooltipCleared", function() container:Hide() end)
+
   tooltipStashIcons = container
   return container
 end
