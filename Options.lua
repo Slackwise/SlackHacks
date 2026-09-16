@@ -569,6 +569,35 @@ options = {
       order = 10,
       args = selfVendorModeOptions()
     },
+    weeklies = {
+      type = "group",
+      name = "Weeklies",
+      desc = "Track weekly quest completions and activities.",
+      order = 11,
+      args = {
+        enabled = {
+          name = "Enable",
+          desc = "Track weekly quest completions and activities.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.weeklies.enabled end,
+          set = function(_, value) Self.Weeklies:SetEnabled(value) end,
+          order = 0
+        },
+        trackDelves = {
+          name = "Track Delves",
+          desc = "Show a Delves button on the Objective Tracker with the weekly Gilded Stash, Trovehunter's Bounty, Valeera's level, and Delve Renown.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.weeklies.trackDelves end,
+          set = function(_, value) Self.Weeklies:SetTrackDelves(value) end,
+          disabled = function() return not db.profile.weeklies.enabled end,
+          order = 1
+        }
+      }
+    },
     bind = {
       type = "execute",
       name = "Set Bindings",
