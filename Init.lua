@@ -35,6 +35,11 @@ dbDefaults = {
     logPurgeEnabled = true,
     logPurgeHours = 48
   },
+  char = {
+    cache = {
+      lastKnownGildedStashesRemaining = nil
+    }
+  },
   profile = {
     general = {
       autoSellGreyItems = false,
