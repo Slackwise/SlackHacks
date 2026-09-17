@@ -71,7 +71,8 @@ foreach ($dirName in $dirs.Keys) {
     } catch [System.IO.IOException] {
         Write-Host "$($dirName.ToUpper()) is already linked." -ForegroundColor Cyan
     } catch {
-        Write-Host "Error while trying to junction $($dirName.ToUpper()): $_" -ForegroundColor Red
+        Write-Host "Error while trying to junction $($dirName.ToUpper()):" -ForegroundColor Red
+        Write-Error $_
         $hadFailure = $true
     }
 }
