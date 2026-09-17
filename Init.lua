@@ -135,6 +135,15 @@ function isRetail()
   end
 end
 
+function isForever()
+  -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
+  if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC_BETA then
+    return true
+  else
+    return false
+  end
+end
+
 function isClassic()
   -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
   if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC then
