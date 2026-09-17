@@ -258,10 +258,10 @@ function findEmptyBagSlot()
 end
 
 function getSpecName()
-  local specIndex = GetSpecialization()
+  local specIndex = C_SpecializationInfo.GetSpecialization()
   if specIndex then
     log("specIndex = " .. (specIndex or "nil"))
-    local specID, specName = GetSpecializationInfo(specIndex)
+    local specID, specName = C_SpecializationInfo.GetSpecializationInfo(specIndex)
     log("specID = " .. (specID or "nil"))
     log("specName = " .. (specName or "nil"))
     if specName then

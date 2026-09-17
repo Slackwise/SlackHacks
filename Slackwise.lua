@@ -845,7 +845,7 @@ BINDINGS = {
       }
     },
   },
-  CLASSIC_BETA = {
+  FOREVER = {
     DRUID = {
       {"1",  "ACTIONBUTTON1", BT.COMMAND},
       {"2",  "ACTIONBUTTON2", BT.COMMAND},

@@ -104,8 +104,7 @@ end
 
 local function currentRecommendation(unit, sourceKey, characterName)
   local _, classFile = UnitClass(unit or "player")
-  local specIndex = GetSpecialization()
-  local specName = specIndex and select(2, GetSpecializationInfo(specIndex))
+  local specName = getSpecName()
   sourceKey = enhancementSourceKey(sourceKey)
   local sourceData = sourceKey and ENHANCEMENTS_BIS[sourceKey]
   local classData = sourceData and sourceData[classFile]
