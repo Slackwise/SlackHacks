@@ -28,16 +28,23 @@ BINDING_TYPE = {
 
 
 BINDINGS_FUNCTIONS = {
-  ["command"] = SetBinding,
-  ["spell"]   = SetBindingSpell,
-  ["macro"]   = SetBindingMacro,
-  ["item"]    = SetBindingItem,
-  ["click"]   = SetBindingClick
+  ["COMMAND"] = SetBinding,
+  ["SPELL"]   = SetBindingSpell,
+  ["MACRO"]   = SetBindingMacro,
+  ["ITEM"]    = SetBindingItem,
+  ["CLICK"]   = SetBindingClick
 }
 
+--- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL".
 function setBinding(binding)
-  local key, type, name = unpack(binding)
-  BINDINGS_FUNCTIONS[type](key, name)
+  local key, name, bindingType = unpack(binding)
+  BINDINGS_FUNCTIONS[bindingType or "SPELL"](key, name)
+end
+
+--- Whether a binding should be skipped because it's a spell binding for a spell the player doesn't know.
+function shouldSkipBinding(binding)
+  local key, name, bindingType = unpack(binding)
+  return (bindingType or "SPELL") == "SPELL" and not C_Spell.DoesSpellExist(name)
 end
 
 --- Get UI text description for a `Bindings.xml` binding name.
@@ -149,8 +156,7 @@ function setBindings()
         bindings.CLASS.PRE_SCRIPT()	
       end
       for _, binding in ipairs(bindings.CLASS) do
-        local key, type, name = unpack(binding)
-        if not (type == "spell" and not C_Spell.DoesSpellExist(name)) then
+        if not shouldSkipBinding(binding) then
           setBinding(binding)
         end
       end
@@ -166,7 +172,7 @@ function setBindings()
       local specBindings = bindings[spec]
       if specBindings ~= nil then
         for _, binding in ipairs(specBindings) do
-          if not (binding[2] == "spell" and not C_Spell.DoesSpellExist(binding[3])) then
+          if not shouldSkipBinding(binding) then
             setBinding(binding)
           end
         end
@@ -184,8 +190,7 @@ function setBindings()
     end
 
     for _, binding in ipairs(bindings) do
-      local key, type, name = unpack(binding)
-      if not (type == "spell" and not C_Spell.DoesSpellExist(name)) then
+      if not shouldSkipBinding(binding) then
         setBinding(binding)
       end
     end
