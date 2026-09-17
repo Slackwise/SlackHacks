@@ -20,19 +20,28 @@ setfenv(1, _G.SlackHacks)
 
 BINDINGS = {} --#TODO: Map these to the DB/config file
 
-BINDING_TYPE = {
+BINDING_CATEGORY = {
   DEFAULT_BINDINGS   = 0,
   ACCOUNT_BINDINGS   = 1,
   CHARACTER_BINDINGS = 2
 }
 
+BINDING_TYPE = {
+  COMMAND = "COMMAND",
+  SPELL   = "SPELL",
+  MACRO   = "MACRO",
+  ITEM    = "ITEM",
+  CLICK   = "CLICK"
+}
+
+BT = BINDING_TYPE
 
 BINDINGS_FUNCTIONS = {
-  ["COMMAND"] = SetBinding,
-  ["SPELL"]   = SetBindingSpell,
-  ["MACRO"]   = SetBindingMacro,
-  ["ITEM"]    = SetBindingItem,
-  ["CLICK"]   = SetBindingClick
+  [BT.COMMAND] = SetBinding,
+  [BT.SPELL]   = SetBindingSpell,
+  [BT.MACRO]   = SetBindingMacro,
+  [BT.ITEM]    = SetBindingItem,
+  [BT.CLICK]   = SetBindingClick
 }
 
 --- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL".
@@ -132,7 +141,7 @@ function setBindings()
     return
   end
 
-  LoadBindings(BINDING_TYPE.DEFAULT_BINDINGS)
+  LoadBindings(BINDING_CATEGORY.DEFAULT_BINDINGS)
   unbindUnwantedDefaults()
 
   -- Global bindings:
@@ -182,7 +191,7 @@ function setBindings()
       end
     end
 
-    SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
+    SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
     print((spec or "CLASS-ONLY") .. " " .. class .. " binding presets loaded!")
   elseif isClassic() then
     if bindings.PRE_SCRIPT then
@@ -199,7 +208,7 @@ function setBindings()
       bindings.POST_SCRIPT()	
     end
 
-    SaveBindings(BINDING_TYPE.CHARACTER_BINDINGS)
+    SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
     print(class .. " binding presets loaded!")
   else -- There are other game types like TBC and WOTLK classic, and who knows what else in the future...
     print("Unknown game type! Cannot rebind.")
