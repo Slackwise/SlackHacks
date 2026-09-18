@@ -847,10 +847,12 @@ BINDINGS = {
   },
   FOREVER = {
     DRUID = {
-      {"1",  "Healing Touch"},
-      {"2",  "Wrath"},
-      {"SHIFT-Z",  "Shadowmeld"},
-      {"CTRL-G",  "Elune's Light"},
+      {"1",             "Rejuvenation"},
+      {"SHIFT-1",       "Healing Touch"},
+      {"2",             "Wrath"},
+      {"4",             "Moonfire"},
+      {"SHIFT-Z",       "Shadowmeld"},
+      {"CTRL-G",        "Elune's Light"},
     },
     PALADIN = {
       {"1",  "ACTIONBUTTON1", BT.COMMAND},
