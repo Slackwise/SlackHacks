@@ -50,7 +50,17 @@ foreach ($dirName in $dirs.Keys) {
         Write-Host "Skipping ${dirName}: directory does not exist"
         continue
     }
-    
+
+    $targetPath = $dirs[$dirName]
+    $existingItem = Get-Item -Path $targetPath -Force -ErrorAction SilentlyContinue
+    if ($existingItem -and $existingItem.LinkType -eq "Junction") {
+        $existingTarget = ($existingItem.Target | Select-Object -First 1)
+        if ($existingTarget -and $existingTarget.TrimEnd('\') -ne $sourceDir.TrimEnd('\')) {
+            Remove-Item -Path $targetPath -Force
+            Write-Host "$dirName was linked to '$existingTarget'; removing and relinking to '$sourceDir'." -ForegroundColor Yellow
+        }
+    }
+
     try {
         New-Item -ItemType Junction -Path $dirs[$dirName] -Target $sourceDir -ErrorAction Stop
         Write-Host "Junctioned $dirName directory." -ForegroundColor Green
