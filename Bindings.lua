@@ -44,15 +44,47 @@ BINDINGS_FUNCTIONS = {
   [BT.CLICK]   = SetBindingClick
 }
 
+--- Create or update an in-game macro so its name/icon/body match the given definition.
+--- `GetMacroIndexByName` searches both the global (account-wide, slots 1-120) and per-character
+--- (slots 121-150) macro lists, so an existing macro in either context is found and reused.
+--- Newly-created macros default to global/account-wide.
+---@param name string - The macro's name.
+---@param icon number - The macro's icon fileID.
+---@param body string - The macro's script/text contents.
+---@return number - The macro's slot index.
+function defineMacro(name, icon, body)
+  local index = GetMacroIndexByName(name)
+  if index == 0 then
+    return CreateMacro(name, icon, body)
+  end
+
+  local existingName, existingIcon, existingBody = GetMacroInfo(index)
+  if existingName ~= name or existingIcon ~= icon or existingBody ~= body then
+    EditMacro(index, name, icon, body)
+  end
+  return index
+end
+
 --- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL".
+--- If `name` is a table `{macroName, icon, body}` instead of a string, the binding is treated as a macro
+--- (no `bindingType` needed): the macro is created/updated to match the definition, then bound to `key`.
 function setBinding(binding)
   local key, name, bindingType = unpack(binding)
+  if type(name) == "table" then
+    local macroName, icon, body = unpack(name)
+    defineMacro(macroName, icon, body)
+    SetBindingMacro(key, macroName)
+    return
+  end
   BINDINGS_FUNCTIONS[bindingType or "SPELL"](key, name)
 end
 
 --- Whether a binding should be skipped because it's a spell binding for a spell the player doesn't know.
 function shouldSkipBinding(binding)
   local key, name, bindingType = unpack(binding)
+  if type(name) == "table" then
+    return false
+  end
   return (bindingType or "SPELL") == "SPELL" and not C_Spell.DoesSpellExist(name)
 end
 

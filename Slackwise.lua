@@ -852,8 +852,6 @@ BINDINGS = {
       {"2",             "Wrath"},
       {"4",             "Moonfire"},
       {"T",             "Growl"},
-      {"V",             "Bear Form"},
-      {"CTRL-F",        "Nature's Grasp"},
       {"SHIFT-E",       "Maul"},
       {"SHIFT-T",       "Demoralizing Roar"},
       {"F",             "Entangling Roots"},
