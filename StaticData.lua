@@ -2516,39 +2516,43 @@ BEST_ITEMS = {
 
     -- Mapping of:
     -- ITEM_ID = MAX_HEALING
+    -- Sorted highest to lowest healing done. Alchemist-only potions get + ALCHEMIST_VALUE_OFFSET so
+    -- they're preferred over the otherwise-identical-strength potion any class can use.
 
-    -- TWW Alchemist-Only Healing Potions
-    [212944]     = 3839450 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 3)
-    [212943]     = 3681800 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 2)
-    [212942]     = 3530600 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 1)
-    [211880]     = 3839450, -- Algari Healing Potion (Quality 3)
-    [211879]     = 3681800, -- Algari Healing Potion (Quality 2)
-    [211878]     = 3530600, -- Algari Healing Potion (Quality 1)
-
-    -- TWW Healing/Mana Potions
-    [212950]     = 2799950 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 3)
-    [212949]     = 2685000 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 2)
-    [212948]     = 2574760 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 1)
-    [212244]     = 2799950, -- Cavedweller's Delight (Quality 3)
-    [212243]     = 2685000, -- Cavedweller's Delight (Quality 2)
-    [212242]     = 2574760, -- Cavedweller's Delight (Quality 1)
-    
-    
-    -- Dragonflight Healing Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
-    [207023]     = 310592, -- Dreamwalker's Healing Potion (Quality 3)
-    [207022]     = 266709, -- Dreamwalker's Healing Potion (Quality 2)
-    [207021]     = 228992, -- Dreamwalker's Healing Potion (Quality 1)
-    [191380]     = 160300, -- Refreshing Healing Potion (Quality 3)
-    [191379]     = 137550, -- Refreshing Healing Potion (Quality 2)
-    [191378]     = 118000, -- Refreshing Healing Potion (Quality 1)
-
-    -- Classic Healing Potions:  https://www.wowhead.com/classic/spells/professions/alchemy/name:Healing+Potion/live-only:on?filter=16;10;0
-    [13446]      = 1750,  -- Major Healing Potion
-    [3928]       = 900,   -- Superior Healing Potion
-    [1710]       = 585,   -- Greater Healing Potion
-    [929]        = 360,   -- Healing Potion
-    [858]        = 180,   -- Lesser Healing Potion
-    [118]        = 90,    -- Minor Healing Potion
+    [212944]     = 3839450 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 3) [TWW, Alchemist]
+    [211880]     = 3839450, -- Algari Healing Potion (Quality 3) [TWW]
+    [212943]     = 3681800 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 2) [TWW, Alchemist]
+    [211879]     = 3681800, -- Algari Healing Potion (Quality 2) [TWW]
+    [212942]     = 3530600 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Healing Potion (Quality 1) [TWW, Alchemist]
+    [211878]     = 3530600, -- Algari Healing Potion (Quality 1) [TWW]
+    [212950]     = 2799950 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 3) [TWW, Alchemist] (also mana)
+    [212244]     = 2799950, -- Cavedweller's Delight (Quality 3) [TWW] (also mana)
+    [212949]     = 2685000 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 2) [TWW, Alchemist] (also mana)
+    [212243]     = 2685000, -- Cavedweller's Delight (Quality 2) [TWW] (also mana)
+    [212948]     = 2574760 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 1) [TWW, Alchemist] (also mana)
+    [212242]     = 2574760, -- Cavedweller's Delight (Quality 1) [TWW] (also mana)
+    [207023]     = 310592, -- Dreamwalker's Healing Potion (Quality 3) [Dragonflight]
+    [207022]     = 266709, -- Dreamwalker's Healing Potion (Quality 2) [Dragonflight]
+    [207021]     = 228992, -- Dreamwalker's Healing Potion (Quality 1) [Dragonflight]
+    [191380]     = 160300, -- Refreshing Healing Potion (Quality 3) [Dragonflight]
+    [191379]     = 137550, -- Refreshing Healing Potion (Quality 2) [Dragonflight]
+    [76097]      = 120000, -- Master Healing Potion [Mists of Pandaria]
+    [191378]     = 118000, -- Refreshing Healing Potion (Quality 1) [Dragonflight]
+    [57191]      = 27500,  -- Mythical Healing Potion [Cataclysm]
+    [152615]     = 16091,  -- Astral Healing Potion [Legion]
+    [171267]     = 10000,  -- Spiritual Healing Potion [Shadowlands]
+    [152494]     = 5936,   -- Coastal Healing Potion [Battle for Azeroth]
+    [33447]      = 4500,   -- Runic Healing Potion [Wrath]
+    [31676]      = 3200,   -- Fel Regeneration Potion [TBC] (also reduces all stats by 15 for 15 min)
+    [39671]      = 2500,   -- Resurgent Healing Potion [Wrath]
+    [18253]      = 1760,   -- Major Rejuvenation Potion [Vanilla] (also restores mana, see BEST_MANA_POTIONS)
+    [13446]      = 1750,   -- Major Healing Potion [Vanilla]
+    [3928]       = 900,    -- Superior Healing Potion [Vanilla]
+    [1710]       = 585,    -- Greater Healing Potion [Vanilla]
+    [22829]      = 455,    -- Super Healing Potion [TBC]
+    [929]        = 360,    -- Healing Potion [Vanilla]
+    [858]        = 180,    -- Lesser Healing Potion [Vanilla]
+    [118]        = 90,     -- Minor Healing Potion [Vanilla]
   },
 
   BEST_MANA_POTIONS = {
@@ -2556,36 +2560,41 @@ BEST_ITEMS = {
 
     -- Mapping of:
     -- ITEM_ID = MAX_MANA_RESTORATION
+    -- Sorted highest to lowest mana restored. Alchemist-only potions get + ALCHEMIST_VALUE_OFFSET so
+    -- they're preferred over the otherwise-identical-strength potion any class can use.
 
-    -- TWW Alchemist-Only Mana Potions
-    [212947]     = 270000 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 3)
-    [212946]     = 234783 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 2)
-    [212945]     = 204159 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 1)
-    [212241]     = 270000, -- Algari Mana Potion (Quality 3)
-    [212240]     = 234783, -- Algari Mana Potion (Quality 2)
-    [212239]     = 204159, -- Algari Mana Potion (Quality 1)
-
-    -- TWW Mana/Healing Potions
-    [212950]     = 202500 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 3)
-    [212949]     = 176087 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 2)
-    [212948]     = 153119 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 1)
-    [212244]     = 202500, -- Cavedweller's Delight (Quality 3)
-    [212243]     = 176087, -- Cavedweller's Delight (Quality 2)
-    [212242]     = 153119, -- Cavedweller's Delight (Quality 1)
-
-
-    -- Dragonflight Mana Potions:  https://www.wowhead.com/spells/professions/alchemy/name:Mana+Potion/live-only:on?filter=16;10;0
-    [191386]     = 27600, -- Aerated Mana Potion (Quality 3)
-    [191385]     = 24000, -- Aerated Mana Potion (Quality 2)
-    [191384]     = 20870, -- Aerated Mana Potion (Quality 1)
-
-    -- Classic Mana Potions: https://www.wowhead.com/classic/spells/professions/alchemy/name:Mana+Potion#0-18+2
-    [13444]      = 2250, -- Major Mana Potion
-    [13443]      = 1500, -- Superior Mana Potion
-    [6149]       = 900, -- Greater Mana Potion
-    [3827]       = 585, -- Mana Potion
-    [3385]       = 360, -- Lesser Mana Potion
-    [2455]       = 180, -- Minor Mana Potion
+    [212947]     = 270000 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 3) [TWW, Alchemist]
+    [212241]     = 270000, -- Algari Mana Potion (Quality 3) [TWW]
+    [127846]     = 240000, -- Leytorrent Potion [Legion] (channeled over 10 sec, defenseless while channeling)
+    [212946]     = 234783 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 2) [TWW, Alchemist]
+    [212240]     = 234783, -- Algari Mana Potion (Quality 2) [TWW]
+    [212945]     = 204159 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Algari Mana Potion (Quality 1) [TWW, Alchemist]
+    [212239]     = 204159, -- Algari Mana Potion (Quality 1) [TWW]
+    [212950]     = 202500 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 3) [TWW, Alchemist] (also healing)
+    [212244]     = 202500, -- Cavedweller's Delight (Quality 3) [TWW] (also healing)
+    [212949]     = 176087 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 2) [TWW, Alchemist] (also healing)
+    [212243]     = 176087, -- Cavedweller's Delight (Quality 2) [TWW] (also healing)
+    [212948]     = 153119 + ALCHEMIST_VALUE_OFFSET, -- Fleeting Cavedweller's Delight (Quality 1) [TWW, Alchemist] (also healing)
+    [212242]     = 153119, -- Cavedweller's Delight (Quality 1) [TWW] (also healing)
+    [76092]      = 45000,  -- Potion of Focus [Mists of Pandaria] (channeled over 10 sec, defenseless while channeling)
+    [109222]     = 35700,  -- Draenic Mana Potion [Warlords of Draenor]
+    [76098]      = 31500,  -- Master Mana Potion [Mists of Pandaria]
+    [191386]     = 27600,  -- Aerated Mana Potion (Quality 3) [Dragonflight]
+    [191385]     = 24000,  -- Aerated Mana Potion (Quality 2) [Dragonflight]
+    [191384]     = 20870,  -- Aerated Mana Potion (Quality 1) [Dragonflight]
+    [57192]      = 10750,  -- Mythical Mana Potion [Cataclysm]
+    [171272]     = 10000,  -- Potion of Spiritual Clarity [Shadowlands] (channeled over 10 sec, defenseless while channeling)
+    [171268]     = 7200,   -- Spiritual Mana Potion [Shadowlands]
+    [33448]      = 4300,   -- Runic Mana Potion [Wrath]
+    [31677]      = 3200,   -- Fel Mana Potion [TBC] (also reduces spell power by 25 for 15 min)
+    [22832]      = 3000,   -- Super Mana Potion [TBC]
+    [13444]      = 2250,   -- Major Mana Potion [Vanilla]
+    [18253]      = 1760,   -- Major Rejuvenation Potion [Vanilla] (also restores health, see BEST_HEALING_POTIONS)
+    [13443]      = 1500,   -- Superior Mana Potion [Vanilla]
+    [6149]       = 900,    -- Greater Mana Potion [Vanilla]
+    [3827]       = 585,    -- Mana Potion [Vanilla]
+    [3385]       = 360,    -- Lesser Mana Potion [Vanilla]
+    [2455]       = 180,    -- Minor Mana Potion [Vanilla]
   },
 
   BEST_BANDAGES = {
