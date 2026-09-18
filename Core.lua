@@ -315,13 +315,23 @@ function setCVars()
     ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
 
     -- Floating Combat Text:
-    ensureCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
-    ensureCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
-    ensureCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
-    ensureCVar("floatingCombatTextCombatHealing_v2", 0)           -- Disable All Healing v2 ?
-    ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
-    ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
-    ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
+    if isRetail() then
+      ensureCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
+      ensureCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
+      ensureCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
+      ensureCVar("floatingCombatTextCombatHealing_v2", 0)           -- Disable All Healing v2 ?
+      ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
+      ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
+      ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
+    else
+      ensureCVar("floatingCombatTextCombatDamage", 1)            -- Disable Direct Damage (White/Yellow Hits)
+      ensureCVar("floatingCombatTextCombatDamage_v2", 1)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
+      ensureCVar("floatingCombatTextCombatHealing", 1)           -- Disable All Healing
+      ensureCVar("floatingCombatTextCombatHealing_v2", 1)           -- Disable All Healing v2 ?
+      ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
+      ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
+      ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
+    end
   end
 end
 
