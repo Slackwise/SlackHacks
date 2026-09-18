@@ -28,6 +28,13 @@ function Get-WowRoot {
     return "C:\Program Files (x86)\World of Warcraft"
 }
 
+# Check if script is running as administrator, if not, relaunch as administrator.
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "Script is not running as administrator. Relaunching with administrator privileges..." -ForegroundColor Yellow
+    Start-Process powershell.exe -Verb RunAs -ArgumentList ("-File", $MyInvocation.MyCommand.Path)
+    exit
+}
+
 try {
     $wowRoot = Get-WowRoot
     Write-Host "Found WoW install at: $wowRoot" -ForegroundColor Green
@@ -40,13 +47,6 @@ try {
     Get-ChildItem -Path $wowRoot -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -match $flavorPattern } |
         ForEach-Object { $dirs[$_.Name.Trim('_')] = Join-Path $_.FullName "Interface\AddOns\SlackHacks" }
-
-    # Check if script is running as administrator, if not, relaunch as administrator
-    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-        Write-Host "Script is not running as administrator. Relaunching with administrator privileges..." -ForegroundColor Yellow
-        Start-Process powershell.exe -Verb RunAs -ArgumentList ("-File", $MyInvocation.MyCommand.Path)
-        exit
-    }
 
     $hadFailure = $false
     foreach ($dirName in $dirs.Keys) {
