@@ -851,6 +851,7 @@ BINDINGS = {
       {"SHIFT-1",       "Healing Touch"},
       {"2",             "Wrath"},
       {"4",             "Moonfire"},
+      {"F",             "Entangling Roots"},
       {"ALT-CTRL-Z",    "Shadowmeld"},
       {"CTRL-G",        "Elune's Light"},
     },
