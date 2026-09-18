@@ -128,7 +128,7 @@ end
 
 function isRetail()
   -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
-  if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+  if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE and LE_EXPANSION_LEVEL_CURRENT ~= LE_EXPANSION_CLASSIC then
     return true
   else
     return false
@@ -137,7 +137,7 @@ end
 
 function isForever()
   -- Official way Blizzard distinguishes between game clients: https://warcraft.wiki.gg/wiki/WOW_PROJECT_ID
-  if WOW_PROJECT_ID == WOW_PROJECT_CLASSIC_BETA then
+  if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE and LE_EXPANSION_LEVEL_CURRENT == LE_EXPANSION_CLASSIC then
     return true
   else
     return false
@@ -156,6 +156,8 @@ end
 function getGameType()
   if isRetail() then
     return "RETAIL"
+  elseif isForever() then
+    return "FOREVER"
   elseif isClassic() then
     return "CLASSIC"
   else
