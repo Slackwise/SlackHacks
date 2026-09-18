@@ -28,58 +28,61 @@ function Get-WowRoot {
     return "C:\Program Files (x86)\World of Warcraft"
 }
 
-$wowRoot = Get-WowRoot
-Write-Host "Found WoW install at: $wowRoot" -ForegroundColor Green
+try {
+    $wowRoot = Get-WowRoot
+    Write-Host "Found WoW install at: $wowRoot" -ForegroundColor Green
 
-# Each installed game flavor (retail, classic, classic era, PTR, etc.) lives in its
-# own "_flavor_" folder directly under the WoW root, so discover them instead of
-# hardcoding names.
-$flavorPattern = '^_[a-z0-9_]+_$'
-$dirs = @{}
-Get-ChildItem -Path $wowRoot -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match $flavorPattern } |
-    ForEach-Object { $dirs[$_.Name.Trim('_')] = Join-Path $_.FullName "Interface\AddOns\SlackHacks" }
+    # Each installed game flavor (retail, classic, classic era, PTR, etc.) lives in its
+    # own "_flavor_" folder directly under the WoW root, so discover them instead of
+    # hardcoding names.
+    $flavorPattern = '^_[a-z0-9_]+_$'
+    $dirs = @{}
+    Get-ChildItem -Path $wowRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match $flavorPattern } |
+        ForEach-Object { $dirs[$_.Name.Trim('_')] = Join-Path $_.FullName "Interface\AddOns\SlackHacks" }
 
-# Check if script is running as administrator, if not, relaunch as administrator
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Script is not running as administrator. Relaunching with administrator privileges..." -ForegroundColor Yellow
-    Start-Process powershell.exe -Verb RunAs -ArgumentList ("-File", $MyInvocation.MyCommand.Path)
-    exit
-}
-
-$hadFailure = $false
-foreach ($dirName in $dirs.Keys) {
-    $parentDir = Split-Path -Parent $dirs[$dirName]
-    if (-not (Test-Path -Path $parentDir)) {
-        Write-Host "Skipping $($dirName.ToUpper()): directory does not exist"
-        continue
+    # Check if script is running as administrator, if not, relaunch as administrator
+    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+        Write-Host "Script is not running as administrator. Relaunching with administrator privileges..." -ForegroundColor Yellow
+        Start-Process powershell.exe -Verb RunAs -ArgumentList ("-File", $MyInvocation.MyCommand.Path)
+        exit
     }
 
-    $targetPath = $dirs[$dirName]
-    $existingItem = Get-Item -Path $targetPath -Force -ErrorAction SilentlyContinue
-    if ($existingItem -and $existingItem.LinkType -eq "Junction") {
-        $existingTarget = ($existingItem.Target | Select-Object -First 1)
-        if ($existingTarget -and $existingTarget.TrimEnd('\') -ne $sourceDir.TrimEnd('\')) {
-            Remove-Item -Path $targetPath -Force
-            Write-Host "$($dirName.ToUpper()) was linked to '$existingTarget'; removing and relinking to '$sourceDir'." -ForegroundColor Yellow
+    $hadFailure = $false
+    foreach ($dirName in $dirs.Keys) {
+        $parentDir = Split-Path -Parent $dirs[$dirName]
+        if (-not (Test-Path -Path $parentDir)) {
+            Write-Host "Skipping $($dirName.ToUpper()): directory does not exist"
+            continue
+        }
+
+        $targetPath = $dirs[$dirName]
+        $existingItem = Get-Item -Path $targetPath -Force -ErrorAction SilentlyContinue
+        if ($existingItem -and $existingItem.LinkType -eq "Junction") {
+            $existingTarget = ($existingItem.Target | Select-Object -First 1)
+            if ($existingTarget -and $existingTarget.TrimEnd('\') -ne $sourceDir.TrimEnd('\')) {
+                Remove-Item -Path $targetPath -Force
+                Write-Host "$($dirName.ToUpper()) was linked to '$existingTarget'; removing and relinking to '$sourceDir'." -ForegroundColor Yellow
+            }
+        }
+
+        try {
+            New-Item -ItemType Junction -Path $dirs[$dirName] -Target $sourceDir -ErrorAction Stop | Out-Null
+            Write-Host "$($dirName.ToUpper()) succeeded." -ForegroundColor Green
+        } catch [System.IO.IOException] {
+            Write-Host "$($dirName.ToUpper()) is already linked." -ForegroundColor Cyan
+        } catch {
+            Write-Host "Error while trying to junction $($dirName.ToUpper()):" -ForegroundColor Red
+            Write-Error $_
+            $hadFailure = $true
         }
     }
 
-    try {
-        New-Item -ItemType Junction -Path $dirs[$dirName] -Target $sourceDir -ErrorAction Stop | Out-Null
-        Write-Host "$($dirName.ToUpper()) succeeded." -ForegroundColor Green
-    } catch [System.IO.IOException] {
-        Write-Host "$($dirName.ToUpper()) is already linked." -ForegroundColor Cyan
-    } catch {
-        Write-Host "Error while trying to junction $($dirName.ToUpper()):" -ForegroundColor Red
-        Write-Error $_
-        $hadFailure = $true
+    if ($hadFailure) {
+        Write-Host "Finished with errors; see above." -ForegroundColor Red
+    } else {
+        Write-Host "Done! SlackHacks addon links are set up." -ForegroundColor Green
     }
+} finally {
+    pause
 }
-
-if ($hadFailure) {
-    Write-Host "Finished with errors; see above." -ForegroundColor Red
-} else {
-    Write-Host "Done! SlackHacks addon links are set up." -ForegroundColor Green
-}
-pause
