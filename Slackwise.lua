@@ -855,7 +855,7 @@ BINDINGS = {
       {"SHIFT-E",       "Maul"},
       {"SHIFT-T",       "Demoralizing Roar"},
       {"F",             "Entangling Roots"},
-      {"V",             "Bear Form"},
+      {"V",             {"BEAR", "Ability_Racial_BearForm", "/cast [form:1] Frenzied Regeneration; Bear Form"}},
       {"CTRL-F",        "Nature's Grasp"},
       {"ALT-CTRL-Z",    "Shadowmeld"},
       {"CTRL-G",        "Elune's Light"},
