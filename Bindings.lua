@@ -44,18 +44,26 @@ BINDINGS_FUNCTIONS = {
   [BT.CLICK]   = SetBindingClick
 }
 
---- Create or update an in-game macro so its name/icon/body match the given definition.
---- `GetMacroIndexByName` searches both the global (account-wide, slots 1-120) and per-character
---- (slots 121-150) macro lists, so an existing macro in either context is found and reused.
---- Newly-created macros default to global/account-wide.
+GLOBAL_MACRO_SLOTS = 120 -- Slots 1-120 are general/account-wide macros; 121-150 are per-character.
+
+--- Create or update an in-game macro so its name/icon/body match the given definition, moving it between
+--- the general and per-character macro lists if it already exists in the wrong one for `perCharacter`.
+--- `GetMacroIndexByName` searches both lists, so an existing macro in either context is found and reused.
 ---@param name string - The macro's name.
 ---@param icon number - The macro's icon fileID.
 ---@param body string - The macro's script/text contents.
+---@param perCharacter boolean - Whether the macro should be per-character rather than general/account-wide.
 ---@return number - The macro's slot index.
-function defineMacro(name, icon, body)
+function defineMacro(name, icon, body, perCharacter)
   local index = GetMacroIndexByName(name)
+
+  if index ~= 0 and (index > GLOBAL_MACRO_SLOTS) ~= (perCharacter or false) then
+    DeleteMacro(index)
+    index = 0
+  end
+
   if index == 0 then
-    return CreateMacro(name, icon, body)
+    return CreateMacro(name, icon, body, perCharacter)
   end
 
   local existingName, existingIcon, existingBody = GetMacroInfo(index)
@@ -68,11 +76,12 @@ end
 --- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL".
 --- If `name` is a table `{macroName, icon, body}` instead of a string, the binding is treated as a macro
 --- (no `bindingType` needed): the macro is created/updated to match the definition, then bound to `key`.
-function setBinding(binding)
+---@param perCharacter boolean - Whether a newly-defined macro should be per-character rather than general.
+function setBinding(binding, perCharacter)
   local key, name, bindingType = unpack(binding)
   if type(name) == "table" then
     local macroName, icon, body = unpack(name)
-    defineMacro(macroName, icon, body)
+    defineMacro(macroName, icon, body, perCharacter)
     SetBindingMacro(key, macroName)
     return
   end
@@ -176,9 +185,9 @@ function setBindings()
   LoadBindings(BINDING_CATEGORY.DEFAULT_BINDINGS)
   unbindUnwantedDefaults()
 
-  -- Global bindings:
+  -- Global bindings: macros defined here go in the general/account-wide macro list.
   for _, binding in ipairs(BINDINGS.GLOBAL) do
-    setBinding(binding)
+    setBinding(binding, false)
   end
 
   -- Class specific bindings:
@@ -198,7 +207,7 @@ function setBindings()
       end
       for _, binding in ipairs(bindings.CLASS) do
         if not shouldSkipBinding(binding) then
-          setBinding(binding)
+          setBinding(binding, true)
         end
       end
       if bindings.CLASS.POST_SCRIPT then
@@ -214,7 +223,7 @@ function setBindings()
       if specBindings ~= nil then
         for _, binding in ipairs(specBindings) do
           if not shouldSkipBinding(binding) then
-            setBinding(binding)
+            setBinding(binding, true)
           end
         end
       end
@@ -232,7 +241,7 @@ function setBindings()
 
     for _, binding in ipairs(bindings) do
       if not shouldSkipBinding(binding) then
-        setBinding(binding)
+        setBinding(binding, true)
       end
     end
 
@@ -249,7 +258,7 @@ function setBindings()
 
     for _, binding in ipairs(bindings) do
       if not shouldSkipBinding(binding) then
-        setBinding(binding)
+        setBinding(binding, true)
       end
     end
 
