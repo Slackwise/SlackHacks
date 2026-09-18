@@ -193,6 +193,23 @@ function setBindings()
 
     SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
     print((spec or "CLASS-ONLY") .. " " .. class .. " binding presets loaded!")
+  elseif isForever() then
+    if bindings.PRE_SCRIPT then
+      bindings.PRE_SCRIPT()	
+    end
+
+    for _, binding in ipairs(bindings) do
+      if not shouldSkipBinding(binding) then
+        setBinding(binding)
+      end
+    end
+
+    if bindings.POST_SCRIPT then
+      bindings.POST_SCRIPT()	
+    end
+
+    SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
+    print(class .. " binding presets loaded!")
   elseif isClassic() then
     if bindings.PRE_SCRIPT then
       bindings.PRE_SCRIPT()	

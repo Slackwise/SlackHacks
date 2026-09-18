@@ -845,6 +845,112 @@ BINDINGS = {
       }
     },
   },
+  CLASSIC_BETA = {
+    DRUID = {
+      {"1",  "ACTIONBUTTON1", BT.COMMAND},
+      {"2",  "ACTIONBUTTON2", BT.COMMAND},
+      {"3",  "ACTIONBUTTON3", BT.COMMAND},
+      {"4",  "ACTIONBUTTON4", BT.COMMAND},
+      {"5",  "ACTIONBUTTON5", BT.COMMAND},
+      {"6",  "ACTIONBUTTON6", BT.COMMAND},
+      {"7",  "ACTIONBUTTON7", BT.COMMAND},
+      {"8",  "ACTIONBUTTON8", BT.COMMAND},
+      {"9",  "ACTIONBUTTON9", BT.COMMAND},
+      {"10", "ACTIONBUTTON10", BT.COMMAND},
+      {"11", "ACTIONBUTTON11", BT.COMMAND},
+      {"12", "ACTIONBUTTON12", BT.COMMAND},
+    },
+    PALADIN = {
+      {"1",  "ACTIONBUTTON1", BT.COMMAND},
+      {"2",  "ACTIONBUTTON2", BT.COMMAND},
+      {"3",  "ACTIONBUTTON3", BT.COMMAND},
+      {"4",  "ACTIONBUTTON4", BT.COMMAND},
+      {"5",  "ACTIONBUTTON5", BT.COMMAND},
+      {"6",  "ACTIONBUTTON6", BT.COMMAND},
+      {"7",  "ACTIONBUTTON7", BT.COMMAND},
+      {"8",  "ACTIONBUTTON8", BT.COMMAND},
+      {"9",  "ACTIONBUTTON9", BT.COMMAND},
+      {"10", "ACTIONBUTTON10", BT.COMMAND},
+      {"11", "ACTIONBUTTON11", BT.COMMAND},
+      {"12", "ACTIONBUTTON12", BT.COMMAND},
+
+      ---------------------------------------------------
+
+      -- General
+      {"E", "!ENGAGE", BT.MACRO}, -- Crusader Strike
+
+      {"F9",      "SHAPESHIFTBUTTON1", BT.COMMAND},
+      {"F10",     "SHAPESHIFTBUTTON2", BT.COMMAND},
+      {"F11",     "SHAPESHIFTBUTTON3", BT.COMMAND},
+      {"F12",     "SHAPESHIFTBUTTON4", BT.COMMAND},
+      {"`",       "!STOP", BT.MACRO},
+      {"BUTTON4", "MOUSE4", BT.MACRO},
+      {"BUTTON5", "MOUSE5", BT.MACRO},
+
+      -- Core
+      {"Z",     "Divine Protection"},
+      {"ALT-Z", "Perception"},
+
+      -- Main Attacks and Runes?
+      {"4",       "Judgement"},
+      {"5",       "Hammer of Wrath"},
+      {"C",       "Consecration"},
+      {"SHIFT-C", "Divine Storm"},
+
+      -- Heals (Coming from left hand?)
+      {"3",      "Divine Storm"}, -- AoE Heal
+      {"Q",      "Holy Light"}, -- Instant Attack (Holy Shock macro @ Enemy only)
+      {"ALT-Q",  "Purify"}, -- Cleanse later
+      {"CTRL-Z", "Redemption"},
+
+      -- "OHSHIT" Buttons
+      {"G",       "Blessing of Protection"},
+      {"SHIFT-G", "Lay on Hands"},
+
+      -- CC
+      {"F",       "Rebuke"},
+      {"SHIFT-F", "Hammer of Justice"},
+
+      -- Blessings
+      {"T",       "Blessing of Might"},
+      {"SHIFT-T", "Blessing of Wisdom"},
+
+      -- Seals & Judgement
+      {"R",       "Seal of Righteousness"},
+      {"SHIFT-R", "Seal of the Crusader"},
+
+      -- Items
+      {"ALT-Z", "Insignia of the Alliance", "ITEM"}, -- PvP Trinket
+    },
+    PRIEST = {
+      {"1",  "ACTIONBUTTON1", BT.COMMAND},
+      {"2",  "ACTIONBUTTON2", BT.COMMAND},
+      {"3",  "ACTIONBUTTON3", BT.COMMAND},
+      {"4",  "ACTIONBUTTON4", BT.COMMAND},
+      {"5",  "ACTIONBUTTON5", BT.COMMAND},
+      {"6",  "ACTIONBUTTON6", BT.COMMAND},
+      {"7",  "ACTIONBUTTON7", BT.COMMAND},
+      {"8",  "ACTIONBUTTON8", BT.COMMAND},
+      {"9",  "ACTIONBUTTON9", BT.COMMAND},
+      {"10", "ACTIONBUTTON10", BT.COMMAND},
+      {"12", "ACTIONBUTTON12", BT.COMMAND},
+      {"11", "ACTIONBUTTON11", BT.COMMAND},
+
+      {"`",            "!STOP", BT.MACRO},
+      {"1",            "Renew"},
+      {"2",            "Lesser Heal"},
+      {"4",            "Shadow Word: Pain"},
+      -- {"5",         "Penance"},
+      {"Q",            "Power Word: Shield"},
+      {"E",            "!ENGAGE", BT.MACRO},
+      {"T",            "Power Word: Fortitude"},
+      {"Z",            "Fade"},
+      {"CTRL-Z",       "Fade"},
+      {"SHIFT-Z",      "Shadowmeld"},
+      {"CTRL-SHIFT-Z", "Shadowmeld"},
+      {"V",            "SHIELD_SELF", BT.MACRO},
+    }
+  },
   CLASSIC = {
     DRUID = {
       {"1",  "ACTIONBUTTON1", BT.COMMAND},
