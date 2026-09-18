@@ -847,18 +847,10 @@ BINDINGS = {
   },
   FOREVER = {
     DRUID = {
-      {"1",  "ACTIONBUTTON1", BT.COMMAND},
-      {"2",  "ACTIONBUTTON2", BT.COMMAND},
-      {"3",  "ACTIONBUTTON3", BT.COMMAND},
-      {"4",  "ACTIONBUTTON4", BT.COMMAND},
-      {"5",  "ACTIONBUTTON5", BT.COMMAND},
-      {"6",  "ACTIONBUTTON6", BT.COMMAND},
-      {"7",  "ACTIONBUTTON7", BT.COMMAND},
-      {"8",  "ACTIONBUTTON8", BT.COMMAND},
-      {"9",  "ACTIONBUTTON9", BT.COMMAND},
-      {"10", "ACTIONBUTTON10", BT.COMMAND},
-      {"11", "ACTIONBUTTON11", BT.COMMAND},
-      {"12", "ACTIONBUTTON12", BT.COMMAND},
+      {"1",  "Healing Touch"},
+      {"2",  "Wrath"},
+      {"SHIFT-Z",  "Shadowmeld"},
+      {"CTRL-G",  "Elune's Light"},
     },
     PALADIN = {
       {"1",  "ACTIONBUTTON1", BT.COMMAND},
