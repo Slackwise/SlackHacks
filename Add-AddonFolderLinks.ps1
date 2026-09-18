@@ -1,6 +1,7 @@
 $sourceDir    = "$PSScriptRoot"
 $dirs = @{
     retail = "C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\SlackHacks"
+    forever = "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\SlackHacks"
     classic = "C:\Program Files (x86)\World of Warcraft\_classic_era_\Interface\AddOns\SlackHacks"
     beta = "C:\Program Files (x86)\World of Warcraft\_beta_\Interface\AddOns\SlackHacks"
 }
