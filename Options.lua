@@ -565,15 +565,15 @@ options = {
               end,
               order = 3
             },
-            hideClassicDayNightIcon = {
+            hideDiel = {
               name = "Hide Day/Night Icon",
-              desc = "Hide the oversized day/night icon (MinimapCluster.DielFrame) on Classic/Forever's minimap.",
+              desc = [[Hide the big useless day/night (diel) icon.]],
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.minimap.hideClassicDayNightIcon end,
+              get = function() return db.profile.minimap.hideDiel end,
               set = function(_, value)
-                db.profile.minimap.hideClassicDayNightIcon = value
+                db.profile.minimap.hideDiel = value
                 Self.Minimap:Refresh()
               end,
               hidden = function() return isRetail() end,

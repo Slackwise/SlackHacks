@@ -70,7 +70,7 @@ dbDefaults = {
       showTracking = true,
       showAllMinimapTracking = false,
       hideExtraButtons = false,
-      hideClassicDayNightIcon = false,
+      hideDiel = false,
       showBorder = true,
       mouseWheelZoom = true
     },

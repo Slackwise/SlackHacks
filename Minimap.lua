@@ -36,7 +36,7 @@ local DEFAULT_VISUALS = {
   showTracking = true,
   showAllMinimapTracking = false,
   hideExtraButtons = false,
-  hideClassicDayNightIcon = false,
+  hideDiel = false,
   showBorder = true,
   mouseWheelZoom = true,
 }
@@ -178,7 +178,7 @@ local function applyDielFrame()
   local shown = true
   if mm.shape == "square" then
     shown = false -- doesn't fit the title bar; always hidden there
-  elseif not isRetail() and mm.hideClassicDayNightIcon then
+  elseif not isRetail() and mm.hideDiel then
     shown = false
   end
   setShownSafely(MinimapCluster and MinimapCluster.DielFrame, shown)
@@ -613,8 +613,8 @@ local function createOptionsDialog()
     curY)
   if not isRetail() then
     _, curY = addCheckbox("Hide Day/Night Icon",
-      function() return db.profile.minimap.hideClassicDayNightIcon end,
-      function(v) db.profile.minimap.hideClassicDayNightIcon = v end,
+      function() return db.profile.minimap.hideDiel end,
+      function(v) db.profile.minimap.hideDiel = v end,
       curY)
   end
   _, curY = addCheckbox("Show Tracking Button",
