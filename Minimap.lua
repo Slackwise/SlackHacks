@@ -253,18 +253,18 @@ end
 
 local function applyExtraButtons()
   local isSquare = settings().shape == "square"
-  local shown = not settings().hideExtraButtons
+  local hideExtra = settings().hideExtraButtons
+  local mail = getMailButton()
   for _, button in ipairs(extraButtons()) do
-    if isSquare then
-      -- In square mode, hide all extra buttons except mail
-      local mail = getMailButton()
-      if button == mail then
-        setShownSafely(button, shown)
-      else
+    if button == mail then
+      if hideExtra then
         setShownSafely(button, false)
       end
+      -- Otherwise let Blizzard's own MiniMapMailFrameMixin show/hide it on mail arrival/clearing
+    elseif isSquare then
+      setShownSafely(button, false)
     else
-      setShownSafely(button, shown)
+      setShownSafely(button, not hideExtra)
     end
   end
   applyCraftingOrderFrame()
@@ -981,6 +981,9 @@ end
 
 local function isButtonShown(button)
   if not button then return false end
+  if settings().hideExtraButtons and button == getMailButton() then
+    return false
+  end
   if not isRetail() and button == (MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame) then
     return false
   end
@@ -1611,8 +1614,12 @@ function module:OnDisable()
     if GameTimeFrame then GameTimeFrame:Show() end
     if MinimapCluster and MinimapCluster.DielFrame then MinimapCluster.DielFrame:Show() end
     if MinimapCluster and MinimapCluster.Tracking then MinimapCluster.Tracking:Show() end
+    local mail = getMailButton()
     for _, button in ipairs(extraButtons()) do
-      if button then button:Show() end
+      if button and button ~= mail then button:Show() end
+    end
+    if mail and HasNewMail and HasNewMail() then
+      mail:Show()
     end
   end
   if MinimapBackdrop then MinimapBackdrop:SetAlpha(1) end
