@@ -55,6 +55,7 @@ local optionsDialog
 local squareBorderFrame
 local titleBarFrame
 local titleBarZoneText
+local titleBarIconRow
 local savedIconAnchors = {}
 
 local function extraButtons()
@@ -74,9 +75,11 @@ local function extraButtons()
   }
 end
 
---- Every minimap icon button we know how to shrink/reposition into the square mode's title bar.
+--- Every minimap icon button we know how to shrink/reposition into the square mode's title bar, ordered
+--- right-to-left (first entry ends up rightmost): clock, calendar/tracking/other buttons, addon compartment.
 local function iconBarFrames()
   local frames = {}
+  if TimeManagerClockButton then table.insert(frames, TimeManagerClockButton) end
   if GameTimeFrame then table.insert(frames, GameTimeFrame) end
   if MinimapCluster and MinimapCluster.Tracking then table.insert(frames, MinimapCluster.Tracking) end
   for _, button in ipairs(extraButtons()) do
@@ -233,7 +236,8 @@ local function applyBorder()
 end
 
 local TITLE_BAR_HEIGHT = 18
-local TITLE_BAR_ICON_SCALE = 0.55
+local TITLE_BAR_ICON_SCALE = 0.7
+local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
 
 --- Sits in the visual banner area of the square border, hosting the zone text (left) and shrunk
 --- minimap icons (right) in square mode. Parented to the minimap itself (not the border) so it isn't
@@ -261,6 +265,15 @@ local function createTitleBar()
   zoneText:SetJustifyH("LEFT")
   titleBarZoneText = zoneText
 
+  -- A shared wrapper so every repositioned icon anchors to the same reference frame (same strata/level
+  -- as the bar itself) instead of each one separately guessing at the bar's own edge.
+  local iconRow = CreateFrame("Frame", "SlackHacksMinimapTitleBarIcons", frame)
+  iconRow:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+  iconRow:SetSize(1, TITLE_BAR_HEIGHT)
+  iconRow:SetFrameStrata(frame:GetFrameStrata())
+  iconRow:SetFrameLevel(510)
+  titleBarIconRow = iconRow
+
   titleBarFrame = frame
   return frame
 end
@@ -271,23 +284,31 @@ local function updateTitleBarZoneText()
   end
 end
 
---- Blizzard's own layout code re-anchors these icons on its own (e.g. when the cluster resizes or a
---- sibling shows/hides), which would otherwise silently undo our positioning a moment later; swallow
---- their SetPoint/ClearAllPoints calls and drive position ourselves via the real underlying methods.
-local function hijackSetPoint(frame)
+--- Blizzard's own layout code (or the button's own library) re-anchors AND re-strata/re-levels these
+--- icons on its own, which would otherwise silently undo our positioning/layering a moment later;
+--- swallow those calls and drive everything ourselves via the real underlying methods.
+local function hijackPositioning(frame)
   if frame.slackHacksRealSetPoint then return end
   frame.slackHacksRealSetPoint = frame.SetPoint
   frame.slackHacksRealClearAllPoints = frame.ClearAllPoints
+  frame.slackHacksRealSetFrameStrata = frame.SetFrameStrata
+  frame.slackHacksRealSetFrameLevel = frame.SetFrameLevel
   frame.SetPoint = function() end
   frame.ClearAllPoints = function() end
+  frame.SetFrameStrata = function() end
+  frame.SetFrameLevel = function() end
 end
 
-local function releaseSetPoint(frame)
+local function releasePositioning(frame)
   if not frame.slackHacksRealSetPoint then return end
   frame.SetPoint = frame.slackHacksRealSetPoint
   frame.ClearAllPoints = frame.slackHacksRealClearAllPoints
+  frame.SetFrameStrata = frame.slackHacksRealSetFrameStrata
+  frame.SetFrameLevel = frame.slackHacksRealSetFrameLevel
   frame.slackHacksRealSetPoint = nil
   frame.slackHacksRealClearAllPoints = nil
+  frame.slackHacksRealSetFrameStrata = nil
+  frame.slackHacksRealSetFrameLevel = nil
 end
 
 local function saveIconAnchor(frame)
@@ -302,7 +323,7 @@ end
 local function restoreIconAnchor(frame)
   local saved = savedIconAnchors[frame]
   if not saved then return end
-  releaseSetPoint(frame) -- give Blizzard back control before calling SetPoint/ClearAllPoints ourselves
+  releasePositioning(frame) -- give Blizzard back control before calling these methods ourselves
   frame:SetScale(saved.scale)
   frame:SetFrameLevel(saved.frameLevel)
   frame:SetFrameStrata(saved.strata)
@@ -313,21 +334,22 @@ local function restoreIconAnchor(frame)
   savedIconAnchors[frame] = nil
 end
 
---- Shrinks and lines up the minimap's icon buttons along the right side of the title bar.
-local function layoutTitleBarIcons(bar)
+--- Shrinks and lines up the minimap's icon buttons along the right side of the title bar, all anchored
+--- to the shared `titleBarIconRow` wrapper so they line up on the exact same strata/level/edge.
+local function layoutTitleBarIcons(row)
   local previous
   for _, frame in ipairs(iconBarFrames()) do
     if frame:IsShown() then
       saveIconAnchor(frame)
-      hijackSetPoint(frame)
-      frame:SetScale(TITLE_BAR_ICON_SCALE)
-      frame:SetFrameStrata(bar:GetFrameStrata())
-      frame:SetFrameLevel(bar:GetFrameLevel() + 1)
+      hijackPositioning(frame)
+      frame:SetScale(frame == TimeManagerClockButton and TITLE_BAR_CLOCK_SCALE or TITLE_BAR_ICON_SCALE)
+      frame.slackHacksRealSetFrameStrata(frame, row:GetFrameStrata())
+      frame.slackHacksRealSetFrameLevel(frame, row:GetFrameLevel() + 1)
       frame.slackHacksRealClearAllPoints(frame)
       if previous then
         frame.slackHacksRealSetPoint(frame, "RIGHT", previous, "LEFT", -2, 0)
       else
-        frame.slackHacksRealSetPoint(frame, "RIGHT", bar, "RIGHT", 0, 0)
+        frame.slackHacksRealSetPoint(frame, "RIGHT", row, "RIGHT", 0, 0)
       end
       previous = frame
     end
@@ -348,7 +370,7 @@ local function applyTitleBarLayout()
   bar:Show()
   titleBarZoneText:SetShown(mm.showZoneText)
   updateTitleBarZoneText()
-  layoutTitleBarIcons(bar)
+  layoutTitleBarIcons(titleBarIconRow)
 end
 
 local ADDON_BUTTON_GAP = 4
@@ -438,13 +460,13 @@ local function layoutAddonButtons(border, position, buttons)
   for _, frame in ipairs(buttons) do
     if frame:IsShown() then
       saveIconAnchor(frame)
-      hijackSetPoint(frame)
+      hijackPositioning(frame)
       -- NineSlicePanelTemplate's border art is hardcoded to frame level 500 (see createSquareBorder).
       -- Minimap's own native strata may already be "HIGH" (it's an always-on-top HUD element), in which
       -- case matching border's strata alone just ties with it and falls back to frame level -- so bump
       -- both the strata (in case Minimap's native strata is lower than that) AND the level above 500.
-      frame:SetFrameStrata("HIGH")
-      frame:SetFrameLevel(511)
+      frame.slackHacksRealSetFrameStrata(frame, "HIGH")
+      frame.slackHacksRealSetFrameLevel(frame, 511)
       frame.slackHacksRealClearAllPoints(frame)
       if position == "left" then
         if previous then
