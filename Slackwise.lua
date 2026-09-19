@@ -864,8 +864,13 @@ BINDINGS = {
     },
     PALADIN = {
       -- General
-      -- {"E", "!ENGAGE", BT.MACRO}, -- Crusader Strike
-
+      {"E", { "!ENGAGE",
+              "classicon_paladin",
+              strjoin("\n",
+              "#showtooltip Holy Strike",
+              "/startattack",
+              "/cast Holy Strike"
+            )} },
       {"F9",      "SHAPESHIFTBUTTON1", BT.COMMAND},
       {"F10",     "SHAPESHIFTBUTTON2", BT.COMMAND},
       {"F11",     "SHAPESHIFTBUTTON3", BT.COMMAND},
