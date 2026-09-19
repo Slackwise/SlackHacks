@@ -53,7 +53,7 @@ local coordTicker
 local optionsDialog
 local squareBorderFrame
 local titleBarFrame
-local titleBarZoneText
+local titleBarZoneFallbackButton
 local titleBarIconRow
 local applyTitleBarLayout
 local registeredButtons = {}
@@ -154,10 +154,14 @@ local function applyCoordinates()
   end
 end
 
+local function getZoneTextButton()
+  return (MinimapCluster and MinimapCluster.ZoneTextButton) or _G.MinimapZoneTextButton
+end
+
 local function applyZoneText()
-  -- In square mode our own title-bar label (see applyTitleBarLayout) replaces the native zone text.
   local mm = settings()
-  setShownSafely(MinimapCluster and MinimapCluster.ZoneTextButton, mm.showZoneText and mm.shape ~= "square")
+  local zoneButton = getZoneTextButton()
+  setShownSafely(zoneButton, mm.showZoneText)
 end
 
 local function applyClock()
@@ -251,14 +255,6 @@ local function createTitleBar()
   frame:SetFrameStrata(_G.Minimap:GetFrameStrata())
   frame:SetFrameLevel(510)
 
-  -- GameFontNormalSmall = same NORMAL_FONT_COLOR gold used by Blizzard's own window titles (e.g. the
-  -- Spellbook), just at a size that fits our compact title bar.
-  local zoneText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  zoneText:SetPoint("LEFT", frame, "LEFT", 0, 0)
-  zoneText:SetJustifyH("LEFT")
-  zoneText:SetWordWrap(false)
-  titleBarZoneText = zoneText
-
   -- A shared wrapper so every repositioned icon anchors to the same reference frame (same strata/level
   -- as the bar itself) instead of each one separately guessing at the bar's own edge.
   local iconRow = CreateFrame("Frame", "SlackHacksMinimapTitleBarIcons", frame)
@@ -272,9 +268,51 @@ local function createTitleBar()
   return frame
 end
 
-local function updateTitleBarZoneText()
-  if titleBarZoneText and GetMinimapZoneText then
-    titleBarZoneText:SetText(GetMinimapZoneText() or "")
+local function getOrCreateZoneButton(parent)
+  local btn = getZoneTextButton()
+  if btn then return btn end
+  if not titleBarZoneFallbackButton then
+    local fallback = CreateFrame("Button", "SlackHacksMinimapZoneButtonFallback", parent)
+    local text = fallback:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    text:SetPoint("LEFT", fallback, "LEFT", 0, 0)
+    text:SetPoint("RIGHT", fallback, "RIGHT", 0, 0)
+    text:SetJustifyH("LEFT")
+    text:SetWordWrap(false)
+    fallback.Text = text
+    fallback:SetScript("OnClick", function()
+      if ToggleWorldMap then ToggleWorldMap() end
+    end)
+    fallback:SetScript("OnEnter", function(self)
+      if C_GameRules and C_GameRules.IsGameRuleActive and C_GameRules.IsGameRuleActive(Enum.GameRule.WorldMapDisabled) then
+        return
+      end
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      local pvpType, isSubZonePvP, factionName = C_PvP and C_PvP.GetZonePVPInfo and C_PvP.GetZonePVPInfo()
+      if Minimap_SetTooltip then
+        Minimap_SetTooltip(pvpType, factionName)
+      end
+      if MicroButtonTooltipText and WORLDMAP_BUTTON then
+        GameTooltip:AddLine(MicroButtonTooltipText(WORLDMAP_BUTTON, "TOGGLEWORLDMAP"))
+      elseif WORLDMAP_BUTTON then
+        GameTooltip:AddLine(WORLDMAP_BUTTON)
+      end
+      GameTooltip:Show()
+    end)
+    fallback:SetScript("OnLeave", function()
+      GameTooltip_Hide()
+    end)
+    titleBarZoneFallbackButton = fallback
+  end
+  return titleBarZoneFallbackButton
+end
+
+local function updateZoneText()
+  local fs = _G.MinimapZoneText or (titleBarZoneFallbackButton and titleBarZoneFallbackButton.Text)
+  if fs and GetMinimapZoneText then
+    fs:SetText(GetMinimapZoneText() or "")
+  end
+  if Minimap_Update then
+    pcall(Minimap_Update)
   end
 end
 
@@ -409,6 +447,31 @@ local function saveButtonState(button)
     saved.border = borderSaved
   end
 
+  if button == getZoneTextButton() then
+    local fs = (button.GetFontString and button:GetFontString()) or _G.MinimapZoneText
+    if fs then
+      local fsSaved = {
+        frame = fs,
+        fontObject = fs:GetFontObject(),
+        justifyH = fs:GetJustifyH(),
+        points = {},
+      }
+      if fs.CanWordWrap then
+        fsSaved.wordWrap = fs:CanWordWrap()
+      end
+      local fsOk, fsNumPoints = pcall(fs.GetNumPoints, fs)
+      if fsOk and fsNumPoints then
+        for i = 1, fsNumPoints do
+          local pOk, point, relativeTo, relativePoint, x, y = pcall(fs.GetPoint, fs, i)
+          if pOk and point then
+            table.insert(fsSaved.points, { point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y })
+          end
+        end
+      end
+      saved.fontString = fsSaved
+    end
+  end
+
   button.slackHacksSaved = saved
 end
 
@@ -431,6 +494,23 @@ local function restoreButtonState(button)
   button:ClearAllPoints()
   for point, info in pairs(saved.anchors) do
     button:SetPoint(point, info.relativeTo, info.relativePoint, info.x, info.y)
+  end
+
+  if saved.fontString and saved.fontString.frame then
+    local fs = saved.fontString.frame
+    fs:ClearAllPoints()
+    for _, p in ipairs(saved.fontString.points) do
+      fs:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
+    end
+    if saved.fontString.fontObject then
+      fs:SetFontObject(saved.fontString.fontObject)
+    end
+    if saved.fontString.justifyH then
+      fs:SetJustifyH(saved.fontString.justifyH)
+    end
+    if saved.fontString.wordWrap ~= nil and fs.SetWordWrap then
+      fs:SetWordWrap(saved.fontString.wordWrap)
+    end
   end
 
   if saved.border then
@@ -562,6 +642,13 @@ end
 local function disableAllStacking()
   for _, button in ipairs(registeredButtons) do
     enableButtonStacking(button, false)
+  end
+  local zoneButton = getZoneTextButton()
+  if zoneButton then
+    enableButtonStacking(zoneButton, false)
+  end
+  if titleBarZoneFallbackButton then
+    titleBarZoneFallbackButton:Hide()
   end
 end
 
@@ -763,6 +850,55 @@ local function getOrderedButtons()
   return list
 end
 
+--- Positions the unified zone text button on the left side of the title bar, stretching
+--- from the left edge up to the right-side icons, preserving world map click and tooltip details.
+local function layoutTitleBarZoneButton(previous)
+  if not titleBarFrame then return end
+  local mm = settings()
+  local zoneButton = getOrCreateZoneButton(titleBarFrame)
+  if not zoneButton then return end
+
+  if not mm.showZoneText then
+    zoneButton:Hide()
+    return
+  end
+
+  registerButton(zoneButton)
+  enableButtonStacking(zoneButton, true)
+  zoneButton:SetParent(MinimapCluster or _G.Minimap)
+  zoneButton:SetScale(1)
+  setFrameStrataSafe(zoneButton, titleBarFrame:GetFrameStrata())
+  setFrameLevelRecursive(zoneButton, titleBarFrame:GetFrameLevel() + 2)
+
+  if not zoneButton.tooltipText and MicroButtonTooltipText and WORLDMAP_BUTTON then
+    zoneButton.tooltipText = MicroButtonTooltipText(WORLDMAP_BUTTON, "TOGGLEWORLDMAP")
+  end
+
+  local fs = (zoneButton.GetFontString and zoneButton:GetFontString()) or _G.MinimapZoneText or zoneButton.Text
+  if fs then
+    fs:ClearAllPoints()
+    fs:SetPoint("LEFT", zoneButton, "LEFT", 0, 0)
+    fs:SetPoint("RIGHT", zoneButton, "RIGHT", 0, 0)
+    fs:SetJustifyH("LEFT")
+    if fs.SetWordWrap then
+      fs:SetWordWrap(false)
+    end
+    fs:SetFontObject("GameFontNormalSmall")
+  end
+
+  zoneButton.slackHacksRealClearAllPoints(zoneButton)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "LEFT", titleBarFrame, "LEFT", 0, 0)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "TOP", titleBarFrame, "TOP", 0, 0)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "BOTTOM", titleBarFrame, "BOTTOM", 0, 0)
+  if previous then
+    zoneButton.slackHacksRealSetPoint(zoneButton, "RIGHT", previous, "LEFT", -4, 0)
+  else
+    zoneButton.slackHacksRealSetPoint(zoneButton, "RIGHT", titleBarFrame, "RIGHT", 0, 0)
+  end
+  zoneButton:Show()
+  updateZoneText()
+end
+
 --- Shrinks and lines up the minimap buttons along the right side of the title bar,
 --- ordered right-to-left: Clock, standard icons, addon compartment, various addon icons.
 local function layoutTitleBarIcons()
@@ -797,15 +933,7 @@ local function layoutTitleBarIcons()
     end
   end
 
-  if titleBarZoneText then
-    titleBarZoneText:ClearAllPoints()
-    titleBarZoneText:SetPoint("LEFT", titleBarFrame, "LEFT", 0, 0)
-    if previous then
-      titleBarZoneText:SetPoint("RIGHT", previous, "LEFT", -4, 0)
-    else
-      titleBarZoneText:SetPoint("RIGHT", titleBarFrame, "RIGHT", 0, 0)
-    end
-  end
+  layoutTitleBarZoneButton(previous)
 end
 
 applyTitleBarLayout = function()
@@ -848,8 +976,6 @@ applyTitleBarLayout = function()
 
   local bar = createTitleBar()
   bar:Show()
-  titleBarZoneText:SetShown(mm.showZoneText)
-  updateTitleBarZoneText()
 
   discoverAddonButtons()
   layoutTitleBarIcons()
