@@ -71,6 +71,7 @@ dbDefaults = {
       showAllMinimapTracking = false,
       hideExtraButtons = false,
       hideDiel = false,
+      addonButtonsPosition = "right",
       showBorder = true,
       mouseWheelZoom = true
     },
@@ -136,17 +137,7 @@ function getBattletag()
 end
 
 function isSlackwise()
-  local tag = getBattletag()
-  if tag == "Slackwise#1121" then
-    if Self.db and Self.db.global then
-      Self.db.global.isSlackwise = true
-    end
-    return true
-  end
-  if Self.db and Self.db.global and Self.db.global.isSlackwise then
-    return true
-  end
-  return false
+  return getBattletag() == "Slackwise#1121" or false
 end
 
 -- Gatekeeping new features with no UI

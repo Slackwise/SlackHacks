@@ -37,6 +37,7 @@ local DEFAULT_VISUALS = {
   showAllMinimapTracking = false,
   hideExtraButtons = false,
   hideDiel = false,
+  addonButtonsPosition = "right",
   showBorder = true,
   mouseWheelZoom = true,
 }
@@ -350,6 +351,168 @@ local function applyTitleBarLayout()
   layoutTitleBarIcons(bar)
 end
 
+local ADDON_BUTTON_GAP = 4
+local ADDON_BUTTON_INSET = 8 -- overlap the border/map by this much instead of sitting flush outside it
+local addonButtonRescanTicker
+local lastAddonButtonCount
+
+--- Third-party addon minimap buttons aren't in our known `extraButtons()` list, so find them the same
+--- way Mappy does: any small, roughly-square frame parented directly to the minimap/cluster/backdrop,
+--- OR (many libraries, e.g. LibDBIcon, do this instead) parented elsewhere but anchored directly to one
+--- of those frames. Mappy wraps `GetPoint` in `pcall` since some frames are "secret"-tainted and error
+--- when queried -- do the same so one bad frame can't abort the whole scan.
+local function isCandidateAddonButton(frame)
+  if not frame then return false end
+  local ok, forbidden = pcall(frame.IsForbidden, frame)
+  if not ok or forbidden then return false end
+  if frame.GetObjectType and frame:GetObjectType() == "Model" then return false end
+  local okSize, width, height = pcall(function() return frame:GetWidth(), frame:GetHeight() end)
+  if not okSize or not width or not height then return false end
+  if width < 14 or width > 64 or math.abs(width - height) > 4 then return false end
+  return true
+end
+
+local function managedFrameSet()
+  local managed = { [_G.Minimap] = true }
+  if MinimapCluster then
+    managed[MinimapCluster] = true
+    managed[MinimapCluster.ZoneTextButton] = true
+    managed[MinimapCluster.Tracking] = true
+    managed[MinimapCluster.DielFrame] = true
+  end
+  if MinimapBackdrop then managed[MinimapBackdrop] = true end
+  if squareBorderFrame then managed[squareBorderFrame] = true end
+  if titleBarFrame then managed[titleBarFrame] = true end
+  if TimeManagerClockButton then managed[TimeManagerClockButton] = true end
+  if _G.Minimap.ZoomIn then managed[_G.Minimap.ZoomIn] = true end
+  if _G.Minimap.ZoomOut then managed[_G.Minimap.ZoomOut] = true end
+  if _G.Minimap.ZoomHitArea then managed[_G.Minimap.ZoomHitArea] = true end
+  if MinimapToggleButton then managed[MinimapToggleButton] = true end
+  for _, frame in ipairs(iconBarFrames()) do
+    managed[frame] = true
+  end
+  return managed
+end
+
+local function isAnchoredToMinimap(frame)
+  local ok, numPoints = pcall(frame.GetNumPoints, frame)
+  if not ok then return false end
+  for pointIndex = 1, (numPoints or 0) do
+    local pointOk, _, relativeTo = pcall(frame.GetPoint, frame, pointIndex)
+    if pointOk and (relativeTo == _G.Minimap or relativeTo == MinimapCluster or relativeTo == MinimapBackdrop) then
+      return true
+    end
+  end
+  return false
+end
+
+--- Covers both buttons parented directly to the minimap/cluster/backdrop AND ones parented elsewhere
+--- (commonly UIParent, e.g. LibDBIcon-1.0) but anchored directly to one of those frames.
+local function discoverAddonButtons()
+  local managed = managedFrameSet()
+  local found = {}
+  local function scan(parent, requireAnchoredToMinimap)
+    if not parent or not parent.GetChildren then return end
+    -- GetChildren() returns multiple values (not a table), so pack them inside the protected call itself.
+    local ok, children = pcall(function() return { parent:GetChildren() } end)
+    if not ok then return end
+    for _, child in ipairs(children) do
+      if not managed[child] and isCandidateAddonButton(child) then
+        if not requireAnchoredToMinimap or isAnchoredToMinimap(child) then
+          table.insert(found, child)
+        end
+      end
+    end
+  end
+  scan(MinimapCluster)
+  scan(MinimapBackdrop)
+  scan(_G.Minimap)
+  scan(UIParent, true)
+  return found
+end
+
+--- Lines up other addons' minimap buttons along one outside edge of the square border (never the top,
+--- since that's where our title bar lives).
+local function layoutAddonButtons(border, position, buttons)
+  local previous
+  for _, frame in ipairs(buttons) do
+    if frame:IsShown() then
+      saveIconAnchor(frame)
+      hijackSetPoint(frame)
+      -- NineSlicePanelTemplate's border art is hardcoded to frame level 500 (see createSquareBorder).
+      -- Minimap's own native strata may already be "HIGH" (it's an always-on-top HUD element), in which
+      -- case matching border's strata alone just ties with it and falls back to frame level -- so bump
+      -- both the strata (in case Minimap's native strata is lower than that) AND the level above 500.
+      frame:SetFrameStrata("HIGH")
+      frame:SetFrameLevel(511)
+      frame.slackHacksRealClearAllPoints(frame)
+      if position == "left" then
+        if previous then
+          frame.slackHacksRealSetPoint(frame, "TOP", previous, "BOTTOM", 0, -ADDON_BUTTON_GAP)
+        else
+          frame.slackHacksRealSetPoint(frame, "TOPRIGHT", border, "TOPLEFT", ADDON_BUTTON_INSET, -(TITLE_BAR_HEIGHT + 8))
+        end
+      elseif position == "bottom" then
+        if previous then
+          frame.slackHacksRealSetPoint(frame, "LEFT", previous, "RIGHT", ADDON_BUTTON_GAP, 0)
+        else
+          frame.slackHacksRealSetPoint(frame, "TOPLEFT", border, "BOTTOMLEFT", 6, ADDON_BUTTON_INSET)
+        end
+      else -- "right"
+        if previous then
+          frame.slackHacksRealSetPoint(frame, "TOP", previous, "BOTTOM", 0, -ADDON_BUTTON_GAP)
+        else
+          frame.slackHacksRealSetPoint(frame, "TOPLEFT", border, "TOPRIGHT", -ADDON_BUTTON_INSET, -(TITLE_BAR_HEIGHT + 8))
+        end
+      end
+      previous = frame
+    end
+  end
+end
+
+local function applyAddonButtonsLayout()
+  local mm = settings()
+  if mm.shape ~= "square" then
+    for _, frame in ipairs(discoverAddonButtons()) do
+      restoreIconAnchor(frame)
+    end
+    if addonButtonRescanTicker then
+      addonButtonRescanTicker:Cancel()
+      addonButtonRescanTicker = nil
+    end
+    lastAddonButtonCount = nil
+    return
+  end
+  local position = mm.addonButtonsPosition
+  if position ~= "left" and position ~= "right" and position ~= "bottom" then
+    position = "right"
+  end
+  local buttons = discoverAddonButtons()
+  if #buttons ~= lastAddonButtonCount then
+    lastAddonButtonCount = #buttons
+    print("SlackHacks: found " .. #buttons .. " other addon minimap button(s) to reposition.")
+  end
+  layoutAddonButtons(createSquareBorder(), position, buttons)
+  -- Some addons register their minimap button well after login/zoning; keep re-checking periodically
+  -- instead of only on the handful of events ApplyAll is already wired to.
+  if not addonButtonRescanTicker then
+    addonButtonRescanTicker = C_Timer.NewTicker(2, function()
+      local currentMm = settings()
+      if currentMm.shape ~= "square" then return end
+      local currentPosition = currentMm.addonButtonsPosition
+      if currentPosition ~= "left" and currentPosition ~= "right" and currentPosition ~= "bottom" then
+        currentPosition = "right"
+      end
+      local rescanned = discoverAddonButtons()
+      if #rescanned ~= lastAddonButtonCount then
+        lastAddonButtonCount = #rescanned
+        print("SlackHacks: found " .. #rescanned .. " other addon minimap button(s) to reposition.")
+      end
+      layoutAddonButtons(createSquareBorder(), currentPosition, rescanned)
+    end)
+  end
+end
+
 local function applyMouseWheelZoom()
   _G.Minimap:EnableMouseWheel(settings().mouseWheelZoom ~= false)
 end
@@ -367,6 +530,7 @@ function module:ApplyAll()
   applyExtraButtons()
   applyBorder()
   applyTitleBarLayout()
+  applyAddonButtonsLayout()
   applyMouseWheelZoom()
 end
 module.Refresh = module.ApplyAll
@@ -629,6 +793,12 @@ local function createOptionsDialog()
     function() return db.profile.minimap.hideExtraButtons end,
     function(v) db.profile.minimap.hideExtraButtons = v end,
     curY)
+  _, curY = addDropdown("Other Addon Icons Position",
+    { left = "Left", right = "Right", bottom = "Bottom" },
+    { "left", "right", "bottom" },
+    function() return db.profile.minimap.addonButtonsPosition end,
+    function(v) db.profile.minimap.addonButtonsPosition = v end,
+    curY)
   _, curY = addCheckbox("Mouse Wheel Zoom",
     function() return db.profile.minimap.mouseWheelZoom end,
     function(v) db.profile.minimap.mouseWheelZoom = v end,
@@ -724,10 +894,17 @@ function module:OnDisable()
     coordTicker:Cancel()
     coordTicker = nil
   end
+  if addonButtonRescanTicker then
+    addonButtonRescanTicker:Cancel()
+    addonButtonRescanTicker = nil
+  end
   if coordText then coordText:Hide() end
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
   for _, frame in ipairs(iconBarFrames()) do
+    restoreIconAnchor(frame)
+  end
+  for _, frame in ipairs(discoverAddonButtons()) do
     restoreIconAnchor(frame)
   end
   if _G.Minimap.SetMaskTexture then _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE) end

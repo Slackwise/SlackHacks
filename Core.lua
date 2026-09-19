@@ -24,7 +24,6 @@ setfenv(1, _G.SlackHacks)
 
 --Event Handlers
 function Self:OnEnable()
-  self:RegisterEvent("BN_CONNECTED")
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("PLAYER_ENTERING_WORLD")
   self:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
@@ -62,13 +61,6 @@ function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of comb
   if isLogin then
     C_Timer.After(5, purgeOldLogs)
   end
-end
-
-function Self:BN_CONNECTED()
-  if setSlackwiseOptions then
-    setSlackwiseOptions()
-  end
-  setCVars()
 end
 
 function Self:MERCHANT_SHOW(eventName)
