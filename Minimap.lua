@@ -50,6 +50,7 @@ local isMoving = false
 local coordText
 local coordTicker
 local optionsDialog
+local squareBorderFrame
 
 local function extraButtons()
   local indicatorFrame = MinimapCluster and MinimapCluster.IndicatorFrame
@@ -172,9 +173,31 @@ local function applyExtraButtons()
   end
 end
 
+--- Same nine-slice border art used by many Blizzard windows, but the plain rectangular layout (no
+--- portrait icon/title notch cut into the top-left corner like the Spellbook's own frame has).
+local function createSquareBorder()
+  if squareBorderFrame then return squareBorderFrame end
+  local frame = CreateFrame("Frame", "SlackHacksMinimapSquareBorder", MinimapCluster or _G.Minimap)
+  frame.layoutType = "ButtonFrameTemplateNoPortrait"
+  frame:SetFrameStrata(_G.Minimap:GetFrameStrata())
+  frame:SetFrameLevel(math.max(1, _G.Minimap:GetFrameLevel() - 1))
+  frame:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -9, 9)
+  frame:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 9, -9)
+  CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
+  squareBorderFrame = frame
+  return frame
+end
+
 local function applyBorder()
+  local mm = settings()
+  local isSquare = mm.shape == "square"
   if MinimapBackdrop then
-    MinimapBackdrop:SetAlpha(settings().showBorder and 1 or 0)
+    MinimapBackdrop:SetAlpha((not isSquare and mm.showBorder) and 1 or 0)
+  end
+  if isSquare then
+    createSquareBorder():SetShown(mm.showBorder)
+  elseif squareBorderFrame then
+    squareBorderFrame:Hide()
   end
 end
 
@@ -543,6 +566,7 @@ function module:OnDisable()
     coordTicker = nil
   end
   if coordText then coordText:Hide() end
+  if squareBorderFrame then squareBorderFrame:Hide() end
   if _G.Minimap.SetMaskTexture then _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE) end
   _G.Minimap:SetAlpha(1)
   if not InCombatLockdown() then
