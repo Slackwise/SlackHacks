@@ -11,12 +11,25 @@ setfenv(1, _G.SlackHacks)
 -- end
 
 SLACKWISE_CONFIG = {
+  global = {
+    logPurgeEnabled = true,
+  },
+  profile = {
+    general = {
+      maximumCameraZoom = true,
+    },
+    minimap = {
+      enabled = true,
+      shape = "square",
+      showAllMinimapTracking = true,
+    },
+  },
 }
 
-function setSlackwisePreferences()
+--- Set game CVars to personal preferred values.
+function setSlackwiseCvars()
   if not isSlackwise() then return end
 
-  -- set the game cvars I prefer to always have:
   -- Camera:
   ensureCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
 
@@ -38,11 +51,24 @@ function setSlackwisePreferences()
   ensureCVar("floatingCombatTextCombatDamage_v2",   shouldBeEnabled)  -- Direct Damage (White/Yellow Hits) v2 ?
   ensureCVar("floatingCombatTextCombatHealing",     shouldBeEnabled)  -- All Healing
   ensureCVar("floatingCombatTextCombatHealing_v2",  shouldBeEnabled)  -- All Healing v2 ?
+end
+
+--- Merge personal configuration overrides from `SLACKWISE_CONFIG` into the addon DB.
+function setSlackwiseOptions()
+  if not isSlackwise() then return end
 
   -- Merge my own `SLACKWISE_CONFIG` table over the current addon config:
   local targetDB = _G.SlackHacksDB or SlackHacksDB or (db and rawget(db, "sv"))
   if targetDB and type(SLACKWISE_CONFIG) == "table" then
-    recursiveMerge(targetDB, SLACKWISE_CONFIG)
+    if type(SLACKWISE_CONFIG.global) == "table" then
+      targetDB.global = targetDB.global or {}
+      recursiveMerge(targetDB.global, SLACKWISE_CONFIG.global)
+    end
+    if type(SLACKWISE_CONFIG.profile) == "table" and targetDB.profiles then
+      local profileKey = (db and db.GetCurrentProfile and db:GetCurrentProfile()) or "Default"
+      targetDB.profiles[profileKey] = targetDB.profiles[profileKey] or {}
+      recursiveMerge(targetDB.profiles[profileKey], SLACKWISE_CONFIG.profile)
+    end
   end
 
   if db and type(SLACKWISE_CONFIG) == "table" then
@@ -65,6 +91,10 @@ function setSlackwisePreferences()
         end
       end
     end
+  end
+
+  if isInitialized() and Self.Minimap and Self.Minimap.Refresh then
+    Self.Minimap:Refresh()
   end
 end
 

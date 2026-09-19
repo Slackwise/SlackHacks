@@ -136,7 +136,17 @@ function getBattletag()
 end
 
 function isSlackwise()
-  return getBattletag() == "Slackwise#1121" or false
+  local tag = getBattletag()
+  if tag == "Slackwise#1121" then
+    if Self.db and Self.db.global then
+      Self.db.global.isSlackwise = true
+    end
+    return true
+  end
+  if Self.db and Self.db.global and Self.db.global.isSlackwise then
+    return true
+  end
+  return false
 end
 
 -- Gatekeeping new features with no UI
@@ -285,6 +295,9 @@ end
 function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
   migrateConfig()
+  if setSlackwiseOptions then
+    setSlackwiseOptions()
+  end
   config:RegisterOptionsTable("SlackHacks", options)
   Self:RegisterChatCommand("slack", handleSlashCommand)
   Self.configDialog = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
