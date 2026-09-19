@@ -565,6 +565,19 @@ options = {
               end,
               order = 3
             },
+            hideClassicDayNightIcon = {
+              name = "Hide Day/Night Icon (Classic Only)",
+              desc = "Hide the oversized day/night icon (MinimapCluster.DielFrame) on Classic/Forever's minimap. Has no effect on Retail.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.hideClassicDayNightIcon end,
+              set = function(_, value)
+                db.profile.minimap.hideClassicDayNightIcon = value
+                Self.Minimap:Refresh()
+              end,
+              order = 3.5
+            },
             showTracking = {
               name = "Show Tracking Button",
               type = "toggle",

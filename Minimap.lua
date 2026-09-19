@@ -36,6 +36,7 @@ local DEFAULT_VISUALS = {
   showTracking = true,
   showAllMinimapTracking = false,
   hideExtraButtons = false,
+  hideClassicDayNightIcon = false,
   showBorder = true,
   mouseWheelZoom = true,
 }
@@ -168,6 +169,19 @@ end
 
 local function applyCalendar()
   setShownSafely(GameTimeFrame, settings().showCalendar)
+end
+
+--- MinimapCluster.DielFrame is the oversized day/night ("diel" = 24-hour cycle) sun/moon icon shown on
+--- Classic/Forever's minimap; it has no counterpart shown on Retail's minimap.
+local function applyDielFrame()
+  local mm = settings()
+  local shown = true
+  if mm.shape == "square" then
+    shown = false -- doesn't fit the title bar; always hidden there
+  elseif not isRetail() and mm.hideClassicDayNightIcon then
+    shown = false
+  end
+  setShownSafely(MinimapCluster and MinimapCluster.DielFrame, shown)
 end
 
 local function applyTracking()
@@ -347,6 +361,7 @@ function module:ApplyAll()
   applyZoneText()
   applyClock()
   applyCalendar()
+  applyDielFrame()
   applyTracking()
   applyTrackingCVar()
   applyExtraButtons()
@@ -596,6 +611,10 @@ local function createOptionsDialog()
     function() return db.profile.minimap.showCalendar end,
     function(v) db.profile.minimap.showCalendar = v end,
     curY)
+  _, curY = addCheckbox("Hide Day/Night Icon (Classic Only)",
+    function() return db.profile.minimap.hideClassicDayNightIcon end,
+    function(v) db.profile.minimap.hideClassicDayNightIcon = v end,
+    curY)
   _, curY = addCheckbox("Show Tracking Button",
     function() return db.profile.minimap.showTracking end,
     function(v) db.profile.minimap.showTracking = v end,
@@ -715,6 +734,7 @@ function module:OnDisable()
     if MinimapCluster and MinimapCluster.ZoneTextButton then MinimapCluster.ZoneTextButton:Show() end
     if TimeManagerClockButton then TimeManagerClockButton:Show() end
     if GameTimeFrame then GameTimeFrame:Show() end
+    if MinimapCluster and MinimapCluster.DielFrame then MinimapCluster.DielFrame:Show() end
     if MinimapCluster and MinimapCluster.Tracking then MinimapCluster.Tracking:Show() end
     for _, button in ipairs(extraButtons()) do
       if button then button:Show() end
