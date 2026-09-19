@@ -51,6 +51,9 @@ local coordText
 local coordTicker
 local optionsDialog
 local squareBorderFrame
+local titleBarFrame
+local titleBarZoneText
+local savedIconAnchors = {}
 
 local function extraButtons()
   local indicatorFrame = MinimapCluster and MinimapCluster.IndicatorFrame
@@ -67,6 +70,17 @@ local function extraButtons()
     ExpansionLandingPageMinimapButton,
     AddonCompartmentFrame,
   }
+end
+
+--- Every minimap icon button we know how to shrink/reposition into the square mode's title bar.
+local function iconBarFrames()
+  local frames = {}
+  if GameTimeFrame then table.insert(frames, GameTimeFrame) end
+  if MinimapCluster and MinimapCluster.Tracking then table.insert(frames, MinimapCluster.Tracking) end
+  for _, button in ipairs(extraButtons()) do
+    if button then table.insert(frames, button) end
+  end
+  return frames
 end
 
 --- Show/hide is deferred (skipped, not queued) while in combat; PLAYER_REGEN_ENABLED re-applies everything.
@@ -143,7 +157,9 @@ local function applyCoordinates()
 end
 
 local function applyZoneText()
-  setShownSafely(MinimapCluster and MinimapCluster.ZoneTextButton, settings().showZoneText)
+  -- In square mode our own title-bar label (see applyTitleBarLayout) replaces the native zone text.
+  local mm = settings()
+  setShownSafely(MinimapCluster and MinimapCluster.ZoneTextButton, mm.showZoneText and mm.shape ~= "square")
 end
 
 local function applyClock()
@@ -201,6 +217,125 @@ local function applyBorder()
   end
 end
 
+local TITLE_BAR_HEIGHT = 18
+local TITLE_BAR_ICON_SCALE = 0.55
+
+--- Sits in the visual banner area of the square border, hosting the zone text (left) and shrunk
+--- minimap icons (right) in square mode. Parented to the minimap itself (not the border) so it isn't
+--- hidden when "Show Border" is off. Anchored just inside the border's own box near its top edge --
+--- matching Blizzard's own TitleContainer convention (PortraitFrameBaseTemplate/DefaultPanelBaseTemplate
+--- anchor their title text at y=-1 relative to the frame box; the banner artwork itself bleeds upward
+--- past that box via the nine-slice corner atlas's own y offset, so the box's top edge is already where
+--- the readable part of the banner sits, not further above it).
+--- Frame level 510 matches Blizzard's own PortraitFrameTemplate TitleContainer convention: the
+--- NineSlicePanelTemplate border art is hardcoded to level 500, so 510 is what actually draws above it.
+local function createTitleBar()
+  if titleBarFrame then return titleBarFrame end
+  local border = createSquareBorder()
+  local frame = CreateFrame("Frame", "SlackHacksMinimapTitleBar", MinimapCluster or _G.Minimap)
+  frame:SetHeight(TITLE_BAR_HEIGHT)
+  frame:SetPoint("TOPLEFT", border, "TOPLEFT", 12, -2)
+  frame:SetPoint("TOPRIGHT", border, "TOPRIGHT", -12, -2)
+  frame:SetFrameStrata(_G.Minimap:GetFrameStrata())
+  frame:SetFrameLevel(510)
+
+  -- GameFontNormalSmall = same NORMAL_FONT_COLOR gold used by Blizzard's own window titles (e.g. the
+  -- Spellbook), just at a size that fits our compact title bar.
+  local zoneText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  zoneText:SetPoint("LEFT", frame, "LEFT", 0, 0)
+  zoneText:SetJustifyH("LEFT")
+  titleBarZoneText = zoneText
+
+  titleBarFrame = frame
+  return frame
+end
+
+local function updateTitleBarZoneText()
+  if titleBarZoneText and GetMinimapZoneText then
+    titleBarZoneText:SetText(GetMinimapZoneText() or "")
+  end
+end
+
+--- Blizzard's own layout code re-anchors these icons on its own (e.g. when the cluster resizes or a
+--- sibling shows/hides), which would otherwise silently undo our positioning a moment later; swallow
+--- their SetPoint/ClearAllPoints calls and drive position ourselves via the real underlying methods.
+local function hijackSetPoint(frame)
+  if frame.slackHacksRealSetPoint then return end
+  frame.slackHacksRealSetPoint = frame.SetPoint
+  frame.slackHacksRealClearAllPoints = frame.ClearAllPoints
+  frame.SetPoint = function() end
+  frame.ClearAllPoints = function() end
+end
+
+local function releaseSetPoint(frame)
+  if not frame.slackHacksRealSetPoint then return end
+  frame.SetPoint = frame.slackHacksRealSetPoint
+  frame.ClearAllPoints = frame.slackHacksRealClearAllPoints
+  frame.slackHacksRealSetPoint = nil
+  frame.slackHacksRealClearAllPoints = nil
+end
+
+local function saveIconAnchor(frame)
+  if savedIconAnchors[frame] then return end
+  local point, relativeTo, relativePoint, x, y = frame:GetPoint(1)
+  savedIconAnchors[frame] = {
+    point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y,
+    scale = frame:GetScale(), frameLevel = frame:GetFrameLevel(), strata = frame:GetFrameStrata(),
+  }
+end
+
+local function restoreIconAnchor(frame)
+  local saved = savedIconAnchors[frame]
+  if not saved then return end
+  releaseSetPoint(frame) -- give Blizzard back control before calling SetPoint/ClearAllPoints ourselves
+  frame:SetScale(saved.scale)
+  frame:SetFrameLevel(saved.frameLevel)
+  frame:SetFrameStrata(saved.strata)
+  frame:ClearAllPoints()
+  if saved.point then
+    frame:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y)
+  end
+  savedIconAnchors[frame] = nil
+end
+
+--- Shrinks and lines up the minimap's icon buttons along the right side of the title bar.
+local function layoutTitleBarIcons(bar)
+  local previous
+  for _, frame in ipairs(iconBarFrames()) do
+    if frame:IsShown() then
+      saveIconAnchor(frame)
+      hijackSetPoint(frame)
+      frame:SetScale(TITLE_BAR_ICON_SCALE)
+      frame:SetFrameStrata(bar:GetFrameStrata())
+      frame:SetFrameLevel(bar:GetFrameLevel() + 1)
+      frame.slackHacksRealClearAllPoints(frame)
+      if previous then
+        frame.slackHacksRealSetPoint(frame, "RIGHT", previous, "LEFT", -2, 0)
+      else
+        frame.slackHacksRealSetPoint(frame, "RIGHT", bar, "RIGHT", 0, 0)
+      end
+      previous = frame
+    end
+  end
+end
+
+local function applyTitleBarLayout()
+  local mm = settings()
+  if mm.shape ~= "square" then
+    if titleBarFrame then titleBarFrame:Hide() end
+    for _, frame in ipairs(iconBarFrames()) do
+      restoreIconAnchor(frame)
+    end
+    return
+  end
+
+  local bar = createTitleBar()
+  bar:Show()
+  titleBarZoneText:SetShown(mm.showZoneText)
+  updateTitleBarZoneText()
+  layoutTitleBarIcons(bar)
+end
+
 local function applyMouseWheelZoom()
   _G.Minimap:EnableMouseWheel(settings().mouseWheelZoom ~= false)
 end
@@ -216,6 +351,7 @@ function module:ApplyAll()
   applyTrackingCVar()
   applyExtraButtons()
   applyBorder()
+  applyTitleBarLayout()
   applyMouseWheelZoom()
 end
 module.Refresh = module.ApplyAll
@@ -532,6 +668,8 @@ end
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED_INDOORS", "ApplyAll")
+  self:RegisterEvent("ZONE_CHANGED", "ApplyAll")
+  self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "ApplyAll")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_STARTED_MOVING")
@@ -567,6 +705,10 @@ function module:OnDisable()
   end
   if coordText then coordText:Hide() end
   if squareBorderFrame then squareBorderFrame:Hide() end
+  if titleBarFrame then titleBarFrame:Hide() end
+  for _, frame in ipairs(iconBarFrames()) do
+    restoreIconAnchor(frame)
+  end
   if _G.Minimap.SetMaskTexture then _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE) end
   _G.Minimap:SetAlpha(1)
   if not InCombatLockdown() then
