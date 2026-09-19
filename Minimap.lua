@@ -45,6 +45,8 @@ local squareBorderFrame
 local titleBarFrame
 local titleBarZoneFallbackButton
 local titleBarIconRow
+local addonIconsContainer
+local hoverCheckTicker
 local applyTitleBarLayout
 local registeredButtons = {}
 local registeredButtonsByFrame = {}
@@ -54,11 +56,21 @@ local origMinimapClusterLayout
 local layoutPending = false
 local addonScanTicker
 
+local function getMailButton()
+  if MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.MailFrame then
+    return MinimapCluster.IndicatorFrame.MailFrame
+  end
+  if MiniMapMailFrame then
+    return MiniMapMailFrame
+  end
+  return nil
+end
+
 local function extraButtons()
-  local indicatorFrame = MinimapCluster and MinimapCluster.IndicatorFrame
+  local mail = getMailButton()
   return {
-    indicatorFrame and indicatorFrame.MailFrame,
-    indicatorFrame and indicatorFrame.CraftingOrderFrame,
+    mail,
+    (isRetail() and MinimapCluster and MinimapCluster.IndicatorFrame) and MinimapCluster.IndicatorFrame.CraftingOrderFrame or nil,
     MinimapCluster and MinimapCluster.InstanceDifficulty,
     MiniMapBattlefieldFrame,
     MiniMapMeetingStoneFrame,
@@ -224,11 +236,38 @@ local function applyTrackingCVar()
   end
 end
 
+local function applyCraftingOrderFrame()
+  if not isRetail() and MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame then
+    local frame = MinimapCluster.IndicatorFrame.CraftingOrderFrame
+    setShownSafely(frame, false)
+    if not frame.slackHacksNonRetailHooked then
+      frame.slackHacksNonRetailHooked = true
+      frame:HookScript("OnShow", function(self)
+        if not isRetail() and not InCombatLockdown() then
+          self:Hide()
+        end
+      end)
+    end
+  end
+end
+
 local function applyExtraButtons()
+  local isSquare = settings().shape == "square"
   local shown = not settings().hideExtraButtons
   for _, button in ipairs(extraButtons()) do
-    setShownSafely(button, shown)
+    if isSquare then
+      -- In square mode, hide all extra buttons except mail
+      local mail = getMailButton()
+      if button == mail then
+        setShownSafely(button, shown)
+      else
+        setShownSafely(button, false)
+      end
+    else
+      setShownSafely(button, shown)
+    end
   end
+  applyCraftingOrderFrame()
 end
 
 --- Same nine-slice border art used by many Blizzard windows, but the plain rectangular layout (no
@@ -239,8 +278,8 @@ local function createSquareBorder()
   frame.layoutType = "ButtonFrameTemplateNoPortrait"
   frame:SetFrameStrata(_G.Minimap:GetFrameStrata())
   frame:SetFrameLevel(math.max(1, _G.Minimap:GetFrameLevel() - 1))
-  frame:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -9, 9)
-  frame:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 9, -9)
+  frame:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -4, 4)
+  frame:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 4, -4)
   CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   squareBorderFrame = frame
   return frame
@@ -293,6 +332,110 @@ local function createTitleBar()
 
   titleBarFrame = frame
   return frame
+end
+
+local function createAddonIconsContainer()
+  if addonIconsContainer then return addonIconsContainer end
+  local container = CreateFrame("Frame", "SlackHacksMinimapAddonIconsContainer", titleBarFrame or MinimapCluster or UIParent)
+  container:SetHeight(TITLE_BAR_HEIGHT)
+  container:SetFrameStrata("HIGH")
+  container:SetFrameLevel(520)
+  container:Hide()
+  addonIconsContainer = container
+  return container
+end
+
+local function isRegionMouseOver(region)
+  if not region or not region.IsShown or not region:IsShown() then return false end
+  local ok, result = pcall(function()
+    if region.IsMouseOver then
+      return region:IsMouseOver()
+    elseif MouseIsOver then
+      return MouseIsOver(region)
+    end
+    return false
+  end)
+  return ok and (result == true)
+end
+
+local function isMinimapHovered()
+  if isRegionMouseOver(_G.Minimap)
+     or isRegionMouseOver(titleBarFrame)
+     or isRegionMouseOver(squareBorderFrame)
+     or isRegionMouseOver(addonIconsContainer)
+     or isRegionMouseOver(MinimapCluster) then
+    return true
+  end
+  local zoneButton = getZoneTextButton()
+  if isRegionMouseOver(zoneButton) or isRegionMouseOver(titleBarZoneFallbackButton) then
+    return true
+  end
+  if isRegionMouseOver(GameTimeFrame)
+     or isRegionMouseOver(MinimapCluster and MinimapCluster.Tracking)
+     or isRegionMouseOver(AddonCompartmentFrame) then
+    return true
+  end
+  if addonButtons then
+    for _, btn in ipairs(addonButtons) do
+      if isRegionMouseOver(btn) then return true end
+    end
+  end
+  return false
+end
+
+local function setAddonContainerHovered(hovered)
+  if not addonIconsContainer then return end
+  local mm = settings()
+  if mm.shape ~= "square" then
+    addonIconsContainer:Hide()
+    if hoverCheckTicker then
+      hoverCheckTicker:Cancel()
+      hoverCheckTicker = nil
+    end
+    return
+  end
+
+  if hovered then
+    addonIconsContainer:Show()
+    if not hoverCheckTicker then
+      hoverCheckTicker = C_Timer.NewTicker(0.1, function()
+        if not isMinimapHovered() then
+          setAddonContainerHovered(false)
+        end
+      end)
+    end
+  else
+    addonIconsContainer:Hide()
+    if hoverCheckTicker then
+      hoverCheckTicker:Cancel()
+      hoverCheckTicker = nil
+    end
+  end
+end
+
+local function updateAddonContainerVisibility()
+  if isMinimapHovered() then
+    setAddonContainerHovered(true)
+  else
+    setAddonContainerHovered(false)
+  end
+end
+
+local function hookHoverFrame(frame)
+  if not frame or frame.slackHacksHoverHooked then return end
+  frame.slackHacksHoverHooked = true
+  if frame.HookScript then
+    frame:HookScript("OnEnter", function()
+      setAddonContainerHovered(true)
+    end)
+    frame:HookScript("OnLeave", function()
+      C_Timer.After(0.05, function()
+        if not isMinimapHovered() then
+          setAddonContainerHovered(false)
+        end
+      end)
+    end)
+  end
 end
 
 local function getOrCreateZoneButton(parent)
@@ -657,6 +800,7 @@ local function registerButton(button)
     button:HookScript("OnShow", onButtonVisibilityChanged)
     button.slackHacksHooksInstalled = true
   end
+  hookHoverFrame(button)
 end
 
 local function registerAddonButton(button)
@@ -676,6 +820,13 @@ local function disableAllStacking()
   end
   if titleBarZoneFallbackButton then
     titleBarZoneFallbackButton:Hide()
+  end
+  if addonIconsContainer then
+    addonIconsContainer:Hide()
+  end
+  if hoverCheckTicker then
+    hoverCheckTicker:Cancel()
+    hoverCheckTicker = nil
   end
 end
 
@@ -745,6 +896,7 @@ local function getIgnoreFramesMap()
     SlackHacksMinimapSquareBorder = true,
     SlackHacksMinimapTitleBar = true,
     SlackHacksMinimapTitleBarIcons = true,
+    SlackHacksMinimapAddonIconsContainer = true,
     SlackHacksMinimapOptionsDialog = true,
   }
   for name in pairs(ignore) do
@@ -773,6 +925,7 @@ local function getIgnoreFramesMap()
   if squareBorderFrame then ignore[squareBorderFrame] = true end
   if titleBarFrame then ignore[titleBarFrame] = true end
   if titleBarIconRow then ignore[titleBarIconRow] = true end
+  if addonIconsContainer then ignore[addonIconsContainer] = true end
   local blizzCoords = getBlizzardPlayerCoords()
   if blizzCoords then ignore[blizzCoords] = true end
   return ignore
@@ -828,6 +981,9 @@ end
 
 local function isButtonShown(button)
   if not button then return false end
+  if not isRetail() and button == (MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame) then
+    return false
+  end
   if button == (MinimapCluster and MinimapCluster.InstanceDifficulty) then
     local _, instanceType, difficulty = GetInstanceInfo()
     if not difficulty or not (instanceType == "raid" or instanceType == "party" or instanceType == "scenario") then
@@ -837,9 +993,9 @@ local function isButtonShown(button)
   return button:IsShown()
 end
 
---- Builds the complete ordered list of buttons for the square title bar.
---- Right-to-left layout order: Clock, standard icons, addon compartment, various addon icons.
-local function getOrderedButtons()
+--- Builds the list of buttons for the permanent title bar flow.
+--- Right-to-left layout order: Clock, Mail. All other standard icons are hidden in square mode.
+local function getTitleBarFlowButtons()
   local list = {}
 
   -- 1. Clock (rightmost)
@@ -847,33 +1003,10 @@ local function getOrderedButtons()
     table.insert(list, TimeManagerClockButton)
   end
 
-  -- 2. Standard icons
-  local standard = {
-    GameTimeFrame,
-    MinimapCluster and MinimapCluster.Tracking,
-    MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.MailFrame,
-    MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame,
-    MinimapCluster and MinimapCluster.InstanceDifficulty,
-    MiniMapBattlefieldFrame,
-    MiniMapMeetingStoneFrame,
-    MiniMapVoiceChatFrame,
-    FeedbackUIButton,
-    MiniMapLFGFrame,
-    GuildInstanceDifficulty,
-    ExpansionLandingPageMinimapButton,
-  }
-  for _, btn in ipairs(standard) do
-    if btn then table.insert(list, btn) end
-  end
-
-  -- 3. Addon compartment
-  if AddonCompartmentFrame then
-    table.insert(list, AddonCompartmentFrame)
-  end
-
-  -- 4. Various addon icons (discovered third-party addon buttons)
-  for _, btn in ipairs(addonButtons) do
-    if btn then table.insert(list, btn) end
+  -- 2. Mail (only standard icon retained in titlebar)
+  local mail = getMailButton()
+  if mail then
+    table.insert(list, mail)
   end
 
   return list
@@ -928,12 +1061,87 @@ local function layoutTitleBarZoneButton(previous)
   updateZoneText()
 end
 
+--- Lays out icons hidden without hover (Addon Compartment, then third-party addon icons)
+--- in a separate container frame with a HIGH frame strata.
+--- Taken out of the title bar flow so it never clips or constrains the zone text button.
+--- Only visible when hovering over the minimap.
+local function layoutAddonIconsContainer(anchorRightTo)
+  if not titleBarFrame then return end
+  local container = createAddonIconsContainer()
+  hookHoverFrame(container)
+
+  container:ClearAllPoints()
+  if anchorRightTo then
+    container:SetPoint("RIGHT", anchorRightTo, "LEFT", -2, 0)
+  else
+    container:SetPoint("RIGHT", titleBarFrame, "RIGHT", 0, 0)
+  end
+  container:SetPoint("TOP", titleBarFrame, "TOP", 0, 0)
+  container:SetPoint("BOTTOM", titleBarFrame, "BOTTOM", 0, 0)
+
+  local hoverButtons = {}
+  -- 1. Calendar (rightmost inside hover container)
+  if GameTimeFrame then
+    table.insert(hoverButtons, GameTimeFrame)
+  end
+  -- 2. Tracking (to the left of Calendar)
+  if MinimapCluster and MinimapCluster.Tracking then
+    table.insert(hoverButtons, MinimapCluster.Tracking)
+  end
+  -- 3. Addon Compartment (to the left of Tracking)
+  if AddonCompartmentFrame then
+    table.insert(hoverButtons, AddonCompartmentFrame)
+  end
+  -- 4. Various addon icons (to the left of Addon Compartment)
+  for _, btn in ipairs(addonButtons) do
+    if btn then table.insert(hoverButtons, btn) end
+  end
+
+  local totalWidth = 0
+  local buttonGap = 2
+  local previousHover = nil
+
+  for _, button in ipairs(hoverButtons) do
+    registerButton(button)
+    if isButtonShown(button) then
+      enableButtonStacking(button, true)
+      button:SetParent(container)
+      button:SetScale(TITLE_BAR_ICON_SCALE)
+      setFrameStrataSafe(button, "HIGH")
+      setFrameLevelRecursive(button, 521)
+      button.slackHacksRealClearAllPoints(button)
+      local isSubsequent = (previousHover ~= nil)
+      if previousHover then
+        button.slackHacksRealSetPoint(button, "RIGHT", previousHover, "LEFT", -buttonGap, 0)
+      else
+        button.slackHacksRealSetPoint(button, "RIGHT", container, "RIGHT", 0, 0)
+      end
+      previousHover = button
+
+      local btnW = button:GetWidth()
+      local scaledW = (btnW and btnW > 0 and btnW or 32) * TITLE_BAR_ICON_SCALE
+      totalWidth = totalWidth + scaledW + (isSubsequent and buttonGap or 0)
+
+      if button ~= AddonCompartmentFrame and button ~= GameTimeFrame then
+        if addonButtonsByFrame[button] or findButtonBorder(button) then
+          applyCycleBorder(button)
+        end
+      end
+    end
+  end
+
+  container:SetWidth(math.max(1, totalWidth))
+
+  updateAddonContainerVisibility()
+end
+
 --- Shrinks and lines up the minimap buttons along the right side of the title bar,
---- ordered right-to-left: Clock, standard icons, addon compartment, various addon icons.
+--- ordered right-to-left: Clock, standard icons, addon compartment. Third-party addon icons
+--- are placed in the separate hover container.
 local function layoutTitleBarIcons()
   local row = titleBarIconRow
   if not row then return end
-  local buttons = getOrderedButtons()
+  local buttons = getTitleBarFlowButtons()
   local previous = nil
 
   for _, button in ipairs(buttons) do
@@ -952,23 +1160,22 @@ local function layoutTitleBarIcons()
         button.slackHacksRealSetPoint(button, "RIGHT", row, "RIGHT", 0, 0)
       end
       previous = button
-
-      -- Restyle addon icons (and any tracking-bordered icons) with the DielFrame cycle atlas border
-      if button ~= TimeManagerClockButton and button ~= AddonCompartmentFrame then
-        if addonButtonsByFrame[button] or findButtonBorder(button) then
-          applyCycleBorder(button)
-        end
-      end
     end
   end
 
   layoutTitleBarZoneButton(previous)
+  layoutAddonIconsContainer(previous)
 end
 
 applyTitleBarLayout = function()
   local mm = settings()
   if mm.shape ~= "square" then
     if titleBarFrame then titleBarFrame:Hide() end
+    if addonIconsContainer then addonIconsContainer:Hide() end
+    if hoverCheckTicker then
+      hoverCheckTicker:Cancel()
+      hoverCheckTicker = nil
+    end
     if MinimapCluster then
       if origMinimapClusterLayout then
         MinimapCluster.Layout = origMinimapClusterLayout
@@ -1005,6 +1212,12 @@ applyTitleBarLayout = function()
 
   local bar = createTitleBar()
   bar:Show()
+  hookHoverFrame(_G.Minimap)
+  hookHoverFrame(titleBarFrame)
+  hookHoverFrame(squareBorderFrame)
+  hookHoverFrame(MinimapCluster)
+  local zb = getZoneTextButton()
+  if zb then hookHoverFrame(zb) end
 
   discoverAddonButtons()
   layoutTitleBarIcons()
@@ -1373,9 +1586,14 @@ function module:OnDisable()
     addonScanTicker:Cancel()
     addonScanTicker = nil
   end
+  if hoverCheckTicker then
+    hoverCheckTicker:Cancel()
+    hoverCheckTicker = nil
+  end
   restoreCoordinates()
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
+  if addonIconsContainer then addonIconsContainer:Hide() end
   if MinimapCluster then
     if origMinimapClusterLayout then
       MinimapCluster.Layout = origMinimapClusterLayout
