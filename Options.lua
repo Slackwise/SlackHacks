@@ -379,7 +379,7 @@ options = {
     minimap = {
       type = "group",
       name = "Minimap",
-      desc = "Minimap shape, opacity, coordinates, and button visibility.",
+      desc = "Minimap shape, opacity, and button visibility.",
       order = 7.5,
       args = {
         enabled = {
@@ -508,59 +508,11 @@ options = {
             }
           }
         },
-        coordinatesGroup = {
-          type = "group",
-          name = "Coordinates",
-          inline = true,
-          order = 3,
-          args = {
-            showCoordinates = {
-              name = "Show Player Coordinates",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.minimap.showCoordinates end,
-              set = function(_, value)
-                db.profile.minimap.showCoordinates = value
-                Self.Minimap:Refresh()
-              end,
-              order = 1
-            },
-            coordinatesAnchor = {
-              name = "Position",
-              type = "select",
-              width = "full",
-              values = { BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right" },
-              sorting = { "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" },
-              get = function() return db.profile.minimap.coordinatesAnchor end,
-              set = function(_, value)
-                db.profile.minimap.coordinatesAnchor = value
-                Self.Minimap:Refresh()
-              end,
-              disabled = function() return not db.profile.minimap.showCoordinates end,
-              order = 2
-            },
-            coordinatesScale = {
-              name = "Text Size",
-              type = "range",
-              min = 50,
-              max = 200,
-              step = 5,
-              get = function() return db.profile.minimap.coordinatesScale end,
-              set = function(_, value)
-                db.profile.minimap.coordinatesScale = value
-                Self.Minimap:Refresh()
-              end,
-              disabled = function() return not db.profile.minimap.showCoordinates end,
-              order = 3
-            }
-          }
-        },
         buttonsGroup = {
           type = "group",
           name = "Buttons",
           inline = true,
-          order = 4,
+          order = 3,
           args = {
             showZoneText = {
               name = "Show Zone Text",

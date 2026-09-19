@@ -14,12 +14,6 @@ Self.Minimap = module
 local ROUND_MASK_TEXTURE = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
 local SQUARE_MASK_TEXTURE = "Interface\\BUTTONS\\WHITE8X8"
 
-local COORD_ANCHOR_INFO = {
-  BOTTOMLEFT = { x = 5, y = 4 },
-  BOTTOM = { x = 0, y = 4 },
-  BOTTOMRIGHT = { x = -5, y = 4 },
-}
-
 -- Falls back to Blizzard's untouched defaults whenever the module is disabled.
 local DEFAULT_VISUALS = {
   shape = "circle",
@@ -27,9 +21,6 @@ local DEFAULT_VISUALS = {
   fadeEnabled = false,
   combatAlpha = 100,
   movingAlpha = 100,
-  showCoordinates = false,
-  coordinatesAnchor = "BOTTOMLEFT",
-  coordinatesScale = 100,
   showZoneText = true,
   showClock = true,
   showCalendar = true,
@@ -48,8 +39,7 @@ end
 
 local isInCombat = false
 local isMoving = false
-local coordText
-local coordTicker
+local savedCoordsState
 local optionsDialog
 local squareBorderFrame
 local titleBarFrame
@@ -109,48 +99,85 @@ local function applyAlpha()
   _G.Minimap:SetAlpha(clampedPercent / 100)
 end
 
-local function updateCoordinatesText()
-  if not coordText then return end
-  local mapID = C_Map.GetBestMapForUnit("player")
-  local position = mapID and C_Map.GetPlayerMapPosition(mapID, "player")
-  if position then
-    local x, y = position:GetXY()
-    coordText:SetFormattedText("%.1f, %.1f", x * 100, y * 100)
-  else
-    coordText:SetText("")
+local function getBlizzardPlayerCoords()
+  if MinimapCluster and MinimapCluster.MinimapContainer and MinimapCluster.MinimapContainer.PlayerCoords then
+    return MinimapCluster.MinimapContainer.PlayerCoords
   end
+  if MinimapCluster and MinimapCluster.PlayerCoords then
+    return MinimapCluster.PlayerCoords
+  end
+  if _G.Minimap and _G.Minimap.PlayerCoords then
+    return _G.Minimap.PlayerCoords
+  end
+  if _G.PlayerCoords then
+    return _G.PlayerCoords
+  end
+  return nil
 end
 
-local function createCoordinatesText()
-  if not coordText then
-    coordText = _G.Minimap:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+local function restoreCoordinates()
+  local coords = getBlizzardPlayerCoords()
+  if not coords then return end
+
+  if coords.slackHacksRealSetPoint then
+    coords.SetPoint = coords.slackHacksRealSetPoint
+    coords.ClearAllPoints = coords.slackHacksRealClearAllPoints
+    coords.slackHacksRealSetPoint = nil
+    coords.slackHacksRealClearAllPoints = nil
   end
-  return coordText
+
+  if savedCoordsState then
+    if savedCoordsState.parent then
+      coords:SetParent(savedCoordsState.parent)
+    end
+    coords:SetFrameStrata(savedCoordsState.strata)
+    coords:SetFrameLevel(savedCoordsState.level)
+    coords:ClearAllPoints()
+    for _, a in ipairs(savedCoordsState.anchors) do
+      coords:SetPoint(a.point, a.relativeTo, a.relativePoint, a.x, a.y)
+    end
+    savedCoordsState = nil
+  end
 end
 
 local function applyCoordinates()
-  local mm = settings()
-  if not mm.showCoordinates then
-    if coordText then coordText:Hide() end
-    if coordTicker then
-      coordTicker:Cancel()
-      coordTicker = nil
+  local coords = getBlizzardPlayerCoords()
+  if not coords then return end
+
+  if settings().shape == "square" then
+    if not savedCoordsState then
+      local ok, numPoints = pcall(coords.GetNumPoints, coords)
+      local anchors = {}
+      if ok and numPoints then
+        for i = 1, numPoints do
+          local pOk, point, relativeTo, relativePoint, x, y = pcall(coords.GetPoint, coords, i)
+          if pOk and point then
+            table.insert(anchors, { point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y })
+          end
+        end
+      end
+      savedCoordsState = {
+        parent = coords:GetParent(),
+        level = coords:GetFrameLevel(),
+        strata = coords:GetFrameStrata(),
+        anchors = anchors,
+      }
     end
-    return
-  end
 
-  createCoordinatesText()
-  local anchorPoint = mm.coordinatesAnchor or "BOTTOMLEFT"
-  local anchor = COORD_ANCHOR_INFO[anchorPoint] or COORD_ANCHOR_INFO.BOTTOMLEFT
-  coordText:ClearAllPoints()
-  coordText:SetPoint(anchorPoint, _G.Minimap, anchorPoint, anchor.x, anchor.y)
-  local fontFile, fontSize, fontFlags = GameFontHighlightSmall:GetFont()
-  coordText:SetFont(fontFile, fontSize * ((mm.coordinatesScale or 100) / 100), fontFlags)
-  coordText:Show()
-  updateCoordinatesText()
+    if not coords.slackHacksRealSetPoint then
+      coords.slackHacksRealSetPoint = coords.SetPoint
+      coords.slackHacksRealClearAllPoints = coords.ClearAllPoints
+      coords.SetPoint = function() end
+      coords.ClearAllPoints = function() end
+    end
 
-  if not coordTicker then
-    coordTicker = C_Timer.NewTicker(0.2, updateCoordinatesText)
+    coords:SetParent(_G.Minimap)
+    coords:SetFrameStrata(_G.Minimap:GetFrameStrata())
+    coords:SetFrameLevel(_G.Minimap:GetFrameLevel() + 5)
+    coords.slackHacksRealClearAllPoints(coords)
+    coords.slackHacksRealSetPoint(coords, "BOTTOM", _G.Minimap, "BOTTOM", 0, 4)
+  else
+    restoreCoordinates()
   end
 end
 
@@ -746,6 +773,8 @@ local function getIgnoreFramesMap()
   if squareBorderFrame then ignore[squareBorderFrame] = true end
   if titleBarFrame then ignore[titleBarFrame] = true end
   if titleBarIconRow then ignore[titleBarIconRow] = true end
+  local blizzCoords = getBlizzardPlayerCoords()
+  if blizzCoords then ignore[blizzCoords] = true end
   return ignore
 end
 
@@ -1218,29 +1247,6 @@ local function createOptionsDialog()
   table.insert(fadeDependents, movingSlider)
 
   curY = addDivider(curY - 2)
-  curY = addHeader("Coordinates", curY)
-  local coordDependents = {}
-  local coordCb
-  coordCb, curY = addCheckbox("Show Player Coordinates",
-    function() return db.profile.minimap.showCoordinates end,
-    function(v) db.profile.minimap.showCoordinates = v end,
-    curY, coordDependents)
-  local coordAnchorDropdown
-  coordAnchorDropdown, curY = addDropdown("Position",
-    { BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right" },
-    { "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" },
-    function() return db.profile.minimap.coordinatesAnchor end,
-    function(v) db.profile.minimap.coordinatesAnchor = v end,
-    curY)
-  table.insert(coordDependents, coordAnchorDropdown)
-  local coordScaleSlider
-  coordScaleSlider, curY = addSlider("Text Size", 50, 200, 5,
-    function() return db.profile.minimap.coordinatesScale end,
-    function(v) db.profile.minimap.coordinatesScale = v end,
-    curY, percentFormat)
-  table.insert(coordDependents, coordScaleSlider)
-
-  curY = addDivider(curY - 2)
   curY = addHeader("Buttons", curY)
   _, curY = addCheckbox("Show Zone Text",
     function() return db.profile.minimap.showZoneText end,
@@ -1363,15 +1369,11 @@ end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
-  if coordTicker then
-    coordTicker:Cancel()
-    coordTicker = nil
-  end
   if addonScanTicker then
     addonScanTicker:Cancel()
     addonScanTicker = nil
   end
-  if coordText then coordText:Hide() end
+  restoreCoordinates()
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
   if MinimapCluster then
