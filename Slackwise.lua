@@ -866,7 +866,7 @@ BINDINGS = {
       -- General
       {"E", { "!ENGAGE",
               "classicon_paladin",
-              newlineTrim([[
+              multilineTrim([[
               #showtooltip Holy Strike
               /startattack
               /cast Holy Strike
