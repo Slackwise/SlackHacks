@@ -278,6 +278,95 @@ local function updateTitleBarZoneText()
   end
 end
 
+local CYCLE_BORDER_ATLASES = {
+  "UI-HUD-Minimap-Frame-Cycle",
+  "ui-hud-minimap-frame-cycle",
+  "UI-HUD-Minimap-Frame-Cycle-c60",
+  "ui-hud-minimap-frame-cycle-c60",
+}
+
+local function getCycleBorderAtlas()
+  if MinimapCluster and MinimapCluster.DielFrame then
+    local ok, regions = pcall(function() return { MinimapCluster.DielFrame:GetRegions() } end)
+    if ok and regions then
+      for _, r in ipairs(regions) do
+        if r:IsObjectType("Texture") and r.GetAtlas then
+          local a = r:GetAtlas()
+          if a and a ~= "" and not a:lower():find("daycycle") and not a:lower():find("nightcycle") then
+            return a
+          end
+        end
+      end
+    end
+  end
+
+  if C_Texture and C_Texture.GetAtlasInfo then
+    for _, name in ipairs(CYCLE_BORDER_ATLASES) do
+      if C_Texture.GetAtlasInfo(name) then
+        return name
+      end
+    end
+    if C_Texture.GetAtlasInfo("ui-hud-minimap-button") then
+      return "ui-hud-minimap-button"
+    end
+  end
+
+  return "UI-HUD-Minimap-Frame-Cycle"
+end
+
+local function findButtonBorder(button)
+  if not button then return nil end
+  if button.border and button.border.SetAtlas then
+    return button.border
+  end
+  if button.Border and button.Border.SetAtlas then
+    return button.Border
+  end
+  local name = button.GetName and button:GetName()
+  if name and _G[name .. "Border"] and _G[name .. "Border"].SetAtlas then
+    return _G[name .. "Border"]
+  end
+  local ok, regions = pcall(function() return { button:GetRegions() } end)
+  if ok and regions then
+    for _, region in ipairs(regions) do
+      if region:IsObjectType("Texture") then
+        local tex = region:GetTexture()
+        if tex == 136430 or (type(tex) == "string" and tex:find("MiniMap%-TrackingBorder")) then
+          return region
+        end
+      end
+    end
+  end
+  return nil
+end
+
+local function getOrCreateButtonBorder(button)
+  local border = findButtonBorder(button)
+  if border then return border end
+  local created = button:CreateTexture(nil, "OVERLAY")
+  button.slackHacksCreatedBorder = created
+  return created
+end
+
+local function applyCycleBorder(button)
+  local border = getOrCreateButtonBorder(button)
+  if not border then return end
+
+  local atlas = getCycleBorderAtlas()
+  if border.SetAtlas then
+    border:SetAtlas(atlas)
+  end
+  border:SetTexCoord(0, 1, 0, 1)
+
+  local btnW = button:GetWidth()
+  local size = (btnW and btnW > 10) and btnW or 32
+
+  border:ClearAllPoints()
+  border:SetPoint("CENTER", button, "CENTER", 0, 0)
+  border:SetSize(size, size)
+  border:Show()
+end
+
 --- Mappy-style button manipulation: save initial anchors, parent, scale, strata, and level.
 local function saveButtonState(button)
   if button.slackHacksSaved then return end
@@ -297,6 +386,29 @@ local function saveButtonState(button)
       end
     end
   end
+
+  local border = findButtonBorder(button)
+  if border then
+    local borderSaved = {
+      frame = border,
+      texture = border:GetTexture(),
+      atlas = border.GetAtlas and border:GetAtlas(),
+      width = border:GetWidth(),
+      height = border:GetHeight(),
+      points = {},
+    }
+    local bOk, bNumPoints = pcall(border.GetNumPoints, border)
+    if bOk and bNumPoints then
+      for i = 1, bNumPoints do
+        local pOk, point, relativeTo, relativePoint, x, y = pcall(border.GetPoint, border, i)
+        if pOk and point then
+          table.insert(borderSaved.points, { point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y })
+        end
+      end
+    end
+    saved.border = borderSaved
+  end
+
   button.slackHacksSaved = saved
 end
 
@@ -320,6 +432,32 @@ local function restoreButtonState(button)
   for point, info in pairs(saved.anchors) do
     button:SetPoint(point, info.relativeTo, info.relativePoint, info.x, info.y)
   end
+
+  if saved.border then
+    local border = saved.border.frame or findButtonBorder(button)
+    if border then
+      border:ClearAllPoints()
+      for _, p in ipairs(saved.border.points) do
+        border:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
+      end
+      if saved.border.width and saved.border.height then
+        border:SetSize(saved.border.width, saved.border.height)
+      end
+      if saved.border.atlas and saved.border.atlas ~= "" and border.SetAtlas then
+        border:SetAtlas(saved.border.atlas)
+      elseif saved.border.texture then
+        border:SetTexture(saved.border.texture)
+      end
+      border:SetTexCoord(0, 1, 0, 1)
+    end
+  end
+
+  if button.slackHacksCreatedBorder then
+    button.slackHacksCreatedBorder:Hide()
+    button.slackHacksCreatedBorder:SetTexture(nil)
+    button.slackHacksCreatedBorder = nil
+  end
+
   button.slackHacksSaved = nil
 end
 
@@ -649,6 +787,13 @@ local function layoutTitleBarIcons()
         button.slackHacksRealSetPoint(button, "RIGHT", row, "RIGHT", 0, 0)
       end
       previous = button
+
+      -- Restyle addon icons (and any tracking-bordered icons) with the DielFrame cycle atlas border
+      if button ~= TimeManagerClockButton and button ~= AddonCompartmentFrame then
+        if addonButtonsByFrame[button] or findButtonBorder(button) then
+          applyCycleBorder(button)
+        end
+      end
     end
   end
 
