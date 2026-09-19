@@ -37,7 +37,6 @@ local DEFAULT_VISUALS = {
   showAllMinimapTracking = false,
   hideExtraButtons = false,
   hideDiel = false,
-  addonButtonsPosition = "right",
   showBorder = true,
   mouseWheelZoom = true,
 }
@@ -56,7 +55,14 @@ local squareBorderFrame
 local titleBarFrame
 local titleBarZoneText
 local titleBarIconRow
-local savedIconAnchors = {}
+local applyTitleBarLayout
+local registeredButtons = {}
+local registeredButtonsByFrame = {}
+local addonButtons = {}
+local addonButtonsByFrame = {}
+local origMinimapClusterLayout
+local layoutPending = false
+local addonScanTicker
 
 local function extraButtons()
   local indicatorFrame = MinimapCluster and MinimapCluster.IndicatorFrame
@@ -73,19 +79,6 @@ local function extraButtons()
     ExpansionLandingPageMinimapButton,
     AddonCompartmentFrame,
   }
-end
-
---- Every minimap icon button we know how to shrink/reposition into the square mode's title bar, ordered
---- right-to-left (first entry ends up rightmost): clock, calendar/tracking/other buttons, addon compartment.
-local function iconBarFrames()
-  local frames = {}
-  if TimeManagerClockButton then table.insert(frames, TimeManagerClockButton) end
-  if GameTimeFrame then table.insert(frames, GameTimeFrame) end
-  if MinimapCluster and MinimapCluster.Tracking then table.insert(frames, MinimapCluster.Tracking) end
-  for _, button in ipairs(extraButtons()) do
-    if button then table.insert(frames, button) end
-  end
-  return frames
 end
 
 --- Show/hide is deferred (skipped, not queued) while in combat; PLAYER_REGEN_ENABLED re-applies everything.
@@ -263,6 +256,7 @@ local function createTitleBar()
   local zoneText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   zoneText:SetPoint("LEFT", frame, "LEFT", 0, 0)
   zoneText:SetJustifyH("LEFT")
+  zoneText:SetWordWrap(false)
   titleBarZoneText = zoneText
 
   -- A shared wrapper so every repositioned icon anchors to the same reference frame (same strata/level
@@ -284,253 +278,446 @@ local function updateTitleBarZoneText()
   end
 end
 
---- Blizzard's own layout code (or the button's own library) re-anchors AND re-strata/re-levels these
---- icons on its own, which would otherwise silently undo our positioning/layering a moment later;
---- swallow those calls and drive everything ourselves via the real underlying methods.
-local function hijackPositioning(frame)
-  if frame.slackHacksRealSetPoint then return end
-  frame.slackHacksRealSetPoint = frame.SetPoint
-  frame.slackHacksRealClearAllPoints = frame.ClearAllPoints
-  frame.slackHacksRealSetFrameStrata = frame.SetFrameStrata
-  frame.slackHacksRealSetFrameLevel = frame.SetFrameLevel
-  frame.SetPoint = function() end
-  frame.ClearAllPoints = function() end
-  frame.SetFrameStrata = function() end
-  frame.SetFrameLevel = function() end
+--- Mappy-style button manipulation: save initial anchors, parent, scale, strata, and level.
+local function saveButtonState(button)
+  if button.slackHacksSaved then return end
+  local saved = {
+    anchors = {},
+    parent = button:GetParent(),
+    scale = button:GetScale(),
+    strata = button:GetFrameStrata(),
+    level = button:GetFrameLevel(),
+  }
+  local ok, numPoints = pcall(button.GetNumPoints, button)
+  if ok and numPoints then
+    for i = 1, numPoints do
+      local pOk, point, relativeTo, relativePoint, x, y = pcall(button.GetPoint, button, i)
+      if pOk and point then
+        saved.anchors[point] = { relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y }
+      end
+    end
+  end
+  button.slackHacksSaved = saved
 end
 
-local function releasePositioning(frame)
-  if not frame.slackHacksRealSetPoint then return end
-  frame.SetPoint = frame.slackHacksRealSetPoint
-  frame.ClearAllPoints = frame.slackHacksRealClearAllPoints
-  frame.SetFrameStrata = frame.slackHacksRealSetFrameStrata
-  frame.SetFrameLevel = frame.slackHacksRealSetFrameLevel
-  frame.slackHacksRealSetPoint = nil
-  frame.slackHacksRealClearAllPoints = nil
-  frame.slackHacksRealSetFrameStrata = nil
-  frame.slackHacksRealSetFrameLevel = nil
+local function restoreButtonState(button)
+  local saved = button.slackHacksSaved
+  if not saved then return end
+
+  if saved.parent then
+    button:SetParent(saved.parent)
+  end
+  if saved.scale then
+    button:SetScale(saved.scale)
+  end
+  if saved.strata then
+    button:SetFrameStrata(saved.strata)
+  end
+  if saved.level then
+    button:SetFrameLevel(saved.level)
+  end
+  button:ClearAllPoints()
+  for point, info in pairs(saved.anchors) do
+    button:SetPoint(point, info.relativeTo, info.relativePoint, info.x, info.y)
+  end
+  button.slackHacksSaved = nil
 end
 
-local function saveIconAnchor(frame)
-  if savedIconAnchors[frame] then return end
-  local point, relativeTo, relativePoint, x, y = frame:GetPoint(1)
-  savedIconAnchors[frame] = {
-    point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y,
-    scale = frame:GetScale(), frameLevel = frame:GetFrameLevel(), strata = frame:GetFrameStrata(),
+--- Mappy-style hooks: when Blizzard or third-party addons call SetPoint, ClearAllPoints,
+--- SetFrameStrata, or SetFrameLevel while stacked, record their intent into saved state
+--- rather than letting them fight or displace the title bar layout.
+local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
+  if not self.slackHacksSaved then return end
+  self.slackHacksSaved.anchors[point] = {
+    relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y,
   }
 end
 
-local function restoreIconAnchor(frame)
-  local saved = savedIconAnchors[frame]
-  if not saved then return end
-  releasePositioning(frame) -- give Blizzard back control before calling these methods ourselves
-  frame:SetScale(saved.scale)
-  frame:SetFrameLevel(saved.frameLevel)
-  frame:SetFrameStrata(saved.strata)
-  frame:ClearAllPoints()
-  if saved.point then
-    frame:SetPoint(saved.point, saved.relativeTo, saved.relativePoint, saved.x, saved.y)
-  end
-  savedIconAnchors[frame] = nil
+local function buttonSaveClearAllPoints(self)
+  if not self.slackHacksSaved then return end
+  wipe(self.slackHacksSaved.anchors)
 end
 
---- Shrinks and lines up the minimap's icon buttons along the right side of the title bar, all anchored
---- to the shared `titleBarIconRow` wrapper so they line up on the exact same strata/level/edge.
-local function layoutTitleBarIcons(row)
-  local previous
-  for _, frame in ipairs(iconBarFrames()) do
-    if frame:IsShown() then
-      saveIconAnchor(frame)
-      hijackPositioning(frame)
-      frame:SetScale(frame == TimeManagerClockButton and TITLE_BAR_CLOCK_SCALE or TITLE_BAR_ICON_SCALE)
-      frame.slackHacksRealSetFrameStrata(frame, row:GetFrameStrata())
-      frame.slackHacksRealSetFrameLevel(frame, row:GetFrameLevel() + 1)
-      frame.slackHacksRealClearAllPoints(frame)
-      if previous then
-        frame.slackHacksRealSetPoint(frame, "RIGHT", previous, "LEFT", -2, 0)
-      else
-        frame.slackHacksRealSetPoint(frame, "RIGHT", row, "RIGHT", 0, 0)
+local function buttonSaveSetFrameStrata(self, strata)
+  if not self.slackHacksSaved then return end
+  self.slackHacksSaved.strata = strata
+end
+
+local function buttonSaveSetFrameLevel(self, level)
+  if not self.slackHacksSaved then return end
+  self.slackHacksSaved.level = level
+end
+
+local function scheduleTitleBarLayout()
+  if layoutPending then return end
+  layoutPending = true
+  C_Timer.After(0, function()
+    layoutPending = false
+    if applyTitleBarLayout then applyTitleBarLayout() end
+  end)
+end
+
+local function onButtonVisibilityChanged()
+  if settings().shape == "square" then
+    scheduleTitleBarLayout()
+  end
+end
+
+local function enableButtonStacking(button, enable)
+  if enable then
+    if not button.slackHacksRealSetPoint then
+      saveButtonState(button)
+
+      button.slackHacksRealSetPoint = button.SetPoint
+      button.slackHacksRealClearAllPoints = button.ClearAllPoints
+      button.slackHacksRealSetFrameStrata = button.SetFrameStrata
+      button.slackHacksRealSetFrameLevel = button.SetFrameLevel
+
+      button.SetPoint = buttonSaveSetPoint
+      button.ClearAllPoints = buttonSaveClearAllPoints
+      button.SetFrameStrata = buttonSaveSetFrameStrata
+      button.SetFrameLevel = buttonSaveSetFrameLevel
+
+      if not button.slackHacksHooksInstalled then
+        button:HookScript("OnHide", onButtonVisibilityChanged)
+        button:HookScript("OnShow", onButtonVisibilityChanged)
+        button.slackHacksHooksInstalled = true
       end
-      previous = frame
+    end
+    button.slackHacksStackingActive = true
+  else
+    if button.slackHacksRealSetPoint then
+      button.SetPoint = button.slackHacksRealSetPoint
+      button.ClearAllPoints = button.slackHacksRealClearAllPoints
+      button.SetFrameStrata = button.slackHacksRealSetFrameStrata
+      button.SetFrameLevel = button.slackHacksRealSetFrameLevel
+
+      button.slackHacksRealSetPoint = nil
+      button.slackHacksRealClearAllPoints = nil
+      button.slackHacksRealSetFrameStrata = nil
+      button.slackHacksRealSetFrameLevel = nil
+      button.slackHacksStackingActive = false
+
+      restoreButtonState(button)
     end
   end
 end
 
-local function applyTitleBarLayout()
-  local mm = settings()
-  if mm.shape ~= "square" then
-    if titleBarFrame then titleBarFrame:Hide() end
-    for _, frame in ipairs(iconBarFrames()) do
-      restoreIconAnchor(frame)
+local function registerButton(button)
+  if not button or registeredButtonsByFrame[button] then return end
+  registeredButtonsByFrame[button] = true
+  table.insert(registeredButtons, button)
+  if not button.slackHacksHooksInstalled then
+    button:HookScript("OnHide", onButtonVisibilityChanged)
+    button:HookScript("OnShow", onButtonVisibilityChanged)
+    button.slackHacksHooksInstalled = true
+  end
+end
+
+local function registerAddonButton(button)
+  if not button or addonButtonsByFrame[button] then return end
+  addonButtonsByFrame[button] = true
+  table.insert(addonButtons, button)
+  registerButton(button)
+end
+
+local function disableAllStacking()
+  for _, button in ipairs(registeredButtons) do
+    enableButtonStacking(button, false)
+  end
+end
+
+--- Mappy's recursive frame level setter: ensures child icons/textures shift frame level
+--- along with the button so no child elements draw behind the nine-slice border (level 500).
+local function setFrameLevelRecursive(frame, level)
+  local oldLevel = frame:GetFrameLevel()
+  local offset = level - oldLevel
+  if offset == 0 then return end
+
+  if frame.slackHacksRealSetFrameLevel then
+    frame.slackHacksRealSetFrameLevel(frame, level)
+  else
+    frame:SetFrameLevel(level)
+  end
+
+  local ok, children = pcall(function() return { frame:GetChildren() } end)
+  if ok and children then
+    for _, child in ipairs(children) do
+      local childLevel = child:GetFrameLevel() + offset
+      if childLevel < 1 then childLevel = 1 end
+      setFrameLevelRecursive(child, childLevel)
     end
-    return
   end
-
-  local bar = createTitleBar()
-  bar:Show()
-  titleBarZoneText:SetShown(mm.showZoneText)
-  updateTitleBarZoneText()
-  layoutTitleBarIcons(titleBarIconRow)
 end
 
-local ADDON_BUTTON_GAP = 4
-local ADDON_BUTTON_INSET = 8 -- overlap the border/map by this much instead of sitting flush outside it
-local addonButtonRescanTicker
-local lastAddonButtonCount
-
---- Third-party addon minimap buttons aren't in our known `extraButtons()` list, so find them the same
---- way Mappy does: any small, roughly-square frame parented directly to the minimap/cluster/backdrop,
---- OR (many libraries, e.g. LibDBIcon, do this instead) parented elsewhere but anchored directly to one
---- of those frames. Mappy wraps `GetPoint` in `pcall` since some frames are "secret"-tainted and error
---- when queried -- do the same so one bad frame can't abort the whole scan.
-local function isCandidateAddonButton(frame)
-  if not frame then return false end
-  local ok, forbidden = pcall(frame.IsForbidden, frame)
-  if not ok or forbidden then return false end
-  if frame.GetObjectType and frame:GetObjectType() == "Model" then return false end
-  local okSize, width, height = pcall(function() return frame:GetWidth(), frame:GetHeight() end)
-  if not okSize or not width or not height then return false end
-  if width < 14 or width > 64 or math.abs(width - height) > 4 then return false end
-  return true
+local function setFrameStrataSafe(frame, strata)
+  if frame.slackHacksRealSetFrameStrata then
+    frame.slackHacksRealSetFrameStrata(frame, strata)
+  else
+    frame:SetFrameStrata(strata)
+  end
 end
 
-local function managedFrameSet()
-  local managed = { [_G.Minimap] = true }
-  if MinimapCluster then
-    managed[MinimapCluster] = true
-    managed[MinimapCluster.ZoneTextButton] = true
-    managed[MinimapCluster.Tracking] = true
-    managed[MinimapCluster.DielFrame] = true
-  end
-  if MinimapBackdrop then managed[MinimapBackdrop] = true end
-  if squareBorderFrame then managed[squareBorderFrame] = true end
-  if titleBarFrame then managed[titleBarFrame] = true end
-  if TimeManagerClockButton then managed[TimeManagerClockButton] = true end
-  if _G.Minimap.ZoomIn then managed[_G.Minimap.ZoomIn] = true end
-  if _G.Minimap.ZoomOut then managed[_G.Minimap.ZoomOut] = true end
-  if _G.Minimap.ZoomHitArea then managed[_G.Minimap.ZoomHitArea] = true end
-  if MinimapToggleButton then managed[MinimapToggleButton] = true end
-  for _, frame in ipairs(iconBarFrames()) do
-    managed[frame] = true
-  end
-  return managed
-end
-
-local function isAnchoredToMinimap(frame)
+local function isAnchoredToFrame(frame, target)
+  if not frame or not target then return false end
   local ok, numPoints = pcall(frame.GetNumPoints, frame)
-  if not ok then return false end
-  for pointIndex = 1, (numPoints or 0) do
-    local pointOk, _, relativeTo = pcall(frame.GetPoint, frame, pointIndex)
-    if pointOk and (relativeTo == _G.Minimap or relativeTo == MinimapCluster or relativeTo == MinimapBackdrop) then
+  if not ok or not numPoints then return false end
+  for i = 1, numPoints do
+    local pOk, _, relativeTo = pcall(frame.GetPoint, frame, i)
+    if pOk and (relativeTo == target or (type(relativeTo) == "string" and target.GetName and relativeTo == target:GetName())) then
       return true
     end
   end
   return false
 end
 
---- Covers both buttons parented directly to the minimap/cluster/backdrop AND ones parented elsewhere
---- (commonly UIParent, e.g. LibDBIcon-1.0) but anchored directly to one of those frames.
+local function getIgnoreFramesMap()
+  local ignore = {
+    Minimap = true,
+    MinimapBackdrop = true,
+    MinimapCluster = true,
+    MiniMapPing = true,
+    MinimapToggleButton = true,
+    MinimapZoneTextButton = true,
+    TimeManagerClockButton = true,
+    GameTimeFrame = true,
+    MiniMapBattlefieldFrame = true,
+    MiniMapMeetingStoneFrame = true,
+    MiniMapVoiceChatFrame = true,
+    FeedbackUIButton = true,
+    MiniMapLFGFrame = true,
+    GuildInstanceDifficulty = true,
+    ExpansionLandingPageMinimapButton = true,
+    AddonCompartmentFrame = true,
+    CT_RASetsFrame = true,
+    SlackHacksMinimapSquareBorder = true,
+    SlackHacksMinimapTitleBar = true,
+    SlackHacksMinimapTitleBarIcons = true,
+    SlackHacksMinimapOptionsDialog = true,
+  }
+  for name in pairs(ignore) do
+    if _G[name] then ignore[_G[name]] = true end
+  end
+  if MinimapCluster then
+    ignore[MinimapCluster] = true
+    if MinimapCluster.ZoneTextButton then ignore[MinimapCluster.ZoneTextButton] = true end
+    if MinimapCluster.Tracking then ignore[MinimapCluster.Tracking] = true end
+    if MinimapCluster.DielFrame then ignore[MinimapCluster.DielFrame] = true end
+    if MinimapCluster.InstanceDifficulty then ignore[MinimapCluster.InstanceDifficulty] = true end
+    if MinimapCluster.BorderTop then ignore[MinimapCluster.BorderTop] = true end
+    if MinimapCluster.MinimapContainer then ignore[MinimapCluster.MinimapContainer] = true end
+    if MinimapCluster.IndicatorFrame then
+      ignore[MinimapCluster.IndicatorFrame] = true
+      if MinimapCluster.IndicatorFrame.MailFrame then ignore[MinimapCluster.IndicatorFrame.MailFrame] = true end
+      if MinimapCluster.IndicatorFrame.CraftingOrderFrame then ignore[MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true end
+    end
+  end
+  if _G.Minimap then
+    ignore[_G.Minimap] = true
+    if _G.Minimap.ZoomIn then ignore[_G.Minimap.ZoomIn] = true end
+    if _G.Minimap.ZoomOut then ignore[_G.Minimap.ZoomOut] = true end
+    if _G.Minimap.ZoomHitArea then ignore[_G.Minimap.ZoomHitArea] = true end
+  end
+  if squareBorderFrame then ignore[squareBorderFrame] = true end
+  if titleBarFrame then ignore[titleBarFrame] = true end
+  if titleBarIconRow then ignore[titleBarIconRow] = true end
+  return ignore
+end
+
+local function isCandidateAddonButton(frame, anchoredTo, ignoreMap)
+  if not frame then return false end
+  local ok, forbidden = pcall(frame.IsForbidden, frame)
+  if not ok or forbidden then return false end
+  if frame.GetObjectType and frame:GetObjectType() == "Model" then return false end
+  local okW, width = pcall(frame.GetWidth, frame)
+  local okH, height = pcall(frame.GetHeight, frame)
+  if not okW or not okH or not width or not height then return false end
+  if issecretvalue and (issecretvalue(width) or issecretvalue(height)) then return false end
+  if width < 14 or width > 64 or math.abs(width - height) > 4 then return false end
+  local name = frame:GetName()
+  if name and ignoreMap[name] then return false end
+  if ignoreMap[frame] or registeredButtonsByFrame[frame] then return false end
+  if anchoredTo and not isAnchoredToFrame(frame, anchoredTo) then return false end
+  return true
+end
+
+local function scanAddonButtons(parent, anchoredTo, ignoreMap)
+  if not parent or not parent.GetChildren then return end
+  local ok, children = pcall(function() return { parent:GetChildren() } end)
+  if not ok or not children then return end
+  for _, child in ipairs(children) do
+    if isCandidateAddonButton(child, anchoredTo, ignoreMap) then
+      registerAddonButton(child)
+    end
+  end
+  if not anchoredTo then
+    scanAddonButtons(UIParent, parent, ignoreMap)
+  end
+end
+
 local function discoverAddonButtons()
-  local managed = managedFrameSet()
-  local found = {}
-  local function scan(parent, requireAnchoredToMinimap)
-    if not parent or not parent.GetChildren then return end
-    -- GetChildren() returns multiple values (not a table), so pack them inside the protected call itself.
-    local ok, children = pcall(function() return { parent:GetChildren() } end)
-    if not ok then return end
-    for _, child in ipairs(children) do
-      if not managed[child] and isCandidateAddonButton(child) then
-        if not requireAnchoredToMinimap or isAnchoredToMinimap(child) then
-          table.insert(found, child)
-        end
-      end
+  local ignoreMap = getIgnoreFramesMap()
+  local otherAddons = { "CT_RASets_Button", "MBB_MinimapButtonFrame" }
+  for _, name in ipairs(otherAddons) do
+    local btn = _G[name]
+    if btn and not registeredButtonsByFrame[btn] then
+      registerAddonButton(btn)
     end
   end
-  scan(MinimapCluster)
-  scan(MinimapBackdrop)
-  scan(_G.Minimap)
-  scan(UIParent, true)
-  return found
-end
-
---- Lines up other addons' minimap buttons along one outside edge of the square border (never the top,
---- since that's where our title bar lives).
-local function layoutAddonButtons(border, position, buttons)
-  local previous
-  for _, frame in ipairs(buttons) do
-    if frame:IsShown() then
-      saveIconAnchor(frame)
-      hijackPositioning(frame)
-      -- NineSlicePanelTemplate's border art is hardcoded to frame level 500 (see createSquareBorder).
-      -- Minimap's own native strata may already be "HIGH" (it's an always-on-top HUD element), in which
-      -- case matching border's strata alone just ties with it and falls back to frame level -- so bump
-      -- both the strata (in case Minimap's native strata is lower than that) AND the level above 500.
-      frame.slackHacksRealSetFrameStrata(frame, "HIGH")
-      frame.slackHacksRealSetFrameLevel(frame, 511)
-      frame.slackHacksRealClearAllPoints(frame)
-      if position == "left" then
-        if previous then
-          frame.slackHacksRealSetPoint(frame, "TOP", previous, "BOTTOM", 0, -ADDON_BUTTON_GAP)
-        else
-          frame.slackHacksRealSetPoint(frame, "TOPRIGHT", border, "TOPLEFT", ADDON_BUTTON_INSET, -(TITLE_BAR_HEIGHT + 8))
-        end
-      elseif position == "bottom" then
-        if previous then
-          frame.slackHacksRealSetPoint(frame, "LEFT", previous, "RIGHT", ADDON_BUTTON_GAP, 0)
-        else
-          frame.slackHacksRealSetPoint(frame, "TOPLEFT", border, "BOTTOMLEFT", 6, ADDON_BUTTON_INSET)
-        end
-      else -- "right"
-        if previous then
-          frame.slackHacksRealSetPoint(frame, "TOP", previous, "BOTTOM", 0, -ADDON_BUTTON_GAP)
-        else
-          frame.slackHacksRealSetPoint(frame, "TOPLEFT", border, "TOPRIGHT", -ADDON_BUTTON_INSET, -(TITLE_BAR_HEIGHT + 8))
-        end
-      end
-      previous = frame
-    end
+  scanAddonButtons(MinimapCluster, nil, ignoreMap)
+  scanAddonButtons(MinimapBackdrop, nil, ignoreMap)
+  scanAddonButtons(_G.Minimap, nil, ignoreMap)
+  if MinimapCluster and MinimapCluster.MinimapContainer then
+    scanAddonButtons(MinimapCluster.MinimapContainer, nil, ignoreMap)
   end
 end
 
-local function applyAddonButtonsLayout()
+local function isButtonShown(button)
+  if not button then return false end
+  if button == (MinimapCluster and MinimapCluster.InstanceDifficulty) then
+    local _, instanceType, difficulty = GetInstanceInfo()
+    if not difficulty or not (instanceType == "raid" or instanceType == "party" or instanceType == "scenario") then
+      return false
+    end
+  end
+  return button:IsShown()
+end
+
+--- Builds the complete ordered list of buttons for the square title bar.
+--- Right-to-left layout order: Clock, standard icons, addon compartment, various addon icons.
+local function getOrderedButtons()
+  local list = {}
+
+  -- 1. Clock (rightmost)
+  if TimeManagerClockButton then
+    table.insert(list, TimeManagerClockButton)
+  end
+
+  -- 2. Standard icons
+  local standard = {
+    GameTimeFrame,
+    MinimapCluster and MinimapCluster.Tracking,
+    MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.MailFrame,
+    MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame,
+    MinimapCluster and MinimapCluster.InstanceDifficulty,
+    MiniMapBattlefieldFrame,
+    MiniMapMeetingStoneFrame,
+    MiniMapVoiceChatFrame,
+    FeedbackUIButton,
+    MiniMapLFGFrame,
+    GuildInstanceDifficulty,
+    ExpansionLandingPageMinimapButton,
+  }
+  for _, btn in ipairs(standard) do
+    if btn then table.insert(list, btn) end
+  end
+
+  -- 3. Addon compartment
+  if AddonCompartmentFrame then
+    table.insert(list, AddonCompartmentFrame)
+  end
+
+  -- 4. Various addon icons (discovered third-party addon buttons)
+  for _, btn in ipairs(addonButtons) do
+    if btn then table.insert(list, btn) end
+  end
+
+  return list
+end
+
+--- Shrinks and lines up the minimap buttons along the right side of the title bar,
+--- ordered right-to-left: Clock, standard icons, addon compartment, various addon icons.
+local function layoutTitleBarIcons()
+  local row = titleBarIconRow
+  if not row then return end
+  local buttons = getOrderedButtons()
+  local previous = nil
+
+  for _, button in ipairs(buttons) do
+    registerButton(button)
+    if isButtonShown(button) then
+      enableButtonStacking(button, true)
+      -- Mappy reparents to MinimapCluster so Blizzard internals (e.g. AddonCompartmentFrame) find their expected parent
+      button:SetParent(MinimapCluster or _G.Minimap)
+      button:SetScale(button == TimeManagerClockButton and TITLE_BAR_CLOCK_SCALE or TITLE_BAR_ICON_SCALE)
+      setFrameStrataSafe(button, row:GetFrameStrata())
+      setFrameLevelRecursive(button, row:GetFrameLevel() + 1)
+      button.slackHacksRealClearAllPoints(button)
+      if previous then
+        button.slackHacksRealSetPoint(button, "RIGHT", previous, "LEFT", -2, 0)
+      else
+        button.slackHacksRealSetPoint(button, "RIGHT", row, "RIGHT", 0, 0)
+      end
+      previous = button
+    end
+  end
+
+  if titleBarZoneText then
+    titleBarZoneText:ClearAllPoints()
+    titleBarZoneText:SetPoint("LEFT", titleBarFrame, "LEFT", 0, 0)
+    if previous then
+      titleBarZoneText:SetPoint("RIGHT", previous, "LEFT", -4, 0)
+    else
+      titleBarZoneText:SetPoint("RIGHT", titleBarFrame, "RIGHT", 0, 0)
+    end
+  end
+end
+
+applyTitleBarLayout = function()
   local mm = settings()
   if mm.shape ~= "square" then
-    for _, frame in ipairs(discoverAddonButtons()) do
-      restoreIconAnchor(frame)
+    if titleBarFrame then titleBarFrame:Hide() end
+    if MinimapCluster then
+      if origMinimapClusterLayout then
+        MinimapCluster.Layout = origMinimapClusterLayout
+      end
+      if MinimapCluster.BorderTop then
+        MinimapCluster.BorderTop:SetAlpha(1)
+      end
     end
-    if addonButtonRescanTicker then
-      addonButtonRescanTicker:Cancel()
-      addonButtonRescanTicker = nil
+    disableAllStacking()
+    if addonScanTicker then
+      addonScanTicker:Cancel()
+      addonScanTicker = nil
     end
-    lastAddonButtonCount = nil
     return
   end
-  local position = mm.addonButtonsPosition
-  if position ~= "left" and position ~= "right" and position ~= "bottom" then
-    position = "right"
+
+  -- Workaround from Mappy: disable MinimapCluster.Layout so Blizzard's layout code
+  -- doesn't fight our button positions or error when children move.
+  if MinimapCluster then
+    if not origMinimapClusterLayout and MinimapCluster.Layout then
+      origMinimapClusterLayout = MinimapCluster.Layout
+    end
+    MinimapCluster.Layout = function() end
+    if MinimapCluster.BorderTop then
+      MinimapCluster.BorderTop:SetAlpha(0)
+    end
+    if MinimapCluster.SetClipsChildren then
+      MinimapCluster:SetClipsChildren(false)
+    end
   end
-  local buttons = discoverAddonButtons()
-  if #buttons ~= lastAddonButtonCount then
-    lastAddonButtonCount = #buttons
-    print("SlackHacks: found " .. #buttons .. " other addon minimap button(s) to reposition.")
+  if _G.Minimap.SetClipsChildren then
+    _G.Minimap:SetClipsChildren(false)
   end
-  layoutAddonButtons(createSquareBorder(), position, buttons)
-  -- Some addons register their minimap button well after login/zoning; keep re-checking periodically
-  -- instead of only on the handful of events ApplyAll is already wired to.
-  if not addonButtonRescanTicker then
-    addonButtonRescanTicker = C_Timer.NewTicker(2, function()
+
+  local bar = createTitleBar()
+  bar:Show()
+  titleBarZoneText:SetShown(mm.showZoneText)
+  updateTitleBarZoneText()
+
+  discoverAddonButtons()
+  layoutTitleBarIcons()
+
+  if not addonScanTicker then
+    addonScanTicker = C_Timer.NewTicker(2, function()
       local currentMm = settings()
       if currentMm.shape ~= "square" then return end
-      local currentPosition = currentMm.addonButtonsPosition
-      if currentPosition ~= "left" and currentPosition ~= "right" and currentPosition ~= "bottom" then
-        currentPosition = "right"
+      local prevCount = #addonButtons
+      discoverAddonButtons()
+      if #addonButtons ~= prevCount then
+        scheduleTitleBarLayout()
       end
-      local rescanned = discoverAddonButtons()
-      if #rescanned ~= lastAddonButtonCount then
-        lastAddonButtonCount = #rescanned
-        print("SlackHacks: found " .. #rescanned .. " other addon minimap button(s) to reposition.")
-      end
-      layoutAddonButtons(createSquareBorder(), currentPosition, rescanned)
     end)
   end
 end
@@ -552,7 +739,6 @@ function module:ApplyAll()
   applyExtraButtons()
   applyBorder()
   applyTitleBarLayout()
-  applyAddonButtonsLayout()
   applyMouseWheelZoom()
 end
 module.Refresh = module.ApplyAll
@@ -815,12 +1001,6 @@ local function createOptionsDialog()
     function() return db.profile.minimap.hideExtraButtons end,
     function(v) db.profile.minimap.hideExtraButtons = v end,
     curY)
-  _, curY = addDropdown("Other Addon Icons Position",
-    { left = "Left", right = "Right", bottom = "Bottom" },
-    { "left", "right", "bottom" },
-    function() return db.profile.minimap.addonButtonsPosition end,
-    function(v) db.profile.minimap.addonButtonsPosition = v end,
-    curY)
   _, curY = addCheckbox("Mouse Wheel Zoom",
     function() return db.profile.minimap.mouseWheelZoom end,
     function(v) db.profile.minimap.mouseWheelZoom = v end,
@@ -916,19 +1096,22 @@ function module:OnDisable()
     coordTicker:Cancel()
     coordTicker = nil
   end
-  if addonButtonRescanTicker then
-    addonButtonRescanTicker:Cancel()
-    addonButtonRescanTicker = nil
+  if addonScanTicker then
+    addonScanTicker:Cancel()
+    addonScanTicker = nil
   end
   if coordText then coordText:Hide() end
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
-  for _, frame in ipairs(iconBarFrames()) do
-    restoreIconAnchor(frame)
+  if MinimapCluster then
+    if origMinimapClusterLayout then
+      MinimapCluster.Layout = origMinimapClusterLayout
+    end
+    if MinimapCluster.BorderTop then
+      MinimapCluster.BorderTop:SetAlpha(1)
+    end
   end
-  for _, frame in ipairs(discoverAddonButtons()) do
-    restoreIconAnchor(frame)
-  end
+  disableAllStacking()
   if _G.Minimap.SetMaskTexture then _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE) end
   _G.Minimap:SetAlpha(1)
   if not InCombatLockdown() then

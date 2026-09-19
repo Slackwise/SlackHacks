@@ -650,21 +650,6 @@ options = {
               end,
               order = 6
             },
-            addonButtonsPosition = {
-              name = "Other Addon Icons Position",
-              desc = "Line up other addons' minimap buttons along one outside edge of the square border instead of leaving them scattered around the circle.",
-              type = "select",
-              width = "full",
-              values = { left = "Left", right = "Right", bottom = "Bottom" },
-              sorting = { "left", "right", "bottom" },
-              get = function() return db.profile.minimap.addonButtonsPosition end,
-              set = function(_, value)
-                db.profile.minimap.addonButtonsPosition = value
-                Self.Minimap:Refresh()
-              end,
-              disabled = function() return db.profile.minimap.shape ~= "square" end,
-              order = 6.5
-            },
             mouseWheelZoom = {
               name = "Mouse Wheel Zoom",
               type = "toggle",

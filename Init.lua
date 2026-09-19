@@ -71,7 +71,6 @@ dbDefaults = {
       showAllMinimapTracking = false,
       hideExtraButtons = false,
       hideDiel = false,
-      addonButtonsPosition = "right",
       showBorder = true,
       mouseWheelZoom = true
     },
