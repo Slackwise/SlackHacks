@@ -396,6 +396,11 @@ function isSpellKnown(spellName)
   return false
 end
 
+function newlineTrim(str)
+  if not str then return "" end
+  return (strtrim(str):gsub("\n%s*(%S)", "\n%1"))
+end
+
 --- Get all keys from a given `targetTable`.
 ---@param targetTable table - The table to extract keys from.
 ---@param value object - The `value` to key off of.
