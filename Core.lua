@@ -57,8 +57,8 @@ end
 function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of combat
   -- GAME_READY = true
   setCVars()
-  setupEkil()
   handleDragonriding()
+  setSlackwisePreferences()
   if isLogin then
     C_Timer.After(5, purgeOldLogs)
   end
@@ -113,6 +113,17 @@ function runAfterCombatActions()
     if not InCombatLockdown() then
       table.remove(afterCombatActions)()
     end
+  end
+end
+
+--- Convert a boolean value to an integer (1 or 0).
+---@param bool boolean - The boolean value to convert.
+---@return number - 1 if true, 0 if false.
+function bool2int(bool)
+  if bool then
+    return 1
+  else
+    return 0
   end
 end
 
@@ -295,39 +306,6 @@ function setCVars()
   else
     ensureCVar("cameraDistanceMaxZoomFactor", GetCVarDefault("cameraDistanceMaxZoomFactor"))
   end
-
-  if isSlackwise() then
-    -- Camera:
-    ensureCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
-
-    -- Logging:
-    ensureCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
-    ensureLogging()
-
-    -- Nameplates:
-    ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
-    ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
-    ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
-
-    -- Floating Combat Text:
-    if isRetail() then
-      ensureCVar("floatingCombatTextCombatDamage", 0)            -- Disable Direct Damage (White/Yellow Hits)
-      ensureCVar("floatingCombatTextCombatDamage_v2", 0)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
-      ensureCVar("floatingCombatTextCombatHealing", 0)           -- Disable All Healing
-      ensureCVar("floatingCombatTextCombatHealing_v2", 0)           -- Disable All Healing v2 ?
-      ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
-      ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
-      ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
-    else
-      ensureCVar("floatingCombatTextCombatDamage", 1)            -- Disable Direct Damage (White/Yellow Hits)
-      ensureCVar("floatingCombatTextCombatDamage_v2", 1)            -- Disable Direct Damage (White/Yellow Hits) v2 ?
-      ensureCVar("floatingCombatTextCombatHealing", 1)           -- Disable All Healing
-      ensureCVar("floatingCombatTextCombatHealing_v2", 1)           -- Disable All Healing v2 ?
-      ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Enable Periodic Damage (DoTs)
-      ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Enable Pet Melee Damage
-      ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Enable Pet Spell Damage
-    end
-  end
 end
 
 function ensureLogging()
@@ -421,6 +399,23 @@ function keys(targetTable)
     table.insert(collectedKeys, key)
   end
   return collectedKeys
+end
+
+--- Recursively merge values from a source table into a destination table, overwriting existing keys.
+---@param dest table - Destination table to merge into (modified in place).
+---@param src table - Source table to copy values from.
+function recursiveMerge(dest, src)
+  if type(dest) ~= "table" or type(src) ~= "table" then return end
+  for k, v in pairs(src) do
+    if type(v) == "table" then
+      if type(dest[k]) ~= "table" then
+        dest[k] = {}
+      end
+      recursiveMerge(dest[k], v)
+    else
+      dest[k] = v
+    end
+  end
 end
 
 --- Find the first table element that match `kvPredicate` function.

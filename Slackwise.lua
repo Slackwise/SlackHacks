@@ -10,6 +10,63 @@ setfenv(1, _G.SlackHacks)
 --   return -- Does not impact loading subsequent files, though!
 -- end
 
+SLACKWISE_CONFIG = {
+}
+
+function setSlackwisePreferences()
+  if not isSlackwise() then return end
+
+  -- set the game cvars I prefer to always have:
+  -- Camera:
+  ensureCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
+
+  -- Logging:
+  ensureCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
+  ensureLogging()
+
+  -- Nameplates:
+  ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
+  ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
+  ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
+
+  -- Floating Combat Text:
+  ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Periodic Damage (DoTs)
+  ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Pet Melee Damage
+  ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Pet Spell Damage
+  local shouldBeEnabled = bool2int(not isRetail())
+  ensureCVar("floatingCombatTextCombatDamage",      shouldBeEnabled)  -- Direct Damage (White/Yellow Hits)
+  ensureCVar("floatingCombatTextCombatDamage_v2",   shouldBeEnabled)  -- Direct Damage (White/Yellow Hits) v2 ?
+  ensureCVar("floatingCombatTextCombatHealing",     shouldBeEnabled)  -- All Healing
+  ensureCVar("floatingCombatTextCombatHealing_v2",  shouldBeEnabled)  -- All Healing v2 ?
+
+  -- Merge my own `SLACKWISE_CONFIG` table over the current addon config:
+  local targetDB = _G.SlackHacksDB or SlackHacksDB or (db and rawget(db, "sv"))
+  if targetDB and type(SLACKWISE_CONFIG) == "table" then
+    recursiveMerge(targetDB, SLACKWISE_CONFIG)
+  end
+
+  if db and type(SLACKWISE_CONFIG) == "table" then
+    if type(SLACKWISE_CONFIG.profile) == "table" and type(db.profile) == "table" then
+      recursiveMerge(db.profile, SLACKWISE_CONFIG.profile)
+    end
+    if type(SLACKWISE_CONFIG.global) == "table" and type(db.global) == "table" then
+      recursiveMerge(db.global, SLACKWISE_CONFIG.global)
+    end
+    if type(SLACKWISE_CONFIG.char) == "table" and type(db.char) == "table" then
+      recursiveMerge(db.char, SLACKWISE_CONFIG.char)
+    end
+    for k, v in pairs(SLACKWISE_CONFIG) do
+      if k ~= "profile" and k ~= "global" and k ~= "char" and k ~= "profiles" and k ~= "profileKeys" then
+        if type(v) == "table" and type(db.profile) == "table" and (type(db.profile[k]) == "table" or (dbDefaults and dbDefaults.profile and dbDefaults.profile[k] ~= nil)) then
+          if type(db.profile[k]) ~= "table" then
+            db.profile[k] = {}
+          end
+          recursiveMerge(db.profile[k], v)
+        end
+      end
+    end
+  end
+end
 
 MOUNTS_BY_USAGE = {
   DEFAULT = {
