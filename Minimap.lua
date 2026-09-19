@@ -611,10 +611,12 @@ local function createOptionsDialog()
     function() return db.profile.minimap.showCalendar end,
     function(v) db.profile.minimap.showCalendar = v end,
     curY)
-  _, curY = addCheckbox("Hide Day/Night Icon (Classic Only)",
-    function() return db.profile.minimap.hideClassicDayNightIcon end,
-    function(v) db.profile.minimap.hideClassicDayNightIcon = v end,
-    curY)
+  if not isRetail() then
+    _, curY = addCheckbox("Hide Day/Night Icon",
+      function() return db.profile.minimap.hideClassicDayNightIcon end,
+      function(v) db.profile.minimap.hideClassicDayNightIcon = v end,
+      curY)
+  end
   _, curY = addCheckbox("Show Tracking Button",
     function() return db.profile.minimap.showTracking end,
     function(v) db.profile.minimap.showTracking = v end,
