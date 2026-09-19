@@ -242,6 +242,7 @@ BT = BINDING_TYPE
 BINDINGS = {
   GLOBAL = {
     {"ALT-CTRL-END",         "SLACKHACKS_RELOADUI", BT.COMMAND},
+    {"ALT-CTRL-SHIFT-END",   "SLACKHACKS_OPTIONS", BT.COMMAND},
     {"ALT-CTRL-`",           "FOCUSTARGET", BT.COMMAND},
     {"ALT-`",                "INTERACTTARGET", BT.COMMAND},
     {"W",                    "MOVEFORWARD", BT.COMMAND},

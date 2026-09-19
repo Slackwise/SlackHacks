@@ -3,6 +3,16 @@ setfenv(1, _G.SlackHacks)
 
 -- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
 
+function openOptions()
+  local acd = LibStub("AceConfigDialog-3.0")
+  if acd.OpenFrames and acd.OpenFrames["SlackHacks"] and acd.OpenFrames["SlackHacks"]:IsShown() then
+    acd:Close("SlackHacks")
+  else
+    acd:Open("SlackHacks")
+  end
+end
+toggleOptions = openOptions
+
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "vendor" then
@@ -10,6 +20,8 @@ function handleSlashCommand(input)
   elseif command == "clearlogs" then
     clearLogs()
     print("SlackHacks: logs cleared")
+  elseif command == "options" or command == "config" or command == "opt" then
+    openOptions()
   elseif command:find("^vendor%s+") then
     Self.SelfVendor:HandleSlash(command:sub(8))
   elseif command:find("^sendaugs%s+") then

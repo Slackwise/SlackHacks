@@ -11,6 +11,9 @@
   <Binding name="SLACKHACKS_SETBINDINGS" category="BINDING_HEADER_SLACKHACKS">
     SlackHacks.setBindings()
   </Binding>
+  <Binding name="SLACKHACKS_OPTIONS" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.openOptions()
+  </Binding>
   <Binding name="SLACKHACKS_BEST_HEALING_POTION" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
   <Binding name="SLACKHACKS_BEST_MANA_POTION" category="BINDING_HEADER_SLACKHACKS">
