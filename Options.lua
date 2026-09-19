@@ -4,6 +4,27 @@ setfenv(1, _G.SlackHacks)
 -- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
 
 function openOptions()
+  -- If Blizzard SettingsPanel is already open, toggle it closed:
+  if SettingsPanel and SettingsPanel:IsShown() then
+    HideUIPanel(SettingsPanel)
+    return
+  end
+
+  local categoryID = Self.configCategoryID or (Self.configDialog and Self.configDialog.name)
+  if Settings and Settings.OpenToCategory and categoryID and not InCombatLockdown() then
+    Settings.OpenToCategory(categoryID)
+    return
+  end
+
+  if InterfaceOptionsFrame_OpenToCategory and Self.configDialog and not InCombatLockdown() then
+    if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then
+      InterfaceOptionsFrame:Hide()
+      return
+    end
+    InterfaceOptionsFrame_OpenToCategory(Self.configDialog)
+    return
+  end
+
   local acd = LibStub("AceConfigDialog-3.0")
   if acd.OpenFrames and acd.OpenFrames["SlackHacks"] and acd.OpenFrames["SlackHacks"]:IsShown() then
     acd:Close("SlackHacks")
@@ -628,6 +649,21 @@ options = {
                 Self.Minimap:Refresh()
               end,
               order = 6
+            },
+            addonButtonsPosition = {
+              name = "Other Addon Icons Position",
+              desc = "Line up other addons' minimap buttons along one outside edge of the square border instead of leaving them scattered around the circle.",
+              type = "select",
+              width = "full",
+              values = { left = "Left", right = "Right", bottom = "Bottom" },
+              sorting = { "left", "right", "bottom" },
+              get = function() return db.profile.minimap.addonButtonsPosition end,
+              set = function(_, value)
+                db.profile.minimap.addonButtonsPosition = value
+                Self.Minimap:Refresh()
+              end,
+              disabled = function() return db.profile.minimap.shape ~= "square" end,
+              order = 6.5
             },
             mouseWheelZoom = {
               name = "Mouse Wheel Zoom",
