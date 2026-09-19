@@ -863,23 +863,8 @@ BINDINGS = {
       {"CTRL-H",        "Teleport: Moonglade"},
     },
     PALADIN = {
-      {"1",  "ACTIONBUTTON1", BT.COMMAND},
-      {"2",  "ACTIONBUTTON2", BT.COMMAND},
-      {"3",  "ACTIONBUTTON3", BT.COMMAND},
-      {"4",  "ACTIONBUTTON4", BT.COMMAND},
-      {"5",  "ACTIONBUTTON5", BT.COMMAND},
-      {"6",  "ACTIONBUTTON6", BT.COMMAND},
-      {"7",  "ACTIONBUTTON7", BT.COMMAND},
-      {"8",  "ACTIONBUTTON8", BT.COMMAND},
-      {"9",  "ACTIONBUTTON9", BT.COMMAND},
-      {"10", "ACTIONBUTTON10", BT.COMMAND},
-      {"11", "ACTIONBUTTON11", BT.COMMAND},
-      {"12", "ACTIONBUTTON12", BT.COMMAND},
-
-      ---------------------------------------------------
-
       -- General
-      {"E", "!ENGAGE", BT.MACRO}, -- Crusader Strike
+      -- {"E", "!ENGAGE", BT.MACRO}, -- Crusader Strike
 
       {"F9",      "SHAPESHIFTBUTTON1", BT.COMMAND},
       {"F10",     "SHAPESHIFTBUTTON2", BT.COMMAND},
