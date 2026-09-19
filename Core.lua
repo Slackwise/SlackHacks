@@ -396,7 +396,10 @@ function isSpellKnown(spellName)
   return false
 end
 
-function newlineTrim(str)
+--- Trim outer whitespace and leading indentation after each newline.
+---@param str string - The multiline string to trim.
+---@return string - The trimmed string.
+function multilineTrim(str)
   if not str then return "" end
   return (strtrim(str):gsub("\n%s*(%S)", "\n%1"))
 end
