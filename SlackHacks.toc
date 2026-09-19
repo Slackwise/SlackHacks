@@ -17,6 +17,7 @@ ChargeTracking.lua
 Bindings.lua
 Buffs.lua
 Weeklies.lua
+Minimap.lua
 Options.lua
 Mount.lua
 Slackwise.lua

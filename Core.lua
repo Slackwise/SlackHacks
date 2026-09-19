@@ -295,11 +295,6 @@ function setCVars()
   else
     ensureCVar("cameraDistanceMaxZoomFactor", GetCVarDefault("cameraDistanceMaxZoomFactor"))
   end
-  if db.profile.general.showAllMinimapTracking then
-    ensureCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
-  else
-    ensureCVar("minimapTrackingShowAll", GetCVarDefault("minimapTrackingShowAll"))
-  end
 
   if isSlackwise() then
     -- Camera:

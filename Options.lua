@@ -142,19 +142,6 @@ options = {
           end,
           order = 1
         },
-        showAllMinimapTracking = {
-          name = "Show All Minimap Tracking",
-          desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.general.showAllMinimapTracking end,
-          set = function(_, value)
-            db.profile.general.showAllMinimapTracking = value
-            setCVars()
-          end,
-          order = 2
-        },
         autoSellGreyItems = {
           name = "Auto Sell Grey Items",
           desc = "Automatically sell grey-quality items when visiting a merchant.",
@@ -351,6 +338,282 @@ options = {
               end,
               disabled = function() return not db.profile.combat.paladin.trackHolyShockCharges end,
               order = 2
+            }
+          }
+        }
+      }
+    },
+    minimap = {
+      type = "group",
+      name = "Minimap",
+      desc = "Minimap shape, opacity, coordinates, and button visibility.",
+      order = 7.5,
+      args = {
+        enabled = {
+          name = "Enable",
+          desc = "Enable minimap enhancements. When disabled, the minimap looks and behaves exactly like stock Blizzard UI.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.minimap.enabled end,
+          set = function(_, value)
+            db.profile.minimap.enabled = value
+            Self.Minimap:Refresh()
+          end,
+          order = 0
+        },
+        openEditMode = {
+          name = "Open Visual Settings via Edit Mode",
+          desc = "Open Blizzard's Edit Mode and select the Minimap to configure its visual settings and position/size.",
+          type = "execute",
+          func = function()
+            if InCombatLockdown() then return end
+            if SettingsPanel and SettingsPanel:IsShown() then
+              HideUIPanel(SettingsPanel)
+            end
+            if EditModeManagerFrame then
+              ShowUIPanel(EditModeManagerFrame)
+            end
+          end,
+          order = 0.1
+        },
+        appearanceGroup = {
+          type = "group",
+          name = "Appearance",
+          inline = true,
+          order = 1,
+          args = {
+            shape = {
+              name = "Shape",
+              desc = "The shape of the minimap.",
+              type = "select",
+              width = "full",
+              values = { circle = "Round", square = "Square" },
+              sorting = { "circle", "square" },
+              get = function() return db.profile.minimap.shape end,
+              set = function(_, value)
+                db.profile.minimap.shape = value
+                Self.Minimap:Refresh()
+              end,
+              order = 1
+            },
+            showBorder = {
+              name = "Show Border",
+              desc = "Show the minimap's background border.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showBorder end,
+              set = function(_, value)
+                db.profile.minimap.showBorder = value
+                Self.Minimap:Refresh()
+              end,
+              order = 2
+            }
+          }
+        },
+        opacityGroup = {
+          type = "group",
+          name = "Opacity",
+          inline = true,
+          order = 2,
+          args = {
+            alpha = {
+              name = "Opacity",
+              desc = "Base opacity of the minimap.",
+              type = "range",
+              min = 0,
+              max = 100,
+              step = 1,
+              get = function() return db.profile.minimap.alpha end,
+              set = function(_, value)
+                db.profile.minimap.alpha = value
+                Self.Minimap:Refresh()
+              end,
+              order = 1
+            },
+            fadeEnabled = {
+              name = "Fade Based on Combat / Movement",
+              desc = "Temporarily use a different opacity while in combat or while moving.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.fadeEnabled end,
+              set = function(_, value)
+                db.profile.minimap.fadeEnabled = value
+                Self.Minimap:Refresh()
+              end,
+              order = 2
+            },
+            combatAlpha = {
+              name = "Combat Opacity",
+              type = "range",
+              min = 0,
+              max = 100,
+              step = 1,
+              get = function() return db.profile.minimap.combatAlpha end,
+              set = function(_, value)
+                db.profile.minimap.combatAlpha = value
+                Self.Minimap:Refresh()
+              end,
+              disabled = function() return not db.profile.minimap.fadeEnabled end,
+              order = 3
+            },
+            movingAlpha = {
+              name = "Moving Opacity",
+              type = "range",
+              min = 0,
+              max = 100,
+              step = 1,
+              get = function() return db.profile.minimap.movingAlpha end,
+              set = function(_, value)
+                db.profile.minimap.movingAlpha = value
+                Self.Minimap:Refresh()
+              end,
+              disabled = function() return not db.profile.minimap.fadeEnabled end,
+              order = 4
+            }
+          }
+        },
+        coordinatesGroup = {
+          type = "group",
+          name = "Coordinates",
+          inline = true,
+          order = 3,
+          args = {
+            showCoordinates = {
+              name = "Show Player Coordinates",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showCoordinates end,
+              set = function(_, value)
+                db.profile.minimap.showCoordinates = value
+                Self.Minimap:Refresh()
+              end,
+              order = 1
+            },
+            coordinatesAnchor = {
+              name = "Position",
+              type = "select",
+              width = "full",
+              values = { BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right" },
+              sorting = { "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" },
+              get = function() return db.profile.minimap.coordinatesAnchor end,
+              set = function(_, value)
+                db.profile.minimap.coordinatesAnchor = value
+                Self.Minimap:Refresh()
+              end,
+              disabled = function() return not db.profile.minimap.showCoordinates end,
+              order = 2
+            },
+            coordinatesScale = {
+              name = "Text Size",
+              type = "range",
+              min = 50,
+              max = 200,
+              step = 5,
+              get = function() return db.profile.minimap.coordinatesScale end,
+              set = function(_, value)
+                db.profile.minimap.coordinatesScale = value
+                Self.Minimap:Refresh()
+              end,
+              disabled = function() return not db.profile.minimap.showCoordinates end,
+              order = 3
+            }
+          }
+        },
+        buttonsGroup = {
+          type = "group",
+          name = "Buttons",
+          inline = true,
+          order = 4,
+          args = {
+            showZoneText = {
+              name = "Show Zone Text",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showZoneText end,
+              set = function(_, value)
+                db.profile.minimap.showZoneText = value
+                Self.Minimap:Refresh()
+              end,
+              order = 1
+            },
+            showClock = {
+              name = "Show Clock",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showClock end,
+              set = function(_, value)
+                db.profile.minimap.showClock = value
+                Self.Minimap:Refresh()
+              end,
+              order = 2
+            },
+            showCalendar = {
+              name = "Show Calendar Button",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showCalendar end,
+              set = function(_, value)
+                db.profile.minimap.showCalendar = value
+                Self.Minimap:Refresh()
+              end,
+              order = 3
+            },
+            showTracking = {
+              name = "Show Tracking Button",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showTracking end,
+              set = function(_, value)
+                db.profile.minimap.showTracking = value
+                Self.Minimap:Refresh()
+              end,
+              order = 4
+            },
+            showAllMinimapTracking = {
+              name = "Show All Minimap Tracking Options",
+              desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.showAllMinimapTracking end,
+              set = function(_, value)
+                db.profile.minimap.showAllMinimapTracking = value
+                Self.Minimap:Refresh()
+              end,
+              order = 5
+            },
+            hideExtraButtons = {
+              name = "Hide Extra Minimap Buttons",
+              desc = "Hide mail, LFG, instance difficulty, garrison/expansion landing page, and other addon compartment buttons.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.hideExtraButtons end,
+              set = function(_, value)
+                db.profile.minimap.hideExtraButtons = value
+                Self.Minimap:Refresh()
+              end,
+              order = 6
+            },
+            mouseWheelZoom = {
+              name = "Mouse Wheel Zoom",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.mouseWheelZoom end,
+              set = function(_, value)
+                db.profile.minimap.mouseWheelZoom = value
+                Self.Minimap:Refresh()
+              end,
+              order = 7
             }
           }
         }

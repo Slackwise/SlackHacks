@@ -16,7 +16,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
@@ -45,8 +45,7 @@ dbDefaults = {
       autoSellGreyItems = false,
       autoRepair = false,
       autoRepairMode = "personal",
-      maximumCameraZoom = false,
-      showAllMinimapTracking = false
+      maximumCameraZoom = false
     },
     combat = {
       raiseCastingNameplates = false,
@@ -54,6 +53,25 @@ dbDefaults = {
         trackHolyShockCharges = false,
         holyShockChargesPosition = "below"
       }
+    },
+    minimap = {
+      enabled = true,
+      shape = "circle",
+      alpha = 100,
+      fadeEnabled = false,
+      combatAlpha = 100,
+      movingAlpha = 100,
+      showCoordinates = false,
+      coordinatesAnchor = "BOTTOMLEFT",
+      coordinatesScale = 100,
+      showZoneText = true,
+      showClock = true,
+      showCalendar = true,
+      showTracking = true,
+      showAllMinimapTracking = false,
+      hideExtraButtons = false,
+      showBorder = true,
+      mouseWheelZoom = true
     },
     buffs = {
       enabled = false,
@@ -239,6 +257,13 @@ CONFIG_MIGRATIONS = {
     end
     if categories then
       categories.augmentRune = nil
+    end
+  end,
+  [3] = function()
+    local general = Self.db.profile.general
+    if general and general.showAllMinimapTracking ~= nil then
+      Self.db.profile.minimap.showAllMinimapTracking = general.showAllMinimapTracking
+      general.showAllMinimapTracking = nil
     end
   end,
 }
