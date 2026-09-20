@@ -75,6 +75,14 @@ local addonButtons = {}
 local addonButtonsByFrame = {}
 local hoverContainerButtons = {}
 local origMinimapClusterLayout
+local origMinimapClusterWidth, origMinimapClusterHeight
+local origMinimapClusterHitInsets
+local origMinimapContainerPoints
+local isSquareClusterApplied = false
+local origSetHeaderUnderneath
+local origSetRotateMinimap
+local origShouldShowSetting
+local origSetEditModeScale
 local layoutPending = false
 local addonScanTicker
 
@@ -94,7 +102,14 @@ local function applyMinimapRotation()
       SetCVar("rotateMinimap", 0)
     end
   else
-    if userWantedRotateMinimap or (db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap) then
+    if MinimapCluster and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting and MinimapCluster.HasSetting and MinimapCluster:HasSetting(Enum.EditModeMinimapSetting.RotateMinimap) then
+      local wantRotate = MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.RotateMinimap)
+      SetCVar("rotateMinimap", wantRotate and 1 or 0)
+      userWantedRotateMinimap = nil
+      if db and db.profile and db.profile.minimap then
+        db.profile.minimap.savedRotateMinimap = nil
+      end
+    elseif userWantedRotateMinimap or (db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap) then
       SetCVar("rotateMinimap", 1)
       userWantedRotateMinimap = nil
       if db and db.profile and db.profile.minimap then
@@ -105,7 +120,14 @@ local function applyMinimapRotation()
 end
 
 local function restoreMinimapRotation()
-  if userWantedRotateMinimap or (db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap) then
+  if MinimapCluster and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting and MinimapCluster.HasSetting and MinimapCluster:HasSetting(Enum.EditModeMinimapSetting.RotateMinimap) then
+    local wantRotate = MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.RotateMinimap)
+    SetCVar("rotateMinimap", wantRotate and 1 or 0)
+    userWantedRotateMinimap = nil
+    if db and db.profile and db.profile.minimap then
+      db.profile.minimap.savedRotateMinimap = nil
+    end
+  elseif userWantedRotateMinimap or (db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap) then
     SetCVar("rotateMinimap", 1)
     userWantedRotateMinimap = nil
     if db and db.profile and db.profile.minimap then
@@ -439,27 +461,195 @@ local function createSquareBorder()
   frame.layoutType = "ButtonFrameTemplateNoPortrait"
   frame:SetFrameStrata(_G.Minimap:GetFrameStrata())
   frame:SetFrameLevel(math.max(1, _G.Minimap:GetFrameLevel() - 1))
-  frame:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -4, 4)
-  frame:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 4, -4)
+  frame:SetPoint("TOPLEFT", MinimapCluster or _G.Minimap, "TOPLEFT", 0, 0)
+  frame:SetPoint("BOTTOMRIGHT", MinimapCluster or _G.Minimap, "BOTTOMRIGHT", 0, 0)
   CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   squareBorderFrame = frame
   return frame
 end
 
-local function updateEditModeSelectionBounds()
-  if not (MinimapCluster and MinimapCluster.Selection) then return end
-  if not isModuleEnabled() then return end
-  local mm = settings()
-  if mm.shape == "square" then
-    local border = createSquareBorder()
-    if border then
-      MinimapCluster.Selection:ClearAllPoints()
-      MinimapCluster.Selection:SetPoint("TOPLEFT", border, "TOPLEFT", 0, 0)
-      MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", 0, 0)
+local function cacheMinimapClusterDefaults()
+  if not MinimapCluster then return end
+  if not origMinimapClusterWidth and MinimapCluster.GetWidth and MinimapCluster:GetWidth() > 0 then
+    origMinimapClusterWidth = MinimapCluster:GetWidth()
+    origMinimapClusterHeight = MinimapCluster:GetHeight()
+  end
+  if not origMinimapClusterHitInsets and MinimapCluster.GetHitRectInsets then
+    origMinimapClusterHitInsets = { MinimapCluster:GetHitRectInsets() }
+  end
+  local container = MinimapCluster.MinimapContainer
+  if container and not origMinimapContainerPoints and container.GetNumPoints and container:GetNumPoints() > 0 then
+    origMinimapContainerPoints = {}
+    for i = 1, container:GetNumPoints() do
+      local point, relativeTo, relativePoint, offsetX, offsetY = container:GetPoint(i)
+      origMinimapContainerPoints[i] = {
+        point = point,
+        relativeTo = relativeTo,
+        relativePoint = relativePoint,
+        offsetX = offsetX,
+        offsetY = offsetY,
+      }
     end
-  else
+  end
+end
+
+local function getSquareMinimapDimensions()
+  local container = MinimapCluster and MinimapCluster.MinimapContainer
+  local scale = (container and container:GetScale()) or 1
+  local mmW = (_G.Minimap and _G.Minimap:GetWidth() and _G.Minimap:GetWidth() > 0 and _G.Minimap:GetWidth()) or 198
+  local mmH = (_G.Minimap and _G.Minimap:GetHeight() and _G.Minimap:GetHeight() > 0 and _G.Minimap:GetHeight()) or 198
+  local visualW = math.floor((mmW * scale) + 8 + 0.5)
+  local visualH = math.floor((mmH * scale) + 8 + 0.5)
+  return visualW, visualH
+end
+
+local function applySquareMinimapCluster()
+  if not MinimapCluster then return end
+  cacheMinimapClusterDefaults()
+
+  -- Disable Blizzard's MinimapCluster layout so it doesn't fight our sizing or points
+  if not origMinimapClusterLayout and MinimapCluster.Layout then
+    origMinimapClusterLayout = MinimapCluster.Layout
+  end
+  MinimapCluster.Layout = function() end
+
+  -- Remove/hide the native header (BorderTop) and related elements in square mode
+  if MinimapCluster.BorderTop then
+    MinimapCluster.BorderTop:SetAlpha(0)
+    MinimapCluster.BorderTop:Hide()
+    MinimapCluster.BorderTop.ignoreInLayout = true
+  end
+  if MinimapCluster.IndicatorFrame then
+    MinimapCluster.IndicatorFrame:Hide()
+  end
+  if MinimapCluster.GamepadButtons then
+    MinimapCluster.GamepadButtons:Hide()
+  end
+  if MinimapCluster.SetClipsChildren then
+    MinimapCluster:SetClipsChildren(false)
+  end
+
+  -- Center MinimapContainer in MinimapCluster (removes the 30px offset reserved for the header)
+  local container = MinimapCluster.MinimapContainer
+  if container then
+    container:ClearAllPoints()
+    container:SetPoint("CENTER", MinimapCluster, "CENTER", 0, 0)
+  end
+
+  -- Size MinimapCluster to match the visible square minimap exactly
+  local visualW, visualH = getSquareMinimapDimensions()
+  MinimapCluster:SetSize(visualW, visualH)
+  if MinimapCluster.SetHitRectInsets then
+    MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
+  end
+
+  -- Snap the square border to MinimapCluster
+  local border = createSquareBorder()
+  if border then
+    border:ClearAllPoints()
+    border:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
+    border:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
+    border:Show()
+  end
+
+  -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
+  if MinimapCluster.Selection then
+    MinimapCluster.Selection:ClearAllPoints()
+    MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
+    MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
+  end
+
+  if MinimapCluster.UpdateClampOffsets then
+    MinimapCluster:UpdateClampOffsets()
+  end
+
+  isSquareClusterApplied = true
+end
+
+local function restoreRoundMinimapCluster()
+  if not MinimapCluster or not isSquareClusterApplied then return end
+
+  -- Restore MinimapContainer points
+  local container = MinimapCluster.MinimapContainer
+  if container then
+    container:ClearAllPoints()
+    if origMinimapContainerPoints and #origMinimapContainerPoints > 0 then
+      for _, pt in ipairs(origMinimapContainerPoints) do
+        container:SetPoint(pt.point, pt.relativeTo, pt.relativePoint, pt.offsetX, pt.offsetY)
+      end
+    elseif container.defaultFramePoints then
+      local scale = container:GetScale() or 1
+      for _, value in ipairs(container.defaultFramePoints) do
+        container:SetPoint(value.point, value.relativeTo, value.relativePoint, value.offsetX / scale, value.offsetY / scale)
+      end
+    else
+      container:SetPoint("TOP", MinimapCluster, "TOP", 10, -30)
+    end
+  end
+
+  -- Restore MinimapCluster size and insets
+  MinimapCluster:SetSize(origMinimapClusterWidth or 256, origMinimapClusterHeight or 256)
+  if MinimapCluster.SetHitRectInsets then
+    if origMinimapClusterHitInsets then
+      MinimapCluster:SetHitRectInsets(unpack(origMinimapClusterHitInsets))
+    else
+      MinimapCluster:SetHitRectInsets(30, 10, 0, 30)
+    end
+  end
+
+  -- Restore native header and indicator frame
+  if MinimapCluster.BorderTop then
+    MinimapCluster.BorderTop:SetAlpha(1)
+    MinimapCluster.BorderTop:Show()
+    MinimapCluster.BorderTop.ignoreInLayout = nil
+  end
+  if MinimapCluster.IndicatorFrame then
+    MinimapCluster.IndicatorFrame:Show()
+  end
+  if MinimapCluster.GamepadButtons then
+    MinimapCluster.GamepadButtons:Show()
+  end
+
+  -- Restore Edit Mode selection
+  if MinimapCluster.Selection then
     MinimapCluster.Selection:ClearAllPoints()
     MinimapCluster.Selection:SetAllPoints(MinimapCluster)
+  end
+  if MinimapCluster.UpdateClampOffsets then
+    MinimapCluster:UpdateClampOffsets()
+  end
+
+  -- Restore Layout
+  if origMinimapClusterLayout then
+    MinimapCluster.Layout = origMinimapClusterLayout
+  end
+
+  -- Re-apply Blizzard's saved HeaderUnderneath and RotateMinimap settings
+  if origSetHeaderUnderneath and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting then
+    origSetHeaderUnderneath(MinimapCluster, MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.HeaderUnderneath))
+  end
+  if origSetRotateMinimap and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting then
+    origSetRotateMinimap(MinimapCluster, MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.RotateMinimap))
+  end
+
+  if MinimapCluster.Layout then
+    MinimapCluster:Layout()
+  end
+
+  isSquareClusterApplied = false
+end
+
+local function updateEditModeSelectionBounds()
+  if not (MinimapCluster and MinimapCluster.Selection) then return end
+  if not isModuleEnabled() then
+    restoreRoundMinimapCluster()
+    return
+  end
+  local mm = settings()
+  if mm.shape == "square" then
+    applySquareMinimapCluster()
+  else
+    restoreRoundMinimapCluster()
   end
 end
 
@@ -471,15 +661,14 @@ local function applyBorder()
     MinimapBackdrop:SetAlpha(isSquare and 0 or 1)
   end
   if isSquare then
-    local border = createSquareBorder()
-    border:ClearAllPoints()
-    border:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -4, 4)
-    border:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 4, -4)
-    border:Show()
+    applySquareMinimapCluster()
     applyBlizzardIconBorders(true)
-  elseif squareBorderFrame then
-    squareBorderFrame:Hide()
+  else
+    if squareBorderFrame then
+      squareBorderFrame:Hide()
+    end
     applyBlizzardIconBorders(false)
+    restoreRoundMinimapCluster()
   end
   updateEditModeSelectionBounds()
 end
@@ -1738,48 +1927,19 @@ applyTitleBarLayout = function()
       hoverCheckTicker:Cancel()
       hoverCheckTicker = nil
     end
-    if MinimapCluster then
-      if origMinimapClusterLayout then
-        MinimapCluster.Layout = origMinimapClusterLayout
-      end
-      if MinimapCluster.BorderTop then
-        MinimapCluster.BorderTop:SetAlpha(1)
-        MinimapCluster.BorderTop:Show()
-      end
-      if MinimapCluster.IndicatorFrame then
-        MinimapCluster.IndicatorFrame:Show()
-      end
-      if MinimapCluster.GamepadButtons then
-        MinimapCluster.GamepadButtons:Show()
-      end
+    local zoneButton = getOrCreateZoneButton()
+    if zoneButton then
+      zoneButton:ClearAllPoints()
+      restoreZoneText()
     end
     disableAllStacking()
+    restoreRoundMinimapCluster()
     updateEditModeSelectionBounds()
     updateHoverVisibility()
     return
   end
 
-  -- Workaround from Mappy: disable MinimapCluster.Layout so Blizzard's layout code
-  -- doesn't fight our button positions or error when children move.
-  if MinimapCluster then
-    if not origMinimapClusterLayout and MinimapCluster.Layout then
-      origMinimapClusterLayout = MinimapCluster.Layout
-    end
-    MinimapCluster.Layout = function() end
-    if MinimapCluster.BorderTop then
-      MinimapCluster.BorderTop:SetAlpha(0)
-      MinimapCluster.BorderTop:Hide()
-    end
-    if MinimapCluster.IndicatorFrame then
-      MinimapCluster.IndicatorFrame:Hide()
-    end
-    if MinimapCluster.GamepadButtons then
-      MinimapCluster.GamepadButtons:Hide()
-    end
-    if MinimapCluster.SetClipsChildren then
-      MinimapCluster:SetClipsChildren(false)
-    end
-  end
+  applySquareMinimapCluster()
   if _G.Minimap.SetClipsChildren then
     _G.Minimap:SetClipsChildren(false)
   end
@@ -1825,6 +1985,10 @@ function module:ApplyAll()
   applyTitleBarLayout()
   applyRoundAddonCompartment()
   updateHoverVisibility()
+
+  if EditModeSystemSettingsDialog and EditModeSystemSettingsDialog:IsShown() and EditModeSystemSettingsDialog.attachedToSystem == MinimapCluster then
+    EditModeSystemSettingsDialog:UpdateDialog(MinimapCluster)
+  end
 end
 module.Refresh = module.ApplyAll
 
@@ -2081,16 +2245,92 @@ end
 --- Attaches our options window to Blizzard's own Edit Mode settings dialog whenever the Minimap
 --- system (a native Edit Mode system, unlike our custom Buffs container) is the one selected.
 local function registerEditModeHooks()
+  if MinimapCluster and not origSetHeaderUnderneath and MinimapCluster.SetHeaderUnderneath then
+    origSetHeaderUnderneath = MinimapCluster.SetHeaderUnderneath
+    MinimapCluster.SetHeaderUnderneath = function(self, headerUnderneath)
+      if isModuleEnabled() and settings().shape == "square" then
+        if self.BorderTop then
+          self.BorderTop:SetAlpha(0)
+          self.BorderTop:Hide()
+          self.BorderTop.ignoreInLayout = true
+        end
+        if self.MinimapContainer then
+          self.MinimapContainer:ClearAllPoints()
+          self.MinimapContainer:SetPoint("CENTER", self, "CENTER", 0, 0)
+        end
+        return
+      end
+      return origSetHeaderUnderneath(self, headerUnderneath)
+    end
+  end
+
+  if MinimapCluster and not origSetRotateMinimap and MinimapCluster.SetRotateMinimap then
+    origSetRotateMinimap = MinimapCluster.SetRotateMinimap
+    MinimapCluster.SetRotateMinimap = function(self, rotateMinimap)
+      if isModuleEnabled() and settings().shape == "square" then
+        local wantRotate = (rotateMinimap == true or rotateMinimap == 1)
+        if wantRotate then
+          userWantedRotateMinimap = true
+          if db and db.profile and db.profile.minimap then
+            db.profile.minimap.savedRotateMinimap = true
+          end
+        end
+        SetCVar("rotateMinimap", 0)
+        return
+      end
+      return origSetRotateMinimap(self, rotateMinimap)
+    end
+  end
+
+  if MinimapCluster and not origShouldShowSetting and MinimapCluster.ShouldShowSetting then
+    origShouldShowSetting = MinimapCluster.ShouldShowSetting
+    MinimapCluster.ShouldShowSetting = function(self, setting)
+      if isModuleEnabled() and settings().shape == "square" then
+        if Enum and Enum.EditModeMinimapSetting then
+          if setting == Enum.EditModeMinimapSetting.HeaderUnderneath then
+            return false
+          elseif setting == Enum.EditModeMinimapSetting.RotateMinimap then
+            return false
+          end
+        end
+      end
+      if origShouldShowSetting then
+        return origShouldShowSetting(self, setting)
+      end
+      return self.HasSetting and self:HasSetting(setting)
+    end
+  end
+
+  if MinimapCluster and not origSetEditModeScale and MinimapCluster.SetEditModeScale then
+    origSetEditModeScale = MinimapCluster.SetEditModeScale
+    hooksecurefunc(MinimapCluster, "SetEditModeScale", function(self, scale)
+      if isModuleEnabled() and settings().shape == "square" then
+        updateEditModeSelectionBounds()
+      end
+    end)
+  end
+
+  if MinimapCluster and MinimapCluster.BorderTop and not MinimapCluster.BorderTop.slackHacksHookedOnShow then
+    MinimapCluster.BorderTop.slackHacksHookedOnShow = true
+    MinimapCluster.BorderTop:HookScript("OnShow", function(self)
+      if isModuleEnabled() and settings().shape == "square" then
+        self:Hide()
+        self:SetAlpha(0)
+        self.ignoreInLayout = true
+      end
+    end)
+  end
+
+  if MinimapCluster and MinimapCluster.AnchorSelectionFrame then
+    hooksecurefunc(MinimapCluster, "AnchorSelectionFrame", updateEditModeSelectionBounds)
+  end
+
   if not (EditModeManagerFrame and EditModeSystemSettingsDialog and Enum.EditModeSystem) then return end
 
   hooksecurefunc(EditModeSystemSettingsDialog, "AttachToSystemFrame", function(_, systemFrame)
     showOptionsDialog(systemFrame and systemFrame.system == Enum.EditModeSystem.Minimap)
   end)
   EditModeSystemSettingsDialog:HookScript("OnHide", function() showOptionsDialog(false) end)
-
-  if MinimapCluster and MinimapCluster.AnchorSelectionFrame then
-    hooksecurefunc(MinimapCluster, "AnchorSelectionFrame", updateEditModeSelectionBounds)
-  end
 
   if EventRegistry and EventRegistry.RegisterCallback then
     EventRegistry:RegisterCallback("EditMode.Enter", updateEditModeSelectionBounds, module)
@@ -2129,7 +2369,22 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_STARTED_MOVING")
   self:RegisterEvent("PLAYER_STOPPED_MOVING")
+  self:RegisterEvent("CVAR_UPDATE")
   self:ApplyAll()
+end
+
+function module:CVAR_UPDATE(event, cvarName)
+  if cvarName == "rotateMinimap" then
+    if isModuleEnabled() and settings().shape == "square" then
+      if GetCVar("rotateMinimap") == "1" then
+        userWantedRotateMinimap = true
+        if db and db.profile and db.profile.minimap then
+          db.profile.minimap.savedRotateMinimap = true
+        end
+        SetCVar("rotateMinimap", 0)
+      end
+    end
+  end
 end
 
 function module:PLAYER_REGEN_DISABLED()
@@ -2173,25 +2428,12 @@ function module:OnDisable()
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
   if addonIconsContainer then addonIconsContainer:Hide() end
+  restoreRoundMinimapCluster()
   if MinimapCluster then
-    if origMinimapClusterLayout then
-      MinimapCluster.Layout = origMinimapClusterLayout
-    end
-    if MinimapCluster.BorderTop then
-      MinimapCluster.BorderTop:SetAlpha(1)
-      MinimapCluster.BorderTop:Show()
-    end
-    if MinimapCluster.IndicatorFrame then
-      MinimapCluster.IndicatorFrame:Show()
-    end
-    if MinimapCluster.GamepadButtons then
-      MinimapCluster.GamepadButtons:Show()
-    end
     MinimapCluster:SetAlpha(1)
-    if MinimapCluster.Selection then
-      MinimapCluster.Selection:ClearAllPoints()
-      MinimapCluster.Selection:SetAllPoints(MinimapCluster)
-    end
+  end
+  if EditModeSystemSettingsDialog and EditModeSystemSettingsDialog:IsShown() and EditModeSystemSettingsDialog.attachedToSystem == MinimapCluster then
+    EditModeSystemSettingsDialog:UpdateDialog(MinimapCluster)
   end
   disableAllStacking()
   if _G.Minimap.SetMaskTexture then _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE) end
