@@ -545,13 +545,6 @@ local function updateZoneText()
   end
 end
 
-local CYCLE_BORDER_ATLASES = {
-  "UI-HUD-Minimap-Frame-Cycle",
-  "ui-hud-minimap-frame-cycle",
-  "UI-HUD-Minimap-Frame-Cycle-c60",
-  "ui-hud-minimap-frame-cycle-c60",
-}
-
 local function getCycleBorderAtlas()
   if MinimapCluster and MinimapCluster.DielFrame then
     local ok, regions = pcall(function() return { MinimapCluster.DielFrame:GetRegions() } end)
@@ -564,17 +557,6 @@ local function getCycleBorderAtlas()
           end
         end
       end
-    end
-  end
-
-  if C_Texture and C_Texture.GetAtlasInfo then
-    for _, name in ipairs(CYCLE_BORDER_ATLASES) do
-      if C_Texture.GetAtlasInfo(name) then
-        return name
-      end
-    end
-    if C_Texture.GetAtlasInfo("ui-hud-minimap-button") then
-      return "ui-hud-minimap-button"
     end
   end
 
