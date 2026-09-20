@@ -416,48 +416,69 @@ options = {
           disabled = function() return not db.profile.minimap.enabled end,
           order = 0.1
         },
-        appearanceGroup = {
-          type = "group",
-          name = "Appearance",
-          inline = true,
+        showIconsOnHover = {
+          name = "Show Icons on Hover Only",
+          desc = "Only show standard minimap icons (Calendar, Tracking, etc.) when hovering over the minimap.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
           disabled = function() return not db.profile.minimap.enabled end,
-          order = 1,
-          args = {
-            shape = {
-              name = "Shape",
-              desc = "The shape of the minimap.",
-              type = "select",
-              width = "full",
-              values = { circle = "Round", square = "Square" },
-              sorting = { "circle", "square" },
-              get = function() return db.profile.minimap.shape end,
-              set = function(_, value)
-                db.profile.minimap.shape = value
-                Self.Minimap:Refresh()
-              end,
-              order = 1
-            },
-            showBorder = {
-              name = "Show Border",
-              desc = "Show the minimap's background border.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.minimap.showBorder end,
-              set = function(_, value)
-                db.profile.minimap.showBorder = value
-                Self.Minimap:Refresh()
-              end,
-              order = 2
-            }
-          }
+          get = function() return db.profile.minimap.showIconsOnHover end,
+          set = function(_, value)
+            db.profile.minimap.showIconsOnHover = value
+            Self.Minimap:Refresh()
+          end,
+          order = 1
+        },
+        showAddonIconsOnHover = {
+          name = "Show Addon Icons on Hover Only",
+          desc = "Only show addon minimap icons and the Addon Compartment when hovering over the minimap.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.minimap.enabled end,
+          get = function() return db.profile.minimap.showAddonIconsOnHover end,
+          set = function(_, value)
+            db.profile.minimap.showAddonIconsOnHover = value
+            Self.Minimap:Refresh()
+          end,
+          order = 2
+        },
+        hideDiel = {
+          name = "Hide Day/Night Icon",
+          desc = [[Hide the big useless day/night (diel) icon (Classic/Forever).]],
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.minimap.enabled end,
+          get = function() return db.profile.minimap.hideDiel end,
+          set = function(_, value)
+            db.profile.minimap.hideDiel = value
+            Self.Minimap:Refresh()
+          end,
+          hidden = function() return isRetail() end,
+          order = 3
+        },
+        showAllMinimapTracking = {
+          name = "Show All Minimap Tracking Options",
+          desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.minimap.enabled end,
+          get = function() return db.profile.minimap.showAllMinimapTracking end,
+          set = function(_, value)
+            db.profile.minimap.showAllMinimapTracking = value
+            Self.Minimap:Refresh()
+          end,
+          order = 4
         },
         opacityGroup = {
           type = "group",
           name = "Opacity",
           inline = true,
           disabled = function() return not db.profile.minimap.enabled end,
-          order = 2,
+          order = 5,
           args = {
             alpha = {
               name = "Opacity",
@@ -516,68 +537,58 @@ options = {
             }
           }
         },
-        buttonsGroup = {
+        squareGroup = {
           type = "group",
-          name = "Buttons",
+          name = "Square Minimap",
           inline = true,
           disabled = function() return not db.profile.minimap.enabled end,
-          order = 3,
+          order = 6,
           args = {
+            enableSquare = {
+              name = "Enable",
+              desc = "Enable square minimap shape with title bar.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.minimap.shape == "square" end,
+              set = function(_, value)
+                db.profile.minimap.shape = value and "square" or "circle"
+                Self.Minimap:Refresh()
+              end,
+              order = 1
+            },
             showZoneText = {
               name = "Show Zone Text",
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
               get = function() return db.profile.minimap.showZoneText end,
               set = function(_, value)
                 db.profile.minimap.showZoneText = value
                 Self.Minimap:Refresh()
               end,
-              order = 1
+              order = 2
             },
             showClock = {
               name = "Show Clock",
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
               get = function() return db.profile.minimap.showClock end,
               set = function(_, value)
                 db.profile.minimap.showClock = value
                 Self.Minimap:Refresh()
               end,
-              order = 2
-            },
-            showCalendar = {
-              name = "Show Calendar Button",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.minimap.showCalendar end,
-              set = function(_, value)
-                db.profile.minimap.showCalendar = value
-                Self.Minimap:Refresh()
-              end,
               order = 3
-            },
-            hideDiel = {
-              name = "Hide Day/Night Icon",
-              desc = [[Hide the big useless day/night (diel) icon.]],
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.minimap.hideDiel end,
-              set = function(_, value)
-                db.profile.minimap.hideDiel = value
-                Self.Minimap:Refresh()
-              end,
-              hidden = function() return isRetail() end,
-              order = 3.5
             },
             showTracking = {
               name = "Show Tracking Button",
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
               get = function() return db.profile.minimap.showTracking end,
               set = function(_, value)
                 db.profile.minimap.showTracking = value
@@ -585,47 +596,71 @@ options = {
               end,
               order = 4
             },
-            showAllMinimapTracking = {
-              name = "Show All Minimap Tracking Options",
-              desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
+            showCalendar = {
+              name = "Show Calendar",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.minimap.showAllMinimapTracking end,
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
+              get = function() return db.profile.minimap.showCalendar end,
               set = function(_, value)
-                db.profile.minimap.showAllMinimapTracking = value
+                db.profile.minimap.showCalendar = value
                 Self.Minimap:Refresh()
               end,
               order = 5
             },
-            hideExtraButtons = {
-              name = "Hide Extra Minimap Buttons",
-              desc = "Hide LFG, instance difficulty, garrison/expansion landing page, and other extra buttons (always active in square mode).",
+            showLFG = {
+              name = "Show LFG",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function()
-                if db.profile.minimap.shape == "square" then return true end
-                return db.profile.minimap.hideExtraButtons
-              end,
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
+              get = function() return db.profile.minimap.showLFG end,
               set = function(_, value)
-                db.profile.minimap.hideExtraButtons = value
+                db.profile.minimap.showLFG = value
                 Self.Minimap:Refresh()
               end,
-              disabled = function() return db.profile.minimap.shape == "square" end,
               order = 6
             },
-            mouseWheelZoom = {
-              name = "Mouse Wheel Zoom",
+            showInstanceDifficulty = {
+              name = "Show Instance Difficulty",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.minimap.mouseWheelZoom end,
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
+              get = function() return db.profile.minimap.showInstanceDifficulty end,
               set = function(_, value)
-                db.profile.minimap.mouseWheelZoom = value
+                db.profile.minimap.showInstanceDifficulty = value
                 Self.Minimap:Refresh()
               end,
               order = 7
+            },
+            showGarrison = {
+              name = "Show Garrison/Expansion Landing Page",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
+              get = function() return db.profile.minimap.showGarrison end,
+              set = function(_, value)
+                db.profile.minimap.showGarrison = value
+                Self.Minimap:Refresh()
+              end,
+              order = 8
+            },
+            addonsInCompartment = {
+              name = "Add Addons to Addon Compartment",
+              desc = "Move third-party addon icons into the Addon Compartment menu instead of showing them around the border.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
+              get = function() return db.profile.minimap.addonsInCompartment end,
+              set = function(_, value)
+                db.profile.minimap.addonsInCompartment = value
+                Self.Minimap:Refresh()
+              end,
+              order = 9
             }
           }
         }

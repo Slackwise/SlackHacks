@@ -17,19 +17,22 @@ local SQUARE_MASK_TEXTURE = "Interface\\BUTTONS\\WHITE8X8"
 -- Falls back to Blizzard's untouched defaults whenever the module is disabled.
 local DEFAULT_VISUALS = {
   shape = "circle",
+  showIconsOnHover = false,
+  showAddonIconsOnHover = false,
+  hideDiel = false,
+  showAllMinimapTracking = false,
   alpha = 100,
   fadeEnabled = false,
   combatAlpha = 100,
   movingAlpha = 100,
   showZoneText = true,
   showClock = true,
-  showCalendar = true,
   showTracking = true,
-  showAllMinimapTracking = false,
-  hideExtraButtons = false,
-  hideDiel = false,
-  showBorder = true,
-  mouseWheelZoom = true,
+  showCalendar = true,
+  showLFG = true,
+  showInstanceDifficulty = true,
+  showGarrison = true,
+  addonsInCompartment = false,
 }
 
 local function isModuleEnabled()
@@ -43,9 +46,17 @@ local function settings()
   return DEFAULT_VISUALS
 end
 
+function _G.GetMinimapShape()
+  if isModuleEnabled() and settings().shape == "square" then
+    return "SQUARE"
+  end
+  return "ROUND"
+end
+
 local isInCombat = false
 local isMoving = false
 local savedCoordsState
+local userWantedRotateMinimap
 local optionsDialog
 local squareBorderFrame
 local titleBarFrame
@@ -54,6 +65,7 @@ local titleBarIconRow
 local addonIconsContainer
 local hoverCheckTicker
 local applyTitleBarLayout
+local updateHoverVisibility
 local registeredButtons = {}
 local registeredButtonsByFrame = {}
 local addonButtons = {}
@@ -61,6 +73,42 @@ local addonButtonsByFrame = {}
 local origMinimapClusterLayout
 local layoutPending = false
 local addonScanTicker
+
+local function applyMinimapRotation()
+  if not isModuleEnabled() then return end
+  local isSquare = (settings().shape == "square")
+  if isSquare then
+    local currentCVar = GetCVar("rotateMinimap")
+    if currentCVar == "1" then
+      userWantedRotateMinimap = true
+      if db and db.profile and db.profile.minimap then
+        db.profile.minimap.savedRotateMinimap = true
+      end
+      SetCVar("rotateMinimap", 0)
+    elseif userWantedRotateMinimap == nil and db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap then
+      userWantedRotateMinimap = true
+      SetCVar("rotateMinimap", 0)
+    end
+  else
+    if userWantedRotateMinimap or (db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap) then
+      SetCVar("rotateMinimap", 1)
+      userWantedRotateMinimap = nil
+      if db and db.profile and db.profile.minimap then
+        db.profile.minimap.savedRotateMinimap = nil
+      end
+    end
+  end
+end
+
+local function restoreMinimapRotation()
+  if userWantedRotateMinimap or (db and db.profile and db.profile.minimap and db.profile.minimap.savedRotateMinimap) then
+    SetCVar("rotateMinimap", 1)
+    userWantedRotateMinimap = nil
+    if db and db.profile and db.profile.minimap then
+      db.profile.minimap.savedRotateMinimap = nil
+    end
+  end
+end
 
 local function getMailButton()
   if MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.MailFrame then
@@ -83,21 +131,60 @@ local function getCraftingOrderButton()
   return nil
 end
 
+local function getInstanceDifficultyButton()
+  if MinimapCluster and MinimapCluster.InstanceDifficulty then
+    return MinimapCluster.InstanceDifficulty
+  end
+  if GuildInstanceDifficulty then
+    return GuildInstanceDifficulty
+  end
+  return nil
+end
+
+local function getLFGButton()
+  return MiniMapLFGFrame or QueueStatusButton or QueueStatusMinimapButton
+end
+
+local function getGarrisonButton()
+  return ExpansionLandingPageMinimapButton or GarrisonLandingPageMinimapButton
+end
+
+local function getStandardMinimapIcons()
+  local list = {}
+  if GameTimeFrame then table.insert(list, GameTimeFrame) end
+  if MinimapCluster and MinimapCluster.Tracking then table.insert(list, MinimapCluster.Tracking) end
+  if TimeManagerClockButton then table.insert(list, TimeManagerClockButton) end
+  local mail = getMailButton()
+  if mail then table.insert(list, mail) end
+  local crafting = getCraftingOrderButton()
+  if crafting then table.insert(list, crafting) end
+  local diff = getInstanceDifficultyButton()
+  if diff then table.insert(list, diff) end
+  local lfg = getLFGButton()
+  if lfg then table.insert(list, lfg) end
+  local garrison = getGarrisonButton()
+  if garrison then table.insert(list, garrison) end
+  if MinimapCluster and MinimapCluster.DielFrame then table.insert(list, MinimapCluster.DielFrame) end
+  return list
+end
+
 local function extraButtons()
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
+  local diff = getInstanceDifficultyButton()
+  local lfg = getLFGButton()
+  local garrison = getGarrisonButton()
   return {
     mail,
     crafting,
-    MinimapCluster and MinimapCluster.InstanceDifficulty,
+    diff,
+    lfg,
+    garrison,
+    AddonCompartmentFrame,
     MiniMapBattlefieldFrame,
     MiniMapMeetingStoneFrame,
     MiniMapVoiceChatFrame,
     FeedbackUIButton,
-    MiniMapLFGFrame,
-    GuildInstanceDifficulty,
-    ExpansionLandingPageMinimapButton,
-    AddonCompartmentFrame,
   }
 end
 
@@ -247,9 +334,55 @@ local function applyZoneText()
   setShownSafely(zoneButton, mm.showZoneText)
 end
 
+local function getAllBlizzardIcons()
+  local list = getStandardMinimapIcons()
+  if AddonCompartmentFrame then table.insert(list, AddonCompartmentFrame) end
+  if MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button then
+    table.insert(list, MinimapCluster.Tracking.Button)
+  end
+  return list
+end
+
+local function applyBlizzardIconBorders(removeBorders)
+  for _, btn in ipairs(getAllBlizzardIcons()) do
+    if btn.slackHacksCreatedBorder then
+      btn.slackHacksCreatedBorder:Hide()
+      btn.slackHacksCreatedBorder:SetTexture(nil)
+      btn.slackHacksCreatedBorder = nil
+    end
+
+    if btn == TimeManagerClockButton and TimeManagerClockBackground then
+      TimeManagerClockBackground:SetAlpha(removeBorders and 0 or 1)
+    end
+
+    local ok, regions = pcall(function() return { btn:GetRegions() } end)
+    if ok and regions then
+      for _, r in ipairs(regions) do
+        if r:IsObjectType("Texture") then
+          local tex = r:GetTexture()
+          local atlas = r.GetAtlas and r:GetAtlas()
+          local isBorder = (tex == 136430)
+            or (type(tex) == "string" and (tex:find("MiniMap%-TrackingBorder") or tex:find("UI%-Minimap%-Background")))
+            or (tex == 136467)
+            or (atlas and (atlas:lower():find("frame%-cycle") or atlas:lower():find("tracking%-border") or atlas:lower():find("button%-border")))
+
+          if btn == TimeManagerClockButton then
+            isBorder = true
+          end
+
+          if isBorder then
+            r:SetAlpha(removeBorders and 0 or 1)
+          end
+        end
+      end
+    end
+  end
+end
+
 local function applyClock()
   if not isModuleEnabled() then return end
-  setShownSafely(TimeManagerClockButton, settings().showClock)
+  local mm = settings()
+  setShownSafely(TimeManagerClockButton, mm.showClock)
 end
 
 local function applyCalendar()
@@ -287,22 +420,17 @@ end
 
 local function applyExtraButtons()
   if not isModuleEnabled() then return end
-  local isSquare = settings().shape == "square"
-  local hideExtra = isSquare or settings().hideExtraButtons
-  local mail = getMailButton()
-  local crafting = getCraftingOrderButton()
+  local isSquare = (settings().shape == "square")
+  if not isSquare then return end
 
-  for _, button in ipairs(extraButtons()) do
-    if button == mail or button == crafting then
-      if hideExtra and not isSquare then
-        setShownSafely(button, false)
-      end
-      -- In square mode, mail & crafting order show dynamically when they have active mail/orders
-    elseif hideExtra then
-      setShownSafely(button, false)
-    else
-      setShownSafely(button, true)
-    end
+  local legacyExtras = {
+    MiniMapBattlefieldFrame,
+    MiniMapMeetingStoneFrame,
+    MiniMapVoiceChatFrame,
+    FeedbackUIButton,
+  }
+  for _, btn in ipairs(legacyExtras) do
+    setShownSafely(btn, false)
   end
 end
 
@@ -341,18 +469,20 @@ end
 local function applyBorder()
   if not isModuleEnabled() then return end
   local mm = settings()
-  local isSquare = mm.shape == "square"
+  local isSquare = (mm.shape == "square")
   if MinimapBackdrop then
-    MinimapBackdrop:SetAlpha((not isSquare and mm.showBorder) and 1 or 0)
+    MinimapBackdrop:SetAlpha(isSquare and 0 or 1)
   end
   if isSquare then
     local border = createSquareBorder()
     border:ClearAllPoints()
     border:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -4, 4)
     border:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 4, -4)
-    border:SetShown(mm.showBorder)
+    border:Show()
+    applyBlizzardIconBorders(true)
   elseif squareBorderFrame then
     squareBorderFrame:Hide()
+    applyBlizzardIconBorders(false)
   end
   updateEditModeSelectionBounds()
 end
@@ -429,9 +559,10 @@ local function isMinimapHovered()
   if isRegionMouseOver(zoneButton) or isRegionMouseOver(titleBarZoneFallbackButton) then
     return true
   end
-  if isRegionMouseOver(GameTimeFrame)
-     or isRegionMouseOver(MinimapCluster and MinimapCluster.Tracking)
-     or isRegionMouseOver(AddonCompartmentFrame) then
+  for _, icon in ipairs(getStandardMinimapIcons()) do
+    if isRegionMouseOver(icon) then return true end
+  end
+  if isRegionMouseOver(AddonCompartmentFrame) then
     return true
   end
   if addonButtons then
@@ -442,41 +573,98 @@ local function isMinimapHovered()
   return false
 end
 
-local function setAddonContainerHovered(hovered)
-  if not addonIconsContainer then return end
-  local mm = settings()
-  if mm.shape ~= "square" then
-    addonIconsContainer:Hide()
-    if hoverCheckTicker then
-      hoverCheckTicker:Cancel()
-      hoverCheckTicker = nil
-    end
-    return
+updateHoverVisibility = function(hovered)
+  if not isModuleEnabled() then return end
+  if hovered == nil then
+    hovered = isMinimapHovered()
   end
 
-  if hovered then
-    addonIconsContainer:Show()
+  local mm = settings()
+  local isSquare = (mm.shape == "square")
+
+  if isSquare then
+    if addonIconsContainer then
+      if hovered then
+        addonIconsContainer:Show()
+      else
+        addonIconsContainer:Hide()
+      end
+    end
+
+    local diff = getInstanceDifficultyButton()
+    if diff and mm.showInstanceDifficulty then
+      if mm.showIconsOnHover then
+        diff:SetAlpha(hovered and 1 or 0)
+      else
+        diff:SetAlpha(1)
+      end
+    end
+
+    local lfg = getLFGButton()
+    if lfg and mm.showLFG then
+      if mm.showIconsOnHover then
+        lfg:SetAlpha(hovered and 1 or 0)
+      else
+        lfg:SetAlpha(1)
+      end
+    end
+
+    if mm.showAddonIconsOnHover and not mm.addonsInCompartment then
+      for _, btn in ipairs(addonButtons) do
+        if btn then
+          btn:SetAlpha(hovered and 1 or 0)
+        end
+      end
+    else
+      for _, btn in ipairs(addonButtons) do
+        if btn then
+          btn:SetAlpha(1)
+        end
+      end
+    end
+  else
+    -- Round mode
+    local stdIcons = getStandardMinimapIcons()
+    for _, icon in ipairs(stdIcons) do
+      if icon and icon ~= (MinimapCluster and MinimapCluster.DielFrame and mm.hideDiel and MinimapCluster.DielFrame) then
+        if mm.showIconsOnHover then
+          icon:SetAlpha(hovered and 1 or 0)
+        else
+          icon:SetAlpha(1)
+        end
+      end
+    end
+
+    local function setAddonAlpha(btn)
+      if btn then
+        if mm.showAddonIconsOnHover then
+          btn:SetAlpha(hovered and 1 or 0)
+        else
+          btn:SetAlpha(1)
+        end
+      end
+    end
+
+    setAddonAlpha(AddonCompartmentFrame)
+    for _, btn in ipairs(addonButtons) do
+      setAddonAlpha(btn)
+    end
+  end
+
+  local needsTicker = (mm.showIconsOnHover or mm.showAddonIconsOnHover)
+  if hovered and needsTicker then
     if not hoverCheckTicker then
       hoverCheckTicker = C_Timer.NewTicker(0.1, function()
         if not isMinimapHovered() then
-          setAddonContainerHovered(false)
+          updateHoverVisibility(false)
         end
       end)
     end
   else
-    addonIconsContainer:Hide()
     if hoverCheckTicker then
       hoverCheckTicker:Cancel()
       hoverCheckTicker = nil
     end
-  end
-end
-
-local function updateAddonContainerVisibility()
-  if isMinimapHovered() then
-    setAddonContainerHovered(true)
-  else
-    setAddonContainerHovered(false)
   end
 end
 
@@ -485,12 +673,12 @@ local function hookHoverFrame(frame)
   frame.slackHacksHoverHooked = true
   if frame.HookScript then
     frame:HookScript("OnEnter", function()
-      setAddonContainerHovered(true)
+      updateHoverVisibility(true)
     end)
     frame:HookScript("OnLeave", function()
       C_Timer.After(0.05, function()
         if not isMinimapHovered() then
-          setAddonContainerHovered(false)
+          updateHoverVisibility(false)
         end
       end)
     end)
@@ -545,78 +733,6 @@ local function updateZoneText()
   end
 end
 
-local function getCycleBorderAtlas()
-  if MinimapCluster and MinimapCluster.DielFrame then
-    local ok, regions = pcall(function() return { MinimapCluster.DielFrame:GetRegions() } end)
-    if ok and regions then
-      for _, r in ipairs(regions) do
-        if r:IsObjectType("Texture") and r.GetAtlas then
-          local a = r:GetAtlas()
-          if a and a ~= "" and not a:lower():find("daycycle") and not a:lower():find("nightcycle") then
-            return a
-          end
-        end
-      end
-    end
-  end
-
-  return "UI-HUD-Minimap-Frame-Cycle"
-end
-
-local function findButtonBorder(button)
-  if not button then return nil end
-  if button.border and button.border.SetAtlas then
-    return button.border
-  end
-  if button.Border and button.Border.SetAtlas then
-    return button.Border
-  end
-  local name = button.GetName and button:GetName()
-  if name and _G[name .. "Border"] and _G[name .. "Border"].SetAtlas then
-    return _G[name .. "Border"]
-  end
-  local ok, regions = pcall(function() return { button:GetRegions() } end)
-  if ok and regions then
-    for _, region in ipairs(regions) do
-      if region:IsObjectType("Texture") then
-        local tex = region:GetTexture()
-        if tex == 136430 or (type(tex) == "string" and tex:find("MiniMap%-TrackingBorder")) then
-          return region
-        end
-      end
-    end
-  end
-  return nil
-end
-
-local function getOrCreateButtonBorder(button)
-  local border = findButtonBorder(button)
-  if border then return border end
-  local created = button:CreateTexture(nil, "OVERLAY")
-  button.slackHacksCreatedBorder = created
-  return created
-end
-
-local function applyCycleBorder(button)
-  if settings().shape ~= "square" then return end
-  local border = getOrCreateButtonBorder(button)
-  if not border then return end
-
-  local atlas = getCycleBorderAtlas()
-  if border.SetAtlas then
-    border:SetAtlas(atlas)
-  end
-  border:SetTexCoord(0, 1, 0, 1)
-
-  local btnW = button:GetWidth()
-  local size = (btnW and btnW > 10) and btnW or 32
-
-  border:ClearAllPoints()
-  border:SetPoint("CENTER", button, "CENTER", 0, 0)
-  border:SetSize(size, size)
-  border:Show()
-end
-
 --- Mappy-style button manipulation: save initial anchors, parent, scale, strata, and level.
 local function saveButtonState(button)
   if button.slackHacksSaved then return end
@@ -635,28 +751,6 @@ local function saveButtonState(button)
         saved.anchors[point] = { relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y }
       end
     end
-  end
-
-  local border = findButtonBorder(button)
-  if border then
-    local borderSaved = {
-      frame = border,
-      texture = border:GetTexture(),
-      atlas = border.GetAtlas and border:GetAtlas(),
-      width = border:GetWidth(),
-      height = border:GetHeight(),
-      points = {},
-    }
-    local bOk, bNumPoints = pcall(border.GetNumPoints, border)
-    if bOk and bNumPoints then
-      for i = 1, bNumPoints do
-        local pOk, point, relativeTo, relativePoint, x, y = pcall(border.GetPoint, border, i)
-        if pOk and point then
-          table.insert(borderSaved.points, { point = point, relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y })
-        end
-      end
-    end
-    saved.border = borderSaved
   end
 
   if button == getZoneTextButton() then
@@ -733,29 +827,6 @@ local function restoreButtonState(button)
     end
   end
 
-  if saved.border then
-    local border = saved.border.frame or findButtonBorder(button)
-    if border then
-      border:ClearAllPoints()
-      for _, p in ipairs(saved.border.points) do
-        if p.relativeTo then
-          border:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
-        else
-          border:SetPoint(p.point, p.x, p.y)
-        end
-      end
-      if saved.border.width and saved.border.height then
-        border:SetSize(saved.border.width, saved.border.height)
-      end
-      if saved.border.atlas and saved.border.atlas ~= "" and border.SetAtlas then
-        border:SetAtlas(saved.border.atlas)
-      elseif saved.border.texture then
-        border:SetTexture(saved.border.texture)
-      end
-      border:SetTexCoord(0, 1, 0, 1)
-    end
-  end
-
   if button.slackHacksCreatedBorder then
     button.slackHacksCreatedBorder:Hide()
     button.slackHacksCreatedBorder:SetTexture(nil)
@@ -763,6 +834,99 @@ local function restoreButtonState(button)
   end
 
   button.slackHacksSaved = nil
+end
+
+local function getSquarePositionForAngle(angleDeg, radiusX, radiusY)
+  local angleRad = math.rad(angleDeg)
+  local cosA = math.cos(angleRad)
+  local sinA = math.sin(angleRad)
+  local absCos = math.abs(cosA)
+  local absSin = math.abs(sinA)
+  local dist
+  if absCos * radiusY > absSin * radiusX then
+    dist = radiusX / (absCos > 0.0001 and absCos or 0.0001)
+  else
+    dist = radiusY / (absSin > 0.0001 and absSin or 0.0001)
+  end
+  return cosA * dist, sinA * dist
+end
+
+local function getIgnoreFramesMap()
+  local ignore = {
+    Minimap = true,
+    MinimapBackdrop = true,
+    MinimapCluster = true,
+    MiniMapPing = true,
+    MinimapToggleButton = true,
+    MinimapZoneTextButton = true,
+    TimeManagerClockButton = true,
+    GameTimeFrame = true,
+    MiniMapBattlefieldFrame = true,
+    MiniMapMeetingStoneFrame = true,
+    MiniMapVoiceChatFrame = true,
+    FeedbackUIButton = true,
+    MiniMapLFGFrame = true,
+    QueueStatusButton = true,
+    QueueStatusMinimapButton = true,
+    QueueStatusButtonIcon = true,
+    GuildInstanceDifficulty = true,
+    ExpansionLandingPageMinimapButton = true,
+    GarrisonLandingPageMinimapButton = true,
+    AddonCompartmentFrame = true,
+    CT_RASetsFrame = true,
+    SlackHacksMinimapSquareBorder = true,
+    SlackHacksMinimapTitleBar = true,
+    SlackHacksMinimapTitleBarIcons = true,
+    SlackHacksMinimapAddonIconsContainer = true,
+    SlackHacksMinimapOptionsDialog = true,
+    MiniMapMailFrame = true,
+    MiniMapCraftingOrderFrame = true,
+  }
+  for name in pairs(ignore) do
+    if _G[name] then ignore[_G[name]] = true end
+  end
+  if MinimapCluster then
+    ignore[MinimapCluster] = true
+    if MinimapCluster.ZoneTextButton then ignore[MinimapCluster.ZoneTextButton] = true end
+    if MinimapCluster.Tracking then
+      ignore[MinimapCluster.Tracking] = true
+      if MinimapCluster.Tracking.Button then ignore[MinimapCluster.Tracking.Button] = true end
+    end
+    if MinimapCluster.DielFrame then ignore[MinimapCluster.DielFrame] = true end
+    if MinimapCluster.InstanceDifficulty then ignore[MinimapCluster.InstanceDifficulty] = true end
+    if MinimapCluster.BorderTop then ignore[MinimapCluster.BorderTop] = true end
+    if MinimapCluster.MinimapContainer then ignore[MinimapCluster.MinimapContainer] = true end
+    if MinimapCluster.IndicatorFrame then
+      ignore[MinimapCluster.IndicatorFrame] = true
+      if MinimapCluster.IndicatorFrame.MailFrame then ignore[MinimapCluster.IndicatorFrame.MailFrame] = true end
+      if MinimapCluster.IndicatorFrame.CraftingOrderFrame then ignore[MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true end
+    end
+    if MinimapCluster.GamepadButtons then ignore[MinimapCluster.GamepadButtons] = true end
+  end
+  if _G.Minimap then
+    ignore[_G.Minimap] = true
+    if _G.Minimap.ZoomIn then ignore[_G.Minimap.ZoomIn] = true end
+    if _G.Minimap.ZoomOut then ignore[_G.Minimap.ZoomOut] = true end
+    if _G.Minimap.ZoomHitArea then ignore[_G.Minimap.ZoomHitArea] = true end
+  end
+  if squareBorderFrame then ignore[squareBorderFrame] = true end
+  if titleBarFrame then ignore[titleBarFrame] = true end
+  if titleBarIconRow then ignore[titleBarIconRow] = true end
+  if addonIconsContainer then ignore[addonIconsContainer] = true end
+  local blizzCoords = getBlizzardPlayerCoords()
+  if blizzCoords then ignore[blizzCoords] = true end
+  return ignore
+end
+
+local function isBlizzardFrame(frame)
+  if not frame then return true end
+  local ignore = getIgnoreFramesMap()
+  if ignore[frame] then return true end
+  local name = frame.GetName and frame:GetName()
+  if name and (ignore[name] or name:find("^Minimap") or name:find("^MiniMap") or name:find("^TimeManager") or name:find("^GameTimeFrame")) then
+    return true
+  end
+  return false
 end
 
 --- Mappy-style hooks: when Blizzard or third-party addons call SetPoint, ClearAllPoints,
@@ -773,6 +937,23 @@ local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
   self.slackHacksSaved.anchors[point] = {
     relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y,
   }
+
+  -- In square mode, if this is an addon button anchored to Minimap, snap to square border
+  if settings().shape == "square" and not settings().addonsInCompartment and addonButtonsByFrame[self] and not isBlizzardFrame(self) then
+    if not self.isDraggingOnSquareBorder and type(x) == "number" and type(y) == "number" then
+      local angle = math.deg(math.atan2(y, x)) % 360
+      self.slackHacksAngle = angle
+      local mmW = _G.Minimap:GetWidth() or 200
+      local mmH = _G.Minimap:GetHeight() or 200
+      local radiusX = (mmW / 2) + 2
+      local radiusY = (mmH / 2) + 2
+      local sqX, sqY = getSquarePositionForAngle(angle, radiusX, radiusY)
+      if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
+        self.slackHacksRealClearAllPoints(self)
+        self.slackHacksRealSetPoint(self, "CENTER", _G.Minimap, "CENTER", sqX, sqY)
+      end
+    end
+  end
 end
 
 local function buttonSaveClearAllPoints(self)
@@ -864,28 +1045,187 @@ local function registerAddonButton(button)
   registerButton(button)
 end
 
-local function disableAllStacking()
-  for _, button in ipairs(registeredButtons) do
-    enableButtonStacking(button, false)
+local function getAddonButtonDisplayName(button)
+  if button.dataObject and type(button.dataObject.label) == "string" and button.dataObject.label ~= "" then
+    return button.dataObject.label
   end
-  wipe(registeredButtons)
-  wipe(registeredButtonsByFrame)
-  wipe(addonButtons)
-  wipe(addonButtonsByFrame)
+  if button.dataObject and type(button.dataObject.text) == "string" and button.dataObject.text ~= "" then
+    return button.dataObject.text
+  end
+  local name = button.GetName and button:GetName()
+  if name and type(name) == "string" and name ~= "" then
+    local clean = name:gsub("^LibDBIcon%d*_", ""):gsub("^MiniMap", ""):gsub("Button$", ""):gsub("Frame$", ""):gsub("_", " ")
+    if clean ~= "" then
+      return clean
+    end
+    return name
+  end
+  return "Addon"
+end
 
-  local zoneButton = getZoneTextButton()
-  if zoneButton then
-    enableButtonStacking(zoneButton, false)
+local function getAddonButtonIcon(button)
+  if button.icon and button.icon.GetTexture and button.icon:GetTexture() then
+    return button.icon:GetTexture()
   end
-  if titleBarZoneFallbackButton then
-    titleBarZoneFallbackButton:Hide()
+  if button.dataObject and button.dataObject.icon then
+    return button.dataObject.icon
   end
-  if addonIconsContainer then
-    addonIconsContainer:Hide()
+  local name = button.GetName and button:GetName()
+  if name and _G[name .. "Icon"] and _G[name .. "Icon"].GetTexture then
+    local tex = _G[name .. "Icon"]:GetTexture()
+    if tex then return tex end
   end
-  if hoverCheckTicker then
-    hoverCheckTicker:Cancel()
-    hoverCheckTicker = nil
+  local ok, regions = pcall(function() return { button:GetRegions() } end)
+  if ok and regions then
+    for _, r in ipairs(regions) do
+      if r:IsObjectType("Texture") and r ~= button.slackHacksCreatedBorder then
+        local tex = r:GetTexture()
+        if tex and tex ~= 136430 and tex ~= 136467 then return tex end
+      end
+    end
+  end
+  return 134400
+end
+
+local function clearAddonCompartmentEntries()
+  if not (AddonCompartmentFrame and AddonCompartmentFrame.registeredAddons) then return end
+  local changed = false
+  for i = #AddonCompartmentFrame.registeredAddons, 1, -1 do
+    local entry = AddonCompartmentFrame.registeredAddons[i]
+    if entry and entry.isSlackHacks then
+      table.remove(AddonCompartmentFrame.registeredAddons, i)
+      changed = true
+    end
+  end
+  if changed and AddonCompartmentFrame.UpdateDisplay then
+    AddonCompartmentFrame:UpdateDisplay()
+  end
+end
+
+local function syncAddonCompartmentEntries()
+  if not (AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon and AddonCompartmentFrame.registeredAddons) then return end
+  clearAddonCompartmentEntries()
+
+  if settings().shape ~= "square" or not settings().addonsInCompartment then
+    return
+  end
+
+  for _, btn in ipairs(addonButtons) do
+    if not isBlizzardFrame(btn) then
+      local displayName = getAddonButtonDisplayName(btn)
+      local iconTex = getAddonButtonIcon(btn)
+      local entry = {
+        text = displayName,
+        icon = iconTex,
+        notCheckable = true,
+        registerForAnyClick = true,
+        isSlackHacks = true,
+        sourceButton = btn,
+        func = function(menuBtn, menuInputData, menu)
+          local mouseBtn = (menuInputData and menuInputData.buttonName) or "LeftButton"
+          local script = btn:GetScript("OnClick")
+          if script then
+            script(btn, mouseBtn, false)
+          elseif btn.Click then
+            btn:Click(mouseBtn)
+          end
+        end,
+        funcOnEnter = function(menuBtn, menuInputData, menu)
+          local script = btn:GetScript("OnEnter")
+          if script then
+            script(btn)
+          end
+        end,
+        funcOnLeave = function(menuBtn, menuInputData, menu)
+          local script = btn:GetScript("OnLeave")
+          if script then
+            script(btn)
+          else
+            GameTooltip_Hide()
+          end
+        end,
+      }
+      AddonCompartmentFrame:RegisterAddon(entry)
+    end
+  end
+  if AddonCompartmentFrame.UpdateDisplay then
+    AddonCompartmentFrame:UpdateDisplay()
+  end
+end
+
+local function getButtonAngle(button)
+  if button.slackHacksAngle then
+    return button.slackHacksAngle
+  end
+  if button.db and button.db.minimapPos then
+    return button.db.minimapPos
+  end
+  if button.minimapPos then
+    return button.minimapPos
+  end
+  local bx, by = button:GetCenter()
+  local mx, my = _G.Minimap:GetCenter()
+  if bx and by and mx and my then
+    return math.deg(math.atan2(by - my, bx - mx)) % 360
+  end
+  return 225
+end
+
+local function onAddonButtonDragUpdate(self)
+  local mx, my = _G.Minimap:GetCenter()
+  local px, py = GetCursorPosition()
+  local scale = _G.Minimap:GetEffectiveScale()
+  px, py = px / scale, py / scale
+  local angle = math.deg(math.atan2(py - my, px - mx)) % 360
+  if self.db then
+    self.db.minimapPos = angle
+  end
+  self.minimapPos = angle
+  self.slackHacksAngle = angle
+
+  local mmW = _G.Minimap:GetWidth() or 200
+  local mmH = _G.Minimap:GetHeight() or 200
+  local radiusX = (mmW / 2) + 2
+  local radiusY = (mmH / 2) + 2
+  local x, y = getSquarePositionForAngle(angle, radiusX, radiusY)
+
+  if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
+    self.slackHacksRealClearAllPoints(self)
+    self.slackHacksRealSetPoint(self, "CENTER", _G.Minimap, "CENTER", x, y)
+  else
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", _G.Minimap, "CENTER", x, y)
+  end
+end
+
+local function onAddonButtonDragStart(self)
+  if settings().shape ~= "square" or settings().addonsInCompartment then return end
+  self.isDraggingOnSquareBorder = true
+  if self.LockHighlight then self:LockHighlight() end
+  self:SetScript("OnUpdate", onAddonButtonDragUpdate)
+  if GameTooltip then GameTooltip:Hide() end
+end
+
+local function onAddonButtonDragStop(self)
+  self.isDraggingOnSquareBorder = nil
+  self:SetScript("OnUpdate", nil)
+  if self.UnlockHighlight then self:UnlockHighlight() end
+end
+
+local function enableAddonButtonDragging(button)
+  if not button.slackHacksDragHooked then
+    button.slackHacksDragHooked = true
+    button:RegisterForDrag("LeftButton")
+    button:HookScript("OnDragStart", onAddonButtonDragStart)
+    button:HookScript("OnDragStop", onAddonButtonDragStop)
+  end
+end
+
+local function setFrameStrataSafe(frame, strata)
+  if frame.slackHacksRealSetFrameStrata then
+    frame.slackHacksRealSetFrameStrata(frame, strata)
+  else
+    frame:SetFrameStrata(strata)
   end
 end
 
@@ -912,129 +1252,144 @@ local function setFrameLevelRecursive(frame, level)
   end
 end
 
-local function setFrameStrataSafe(frame, strata)
-  if frame.slackHacksRealSetFrameStrata then
-    frame.slackHacksRealSetFrameStrata(frame, strata)
-  else
-    frame:SetFrameStrata(strata)
-  end
-end
+local function layoutAddonButtonsOnBorder()
+  if settings().shape ~= "square" then return end
 
-local function isAnchoredToFrame(frame, target)
-  if not frame or not target then return false end
-  local ok, numPoints = pcall(frame.GetNumPoints, frame)
-  if not ok or not numPoints then return false end
-  for i = 1, numPoints do
-    local pOk, _, relativeTo = pcall(frame.GetPoint, frame, i)
-    if pOk and (relativeTo == target or (type(relativeTo) == "string" and target.GetName and relativeTo == target:GetName())) then
-      return true
+  if settings().addonsInCompartment then
+    for _, btn in ipairs(addonButtons) do
+      if not isBlizzardFrame(btn) then
+        btn:Hide()
+      end
+    end
+    return
+  end
+
+  local mmW = _G.Minimap:GetWidth() or 200
+  local mmH = _G.Minimap:GetHeight() or 200
+  local radiusX = (mmW / 2) + 2
+  local radiusY = (mmH / 2) + 2
+
+  for _, button in ipairs(addonButtons) do
+    if button and not isBlizzardFrame(button) then
+      local shouldShow = button:IsShown()
+      if button.db and button.db.hide ~= nil then
+        shouldShow = not button.db.hide
+      end
+      if shouldShow then
+        saveButtonState(button)
+        enableButtonStacking(button, true)
+        enableAddonButtonDragging(button)
+
+        button:SetParent(_G.Minimap)
+        setFrameStrataSafe(button, "HIGH")
+        setFrameLevelRecursive(button, 521)
+
+        local angle = getButtonAngle(button)
+        button.slackHacksAngle = angle
+        local x, y = getSquarePositionForAngle(angle, radiusX, radiusY)
+
+        if button.slackHacksRealClearAllPoints and button.slackHacksRealSetPoint then
+          button.slackHacksRealClearAllPoints(button)
+          button.slackHacksRealSetPoint(button, "CENTER", _G.Minimap, "CENTER", x, y)
+        else
+          button:ClearAllPoints()
+          button:SetPoint("CENTER", _G.Minimap, "CENTER", x, y)
+        end
+        button:Show()
+      end
     end
   end
-  return false
 end
 
-local function getIgnoreFramesMap()
-  local ignore = {
-    Minimap = true,
-    MinimapBackdrop = true,
-    MinimapCluster = true,
-    MiniMapPing = true,
-    MinimapToggleButton = true,
-    MinimapZoneTextButton = true,
-    TimeManagerClockButton = true,
-    GameTimeFrame = true,
-    MiniMapBattlefieldFrame = true,
-    MiniMapMeetingStoneFrame = true,
-    MiniMapVoiceChatFrame = true,
-    FeedbackUIButton = true,
-    MiniMapLFGFrame = true,
-    GuildInstanceDifficulty = true,
-    ExpansionLandingPageMinimapButton = true,
-    AddonCompartmentFrame = true,
-    CT_RASetsFrame = true,
-    SlackHacksMinimapSquareBorder = true,
-    SlackHacksMinimapTitleBar = true,
-    SlackHacksMinimapTitleBarIcons = true,
-    SlackHacksMinimapAddonIconsContainer = true,
-    SlackHacksMinimapOptionsDialog = true,
-  }
-  for name in pairs(ignore) do
-    if _G[name] then ignore[_G[name]] = true end
+local function disableAllStacking()
+  for _, button in ipairs(registeredButtons) do
+    enableButtonStacking(button, false)
   end
-  if MinimapCluster then
-    ignore[MinimapCluster] = true
-    if MinimapCluster.ZoneTextButton then ignore[MinimapCluster.ZoneTextButton] = true end
-    if MinimapCluster.Tracking then ignore[MinimapCluster.Tracking] = true end
-    if MinimapCluster.DielFrame then ignore[MinimapCluster.DielFrame] = true end
-    if MinimapCluster.InstanceDifficulty then ignore[MinimapCluster.InstanceDifficulty] = true end
-    if MinimapCluster.BorderTop then ignore[MinimapCluster.BorderTop] = true end
-    if MinimapCluster.MinimapContainer then ignore[MinimapCluster.MinimapContainer] = true end
-    if MinimapCluster.IndicatorFrame then
-      ignore[MinimapCluster.IndicatorFrame] = true
-      if MinimapCluster.IndicatorFrame.MailFrame then ignore[MinimapCluster.IndicatorFrame.MailFrame] = true end
-      if MinimapCluster.IndicatorFrame.CraftingOrderFrame then ignore[MinimapCluster.IndicatorFrame.CraftingOrderFrame] = true end
+  wipe(registeredButtons)
+  wipe(registeredButtonsByFrame)
+  wipe(addonButtons)
+  wipe(addonButtonsByFrame)
+
+  local diff = getInstanceDifficultyButton()
+  if diff then enableButtonStacking(diff, false) end
+  local lfg = getLFGButton()
+  if lfg then enableButtonStacking(lfg, false) end
+
+  clearAddonCompartmentEntries()
+  applyBlizzardIconBorders(false)
+
+  local zoneButton = getZoneTextButton()
+  if zoneButton then
+    enableButtonStacking(zoneButton, false)
+  end
+  if titleBarZoneFallbackButton then
+    titleBarZoneFallbackButton:Hide()
+  end
+  if addonIconsContainer then
+    addonIconsContainer:Hide()
+  end
+  if hoverCheckTicker then
+    hoverCheckTicker:Cancel()
+    hoverCheckTicker = nil
+  end
+end
+
+local function getExistingAddonButtons()
+  local buttons = {}
+  local seen = {}
+
+  -- 1. LibDBIcon-1.0 registered buttons (covers almost 100% of modern addons)
+  local ldbi = LibStub and LibStub("LibDBIcon-1.0", true)
+  if ldbi and ldbi.objects then
+    for name, button in pairs(ldbi.objects) do
+      if button and not seen[button] and not isBlizzardFrame(button) then
+        local shown = button:IsShown()
+        if button.db and button.db.hide ~= nil then
+          shown = not button.db.hide
+        end
+        if shown then
+          table.insert(buttons, button)
+          seen[button] = true
+        end
+      end
     end
   end
-  if _G.Minimap then
-    ignore[_G.Minimap] = true
-    if _G.Minimap.ZoomIn then ignore[_G.Minimap.ZoomIn] = true end
-    if _G.Minimap.ZoomOut then ignore[_G.Minimap.ZoomOut] = true end
-    if _G.Minimap.ZoomHitArea then ignore[_G.Minimap.ZoomHitArea] = true end
-  end
-  if squareBorderFrame then ignore[squareBorderFrame] = true end
-  if titleBarFrame then ignore[titleBarFrame] = true end
-  if titleBarIconRow then ignore[titleBarIconRow] = true end
-  if addonIconsContainer then ignore[addonIconsContainer] = true end
-  local blizzCoords = getBlizzardPlayerCoords()
-  if blizzCoords then ignore[blizzCoords] = true end
-  return ignore
-end
 
-local function isCandidateAddonButton(frame, anchoredTo, ignoreMap)
-  if not frame then return false end
-  local ok, forbidden = pcall(frame.IsForbidden, frame)
-  if not ok or forbidden then return false end
-  if frame.GetObjectType and frame:GetObjectType() == "Model" then return false end
-  local okW, width = pcall(frame.GetWidth, frame)
-  local okH, height = pcall(frame.GetHeight, frame)
-  if not okW or not okH or not width or not height then return false end
-  if issecretvalue and (issecretvalue(width) or issecretvalue(height)) then return false end
-  if width < 14 or width > 64 or math.abs(width - height) > 4 then return false end
-  local name = frame:GetName()
-  if name and ignoreMap[name] then return false end
-  if ignoreMap[frame] or registeredButtonsByFrame[frame] then return false end
-  if anchoredTo and not isAnchoredToFrame(frame, anchoredTo) then return false end
-  return true
-end
-
-local function scanAddonButtons(parent, anchoredTo, ignoreMap)
-  if not parent or not parent.GetChildren then return end
-  local ok, children = pcall(function() return { parent:GetChildren() } end)
-  if not ok or not children then return end
-  for _, child in ipairs(children) do
-    if isCandidateAddonButton(child, anchoredTo, ignoreMap) then
-      registerAddonButton(child)
+  -- 2. Direct children of Minimap that are buttons, shown, and not Blizzard
+  if _G.Minimap and _G.Minimap.GetChildren then
+    local ok, children = pcall(function() return { _G.Minimap:GetChildren() } end)
+    if ok and children then
+      for _, child in ipairs(children) do
+        if child and not seen[child] and not isBlizzardFrame(child) and child:IsShown() then
+          local okType, objType = pcall(child.GetObjectType, child)
+          if okType and objType == "Button" then
+            table.insert(buttons, child)
+            seen[child] = true
+          end
+        end
+      end
     end
   end
-  if not anchoredTo then
-    scanAddonButtons(UIParent, parent, ignoreMap)
+
+  -- 3. Specific known legacy addon buttons (only if shown)
+  local knownLegacy = { "CT_RASets_Button", "MBB_MinimapButtonFrame", "WIM3MinimapButton" }
+  for _, name in ipairs(knownLegacy) do
+    local btn = _G[name]
+    if btn and not seen[btn] and not isBlizzardFrame(btn) and btn:IsShown() then
+      table.insert(buttons, btn)
+      seen[btn] = true
+    end
   end
+
+  return buttons
 end
 
 local function discoverAddonButtons()
-  local ignoreMap = getIgnoreFramesMap()
-  local otherAddons = { "CT_RASets_Button", "MBB_MinimapButtonFrame" }
-  for _, name in ipairs(otherAddons) do
-    local btn = _G[name]
-    if btn and not registeredButtonsByFrame[btn] then
-      registerAddonButton(btn)
-    end
-  end
-  scanAddonButtons(MinimapCluster, nil, ignoreMap)
-  scanAddonButtons(MinimapBackdrop, nil, ignoreMap)
-  scanAddonButtons(_G.Minimap, nil, ignoreMap)
-  if MinimapCluster and MinimapCluster.MinimapContainer then
-    scanAddonButtons(MinimapCluster.MinimapContainer, nil, ignoreMap)
+  wipe(addonButtons)
+  wipe(addonButtonsByFrame)
+  local found = getExistingAddonButtons()
+  for _, btn in ipairs(found) do
+    registerAddonButton(btn)
   end
 end
 
@@ -1042,34 +1397,142 @@ local function isButtonShown(button)
   if not button then return false end
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
+  local diff = getInstanceDifficultyButton()
+  local lfg = getLFGButton()
+  local garrison = getGarrisonButton()
+
   if settings().shape == "square" then
-    if button == mail or button == crafting then
+    if button == mail then
+      return HasNewMail and HasNewMail() and button:IsShown()
+    end
+    if button == crafting then
+      if not isRetail() then return false end
+      return (crafting.countInfos and #crafting.countInfos > 0) and button:IsShown()
+    end
+    if button == diff then
+      if not settings().showInstanceDifficulty then return false end
+      local _, instanceType, difficulty = GetInstanceInfo()
+      return (difficulty and (instanceType == "raid" or instanceType == "party" or instanceType == "scenario")) and true or false
+    end
+    if button == lfg then
+      if not settings().showLFG then return false end
       return button:IsShown()
     end
-  else
-    if settings().hideExtraButtons and (button == mail or button == crafting) then
-      return false
+    if button == garrison then
+      if not settings().showGarrison then return false end
+      return button:IsShown()
+    end
+    if button == TimeManagerClockButton then
+      return settings().showClock and true or false
+    end
+    if button == GameTimeFrame then
+      return settings().showCalendar and true or false
+    end
+    if button == (MinimapCluster and MinimapCluster.Tracking) then
+      return settings().showTracking and true or false
+    end
+    if button == AddonCompartmentFrame then
+      return button:IsShown()
     end
   end
+
   if not isRetail() and button == crafting then
     return false
   end
-  if button == (MinimapCluster and MinimapCluster.InstanceDifficulty) then
-    local _, instanceType, difficulty = GetInstanceInfo()
-    if not difficulty or not (instanceType == "raid" or instanceType == "party" or instanceType == "scenario") then
-      return false
-    end
-  end
+
   return button:IsShown()
 end
 
+local function layoutCornerIcons()
+  local mm = settings()
+  local isSquare = (mm.shape == "square")
+
+  local diff = getInstanceDifficultyButton()
+  if diff then
+    if isSquare then
+      registerButton(diff)
+      enableButtonStacking(diff, true)
+      diff:SetParent(MinimapCluster or _G.Minimap)
+      diff:SetScale(TITLE_BAR_ICON_SCALE)
+      setFrameStrataSafe(diff, "HIGH")
+      setFrameLevelRecursive(diff, 521)
+      diff.slackHacksRealClearAllPoints(diff)
+      diff.slackHacksRealSetPoint(diff, "TOPRIGHT", _G.Minimap, "TOPRIGHT", -4, -4)
+
+      local inInstance = false
+      local _, instanceType, difficulty = GetInstanceInfo()
+      if difficulty and (instanceType == "raid" or instanceType == "party" or instanceType == "scenario") then
+        inInstance = true
+      end
+
+      if mm.showInstanceDifficulty and inInstance then
+        setShownSafely(diff, true)
+        if mm.showIconsOnHover and not isMinimapHovered() then
+          diff:SetAlpha(0)
+        else
+          diff:SetAlpha(1)
+        end
+      else
+        setShownSafely(diff, false)
+      end
+    else
+      enableButtonStacking(diff, false)
+    end
+  end
+
+  local lfg = getLFGButton()
+  if lfg then
+    if isSquare then
+      registerButton(lfg)
+      enableButtonStacking(lfg, true)
+      lfg:SetParent(MinimapCluster or _G.Minimap)
+      lfg:SetScale(TITLE_BAR_ICON_SCALE)
+      setFrameStrataSafe(lfg, "HIGH")
+      setFrameLevelRecursive(lfg, 521)
+      lfg.slackHacksRealClearAllPoints(lfg)
+      lfg.slackHacksRealSetPoint(lfg, "TOPLEFT", _G.Minimap, "TOPLEFT", 4, -4)
+
+      if mm.showLFG and isButtonShown(lfg) then
+        setShownSafely(lfg, true)
+        if mm.showIconsOnHover and not isMinimapHovered() then
+          lfg:SetAlpha(0)
+        else
+          lfg:SetAlpha(1)
+        end
+      else
+        setShownSafely(lfg, false)
+      end
+    else
+      enableButtonStacking(lfg, false)
+    end
+  end
+end
+
+local TITLE_BAR_HEIGHT = 18
+local TITLE_BAR_ICON_SCALE = 0.7
+local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
+local TITLE_BAR_ADDON_COMPARTMENT_SCALE = 1.05 -- sized up a few pixels so text is about the same size as the clock
+
+local function getButtonScaledWidth(button)
+  local scale = TITLE_BAR_ICON_SCALE
+  if button == TimeManagerClockButton then
+    scale = TITLE_BAR_CLOCK_SCALE
+  elseif button == AddonCompartmentFrame then
+    scale = TITLE_BAR_ADDON_COMPARTMENT_SCALE
+  end
+  local btnW = button:GetWidth()
+  return (btnW and btnW > 0 and btnW or 32) * scale, scale
+end
+
 --- Builds the list of buttons for the permanent title bar flow.
---- Right-to-left layout order: Clock, Mail, Crafting Orders. All other standard icons are in the hover container.
+--- Right-to-left layout order: Clock, Mail, Crafting Orders, standard icons (if not hover-only),
+--- and Addon Compartment / Garrison (if not hover-only).
 local function getTitleBarFlowButtons()
+  local mm = settings()
   local list = {}
 
   -- 1. Clock (rightmost)
-  if TimeManagerClockButton then
+  if mm.showClock and TimeManagerClockButton then
     table.insert(list, TimeManagerClockButton)
   end
 
@@ -1083,6 +1546,51 @@ local function getTitleBarFlowButtons()
   local crafting = getCraftingOrderButton()
   if crafting then
     table.insert(list, crafting)
+  end
+
+  if not mm.showIconsOnHover then
+    if mm.showCalendar and GameTimeFrame then
+      table.insert(list, GameTimeFrame)
+    end
+    if mm.showTracking and MinimapCluster and MinimapCluster.Tracking then
+      table.insert(list, MinimapCluster.Tracking)
+    end
+  end
+
+  if not mm.showAddonIconsOnHover then
+    if AddonCompartmentFrame then
+      table.insert(list, AddonCompartmentFrame)
+    end
+    local garrison = getGarrisonButton()
+    if mm.showGarrison and garrison then
+      table.insert(list, garrison)
+    end
+  end
+
+  return list
+end
+
+local function getHoverButtons()
+  local mm = settings()
+  local list = {}
+
+  if mm.showIconsOnHover then
+    if mm.showCalendar and GameTimeFrame then
+      table.insert(list, GameTimeFrame)
+    end
+    if mm.showTracking and MinimapCluster and MinimapCluster.Tracking then
+      table.insert(list, MinimapCluster.Tracking)
+    end
+  end
+
+  if mm.showAddonIconsOnHover then
+    if AddonCompartmentFrame then
+      table.insert(list, AddonCompartmentFrame)
+    end
+    local garrison = getGarrisonButton()
+    if mm.showGarrison and garrison then
+      table.insert(list, garrison)
+    end
   end
 
   return list
@@ -1137,8 +1645,7 @@ local function layoutTitleBarZoneButton(previous)
   updateZoneText()
 end
 
---- Lays out icons hidden without hover (Addon Compartment, then third-party addon icons)
---- in a separate container frame with a HIGH frame strata.
+--- Lays out icons hidden without hover in a separate container frame with a HIGH frame strata.
 --- Taken out of the title bar flow so it never clips or constrains the zone text button.
 --- Only visible when hovering over the minimap.
 local function layoutAddonIconsContainer(anchorRightTo)
@@ -1155,24 +1662,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
   container:SetPoint("TOP", titleBarFrame, "TOP", 0, 0)
   container:SetPoint("BOTTOM", titleBarFrame, "BOTTOM", 0, 0)
 
-  local hoverButtons = {}
-  -- 1. Calendar (rightmost inside hover container)
-  if GameTimeFrame then
-    table.insert(hoverButtons, GameTimeFrame)
-  end
-  -- 2. Tracking (to the left of Calendar)
-  if MinimapCluster and MinimapCluster.Tracking then
-    table.insert(hoverButtons, MinimapCluster.Tracking)
-  end
-  -- 3. Addon Compartment (to the left of Tracking)
-  if AddonCompartmentFrame then
-    table.insert(hoverButtons, AddonCompartmentFrame)
-  end
-  -- 4. Various addon icons (to the left of Addon Compartment)
-  for _, btn in ipairs(addonButtons) do
-    if btn then table.insert(hoverButtons, btn) end
-  end
-
+  local hoverButtons = getHoverButtons()
   local totalWidth = 0
   local buttonGap = 2
   local previousHover = nil
@@ -1182,7 +1672,8 @@ local function layoutAddonIconsContainer(anchorRightTo)
     if isButtonShown(button) then
       enableButtonStacking(button, true)
       button:SetParent(container)
-      button:SetScale(TITLE_BAR_ICON_SCALE)
+      local scaledW, scale = getButtonScaledWidth(button)
+      button:SetScale(scale)
       setFrameStrataSafe(button, "HIGH")
       setFrameLevelRecursive(button, 521)
       button.slackHacksRealClearAllPoints(button)
@@ -1193,28 +1684,22 @@ local function layoutAddonIconsContainer(anchorRightTo)
         button.slackHacksRealSetPoint(button, "RIGHT", container, "RIGHT", 0, 0)
       end
       previousHover = button
-
-      local btnW = button:GetWidth()
-      local scaledW = (btnW and btnW > 0 and btnW or 32) * TITLE_BAR_ICON_SCALE
       totalWidth = totalWidth + scaledW + (isSubsequent and buttonGap or 0)
-
-      if addonButtonsByFrame[button] then
-        applyCycleBorder(button)
-      end
     end
   end
 
   container:SetWidth(math.max(1, totalWidth))
-
-  updateAddonContainerVisibility()
+  updateHoverVisibility()
 end
 
 --- Shrinks and lines up the minimap buttons along the right side of the title bar,
---- ordered right-to-left: Clock, standard icons, addon compartment. Third-party addon icons
---- are placed in the separate hover container.
+--- ordered right-to-left: Clock, standard icons, addon compartment.
 local function layoutTitleBarIcons()
   local row = titleBarIconRow
   if not row then return end
+
+  syncAddonCompartmentEntries()
+
   local buttons = getTitleBarFlowButtons()
   local previous = nil
 
@@ -1222,9 +1707,9 @@ local function layoutTitleBarIcons()
     registerButton(button)
     if isButtonShown(button) then
       enableButtonStacking(button, true)
-      -- Mappy reparents to MinimapCluster so Blizzard internals (e.g. AddonCompartmentFrame) find their expected parent
       button:SetParent(MinimapCluster or _G.Minimap)
-      button:SetScale(button == TimeManagerClockButton and TITLE_BAR_CLOCK_SCALE or TITLE_BAR_ICON_SCALE)
+      local _, scale = getButtonScaledWidth(button)
+      button:SetScale(scale)
       setFrameStrataSafe(button, row:GetFrameStrata())
       setFrameLevelRecursive(button, row:GetFrameLevel() + 1)
       button.slackHacksRealClearAllPoints(button)
@@ -1239,6 +1724,8 @@ local function layoutTitleBarIcons()
 
   layoutTitleBarZoneButton(previous)
   layoutAddonIconsContainer(previous)
+  layoutCornerIcons()
+  layoutAddonButtonsOnBorder()
 end
 
 applyTitleBarLayout = function()
@@ -1272,6 +1759,7 @@ applyTitleBarLayout = function()
       addonScanTicker = nil
     end
     updateEditModeSelectionBounds()
+    updateHoverVisibility()
     return
   end
 
@@ -1309,6 +1797,7 @@ applyTitleBarLayout = function()
   local zb = getZoneTextButton()
   if zb then hookHoverFrame(zb) end
 
+  applyBlizzardIconBorders(true)
   discoverAddonButtons()
   layoutTitleBarIcons()
   updateEditModeSelectionBounds()
@@ -1326,11 +1815,6 @@ applyTitleBarLayout = function()
   end
 end
 
-local function applyMouseWheelZoom()
-  if not isModuleEnabled() then return end
-  _G.Minimap:EnableMouseWheel(settings().mouseWheelZoom ~= false)
-end
-
 function module:ApplyAll()
   if not (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) then
     if self:IsEnabled() then
@@ -1344,6 +1828,7 @@ function module:ApplyAll()
   end
 
   applyShape()
+  applyMinimapRotation()
   applyAlpha()
   applyCoordinates()
   applyZoneText()
@@ -1355,7 +1840,7 @@ function module:ApplyAll()
   applyExtraButtons()
   applyBorder()
   applyTitleBarLayout()
-  applyMouseWheelZoom()
+  updateHoverVisibility()
 end
 module.Refresh = module.ApplyAll
 
@@ -1472,52 +1957,6 @@ local function createOptionsDialog()
     return frame, yOffset - 44
   end
 
-  local dropdownCounter = 0
-  local function addDropdown(label, options, order, getFunc, setFunc, yOffset)
-    local frame = CreateFrame("Frame", nil, dialog)
-    frame:SetSize(280, 46)
-    frame:SetPoint("TOPLEFT", dialog, "TOPLEFT", 4, yOffset)
-
-    local lbl = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    lbl:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, 0)
-    lbl:SetText(label)
-
-    dropdownCounter = dropdownCounter + 1
-    local dropdown = CreateFrame("Frame", "SlackHacksMinimapOptionsDropdown" .. dropdownCounter, frame, "UIDropDownMenuTemplate")
-    dropdown:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", -16, -4)
-    UIDropDownMenu_SetWidth(dropdown, 240)
-
-    local function onSelect(_, value)
-      setFunc(value)
-      UIDropDownMenu_SetSelectedValue(dropdown, value)
-      UIDropDownMenu_SetText(dropdown, options[value])
-      module:ApplyAll()
-    end
-
-    UIDropDownMenu_Initialize(dropdown, function(_, level)
-      for _, value in ipairs(order) do
-        local info = UIDropDownMenu_CreateInfo()
-        info.text = options[value]
-        info.value = value
-        info.func = onSelect
-        info.checked = (getFunc() == value)
-        UIDropDownMenu_AddButton(info, level)
-      end
-    end)
-
-    frame.SetEnabled = function(_, enable)
-      if enable then UIDropDownMenu_EnableDropDown(dropdown) else UIDropDownMenu_DisableDropDown(dropdown) end
-    end
-
-    table.insert(controls, function()
-      local cur = getFunc()
-      UIDropDownMenu_SetSelectedValue(dropdown, cur)
-      UIDropDownMenu_SetText(dropdown, options[cur] or cur)
-    end)
-
-    return frame, yOffset - 46
-  end
-
   local percentFormat = function(v) return math.floor(v + 0.5) .. "%" end
 
   local curY = -46
@@ -1527,14 +1966,23 @@ local function createOptionsDialog()
     curY)
 
   curY = addDivider(curY - 2)
-  curY = addHeader("Appearance", curY)
-  _, curY = addDropdown("Shape", { circle = "Round", square = "Square" }, { "circle", "square" },
-    function() return db.profile.minimap.shape end,
-    function(v) db.profile.minimap.shape = v end,
+  _, curY = addCheckbox("Show Icons on Hover Only",
+    function() return db.profile.minimap.showIconsOnHover end,
+    function(v) db.profile.minimap.showIconsOnHover = v end,
     curY)
-  _, curY = addCheckbox("Show Border",
-    function() return db.profile.minimap.showBorder end,
-    function(v) db.profile.minimap.showBorder = v end,
+  _, curY = addCheckbox("Show Addon Icons on Hover Only",
+    function() return db.profile.minimap.showAddonIconsOnHover end,
+    function(v) db.profile.minimap.showAddonIconsOnHover = v end,
+    curY)
+  if not isRetail() then
+    _, curY = addCheckbox("Hide Day/Night Icon",
+      function() return db.profile.minimap.hideDiel end,
+      function(v) db.profile.minimap.hideDiel = v end,
+      curY)
+  end
+  _, curY = addCheckbox("Show All Minimap Tracking Options",
+    function() return db.profile.minimap.showAllMinimapTracking end,
+    function(v) db.profile.minimap.showAllMinimapTracking = v end,
     curY)
 
   curY = addDivider(curY - 2)
@@ -1563,58 +2011,64 @@ local function createOptionsDialog()
   table.insert(fadeDependents, movingSlider)
 
   curY = addDivider(curY - 2)
-  curY = addHeader("Buttons", curY)
-  _, curY = addCheckbox("Show Zone Text",
+  curY = addHeader("Square Minimap", curY)
+  local squareDependents = {}
+  local squareCb
+  squareCb, curY = addCheckbox("Enable",
+    function() return db.profile.minimap.shape == "square" end,
+    function(v)
+      db.profile.minimap.shape = v and "square" or "circle"
+    end,
+    curY, squareDependents)
+  local cb
+  cb, curY = addCheckbox("Show Zone Text",
     function() return db.profile.minimap.showZoneText end,
     function(v) db.profile.minimap.showZoneText = v end,
     curY)
-  _, curY = addCheckbox("Show Clock",
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Show Clock",
     function() return db.profile.minimap.showClock end,
     function(v) db.profile.minimap.showClock = v end,
     curY)
-  _, curY = addCheckbox("Show Calendar Button",
-    function() return db.profile.minimap.showCalendar end,
-    function(v) db.profile.minimap.showCalendar = v end,
-    curY)
-  if not isRetail() then
-    _, curY = addCheckbox("Hide Day/Night Icon",
-      function() return db.profile.minimap.hideDiel end,
-      function(v) db.profile.minimap.hideDiel = v end,
-      curY)
-  end
-  _, curY = addCheckbox("Show Tracking Button",
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Show Tracking Button",
     function() return db.profile.minimap.showTracking end,
     function(v) db.profile.minimap.showTracking = v end,
     curY)
-  _, curY = addCheckbox("Show All Minimap Tracking Options",
-    function() return db.profile.minimap.showAllMinimapTracking end,
-    function(v) db.profile.minimap.showAllMinimapTracking = v end,
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Show Calendar",
+    function() return db.profile.minimap.showCalendar end,
+    function(v) db.profile.minimap.showCalendar = v end,
     curY)
-  local hideExtraCb
-  hideExtraCb, curY = addCheckbox("Hide Extra Minimap Buttons",
-    function()
-      if db.profile.minimap.shape == "square" then return true end
-      return db.profile.minimap.hideExtraButtons
-    end,
-    function(v)
-      db.profile.minimap.hideExtraButtons = v
-    end,
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Show LFG",
+    function() return db.profile.minimap.showLFG end,
+    function(v) db.profile.minimap.showLFG = v end,
     curY)
-  _, curY = addCheckbox("Mouse Wheel Zoom",
-    function() return db.profile.minimap.mouseWheelZoom end,
-    function(v) db.profile.minimap.mouseWheelZoom = v end,
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Show Instance Difficulty",
+    function() return db.profile.minimap.showInstanceDifficulty end,
+    function(v) db.profile.minimap.showInstanceDifficulty = v end,
     curY)
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Show Garrison/Expansion Landing Page",
+    function() return db.profile.minimap.showGarrison end,
+    function(v) db.profile.minimap.showGarrison = v end,
+    curY)
+  table.insert(squareDependents, cb)
+  cb, curY = addCheckbox("Add Addons to Addon Compartment",
+    function() return db.profile.minimap.addonsInCompartment end,
+    function(v) db.profile.minimap.addonsInCompartment = v end,
+    curY)
+  table.insert(squareDependents, cb)
 
   dialog:SetHeight(math.abs(curY) + 24)
 
   function dialog:RefreshValues()
     for _, fn in ipairs(controls) do fn() end
-    if hideExtraCb then
-      local isSquare = (db.profile.minimap.shape == "square")
-      hideExtraCb:SetEnabled(not isSquare)
-      if isSquare then
-        hideExtraCb:SetChecked(true)
-      end
+    local isSquare = (db.profile.minimap.shape == "square")
+    for _, dep in ipairs(squareDependents) do
+      dep:SetEnabled(isSquare)
     end
   end
 
@@ -1684,6 +2138,9 @@ function module:OnEnable()
   self:RegisterEvent("ZONE_CHANGED_INDOORS", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "ApplyAll")
+  self:RegisterEvent("PLAYER_DIFFICULTY_CHANGED", "ApplyAll")
+  self:RegisterEvent("UPDATE_INSTANCE_INFO", "ApplyAll")
+  self:RegisterEvent("GROUP_ROSTER_UPDATE", "ApplyAll")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_STARTED_MOVING")
@@ -1725,7 +2182,10 @@ function module:OnDisable()
     hoverCheckTicker:Cancel()
     hoverCheckTicker = nil
   end
+  restoreMinimapRotation()
   restoreCoordinates()
+  clearAddonCompartmentEntries()
+  applyBlizzardIconBorders(false)
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
   if addonIconsContainer then addonIconsContainer:Hide() end
@@ -1768,6 +2228,13 @@ function module:OnDisable()
     end
     if crafting and crafting.countInfos and #crafting.countInfos > 0 then
       crafting:Show()
+    end
+    for _, icon in ipairs(getStandardMinimapIcons()) do
+      if icon then icon:SetAlpha(1) end
+    end
+    if AddonCompartmentFrame then AddonCompartmentFrame:SetAlpha(1) end
+    for _, btn in ipairs(addonButtons) do
+      if btn then btn:SetAlpha(1) end
     end
   end
   if MinimapBackdrop then MinimapBackdrop:SetAlpha(1) end
