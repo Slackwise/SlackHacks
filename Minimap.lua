@@ -499,8 +499,8 @@ local function getSquareMinimapDimensions()
   if not scale or scale <= 0 then scale = 1 end
   local mmW = (_G.Minimap and _G.Minimap:GetWidth() and _G.Minimap:GetWidth() > 0 and _G.Minimap:GetWidth()) or 198
   local mmH = (_G.Minimap and _G.Minimap:GetHeight() and _G.Minimap:GetHeight() > 0 and _G.Minimap:GetHeight()) or 198
-  local visualW = math.floor((mmW * scale) + 12 + 0.5)
-  local visualH = math.floor((mmH * scale) + 28 + 0.5)
+  local visualW = math.floor((mmW * scale) + 6 + 0.5)
+  local visualH = math.floor((mmH * scale) + 22 + 0.5)
   return visualW, visualH, scale
 end
 
@@ -535,7 +535,7 @@ local function applySquareMinimapCluster()
   local container = MinimapCluster.MinimapContainer
   if container then
     container:ClearAllPoints()
-    container:SetPoint("CENTER", MinimapCluster, "CENTER", 0, -8 / scale)
+    container:SetPoint("CENTER", MinimapCluster, "CENTER", 3 / scale, -11 / scale)
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
