@@ -65,6 +65,8 @@ local titleBarIconRow
 local addonIconsContainer
 local hoverCheckTicker
 local applyTitleBarLayout
+local setFrameStrataSafe
+local setFrameLevelRecursive
 local updateHoverVisibility
 local registeredButtons = {}
 local registeredButtonsByFrame = {}
@@ -527,8 +529,8 @@ local function createAddonIconsContainer()
   if addonIconsContainer then return addonIconsContainer end
   local container = CreateFrame("Frame", "SlackHacksMinimapAddonIconsContainer", titleBarFrame or MinimapCluster or UIParent)
   container:SetHeight(TITLE_BAR_HEIGHT)
-  container:SetFrameStrata("HIGH")
-  container:SetFrameLevel(520)
+  container:SetFrameStrata("DIALOG")
+  container:SetFrameLevel(525)
   container:Hide()
   addonIconsContainer = container
   return container
@@ -951,6 +953,9 @@ local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
       if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
         self.slackHacksRealClearAllPoints(self)
         self.slackHacksRealSetPoint(self, "CENTER", _G.Minimap, "CENTER", sqX, sqY)
+        setFrameStrataSafe(self, "DIALOG")
+        setFrameLevelRecursive(self, 525)
+        if self.Raise then self:Raise() end
       end
     end
   end
@@ -1202,6 +1207,9 @@ local function onAddonButtonDragStart(self)
   if settings().shape ~= "square" or settings().addonsInCompartment then return end
   self.isDraggingOnSquareBorder = true
   if self.LockHighlight then self:LockHighlight() end
+  setFrameStrataSafe(self, "DIALOG")
+  setFrameLevelRecursive(self, 525)
+  if self.Raise then self:Raise() end
   self:SetScript("OnUpdate", onAddonButtonDragUpdate)
   if GameTooltip then GameTooltip:Hide() end
 end
@@ -1221,7 +1229,7 @@ local function enableAddonButtonDragging(button)
   end
 end
 
-local function setFrameStrataSafe(frame, strata)
+setFrameStrataSafe = function(frame, strata)
   if frame.slackHacksRealSetFrameStrata then
     frame.slackHacksRealSetFrameStrata(frame, strata)
   else
@@ -1231,7 +1239,7 @@ end
 
 --- Mappy's recursive frame level setter: ensures child icons/textures shift frame level
 --- along with the button so no child elements draw behind the nine-slice border (level 500).
-local function setFrameLevelRecursive(frame, level)
+setFrameLevelRecursive = function(frame, level)
   local oldLevel = frame:GetFrameLevel()
   local offset = level - oldLevel
   if offset == 0 then return end
@@ -1280,9 +1288,10 @@ local function layoutAddonButtonsOnBorder()
         enableButtonStacking(button, true)
         enableAddonButtonDragging(button)
 
-        button:SetParent(_G.Minimap)
-        setFrameStrataSafe(button, "HIGH")
-        setFrameLevelRecursive(button, 521)
+        button:SetParent(MinimapCluster or _G.Minimap)
+        setFrameStrataSafe(button, "DIALOG")
+        setFrameLevelRecursive(button, 525)
+        if button.Raise then button:Raise() end
 
         local angle = getButtonAngle(button)
         button.slackHacksAngle = angle
@@ -1454,8 +1463,9 @@ local function layoutCornerIcons()
       enableButtonStacking(diff, true)
       diff:SetParent(MinimapCluster or _G.Minimap)
       diff:SetScale(TITLE_BAR_ICON_SCALE)
-      setFrameStrataSafe(diff, "HIGH")
-      setFrameLevelRecursive(diff, 521)
+      setFrameStrataSafe(diff, "DIALOG")
+      setFrameLevelRecursive(diff, 525)
+      if diff.Raise then diff:Raise() end
       diff.slackHacksRealClearAllPoints(diff)
       diff.slackHacksRealSetPoint(diff, "TOPRIGHT", _G.Minimap, "TOPRIGHT", -4, -4)
 
@@ -1487,8 +1497,9 @@ local function layoutCornerIcons()
       enableButtonStacking(lfg, true)
       lfg:SetParent(MinimapCluster or _G.Minimap)
       lfg:SetScale(TITLE_BAR_ICON_SCALE)
-      setFrameStrataSafe(lfg, "HIGH")
-      setFrameLevelRecursive(lfg, 521)
+      setFrameStrataSafe(lfg, "DIALOG")
+      setFrameLevelRecursive(lfg, 525)
+      if lfg.Raise then lfg:Raise() end
       lfg.slackHacksRealClearAllPoints(lfg)
       lfg.slackHacksRealSetPoint(lfg, "TOPLEFT", _G.Minimap, "TOPLEFT", 4, -4)
 
@@ -1674,8 +1685,9 @@ local function layoutAddonIconsContainer(anchorRightTo)
       button:SetParent(container)
       local scaledW, scale = getButtonScaledWidth(button)
       button:SetScale(scale)
-      setFrameStrataSafe(button, "HIGH")
-      setFrameLevelRecursive(button, 521)
+      setFrameStrataSafe(button, "DIALOG")
+      setFrameLevelRecursive(button, 525)
+      if button.Raise then button:Raise() end
       button.slackHacksRealClearAllPoints(button)
       local isSubsequent = (previousHover ~= nil)
       if previousHover then
