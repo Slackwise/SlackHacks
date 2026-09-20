@@ -1047,6 +1047,25 @@ local function restoreButtonState(button)
   button.slackHacksSaved = nil
 end
 
+local function getSquareBorderTargetFrame()
+  if squareBorderFrame and squareBorderFrame:IsShown() and squareBorderFrame:GetWidth() > 0 then
+    return squareBorderFrame
+  end
+  if MinimapCluster and MinimapCluster:GetWidth() > 0 then
+    return MinimapCluster
+  end
+  return _G.Minimap
+end
+
+local function getSquareBorderDimensions()
+  local target = getSquareBorderTargetFrame()
+  local tw = target:GetWidth() or 200
+  local th = target:GetHeight() or 200
+  local radiusX = (tw / 2) + 2
+  local radiusY = (th / 2) + 2
+  return target, radiusX, radiusY
+end
+
 local function getSquarePositionForAngle(angleDeg, radiusX, radiusY)
   local angleRad = math.rad(angleDeg)
   local cosA = math.cos(angleRad)
@@ -1154,14 +1173,11 @@ local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
     if not self.isDraggingOnSquareBorder and type(x) == "number" and type(y) == "number" then
       local angle = math.deg(math.atan2(y, x)) % 360
       self.slackHacksAngle = angle
-      local mmW = _G.Minimap:GetWidth() or 200
-      local mmH = _G.Minimap:GetHeight() or 200
-      local radiusX = (mmW / 2) + 2
-      local radiusY = (mmH / 2) + 2
+      local target, radiusX, radiusY = getSquareBorderDimensions()
       local sqX, sqY = getSquarePositionForAngle(angle, radiusX, radiusY)
       if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
         self.slackHacksRealClearAllPoints(self)
-        self.slackHacksRealSetPoint(self, "CENTER", _G.Minimap, "CENTER", sqX, sqY)
+        self.slackHacksRealSetPoint(self, "CENTER", target, "CENTER", sqX, sqY)
         setFrameStrataSafe(self, "DIALOG")
         setFrameLevelRecursive(self, 525)
         if self.Raise then self:Raise() end
@@ -1378,7 +1394,8 @@ local function getButtonAngle(button)
     return button.minimapPos
   end
   local bx, by = button:GetCenter()
-  local mx, my = _G.Minimap:GetCenter()
+  local target = (settings().shape == "square" and getSquareBorderTargetFrame()) or _G.Minimap
+  local mx, my = target:GetCenter()
   if bx and by and mx and my then
     return math.deg(math.atan2(by - my, bx - mx)) % 360
   end
@@ -1386,9 +1403,10 @@ local function getButtonAngle(button)
 end
 
 local function onAddonButtonDragUpdate(self)
-  local mx, my = _G.Minimap:GetCenter()
+  local target, radiusX, radiusY = getSquareBorderDimensions()
+  local mx, my = target:GetCenter()
   local px, py = GetCursorPosition()
-  local scale = _G.Minimap:GetEffectiveScale()
+  local scale = target:GetEffectiveScale()
   px, py = px / scale, py / scale
   local angle = math.deg(math.atan2(py - my, px - mx)) % 360
   if self.db then
@@ -1397,18 +1415,14 @@ local function onAddonButtonDragUpdate(self)
   self.minimapPos = angle
   self.slackHacksAngle = angle
 
-  local mmW = _G.Minimap:GetWidth() or 200
-  local mmH = _G.Minimap:GetHeight() or 200
-  local radiusX = (mmW / 2) + 2
-  local radiusY = (mmH / 2) + 2
   local x, y = getSquarePositionForAngle(angle, radiusX, radiusY)
 
   if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
     self.slackHacksRealClearAllPoints(self)
-    self.slackHacksRealSetPoint(self, "CENTER", _G.Minimap, "CENTER", x, y)
+    self.slackHacksRealSetPoint(self, "CENTER", target, "CENTER", x, y)
   else
     self:ClearAllPoints()
-    self:SetPoint("CENTER", _G.Minimap, "CENTER", x, y)
+    self:SetPoint("CENTER", target, "CENTER", x, y)
   end
 end
 
@@ -1481,10 +1495,7 @@ local function layoutAddonButtonsOnBorder()
     return
   end
 
-  local mmW = _G.Minimap:GetWidth() or 200
-  local mmH = _G.Minimap:GetHeight() or 200
-  local radiusX = (mmW / 2) + 2
-  local radiusY = (mmH / 2) + 2
+  local target, radiusX, radiusY = getSquareBorderDimensions()
 
   for _, button in ipairs(addonButtons) do
     if button and not isBlizzardFrame(button) then
@@ -1497,7 +1508,7 @@ local function layoutAddonButtonsOnBorder()
         enableButtonStacking(button, true)
         enableAddonButtonDragging(button)
 
-        button:SetParent(MinimapCluster or _G.Minimap)
+        button:SetParent(target)
         setFrameStrataSafe(button, "DIALOG")
         setFrameLevelRecursive(button, 525)
         if button.Raise then button:Raise() end
@@ -1508,10 +1519,10 @@ local function layoutAddonButtonsOnBorder()
 
         if button.slackHacksRealClearAllPoints and button.slackHacksRealSetPoint then
           button.slackHacksRealClearAllPoints(button)
-          button.slackHacksRealSetPoint(button, "CENTER", _G.Minimap, "CENTER", x, y)
+          button.slackHacksRealSetPoint(button, "CENTER", target, "CENTER", x, y)
         else
           button:ClearAllPoints()
-          button:SetPoint("CENTER", _G.Minimap, "CENTER", x, y)
+          button:SetPoint("CENTER", target, "CENTER", x, y)
         end
         button:Show()
       end
