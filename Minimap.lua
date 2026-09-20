@@ -68,10 +68,12 @@ local applyTitleBarLayout
 local setFrameStrataSafe
 local setFrameLevelRecursive
 local updateHoverVisibility
+local isButtonShown
 local registeredButtons = {}
 local registeredButtonsByFrame = {}
 local addonButtons = {}
 local addonButtonsByFrame = {}
+local hoverContainerButtons = {}
 local origMinimapClusterLayout
 local layoutPending = false
 local addonScanTicker
@@ -525,13 +527,17 @@ local function createTitleBar()
   return frame
 end
 
+--- Purely a positioning/hit-test reference frame -- never a real parent for Blizzard's own buttons.
+--- (Blizzard's OnClick handlers for things like AddonCompartmentFrame/Tracking/Calendar rely on their
+--- native ancestry (MinimapCluster) and get silently tainted/broken if reparented to a plain addon-created
+--- frame, even though tooltips still work fine since those are insecure.) Always shown so `isMinimapHovered()`
+--- can treat its rect as "still hovering the icon group", independent of any individual button's visibility.
 local function createAddonIconsContainer()
   if addonIconsContainer then return addonIconsContainer end
   local container = CreateFrame("Frame", "SlackHacksMinimapAddonIconsContainer", titleBarFrame or MinimapCluster or UIParent)
   container:SetHeight(TITLE_BAR_HEIGHT)
   container:SetFrameStrata("DIALOG")
   container:SetFrameLevel(525)
-  container:Hide()
   addonIconsContainer = container
   return container
 end
@@ -586,10 +592,15 @@ updateHoverVisibility = function(hovered)
 
   if isSquare then
     if addonIconsContainer then
-      if hovered then
-        addonIconsContainer:Show()
-      else
-        addonIconsContainer:Hide()
+      addonIconsContainer:Show() -- always shown, purely a hit-test rect; individual buttons fade below
+    end
+
+    -- SetAlpha only, never SetShown/Hide -- matches the already-reliable corner-icon technique
+    -- (Instance Difficulty/LFG) below, and keeps every button's OnClick/OnEnter fully live even while
+    -- faded out, instead of racing Blizzard's own Show/Hide (protected, and inconsistent across buttons).
+    for _, btn in ipairs(hoverContainerButtons) do
+      if btn then
+        btn:SetAlpha(hovered and 1 or 0)
       end
     end
 
@@ -1311,6 +1322,13 @@ local function layoutAddonButtonsOnBorder()
 end
 
 local function disableAllStacking()
+  -- These were only ever faded via SetAlpha while hidden-until-hover in square mode (never SetShown),
+  -- so just restore full opacity before handing them back to Blizzard's own show/hide logic.
+  for _, btn in ipairs(hoverContainerButtons) do
+    if btn then btn:SetAlpha(1) end
+  end
+  wipe(hoverContainerButtons)
+
   for _, button in ipairs(registeredButtons) do
     enableButtonStacking(button, false)
   end
@@ -1402,7 +1420,7 @@ local function discoverAddonButtons()
   end
 end
 
-local function isButtonShown(button)
+isButtonShown = function(button)
   if not button then return false end
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
@@ -1672,12 +1690,22 @@ local function layoutAddonIconsContainer(anchorRightTo)
   local totalWidth = 0
   local buttonGap = 2
   local previousHover = nil
+  wipe(hoverContainerButtons)
 
   for _, button in ipairs(hoverButtons) do
     registerButton(button)
     if isButtonShown(button) then
+      table.insert(hoverContainerButtons, button)
       enableButtonStacking(button, true)
-      button:SetParent(container)
+      -- Reparent to MinimapCluster (Blizzard's own expected ancestor for these buttons), never to our
+      -- custom `container` -- OnClick handlers for things like AddonCompartmentFrame/Tracking rely on
+      -- their native ancestry and silently break (while tooltips keep working) if reparented elsewhere.
+      button:SetParent(MinimapCluster or _G.Minimap)
+      -- Real Show() here (not alpha) -- the button genuinely belongs in the flow; visibility of the
+      -- hidden-until-hover group itself is driven purely by SetAlpha in updateHoverVisibility, same
+      -- proven technique already used for the corner Instance Difficulty/LFG icons -- never SetShown,
+      -- which is what broke Calendar/AddonCompartment/Garrison clicks previously.
+      setShownSafely(button, true)
       local scaledW, scale = getButtonScaledWidth(button)
       button:SetScale(scale)
       setFrameStrataSafe(button, "DIALOG")
@@ -1692,6 +1720,8 @@ local function layoutAddonIconsContainer(anchorRightTo)
       end
       previousHover = button
       totalWidth = totalWidth + scaledW + (isSubsequent and buttonGap or 0)
+    else
+      setShownSafely(button, false)
     end
   end
 
