@@ -588,21 +588,12 @@ updateHoverVisibility = function(hovered)
       addonIconsContainer:Show() -- always shown, purely a hit-test rect; individual buttons fade below
     end
 
-    -- SetAlpha only, never SetShown/Hide -- matches the already-reliable corner-icon technique
-    -- (Instance Difficulty) below, and keeps every button's OnClick/OnEnter fully live even while
-    -- faded out, instead of racing Blizzard's own Show/Hide (protected, and inconsistent across buttons).
+    -- SetAlpha only, never SetShown/Hide -- matches the already-reliable corner-icon technique below,
+    -- and keeps every button's OnClick/OnEnter fully live even while faded out, instead of racing
+    -- Blizzard's own Show/Hide (protected, and inconsistent across buttons).
     for _, btn in ipairs(hoverContainerButtons) do
       if btn then
         btn:SetAlpha(hovered and 1 or 0)
-      end
-    end
-
-    local diff = getInstanceDifficultyButton()
-    if diff and mm.showInstanceDifficulty then
-      if mm.showIconsOnHover then
-        diff:SetAlpha(hovered and 1 or 0)
-      else
-        diff:SetAlpha(1)
       end
     end
 
@@ -1437,9 +1428,7 @@ isButtonShown = function(button)
       return (crafting.countInfos and #crafting.countInfos > 0) and button:IsShown()
     end
     if button == diff then
-      if not settings().showInstanceDifficulty then return false end
-      local _, instanceType, difficulty = GetInstanceInfo()
-      return (difficulty and (instanceType == "raid" or instanceType == "party" or instanceType == "scenario")) and true or false
+      return settings().showInstanceDifficulty and true or false
     end
     if button == garrison then
       return settings().showGarrison and true or false
@@ -1480,24 +1469,14 @@ local function layoutCornerIcons()
       setFrameLevelRecursive(diff, 525)
       if diff.Raise then diff:Raise() end
       diff.slackHacksRealClearAllPoints(diff)
-      diff.slackHacksRealSetPoint(diff, "TOPRIGHT", _G.Minimap, "TOPRIGHT", -4, -4)
+      -- Anchored below the title bar (which overlaps the top strip of the map texture in square mode),
+      -- not the full _G.Minimap frame rect, so it lands on the visible map surface instead of the bar.
+      diff.slackHacksRealSetPoint(diff, "TOPRIGHT", titleBarFrame, "BOTTOMRIGHT", 4, -4)
 
-      local inInstance = false
-      local _, instanceType, difficulty = GetInstanceInfo()
-      if difficulty and (instanceType == "raid" or instanceType == "party" or instanceType == "scenario") then
-        inInstance = true
-      end
-
-      if mm.showInstanceDifficulty and inInstance then
-        setShownSafely(diff, true)
-        if mm.showIconsOnHover and not isMinimapHovered() then
-          diff:SetAlpha(0)
-        else
-          diff:SetAlpha(1)
-        end
-      else
-        setShownSafely(diff, false)
-      end
+      -- Not part of the hidden-until-hover group -- always visible unless the user hides it via
+      -- the "Show Instance Difficulty" option (native Blizzard visibility/content is otherwise trusted).
+      setShownSafely(diff, mm.showInstanceDifficulty)
+      diff:SetAlpha(1)
     else
       enableButtonStacking(diff, false)
     end
