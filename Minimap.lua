@@ -29,7 +29,6 @@ local DEFAULT_VISUALS = {
   showClock = true,
   showTracking = true,
   showCalendar = true,
-  showLFG = true,
   showInstanceDifficulty = true,
   showGarrison = true,
   showAddonCompartment = true,
@@ -146,10 +145,6 @@ local function getInstanceDifficultyButton()
   return nil
 end
 
-local function getLFGButton()
-  return MiniMapLFGFrame or QueueStatusButton or QueueStatusMinimapButton
-end
-
 local function getGarrisonButton()
   return ExpansionLandingPageMinimapButton or GarrisonLandingPageMinimapButton
 end
@@ -165,10 +160,9 @@ local function getStandardMinimapIcons()
   if crafting then table.insert(list, crafting) end
   local diff = getInstanceDifficultyButton()
   if diff then table.insert(list, diff) end
-  local lfg = getLFGButton()
-  if lfg then table.insert(list, lfg) end
   local garrison = getGarrisonButton()
   if garrison then table.insert(list, garrison) end
+  if AddonCompartmentFrame then table.insert(list, AddonCompartmentFrame) end
   if MinimapCluster and MinimapCluster.DielFrame then table.insert(list, MinimapCluster.DielFrame) end
   return list
 end
@@ -177,13 +171,11 @@ local function extraButtons()
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
   local diff = getInstanceDifficultyButton()
-  local lfg = getLFGButton()
   local garrison = getGarrisonButton()
   return {
     mail,
     crafting,
     diff,
-    lfg,
     garrison,
     AddonCompartmentFrame,
     MiniMapBattlefieldFrame,
@@ -597,7 +589,7 @@ updateHoverVisibility = function(hovered)
     end
 
     -- SetAlpha only, never SetShown/Hide -- matches the already-reliable corner-icon technique
-    -- (Instance Difficulty/LFG) below, and keeps every button's OnClick/OnEnter fully live even while
+    -- (Instance Difficulty) below, and keeps every button's OnClick/OnEnter fully live even while
     -- faded out, instead of racing Blizzard's own Show/Hide (protected, and inconsistent across buttons).
     for _, btn in ipairs(hoverContainerButtons) do
       if btn then
@@ -611,15 +603,6 @@ updateHoverVisibility = function(hovered)
         diff:SetAlpha(hovered and 1 or 0)
       else
         diff:SetAlpha(1)
-      end
-    end
-
-    local lfg = getLFGButton()
-    if lfg and mm.showLFG then
-      if mm.showIconsOnHover then
-        lfg:SetAlpha(hovered and 1 or 0)
-      else
-        lfg:SetAlpha(1)
       end
     end
 
@@ -655,7 +638,6 @@ updateHoverVisibility = function(hovered)
       end
     end
 
-    setAddonAlpha(AddonCompartmentFrame)
     for _, btn in ipairs(addonButtons) do
       setAddonAlpha(btn)
     end
@@ -1360,8 +1342,6 @@ local function disableAllStacking()
 
   local diff = getInstanceDifficultyButton()
   if diff then enableButtonStacking(diff, false) end
-  local lfg = getLFGButton()
-  if lfg then enableButtonStacking(lfg, false) end
 
   clearAddonCompartmentEntries()
   applyBlizzardIconBorders(false)
@@ -1446,7 +1426,6 @@ isButtonShown = function(button)
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
   local diff = getInstanceDifficultyButton()
-  local lfg = getLFGButton()
   local garrison = getGarrisonButton()
 
   if settings().shape == "square" then
@@ -1461,10 +1440,6 @@ isButtonShown = function(button)
       if not settings().showInstanceDifficulty then return false end
       local _, instanceType, difficulty = GetInstanceInfo()
       return (difficulty and (instanceType == "raid" or instanceType == "party" or instanceType == "scenario")) and true or false
-    end
-    if button == lfg then
-      if not settings().showLFG then return false end
-      return button:IsShown()
     end
     if button == garrison then
       return settings().showGarrison and true or false
@@ -1527,34 +1502,6 @@ local function layoutCornerIcons()
       enableButtonStacking(diff, false)
     end
   end
-
-  local lfg = getLFGButton()
-  if lfg then
-    if isSquare then
-      registerButton(lfg)
-      enableButtonStacking(lfg, true)
-      lfg:SetParent(MinimapCluster or _G.Minimap)
-      lfg:SetScale(TITLE_BAR_ICON_SCALE)
-      setFrameStrataSafe(lfg, "DIALOG")
-      setFrameLevelRecursive(lfg, 525)
-      if lfg.Raise then lfg:Raise() end
-      lfg.slackHacksRealClearAllPoints(lfg)
-      lfg.slackHacksRealSetPoint(lfg, "TOPLEFT", _G.Minimap, "TOPLEFT", 4, -4)
-
-      if mm.showLFG and isButtonShown(lfg) then
-        setShownSafely(lfg, true)
-        if mm.showIconsOnHover and not isMinimapHovered() then
-          lfg:SetAlpha(0)
-        else
-          lfg:SetAlpha(1)
-        end
-      else
-        setShownSafely(lfg, false)
-      end
-    else
-      enableButtonStacking(lfg, false)
-    end
-  end
 end
 
 local TITLE_BAR_HEIGHT = 18
@@ -1607,10 +1554,9 @@ local function getTitleBarFlowButtons()
     if mm.showTracking and MinimapCluster and MinimapCluster.Tracking then
       table.insert(list, MinimapCluster.Tracking)
     end
-  end
-
-  if not mm.showAddonIconsOnHover and mm.showAddonCompartment and AddonCompartmentFrame then
-    table.insert(list, AddonCompartmentFrame)
+    if mm.showAddonCompartment and AddonCompartmentFrame then
+      table.insert(list, AddonCompartmentFrame)
+    end
   end
 
   return list
@@ -1627,16 +1573,15 @@ local function getHoverButtons()
     if mm.showTracking and MinimapCluster and MinimapCluster.Tracking then
       table.insert(list, MinimapCluster.Tracking)
     end
+    -- Second from the left, right after the Campaign/Garrison icon appended below -- it's a Blizzard
+    -- icon, not a 3rd-party addon icon, so it's governed by showIconsOnHover like Calendar/Tracking.
+    if mm.showAddonCompartment and AddonCompartmentFrame then
+      table.insert(list, AddonCompartmentFrame)
+    end
   end
 
-  -- Keep the Addon Compartment after the standard Blizzard icons and before expansion, only when it's
-  -- meant to be hidden-until-hover (otherwise it lives in the permanent flow instead, see above).
-  if mm.showAddonIconsOnHover and mm.showAddonCompartment and AddonCompartmentFrame then
-    table.insert(list, AddonCompartmentFrame)
-  end
-
-  -- Keep the expansion button in the hover container even when addon icons are otherwise persistent.
-  -- Appending it makes it the far-left item because the list is laid out right-to-left.
+  -- Keep the expansion button in the hover container even when Blizzard icons are otherwise persistent.
+  -- Appending it last makes it the far-left item because the list is laid out right-to-left.
   local garrison = getGarrisonButton()
   if mm.showGarrison and garrison then
     table.insert(list, garrison)
@@ -1728,7 +1673,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
       button:SetParent(MinimapCluster or _G.Minimap)
       -- Real Show() here (not alpha) -- the button genuinely belongs in the flow; visibility of the
       -- hidden-until-hover group itself is driven purely by SetAlpha in updateHoverVisibility, same
-      -- proven technique already used for the corner Instance Difficulty/LFG icons -- never SetShown,
+      -- proven technique already used for the corner Instance Difficulty icon -- never SetShown,
       -- which is what broke Calendar/AddonCompartment/Garrison clicks previously.
       setShownSafely(button, true)
       local scaledW, scale = getButtonScaledWidth(button)
@@ -2104,11 +2049,6 @@ local function createOptionsDialog()
   cb, curY = addCheckbox("Show Calendar",
     function() return db.profile.minimap.showCalendar end,
     function(v) db.profile.minimap.showCalendar = v end,
-    curY)
-  table.insert(squareDependents, cb)
-  cb, curY = addCheckbox("Show LFG",
-    function() return db.profile.minimap.showLFG end,
-    function(v) db.profile.minimap.showLFG = v end,
     curY)
   table.insert(squareDependents, cb)
   cb, curY = addCheckbox("Show Instance Difficulty",

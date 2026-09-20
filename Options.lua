@@ -623,19 +623,6 @@ options = {
               end,
               order = 6
             },
-            showLFG = {
-              name = "Show LFG",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
-              get = function() return db.profile.minimap.showLFG end,
-              set = function(_, value)
-                db.profile.minimap.showLFG = value
-                Self.Minimap:Refresh()
-              end,
-              order = 7
-            },
             showInstanceDifficulty = {
               name = "Show Instance Difficulty",
               type = "toggle",

@@ -69,7 +69,6 @@ dbDefaults = {
       showClock = true,
       showTracking = true,
       showCalendar = true,
-      showLFG = true,
       showInstanceDifficulty = true,
       showGarrison = true,
       showAddonCompartment = true,
