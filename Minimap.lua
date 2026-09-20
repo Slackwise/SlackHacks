@@ -457,6 +457,8 @@ end
 --- portrait icon/title notch cut into the top-left corner like the Spellbook's own frame has).
 --- Drawn above _G.Minimap so the NineSlice metal corners and beveled edges neatly enclose the map
 --- texture without clipping or inner seams, matching how Blizzard's SpellBook and DefaultPanelTemplate work.
+--- Also hosts a 2D backing frame behind _G.Minimap using Blizzard's FlatPanelBackgroundTemplate so
+--- curved bottom corners (uiframebackground-nineslice-cornerbottom...) fill the perimeter inset without bleeding.
 local function createSquareBorder()
   if squareBorderFrame then return squareBorderFrame end
   local frame = CreateFrame("Frame", "SlackHacksMinimapSquareBorder", MinimapCluster or _G.Minimap)
@@ -466,6 +468,25 @@ local function createSquareBorder()
   frame:EnableMouse(false)
   frame:SetPoint("TOPLEFT", MinimapCluster or _G.Minimap, "TOPLEFT", 0, 0)
   frame:SetPoint("BOTTOMRIGHT", MinimapCluster or _G.Minimap, "BOTTOMRIGHT", 0, 0)
+
+  -- 2D backing frame sitting behind _G.Minimap to provide a clean dark inset behind the map viewport.
+  -- Uses Blizzard's FlatPanelBackgroundTemplate which has curved corner textures matching the nine-slice art.
+  local backing = CreateFrame("Frame", "SlackHacksMinimapSquareBacking", frame, "FlatPanelBackgroundTemplate")
+  backing:SetFrameStrata(_G.Minimap:GetFrameStrata())
+  backing:SetFrameLevel(math.max(1, _G.Minimap:GetFrameLevel() - 1))
+  backing:EnableMouse(false)
+  backing:ClearAllPoints()
+  backing:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -21)
+  backing:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+
+  local bgColor = PANEL_BACKGROUND_COLOR or (CreateColor and CreateColor(0.08, 0.08, 0.08, 1))
+  if bgColor then
+    if backing.BottomLeft then backing.BottomLeft:SetVertexColor(bgColor:GetRGBA()) end
+    if backing.BottomRight then backing.BottomRight:SetVertexColor(bgColor:GetRGBA()) end
+    if backing.BottomEdge then backing.BottomEdge:SetVertexColor(bgColor:GetRGBA()) end
+    if backing.TopSection then backing.TopSection:SetVertexColor(bgColor:GetRGBA()) end
+  end
+
   local nineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   nineSlice:EnableMouse(false)
   squareBorderFrame = frame
@@ -503,8 +524,8 @@ local function getSquareMinimapDimensions()
   if not scale or scale <= 0 then scale = 1 end
   local mmW = (_G.Minimap and _G.Minimap:GetWidth() and _G.Minimap:GetWidth() > 0 and _G.Minimap:GetWidth()) or 198
   local mmH = (_G.Minimap and _G.Minimap:GetHeight() and _G.Minimap:GetHeight() > 0 and _G.Minimap:GetHeight()) or 198
-  local visualW = math.floor((mmW * scale) + 8 + 0.5)
-  local visualH = math.floor((mmH * scale) + 24 + 0.5)
+  local visualW = math.floor((mmW * scale) + 12 + 0.5)
+  local visualH = math.floor((mmH * scale) + 26 + 0.5)
   return visualW, visualH, scale
 end
 
@@ -539,7 +560,7 @@ local function applySquareMinimapCluster()
   local container = MinimapCluster.MinimapContainer
   if container then
     container:ClearAllPoints()
-    container:SetPoint("CENTER", MinimapCluster, "CENTER", 2 / scale, -10 / scale)
+    container:SetPoint("CENTER", MinimapCluster, "CENTER", 2 / scale, -9 / scale)
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
