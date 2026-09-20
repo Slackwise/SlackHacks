@@ -1522,12 +1522,15 @@ end
 local TITLE_BAR_HEIGHT = 18
 local TITLE_BAR_ICON_SCALE = 0.7
 local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
+local TITLE_BAR_GARRISON_SCALE = 0.7
 local TITLE_BAR_ADDON_COMPARTMENT_SCALE = 1.05 -- sized up a few pixels so text is about the same size as the clock
 
 local function getButtonScaledWidth(button)
   local scale = TITLE_BAR_ICON_SCALE
   if button == TimeManagerClockButton then
     scale = TITLE_BAR_CLOCK_SCALE
+  elseif button == getGarrisonButton() then
+    scale = TITLE_BAR_GARRISON_SCALE
   elseif button == AddonCompartmentFrame then
     scale = TITLE_BAR_ADDON_COMPARTMENT_SCALE
   end
@@ -1568,16 +1571,6 @@ local function getTitleBarFlowButtons()
     end
   end
 
-  if not mm.showAddonIconsOnHover then
-    if AddonCompartmentFrame then
-      table.insert(list, AddonCompartmentFrame)
-    end
-    local garrison = getGarrisonButton()
-    if mm.showGarrison and garrison then
-      table.insert(list, garrison)
-    end
-  end
-
   return list
 end
 
@@ -1594,14 +1587,16 @@ local function getHoverButtons()
     end
   end
 
-  if mm.showAddonIconsOnHover then
-    if AddonCompartmentFrame then
-      table.insert(list, AddonCompartmentFrame)
-    end
-    local garrison = getGarrisonButton()
-    if mm.showGarrison and garrison then
-      table.insert(list, garrison)
-    end
+  -- Keep the Addon Compartment after the standard Blizzard icons and before expansion.
+  if AddonCompartmentFrame then
+    table.insert(list, AddonCompartmentFrame)
+  end
+
+  -- Keep the expansion button in the hover container even when addon icons are otherwise persistent.
+  -- Appending it makes it the far-left item because the list is laid out right-to-left.
+  local garrison = getGarrisonButton()
+  if mm.showGarrison and garrison then
+    table.insert(list, garrison)
   end
 
   return list
