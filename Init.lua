@@ -55,7 +55,7 @@ dbDefaults = {
       }
     },
     minimap = {
-      enabled = true,
+      enabled = false,
       shape = "circle",
       alpha = 100,
       fadeEnabled = false,

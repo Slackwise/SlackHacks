@@ -591,15 +591,19 @@ options = {
             },
             hideExtraButtons = {
               name = "Hide Extra Minimap Buttons",
-              desc = "Hide mail, LFG, instance difficulty, garrison/expansion landing page, and other addon compartment buttons.",
+              desc = "Hide LFG, instance difficulty, garrison/expansion landing page, and other extra buttons (always active in square mode).",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.minimap.hideExtraButtons end,
+              get = function()
+                if db.profile.minimap.shape == "square" then return true end
+                return db.profile.minimap.hideExtraButtons
+              end,
               set = function(_, value)
                 db.profile.minimap.hideExtraButtons = value
                 Self.Minimap:Refresh()
               end,
+              disabled = function() return db.profile.minimap.shape == "square" end,
               order = 6
             },
             mouseWheelZoom = {

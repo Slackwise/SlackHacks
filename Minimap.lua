@@ -66,11 +66,23 @@ local function getMailButton()
   return nil
 end
 
+local function getCraftingOrderButton()
+  if not isRetail() then return nil end
+  if MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame then
+    return MinimapCluster.IndicatorFrame.CraftingOrderFrame
+  end
+  if MiniMapCraftingOrderFrame then
+    return MiniMapCraftingOrderFrame
+  end
+  return nil
+end
+
 local function extraButtons()
   local mail = getMailButton()
+  local crafting = getCraftingOrderButton()
   return {
     mail,
-    (isRetail() and MinimapCluster and MinimapCluster.IndicatorFrame) and MinimapCluster.IndicatorFrame.CraftingOrderFrame or nil,
+    crafting,
     MinimapCluster and MinimapCluster.InstanceDifficulty,
     MiniMapBattlefieldFrame,
     MiniMapMeetingStoneFrame,
@@ -108,7 +120,29 @@ local function applyAlpha()
     alphaPercent = 100 -- avoid a solid-black minimap indoors at less than full alpha
   end
   local clampedPercent = math.max(0, math.min(100, alphaPercent)) -- avoid relying on the global `Clamp`
-  _G.Minimap:SetAlpha(clampedPercent / 100)
+  local alpha = clampedPercent / 100
+
+  if MinimapCluster then
+    MinimapCluster:SetAlpha(alpha)
+  end
+
+  -- If Minimap is not a child of MinimapCluster, set its alpha directly;
+  -- otherwise, it inherits MinimapCluster's alpha (keep its own local alpha at 1 to prevent double-fading).
+  if not MinimapCluster or (_G.Minimap:GetParent() ~= MinimapCluster and _G.Minimap:GetParent() ~= (MinimapCluster and MinimapCluster.MinimapContainer)) then
+    _G.Minimap:SetAlpha(alpha)
+  else
+    _G.Minimap:SetAlpha(1)
+  end
+
+  if squareBorderFrame and squareBorderFrame:GetParent() ~= MinimapCluster then
+    squareBorderFrame:SetAlpha(alpha)
+  end
+  if titleBarFrame and titleBarFrame:GetParent() ~= MinimapCluster then
+    titleBarFrame:SetAlpha(alpha)
+  end
+  if addonIconsContainer and addonIconsContainer:GetParent() ~= MinimapCluster and addonIconsContainer:GetParent() ~= titleBarFrame then
+    addonIconsContainer:SetAlpha(alpha)
+  end
 end
 
 local function getBlizzardPlayerCoords()
@@ -236,38 +270,40 @@ local function applyTrackingCVar()
   end
 end
 
-local function applyCraftingOrderFrame()
-  if not isRetail() and MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame then
-    local frame = MinimapCluster.IndicatorFrame.CraftingOrderFrame
-    setShownSafely(frame, false)
-    if not frame.slackHacksNonRetailHooked then
-      frame.slackHacksNonRetailHooked = true
-      frame:HookScript("OnShow", function(self)
-        if not isRetail() and not InCombatLockdown() then
-          self:Hide()
-        end
-      end)
+local function updateEditModeSelectionBounds()
+  if not (MinimapCluster and MinimapCluster.Selection) then return end
+  local mm = settings()
+  if mm.shape == "square" then
+    local border = createSquareBorder()
+    if border then
+      MinimapCluster.Selection:ClearAllPoints()
+      MinimapCluster.Selection:SetPoint("TOPLEFT", border, "TOPLEFT", 0, 0)
+      MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", 0, 0)
     end
+  else
+    MinimapCluster.Selection:ClearAllPoints()
+    MinimapCluster.Selection:SetAllPoints(MinimapCluster)
   end
 end
 
 local function applyExtraButtons()
   local isSquare = settings().shape == "square"
-  local hideExtra = settings().hideExtraButtons
+  local hideExtra = isSquare or settings().hideExtraButtons
   local mail = getMailButton()
+  local crafting = getCraftingOrderButton()
+
   for _, button in ipairs(extraButtons()) do
-    if button == mail then
-      if hideExtra then
+    if button == mail or button == crafting then
+      if hideExtra and not isSquare then
         setShownSafely(button, false)
       end
-      -- Otherwise let Blizzard's own MiniMapMailFrameMixin show/hide it on mail arrival/clearing
-    elseif isSquare then
+      -- In square mode, mail & crafting order show dynamically when they have active mail/orders
+    elseif hideExtra then
       setShownSafely(button, false)
     else
-      setShownSafely(button, not hideExtra)
+      setShownSafely(button, true)
     end
   end
-  applyCraftingOrderFrame()
 end
 
 --- Same nine-slice border art used by many Blizzard windows, but the plain rectangular layout (no
@@ -292,10 +328,15 @@ local function applyBorder()
     MinimapBackdrop:SetAlpha((not isSquare and mm.showBorder) and 1 or 0)
   end
   if isSquare then
-    createSquareBorder():SetShown(mm.showBorder)
+    local border = createSquareBorder()
+    border:ClearAllPoints()
+    border:SetPoint("TOPLEFT", _G.Minimap, "TOPLEFT", -4, 4)
+    border:SetPoint("BOTTOMRIGHT", _G.Minimap, "BOTTOMRIGHT", 4, -4)
+    border:SetShown(mm.showBorder)
   elseif squareBorderFrame then
     squareBorderFrame:Hide()
   end
+  updateEditModeSelectionBounds()
 end
 
 local TITLE_BAR_HEIGHT = 18
@@ -557,6 +598,7 @@ local function getOrCreateButtonBorder(button)
 end
 
 local function applyCycleBorder(button)
+  if settings().shape ~= "square" then return end
   local border = getOrCreateButtonBorder(button)
   if not border then return end
 
@@ -663,14 +705,22 @@ local function restoreButtonState(button)
   end
   button:ClearAllPoints()
   for point, info in pairs(saved.anchors) do
-    button:SetPoint(point, info.relativeTo, info.relativePoint, info.x, info.y)
+    if info.relativeTo then
+      button:SetPoint(point, info.relativeTo, info.relativePoint, info.x, info.y)
+    else
+      button:SetPoint(point, info.x, info.y)
+    end
   end
 
   if saved.fontString and saved.fontString.frame then
     local fs = saved.fontString.frame
     fs:ClearAllPoints()
     for _, p in ipairs(saved.fontString.points) do
-      fs:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
+      if p.relativeTo then
+        fs:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
+      else
+        fs:SetPoint(p.point, p.x, p.y)
+      end
     end
     if saved.fontString.fontObject then
       fs:SetFontObject(saved.fontString.fontObject)
@@ -688,7 +738,11 @@ local function restoreButtonState(button)
     if border then
       border:ClearAllPoints()
       for _, p in ipairs(saved.border.points) do
-        border:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
+        if p.relativeTo then
+          border:SetPoint(p.point, p.relativeTo, p.relativePoint, p.x, p.y)
+        else
+          border:SetPoint(p.point, p.x, p.y)
+        end
       end
       if saved.border.width and saved.border.height then
         border:SetSize(saved.border.width, saved.border.height)
@@ -814,6 +868,11 @@ local function disableAllStacking()
   for _, button in ipairs(registeredButtons) do
     enableButtonStacking(button, false)
   end
+  wipe(registeredButtons)
+  wipe(registeredButtonsByFrame)
+  wipe(addonButtons)
+  wipe(addonButtonsByFrame)
+
   local zoneButton = getZoneTextButton()
   if zoneButton then
     enableButtonStacking(zoneButton, false)
@@ -981,10 +1040,18 @@ end
 
 local function isButtonShown(button)
   if not button then return false end
-  if settings().hideExtraButtons and button == getMailButton() then
-    return false
+  local mail = getMailButton()
+  local crafting = getCraftingOrderButton()
+  if settings().shape == "square" then
+    if button == mail or button == crafting then
+      return button:IsShown()
+    end
+  else
+    if settings().hideExtraButtons and (button == mail or button == crafting) then
+      return false
+    end
   end
-  if not isRetail() and button == (MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame) then
+  if not isRetail() and button == crafting then
     return false
   end
   if button == (MinimapCluster and MinimapCluster.InstanceDifficulty) then
@@ -997,7 +1064,7 @@ local function isButtonShown(button)
 end
 
 --- Builds the list of buttons for the permanent title bar flow.
---- Right-to-left layout order: Clock, Mail. All other standard icons are hidden in square mode.
+--- Right-to-left layout order: Clock, Mail, Crafting Orders. All other standard icons are in the hover container.
 local function getTitleBarFlowButtons()
   local list = {}
 
@@ -1006,10 +1073,16 @@ local function getTitleBarFlowButtons()
     table.insert(list, TimeManagerClockButton)
   end
 
-  -- 2. Mail (only standard icon retained in titlebar)
+  -- 2. Mail (left of Clock, only shown when mail exists)
   local mail = getMailButton()
   if mail then
     table.insert(list, mail)
+  end
+
+  -- 3. Crafting Orders (left of Mail, only shown when orders exist)
+  local crafting = getCraftingOrderButton()
+  if crafting then
+    table.insert(list, crafting)
   end
 
   return list
@@ -1125,10 +1198,8 @@ local function layoutAddonIconsContainer(anchorRightTo)
       local scaledW = (btnW and btnW > 0 and btnW or 32) * TITLE_BAR_ICON_SCALE
       totalWidth = totalWidth + scaledW + (isSubsequent and buttonGap or 0)
 
-      if button ~= AddonCompartmentFrame and button ~= GameTimeFrame then
-        if addonButtonsByFrame[button] or findButtonBorder(button) then
-          applyCycleBorder(button)
-        end
+      if addonButtonsByFrame[button] then
+        applyCycleBorder(button)
       end
     end
   end
@@ -1185,6 +1256,13 @@ applyTitleBarLayout = function()
       end
       if MinimapCluster.BorderTop then
         MinimapCluster.BorderTop:SetAlpha(1)
+        MinimapCluster.BorderTop:Show()
+      end
+      if MinimapCluster.IndicatorFrame then
+        MinimapCluster.IndicatorFrame:Show()
+      end
+      if MinimapCluster.GamepadButtons then
+        MinimapCluster.GamepadButtons:Show()
       end
     end
     disableAllStacking()
@@ -1192,6 +1270,7 @@ applyTitleBarLayout = function()
       addonScanTicker:Cancel()
       addonScanTicker = nil
     end
+    updateEditModeSelectionBounds()
     return
   end
 
@@ -1204,6 +1283,13 @@ applyTitleBarLayout = function()
     MinimapCluster.Layout = function() end
     if MinimapCluster.BorderTop then
       MinimapCluster.BorderTop:SetAlpha(0)
+      MinimapCluster.BorderTop:Hide()
+    end
+    if MinimapCluster.IndicatorFrame then
+      MinimapCluster.IndicatorFrame:Hide()
+    end
+    if MinimapCluster.GamepadButtons then
+      MinimapCluster.GamepadButtons:Hide()
     end
     if MinimapCluster.SetClipsChildren then
       MinimapCluster:SetClipsChildren(false)
@@ -1224,6 +1310,7 @@ applyTitleBarLayout = function()
 
   discoverAddonButtons()
   layoutTitleBarIcons()
+  updateEditModeSelectionBounds()
 
   if not addonScanTicker then
     addonScanTicker = C_Timer.NewTicker(2, function()
@@ -1490,9 +1577,15 @@ local function createOptionsDialog()
     function() return db.profile.minimap.showAllMinimapTracking end,
     function(v) db.profile.minimap.showAllMinimapTracking = v end,
     curY)
-  _, curY = addCheckbox("Hide Extra Minimap Buttons",
-    function() return db.profile.minimap.hideExtraButtons end,
-    function(v) db.profile.minimap.hideExtraButtons = v end,
+  local hideExtraCb
+  hideExtraCb, curY = addCheckbox("Hide Extra Minimap Buttons",
+    function()
+      if db.profile.minimap.shape == "square" then return true end
+      return db.profile.minimap.hideExtraButtons
+    end,
+    function(v)
+      db.profile.minimap.hideExtraButtons = v
+    end,
     curY)
   _, curY = addCheckbox("Mouse Wheel Zoom",
     function() return db.profile.minimap.mouseWheelZoom end,
@@ -1503,6 +1596,13 @@ local function createOptionsDialog()
 
   function dialog:RefreshValues()
     for _, fn in ipairs(controls) do fn() end
+    if hideExtraCb then
+      local isSquare = (db.profile.minimap.shape == "square")
+      hideExtraCb:SetEnabled(not isSquare)
+      if isSquare then
+        hideExtraCb:SetChecked(true)
+      end
+    end
   end
 
   return dialog
@@ -1537,8 +1637,16 @@ local function registerEditModeHooks()
   end)
   EditModeSystemSettingsDialog:HookScript("OnHide", function() showOptionsDialog(false) end)
 
+  if MinimapCluster and MinimapCluster.AnchorSelectionFrame then
+    hooksecurefunc(MinimapCluster, "AnchorSelectionFrame", updateEditModeSelectionBounds)
+  end
+
   if EventRegistry and EventRegistry.RegisterCallback then
-    EventRegistry:RegisterCallback("EditMode.Exit", function() showOptionsDialog(false) end, module)
+    EventRegistry:RegisterCallback("EditMode.Enter", updateEditModeSelectionBounds, module)
+    EventRegistry:RegisterCallback("EditMode.Exit", function()
+      showOptionsDialog(false)
+      updateEditModeSelectionBounds()
+    end, module)
   end
 end
 
@@ -1603,6 +1711,18 @@ function module:OnDisable()
     end
     if MinimapCluster.BorderTop then
       MinimapCluster.BorderTop:SetAlpha(1)
+      MinimapCluster.BorderTop:Show()
+    end
+    if MinimapCluster.IndicatorFrame then
+      MinimapCluster.IndicatorFrame:Show()
+    end
+    if MinimapCluster.GamepadButtons then
+      MinimapCluster.GamepadButtons:Show()
+    end
+    MinimapCluster:SetAlpha(1)
+    if MinimapCluster.Selection then
+      MinimapCluster.Selection:ClearAllPoints()
+      MinimapCluster.Selection:SetAllPoints(MinimapCluster)
     end
   end
   disableAllStacking()
@@ -1615,11 +1735,15 @@ function module:OnDisable()
     if MinimapCluster and MinimapCluster.DielFrame then MinimapCluster.DielFrame:Show() end
     if MinimapCluster and MinimapCluster.Tracking then MinimapCluster.Tracking:Show() end
     local mail = getMailButton()
+    local crafting = getCraftingOrderButton()
     for _, button in ipairs(extraButtons()) do
-      if button and button ~= mail then button:Show() end
+      if button and button ~= mail and button ~= crafting then button:Show() end
     end
     if mail and HasNewMail and HasNewMail() then
       mail:Show()
+    end
+    if crafting and crafting.countInfos and #crafting.countInfos > 0 then
+      crafting:Show()
     end
   end
   if MinimapBackdrop then MinimapBackdrop:SetAlpha(1) end
