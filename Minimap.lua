@@ -496,11 +496,12 @@ end
 local function getSquareMinimapDimensions()
   local container = MinimapCluster and MinimapCluster.MinimapContainer
   local scale = (container and container:GetScale()) or 1
+  if not scale or scale <= 0 then scale = 1 end
   local mmW = (_G.Minimap and _G.Minimap:GetWidth() and _G.Minimap:GetWidth() > 0 and _G.Minimap:GetWidth()) or 198
   local mmH = (_G.Minimap and _G.Minimap:GetHeight() and _G.Minimap:GetHeight() > 0 and _G.Minimap:GetHeight()) or 198
-  local visualW = math.floor((mmW * scale) + 8 + 0.5)
-  local visualH = math.floor((mmH * scale) + 8 + 0.5)
-  return visualW, visualH
+  local visualW = math.floor((mmW * scale) + 12 + 0.5)
+  local visualH = math.floor((mmH * scale) + 28 + 0.5)
+  return visualW, visualH, scale
 end
 
 local function applySquareMinimapCluster()
@@ -529,15 +530,15 @@ local function applySquareMinimapCluster()
     MinimapCluster:SetClipsChildren(false)
   end
 
-  -- Center MinimapContainer in MinimapCluster (removes the 30px offset reserved for the header)
+  -- Position MinimapContainer so the map sits cleanly below the title bar and within the borders
+  local visualW, visualH, scale = getSquareMinimapDimensions()
   local container = MinimapCluster.MinimapContainer
   if container then
     container:ClearAllPoints()
-    container:SetPoint("CENTER", MinimapCluster, "CENTER", 0, 0)
+    container:SetPoint("CENTER", MinimapCluster, "CENTER", 0, -8 / scale)
   end
 
-  -- Size MinimapCluster to match the visible square minimap exactly
-  local visualW, visualH = getSquareMinimapDimensions()
+  -- Size MinimapCluster to match the visible square minimap + border
   MinimapCluster:SetSize(visualW, visualH)
   if MinimapCluster.SetHitRectInsets then
     MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
@@ -625,15 +626,28 @@ local function restoreRoundMinimapCluster()
   end
 
   -- Re-apply Blizzard's saved HeaderUnderneath and RotateMinimap settings
-  if origSetHeaderUnderneath and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting then
-    origSetHeaderUnderneath(MinimapCluster, MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.HeaderUnderneath))
+  local isHeaderUnderneath = false
+  if MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting and MinimapCluster.HasSetting and MinimapCluster:HasSetting(Enum.EditModeMinimapSetting.HeaderUnderneath) then
+    isHeaderUnderneath = MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.HeaderUnderneath)
   end
-  if origSetRotateMinimap and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting then
-    origSetRotateMinimap(MinimapCluster, MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.RotateMinimap))
+  if origSetHeaderUnderneath then
+    pcall(origSetHeaderUnderneath, MinimapCluster, isHeaderUnderneath)
+  elseif MinimapCluster.SetHeaderUnderneath then
+    pcall(MinimapCluster.SetHeaderUnderneath, MinimapCluster, isHeaderUnderneath)
+  end
+
+  local isRotateMinimap = false
+  if MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting and MinimapCluster.HasSetting and MinimapCluster:HasSetting(Enum.EditModeMinimapSetting.RotateMinimap) then
+    isRotateMinimap = MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.RotateMinimap)
+  end
+  if origSetRotateMinimap then
+    pcall(origSetRotateMinimap, MinimapCluster, isRotateMinimap)
+  elseif MinimapCluster.SetRotateMinimap then
+    pcall(MinimapCluster.SetRotateMinimap, MinimapCluster, isRotateMinimap)
   end
 
   if MinimapCluster.Layout then
-    MinimapCluster:Layout()
+    pcall(function() MinimapCluster:Layout() end)
   end
 
   isSquareClusterApplied = false
@@ -1927,15 +1941,13 @@ applyTitleBarLayout = function()
       hoverCheckTicker:Cancel()
       hoverCheckTicker = nil
     end
-    local zoneButton = getOrCreateZoneButton()
-    if zoneButton then
-      zoneButton:ClearAllPoints()
-      restoreZoneText()
-    end
     disableAllStacking()
     restoreRoundMinimapCluster()
     updateEditModeSelectionBounds()
     updateHoverVisibility()
+    if Minimap_Update then
+      pcall(Minimap_Update)
+    end
     return
   end
 
@@ -2254,10 +2266,7 @@ local function registerEditModeHooks()
           self.BorderTop:Hide()
           self.BorderTop.ignoreInLayout = true
         end
-        if self.MinimapContainer then
-          self.MinimapContainer:ClearAllPoints()
-          self.MinimapContainer:SetPoint("CENTER", self, "CENTER", 0, 0)
-        end
+        applySquareMinimapCluster()
         return
       end
       return origSetHeaderUnderneath(self, headerUnderneath)
@@ -2305,7 +2314,9 @@ local function registerEditModeHooks()
     origSetEditModeScale = MinimapCluster.SetEditModeScale
     hooksecurefunc(MinimapCluster, "SetEditModeScale", function(self, scale)
       if isModuleEnabled() and settings().shape == "square" then
+        applySquareMinimapCluster()
         updateEditModeSelectionBounds()
+        scheduleTitleBarLayout()
       end
     end)
   end
@@ -2428,6 +2439,7 @@ function module:OnDisable()
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
   if addonIconsContainer then addonIconsContainer:Hide() end
+  disableAllStacking()
   restoreRoundMinimapCluster()
   if MinimapCluster then
     MinimapCluster:SetAlpha(1)
@@ -2435,7 +2447,6 @@ function module:OnDisable()
   if EditModeSystemSettingsDialog and EditModeSystemSettingsDialog:IsShown() and EditModeSystemSettingsDialog.attachedToSystem == MinimapCluster then
     EditModeSystemSettingsDialog:UpdateDialog(MinimapCluster)
   end
-  disableAllStacking()
   if _G.Minimap.SetMaskTexture then _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE) end
   _G.Minimap:SetAlpha(1)
   if not InCombatLockdown() then
