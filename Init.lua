@@ -72,6 +72,7 @@ dbDefaults = {
       showLFG = true,
       showInstanceDifficulty = true,
       showGarrison = true,
+      showAddonCompartment = true,
       addonsInCompartment = false
     },
     buffs = {

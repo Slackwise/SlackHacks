@@ -416,19 +416,19 @@ options = {
           disabled = function() return not db.profile.minimap.enabled end,
           order = 0.1
         },
-        showIconsOnHover = {
-          name = "Show Icons on Hover Only",
-          desc = "Only show standard minimap icons (Calendar, Tracking, etc.) when hovering over the minimap.",
+        showAllMinimapTracking = {
+          name = "Show All Tracking Options",
+          desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
           disabled = function() return not db.profile.minimap.enabled end,
-          get = function() return db.profile.minimap.showIconsOnHover end,
+          get = function() return db.profile.minimap.showAllMinimapTracking end,
           set = function(_, value)
-            db.profile.minimap.showIconsOnHover = value
+            db.profile.minimap.showAllMinimapTracking = value
             Self.Minimap:Refresh()
           end,
-          order = 1
+          order = 0.2
         },
         showAddonIconsOnHover = {
           name = "Show Addon Icons on Hover Only",
@@ -440,6 +440,20 @@ options = {
           get = function() return db.profile.minimap.showAddonIconsOnHover end,
           set = function(_, value)
             db.profile.minimap.showAddonIconsOnHover = value
+            Self.Minimap:Refresh()
+          end,
+          order = 1
+        },
+        addonsInCompartment = {
+          name = "Move Addon Icons to Addon Compartment",
+          desc = "Move third-party addon icons into the Addon Compartment menu instead of showing them on the minimap.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.minimap.enabled end,
+          get = function() return db.profile.minimap.addonsInCompartment end,
+          set = function(_, value)
+            db.profile.minimap.addonsInCompartment = value
             Self.Minimap:Refresh()
           end,
           order = 2
@@ -458,20 +472,6 @@ options = {
           end,
           hidden = function() return isRetail() end,
           order = 3
-        },
-        showAllMinimapTracking = {
-          name = "Show All Minimap Tracking Options",
-          desc = "Show all minimap tracking options,\nincluding the option to turn off target tracking.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.minimap.enabled end,
-          get = function() return db.profile.minimap.showAllMinimapTracking end,
-          set = function(_, value)
-            db.profile.minimap.showAllMinimapTracking = value
-            Self.Minimap:Refresh()
-          end,
-          order = 4
         },
         opacityGroup = {
           type = "group",
@@ -557,6 +557,20 @@ options = {
               end,
               order = 1
             },
+            showIconsOnHover = {
+              name = "Show Blizzard Icons On Hover",
+              desc = "Only show standard minimap icons (Calendar, Tracking, etc.) when hovering over the minimap.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
+              get = function() return db.profile.minimap.showIconsOnHover end,
+              set = function(_, value)
+                db.profile.minimap.showIconsOnHover = value
+                Self.Minimap:Refresh()
+              end,
+              order = 2
+            },
             showZoneText = {
               name = "Show Zone Text",
               type = "toggle",
@@ -568,7 +582,7 @@ options = {
                 db.profile.minimap.showZoneText = value
                 Self.Minimap:Refresh()
               end,
-              order = 2
+              order = 3
             },
             showClock = {
               name = "Show Clock",
@@ -581,10 +595,10 @@ options = {
                 db.profile.minimap.showClock = value
                 Self.Minimap:Refresh()
               end,
-              order = 3
+              order = 4
             },
             showTracking = {
-              name = "Show Tracking Button",
+              name = "Show Tracking",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -594,7 +608,7 @@ options = {
                 db.profile.minimap.showTracking = value
                 Self.Minimap:Refresh()
               end,
-              order = 4
+              order = 5
             },
             showCalendar = {
               name = "Show Calendar",
@@ -607,7 +621,7 @@ options = {
                 db.profile.minimap.showCalendar = value
                 Self.Minimap:Refresh()
               end,
-              order = 5
+              order = 6
             },
             showLFG = {
               name = "Show LFG",
@@ -620,7 +634,7 @@ options = {
                 db.profile.minimap.showLFG = value
                 Self.Minimap:Refresh()
               end,
-              order = 6
+              order = 7
             },
             showInstanceDifficulty = {
               name = "Show Instance Difficulty",
@@ -633,7 +647,7 @@ options = {
                 db.profile.minimap.showInstanceDifficulty = value
                 Self.Minimap:Refresh()
               end,
-              order = 7
+              order = 8
             },
             showGarrison = {
               name = "Show Garrison/Expansion Landing Page",
@@ -646,21 +660,20 @@ options = {
                 db.profile.minimap.showGarrison = value
                 Self.Minimap:Refresh()
               end,
-              order = 8
+              order = 9
             },
-            addonsInCompartment = {
-              name = "Add Addons to Addon Compartment",
-              desc = "Move third-party addon icons into the Addon Compartment menu instead of showing them around the border.",
+            showAddonCompartment = {
+              name = "Show Addon Compartment",
               type = "toggle",
               descStyle = "inline",
               width = "full",
               disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
-              get = function() return db.profile.minimap.addonsInCompartment end,
+              get = function() return db.profile.minimap.showAddonCompartment end,
               set = function(_, value)
-                db.profile.minimap.addonsInCompartment = value
+                db.profile.minimap.showAddonCompartment = value
                 Self.Minimap:Refresh()
               end,
-              order = 9
+              order = 10
             }
           }
         }

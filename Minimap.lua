@@ -32,6 +32,7 @@ local DEFAULT_VISUALS = {
   showLFG = true,
   showInstanceDifficulty = true,
   showGarrison = true,
+  showAddonCompartment = true,
   addonsInCompartment = false,
 }
 
@@ -636,15 +637,11 @@ updateHoverVisibility = function(hovered)
       end
     end
   else
-    -- Round mode
+    -- Round mode -- showIconsOnHover is square-only now, so standard icons always stay fully visible here.
     local stdIcons = getStandardMinimapIcons()
     for _, icon in ipairs(stdIcons) do
       if icon and icon ~= (MinimapCluster and MinimapCluster.DielFrame and mm.hideDiel and MinimapCluster.DielFrame) then
-        if mm.showIconsOnHover then
-          icon:SetAlpha(hovered and 1 or 0)
-        else
-          icon:SetAlpha(1)
-        end
+        icon:SetAlpha(1)
       end
     end
 
@@ -664,7 +661,7 @@ updateHoverVisibility = function(hovered)
     end
   end
 
-  local needsTicker = (mm.showIconsOnHover or mm.showAddonIconsOnHover)
+  local needsTicker = isSquare and (mm.showIconsOnHover or mm.showAddonIconsOnHover) or (not isSquare and mm.showAddonIconsOnHover)
   if hovered and needsTicker then
     if not hoverCheckTicker then
       hoverCheckTicker = C_Timer.NewTicker(0.1, function()
@@ -1122,7 +1119,7 @@ local function syncAddonCompartmentEntries()
   if not (AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon and AddonCompartmentFrame.registeredAddons) then return end
   clearAddonCompartmentEntries()
 
-  if settings().shape ~= "square" or not settings().addonsInCompartment then
+  if not settings().addonsInCompartment then
     return
   end
 
@@ -1321,6 +1318,30 @@ local function layoutAddonButtonsOnBorder()
   end
 end
 
+--- Round-mode counterpart to `layoutAddonButtonsOnBorder`'s addonsInCompartment fold -- round mode never
+--- repositions addon buttons (they stay in their native/library-driven spot), so folding is just a plain
+--- Hide/Show, tracked per-button so we only ever restore a button that we ourselves hid.
+local function applyRoundAddonCompartment()
+  if not isModuleEnabled() then return end
+  syncAddonCompartmentEntries()
+  if settings().shape == "square" then return end
+
+  local fold = settings().addonsInCompartment
+  for _, btn in ipairs(addonButtons) do
+    if btn and not isBlizzardFrame(btn) then
+      if fold then
+        if not btn.slackHacksCompartmentFolded then
+          btn.slackHacksCompartmentFolded = true
+          setShownSafely(btn, false)
+        end
+      elseif btn.slackHacksCompartmentFolded then
+        btn.slackHacksCompartmentFolded = false
+        setShownSafely(btn, true)
+      end
+    end
+  end
+end
+
 local function disableAllStacking()
   -- These were only ever faded via SetAlpha while hidden-until-hover in square mode (never SetShown),
   -- so just restore full opacity before handing them back to Blizzard's own show/hide logic.
@@ -1334,8 +1355,8 @@ local function disableAllStacking()
   end
   wipe(registeredButtons)
   wipe(registeredButtonsByFrame)
-  wipe(addonButtons)
-  wipe(addonButtonsByFrame)
+  -- Deliberately NOT wiping addonButtons/addonButtonsByFrame here -- round mode still needs the
+  -- discovered list for "Show Addon Icons on Hover"/"Move Addon Icons to Addon Compartment".
 
   local diff = getInstanceDifficultyButton()
   if diff then enableButtonStacking(diff, false) end
@@ -1446,8 +1467,7 @@ isButtonShown = function(button)
       return button:IsShown()
     end
     if button == garrison then
-      if not settings().showGarrison then return false end
-      return button:IsShown()
+      return settings().showGarrison and true or false
     end
     if button == TimeManagerClockButton then
       return settings().showClock and true or false
@@ -1459,7 +1479,7 @@ isButtonShown = function(button)
       return settings().showTracking and true or false
     end
     if button == AddonCompartmentFrame then
-      return button:IsShown()
+      return settings().showAddonCompartment and true or false
     end
   end
 
@@ -1589,6 +1609,10 @@ local function getTitleBarFlowButtons()
     end
   end
 
+  if not mm.showAddonIconsOnHover and mm.showAddonCompartment and AddonCompartmentFrame then
+    table.insert(list, AddonCompartmentFrame)
+  end
+
   return list
 end
 
@@ -1605,8 +1629,9 @@ local function getHoverButtons()
     end
   end
 
-  -- Keep the Addon Compartment after the standard Blizzard icons and before expansion.
-  if AddonCompartmentFrame then
+  -- Keep the Addon Compartment after the standard Blizzard icons and before expansion, only when it's
+  -- meant to be hidden-until-hover (otherwise it lives in the permanent flow instead, see above).
+  if mm.showAddonIconsOnHover and mm.showAddonCompartment and AddonCompartmentFrame then
     table.insert(list, AddonCompartmentFrame)
   end
 
@@ -1735,8 +1760,6 @@ local function layoutTitleBarIcons()
   local row = titleBarIconRow
   if not row then return end
 
-  syncAddonCompartmentEntries()
-
   local buttons = getTitleBarFlowButtons()
   local previous = nil
 
@@ -1745,6 +1768,10 @@ local function layoutTitleBarIcons()
     if isButtonShown(button) then
       enableButtonStacking(button, true)
       button:SetParent(MinimapCluster or _G.Minimap)
+      -- Permanent-flow buttons are always fully visible -- reset Shown/alpha in case this button was
+      -- previously managed by the hidden-until-hover container (which hides via SetShown/fades via alpha).
+      setShownSafely(button, true)
+      button:SetAlpha(1)
       local _, scale = getButtonScaledWidth(button)
       button:SetScale(scale)
       setFrameStrataSafe(button, row:GetFrameStrata())
@@ -1756,6 +1783,8 @@ local function layoutTitleBarIcons()
         button.slackHacksRealSetPoint(button, "RIGHT", row, "RIGHT", 0, 0)
       end
       previous = button
+    else
+      setShownSafely(button, false)
     end
   end
 
@@ -1768,6 +1797,16 @@ end
 applyTitleBarLayout = function()
   if not isModuleEnabled() then return end
   local mm = settings()
+  discoverAddonButtons()
+  if not addonScanTicker then
+    addonScanTicker = C_Timer.NewTicker(2, function()
+      local prevCount = #addonButtons
+      discoverAddonButtons()
+      if #addonButtons ~= prevCount then
+        scheduleTitleBarLayout()
+      end
+    end)
+  end
   if mm.shape ~= "square" then
     if titleBarFrame then titleBarFrame:Hide() end
     if addonIconsContainer then addonIconsContainer:Hide() end
@@ -1791,10 +1830,6 @@ applyTitleBarLayout = function()
       end
     end
     disableAllStacking()
-    if addonScanTicker then
-      addonScanTicker:Cancel()
-      addonScanTicker = nil
-    end
     updateEditModeSelectionBounds()
     updateHoverVisibility()
     return
@@ -1835,21 +1870,8 @@ applyTitleBarLayout = function()
   if zb then hookHoverFrame(zb) end
 
   applyBlizzardIconBorders(true)
-  discoverAddonButtons()
   layoutTitleBarIcons()
   updateEditModeSelectionBounds()
-
-  if not addonScanTicker then
-    addonScanTicker = C_Timer.NewTicker(2, function()
-      local currentMm = settings()
-      if currentMm.shape ~= "square" then return end
-      local prevCount = #addonButtons
-      discoverAddonButtons()
-      if #addonButtons ~= prevCount then
-        scheduleTitleBarLayout()
-      end
-    end)
-  end
 end
 
 function module:ApplyAll()
@@ -1877,6 +1899,7 @@ function module:ApplyAll()
   applyExtraButtons()
   applyBorder()
   applyTitleBarLayout()
+  applyRoundAddonCompartment()
   updateHoverVisibility()
 end
 module.Refresh = module.ApplyAll
@@ -2003,13 +2026,17 @@ local function createOptionsDialog()
     curY)
 
   curY = addDivider(curY - 2)
-  _, curY = addCheckbox("Show Icons on Hover Only",
-    function() return db.profile.minimap.showIconsOnHover end,
-    function(v) db.profile.minimap.showIconsOnHover = v end,
+  _, curY = addCheckbox("Show All Tracking Options",
+    function() return db.profile.minimap.showAllMinimapTracking end,
+    function(v) db.profile.minimap.showAllMinimapTracking = v end,
     curY)
   _, curY = addCheckbox("Show Addon Icons on Hover Only",
     function() return db.profile.minimap.showAddonIconsOnHover end,
     function(v) db.profile.minimap.showAddonIconsOnHover = v end,
+    curY)
+  _, curY = addCheckbox("Move Addon Icons to Addon Compartment",
+    function() return db.profile.minimap.addonsInCompartment end,
+    function(v) db.profile.minimap.addonsInCompartment = v end,
     curY)
   if not isRetail() then
     _, curY = addCheckbox("Hide Day/Night Icon",
@@ -2017,10 +2044,6 @@ local function createOptionsDialog()
       function(v) db.profile.minimap.hideDiel = v end,
       curY)
   end
-  _, curY = addCheckbox("Show All Minimap Tracking Options",
-    function() return db.profile.minimap.showAllMinimapTracking end,
-    function(v) db.profile.minimap.showAllMinimapTracking = v end,
-    curY)
 
   curY = addDivider(curY - 2)
   curY = addHeader("Opacity", curY)
@@ -2058,6 +2081,11 @@ local function createOptionsDialog()
     end,
     curY, squareDependents)
   local cb
+  cb, curY = addCheckbox("Show Blizzard Icons On Hover",
+    function() return db.profile.minimap.showIconsOnHover end,
+    function(v) db.profile.minimap.showIconsOnHover = v end,
+    curY)
+  table.insert(squareDependents, cb)
   cb, curY = addCheckbox("Show Zone Text",
     function() return db.profile.minimap.showZoneText end,
     function(v) db.profile.minimap.showZoneText = v end,
@@ -2068,7 +2096,7 @@ local function createOptionsDialog()
     function(v) db.profile.minimap.showClock = v end,
     curY)
   table.insert(squareDependents, cb)
-  cb, curY = addCheckbox("Show Tracking Button",
+  cb, curY = addCheckbox("Show Tracking",
     function() return db.profile.minimap.showTracking end,
     function(v) db.profile.minimap.showTracking = v end,
     curY)
@@ -2093,9 +2121,9 @@ local function createOptionsDialog()
     function(v) db.profile.minimap.showGarrison = v end,
     curY)
   table.insert(squareDependents, cb)
-  cb, curY = addCheckbox("Add Addons to Addon Compartment",
-    function() return db.profile.minimap.addonsInCompartment end,
-    function(v) db.profile.minimap.addonsInCompartment = v end,
+  cb, curY = addCheckbox("Show Addon Compartment",
+    function() return db.profile.minimap.showAddonCompartment end,
+    function(v) db.profile.minimap.showAddonCompartment = v end,
     curY)
   table.insert(squareDependents, cb)
 
@@ -2271,9 +2299,17 @@ function module:OnDisable()
     end
     if AddonCompartmentFrame then AddonCompartmentFrame:SetAlpha(1) end
     for _, btn in ipairs(addonButtons) do
-      if btn then btn:SetAlpha(1) end
+      if btn then
+        if btn.slackHacksCompartmentFolded then
+          btn.slackHacksCompartmentFolded = false
+          setShownSafely(btn, true)
+        end
+        btn:SetAlpha(1)
+      end
     end
   end
+  wipe(addonButtons)
+  wipe(addonButtonsByFrame)
   if MinimapBackdrop then MinimapBackdrop:SetAlpha(1) end
   ensureCVar("minimapTrackingShowAll", GetCVarDefault("minimapTrackingShowAll"))
 end
