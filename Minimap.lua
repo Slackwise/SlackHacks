@@ -285,23 +285,6 @@ local function applyTrackingCVar()
   end
 end
 
-local function updateEditModeSelectionBounds()
-  if not (MinimapCluster and MinimapCluster.Selection) then return end
-  if not isModuleEnabled() then return end
-  local mm = settings()
-  if mm.shape == "square" then
-    local border = createSquareBorder()
-    if border then
-      MinimapCluster.Selection:ClearAllPoints()
-      MinimapCluster.Selection:SetPoint("TOPLEFT", border, "TOPLEFT", 0, 0)
-      MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", 0, 0)
-    end
-  else
-    MinimapCluster.Selection:ClearAllPoints()
-    MinimapCluster.Selection:SetAllPoints(MinimapCluster)
-  end
-end
-
 local function applyExtraButtons()
   if not isModuleEnabled() then return end
   local isSquare = settings().shape == "square"
@@ -336,6 +319,23 @@ local function createSquareBorder()
   CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   squareBorderFrame = frame
   return frame
+end
+
+local function updateEditModeSelectionBounds()
+  if not (MinimapCluster and MinimapCluster.Selection) then return end
+  if not isModuleEnabled() then return end
+  local mm = settings()
+  if mm.shape == "square" then
+    local border = createSquareBorder()
+    if border then
+      MinimapCluster.Selection:ClearAllPoints()
+      MinimapCluster.Selection:SetPoint("TOPLEFT", border, "TOPLEFT", 0, 0)
+      MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", border, "BOTTOMRIGHT", 0, 0)
+    end
+  else
+    MinimapCluster.Selection:ClearAllPoints()
+    MinimapCluster.Selection:SetAllPoints(MinimapCluster)
+  end
 end
 
 local function applyBorder()
