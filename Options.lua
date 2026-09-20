@@ -391,6 +391,11 @@ options = {
           get = function() return db.profile.minimap.enabled end,
           set = function(_, value)
             db.profile.minimap.enabled = value
+            if value then
+              Self.Minimap:Enable()
+            else
+              Self.Minimap:Disable()
+            end
             Self.Minimap:Refresh()
           end,
           order = 0
@@ -408,12 +413,14 @@ options = {
               ShowUIPanel(EditModeManagerFrame)
             end
           end,
+          disabled = function() return not db.profile.minimap.enabled end,
           order = 0.1
         },
         appearanceGroup = {
           type = "group",
           name = "Appearance",
           inline = true,
+          disabled = function() return not db.profile.minimap.enabled end,
           order = 1,
           args = {
             shape = {
@@ -449,6 +456,7 @@ options = {
           type = "group",
           name = "Opacity",
           inline = true,
+          disabled = function() return not db.profile.minimap.enabled end,
           order = 2,
           args = {
             alpha = {
@@ -512,6 +520,7 @@ options = {
           type = "group",
           name = "Buttons",
           inline = true,
+          disabled = function() return not db.profile.minimap.enabled end,
           order = 3,
           args = {
             showZoneText = {

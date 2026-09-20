@@ -32,8 +32,14 @@ local DEFAULT_VISUALS = {
   mouseWheelZoom = true,
 }
 
+local function isModuleEnabled()
+  return (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) and module:IsEnabled()
+end
+
 local function settings()
-  if db.profile.minimap.enabled then return db.profile.minimap end
+  if db and db.profile and db.profile.minimap then
+    return db.profile.minimap
+  end
   return DEFAULT_VISUALS
 end
 
@@ -102,11 +108,13 @@ local function setShownSafely(frame, shown)
 end
 
 local function applyShape()
+  if not isModuleEnabled() then return end
   if not _G.Minimap.SetMaskTexture then return end -- not available on this client build; shape stays default
   _G.Minimap:SetMaskTexture(settings().shape == "square" and SQUARE_MASK_TEXTURE or ROUND_MASK_TEXTURE)
 end
 
 local function applyAlpha()
+  if not isModuleEnabled() then return end
   local mm = settings()
   local alphaPercent = mm.alpha or 100
   if mm.fadeEnabled then
@@ -187,6 +195,7 @@ local function restoreCoordinates()
 end
 
 local function applyCoordinates()
+  if not isModuleEnabled() then return end
   local coords = getBlizzardPlayerCoords()
   if not coords then return end
 
@@ -232,22 +241,26 @@ local function getZoneTextButton()
 end
 
 local function applyZoneText()
+  if not isModuleEnabled() then return end
   local mm = settings()
   local zoneButton = getZoneTextButton()
   setShownSafely(zoneButton, mm.showZoneText)
 end
 
 local function applyClock()
+  if not isModuleEnabled() then return end
   setShownSafely(TimeManagerClockButton, settings().showClock)
 end
 
 local function applyCalendar()
+  if not isModuleEnabled() then return end
   setShownSafely(GameTimeFrame, settings().showCalendar)
 end
 
 --- MinimapCluster.DielFrame is the oversized day/night ("diel" = 24-hour cycle) sun/moon icon shown on
 --- Classic/Forever's minimap; it has no counterpart shown on Retail's minimap.
 local function applyDielFrame()
+  if not isModuleEnabled() then return end
   local mm = settings()
   local shown = true
   if mm.shape == "square" then
@@ -259,10 +272,12 @@ local function applyDielFrame()
 end
 
 local function applyTracking()
+  if not isModuleEnabled() then return end
   setShownSafely(MinimapCluster and MinimapCluster.Tracking, settings().showTracking)
 end
 
 local function applyTrackingCVar()
+  if not isModuleEnabled() then return end
   if settings().showAllMinimapTracking then
     ensureCVar("minimapTrackingShowAll", 1) -- Show all minimap tracking options (including turning off target tracking!)
   else
@@ -272,6 +287,7 @@ end
 
 local function updateEditModeSelectionBounds()
   if not (MinimapCluster and MinimapCluster.Selection) then return end
+  if not isModuleEnabled() then return end
   local mm = settings()
   if mm.shape == "square" then
     local border = createSquareBorder()
@@ -287,6 +303,7 @@ local function updateEditModeSelectionBounds()
 end
 
 local function applyExtraButtons()
+  if not isModuleEnabled() then return end
   local isSquare = settings().shape == "square"
   local hideExtra = isSquare or settings().hideExtraButtons
   local mail = getMailButton()
@@ -322,6 +339,7 @@ local function createSquareBorder()
 end
 
 local function applyBorder()
+  if not isModuleEnabled() then return end
   local mm = settings()
   local isSquare = mm.shape == "square"
   if MinimapBackdrop then
@@ -1242,6 +1260,7 @@ local function layoutTitleBarIcons()
 end
 
 applyTitleBarLayout = function()
+  if not isModuleEnabled() then return end
   local mm = settings()
   if mm.shape ~= "square" then
     if titleBarFrame then titleBarFrame:Hide() end
@@ -1326,10 +1345,22 @@ applyTitleBarLayout = function()
 end
 
 local function applyMouseWheelZoom()
+  if not isModuleEnabled() then return end
   _G.Minimap:EnableMouseWheel(settings().mouseWheelZoom ~= false)
 end
 
 function module:ApplyAll()
+  if not (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) then
+    if self:IsEnabled() then
+      self:Disable()
+    end
+    return
+  end
+  if not self:IsEnabled() then
+    self:Enable()
+    return
+  end
+
   applyShape()
   applyAlpha()
   applyCoordinates()
@@ -1657,9 +1688,16 @@ end
 function module:OnInitialize()
   registerEditModeHooks()
   db:RegisterCallback("OnDatabaseReset", module.ApplyAll, module)
+  if not (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) then
+    self:SetEnabledState(false)
+  end
 end
 
 function module:OnEnable()
+  if not (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) then
+    self:SetEnabledState(false)
+    return
+  end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED_INDOORS", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED", "ApplyAll")
@@ -1672,21 +1710,25 @@ function module:OnEnable()
 end
 
 function module:PLAYER_REGEN_DISABLED()
+  if not isModuleEnabled() then return end
   isInCombat = true
   applyAlpha()
 end
 
 function module:PLAYER_REGEN_ENABLED()
+  if not isModuleEnabled() then return end
   isInCombat = false
   self:ApplyAll() -- catch up any show/hide changes that were skipped while in combat
 end
 
 function module:PLAYER_STARTED_MOVING()
+  if not isModuleEnabled() then return end
   isMoving = true
   applyAlpha()
 end
 
 function module:PLAYER_STOPPED_MOVING()
+  if not isModuleEnabled() then return end
   isMoving = false
   applyAlpha()
 end
