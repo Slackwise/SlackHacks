@@ -455,15 +455,19 @@ end
 
 --- Same nine-slice border art used by many Blizzard windows, but the plain rectangular layout (no
 --- portrait icon/title notch cut into the top-left corner like the Spellbook's own frame has).
+--- Drawn above _G.Minimap so the NineSlice metal corners and beveled edges neatly enclose the map
+--- texture without clipping or inner seams, matching how Blizzard's SpellBook and DefaultPanelTemplate work.
 local function createSquareBorder()
   if squareBorderFrame then return squareBorderFrame end
   local frame = CreateFrame("Frame", "SlackHacksMinimapSquareBorder", MinimapCluster or _G.Minimap)
   frame.layoutType = "ButtonFrameTemplateNoPortrait"
   frame:SetFrameStrata(_G.Minimap:GetFrameStrata())
-  frame:SetFrameLevel(math.max(1, _G.Minimap:GetFrameLevel() - 1))
+  frame:SetFrameLevel(math.max(500, _G.Minimap:GetFrameLevel() + 5))
+  frame:EnableMouse(false)
   frame:SetPoint("TOPLEFT", MinimapCluster or _G.Minimap, "TOPLEFT", 0, 0)
   frame:SetPoint("BOTTOMRIGHT", MinimapCluster or _G.Minimap, "BOTTOMRIGHT", 0, 0)
-  CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
+  local nineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
+  nineSlice:EnableMouse(false)
   squareBorderFrame = frame
   return frame
 end
@@ -499,8 +503,8 @@ local function getSquareMinimapDimensions()
   if not scale or scale <= 0 then scale = 1 end
   local mmW = (_G.Minimap and _G.Minimap:GetWidth() and _G.Minimap:GetWidth() > 0 and _G.Minimap:GetWidth()) or 198
   local mmH = (_G.Minimap and _G.Minimap:GetHeight() and _G.Minimap:GetHeight() > 0 and _G.Minimap:GetHeight()) or 198
-  local visualW = math.floor((mmW * scale) + 12 + 0.5)
-  local visualH = math.floor((mmH * scale) + 26 + 0.5)
+  local visualW = math.floor((mmW * scale) + 8 + 0.5)
+  local visualH = math.floor((mmH * scale) + 24 + 0.5)
   return visualW, visualH, scale
 end
 
@@ -535,7 +539,7 @@ local function applySquareMinimapCluster()
   local container = MinimapCluster.MinimapContainer
   if container then
     container:ClearAllPoints()
-    container:SetPoint("CENTER", MinimapCluster, "CENTER", 2 / scale, -9 / scale)
+    container:SetPoint("CENTER", MinimapCluster, "CENTER", 2 / scale, -10 / scale)
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
