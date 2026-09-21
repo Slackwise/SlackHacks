@@ -23,6 +23,8 @@ SLACKWISE_CONFIG = {
       enabled = true,
       shape = "square",
       showAllMinimapTracking = true,
+      showIconsOnHover = true,
+      showAddonIconsOnHover = true,
     },
   },
 }
