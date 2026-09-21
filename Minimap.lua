@@ -715,6 +715,14 @@ end
 local TITLE_BAR_HEIGHT = 18
 local TITLE_BAR_ICON_SCALE = 0.7
 local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
+local TITLE_BAR_GARRISON_SCALE = 0.7
+local TITLE_BAR_CALENDAR_TRACKING_SCALE = 1.05
+local TITLE_BAR_CALENDAR_Y_OFFSET = -1 -- calendar icon/date art sits slightly higher within its frame than other icons
+local TITLE_BAR_TRACKING_Y_OFFSET = 2 -- lifts tracking to vertically align with title bar
+local TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET = 0 -- addon compartment baseline to visually match tracking height
+local TITLE_BAR_CLOCK_Y_OFFSET = -1 -- lowers clock to vertically center in title bar
+local TITLE_BAR_CLOCK_X_OFFSET = 3 -- shifts clock to the right
+local TITLE_BAR_CLOCK_WIDTH_DELTA = -10 -- shorten clock width by 10 pixels
 
 --- Sits in the visual banner area of the square border, hosting the zone text (left) and shrunk
 --- minimap icons (right) in square mode. Parented to the minimap itself (not the border) so it isn't
@@ -953,6 +961,8 @@ local function saveButtonState(button)
     scale = button:GetScale(),
     strata = button:GetFrameStrata(),
     level = button:GetFrameLevel(),
+    width = button:GetWidth(),
+    height = button:GetHeight(),
   }
   local ok, numPoints = pcall(button.GetNumPoints, button)
   if ok and numPoints then
@@ -1007,6 +1017,12 @@ local function restoreButtonState(button)
   end
   if saved.level then
     button:SetFrameLevel(saved.level)
+  end
+  if saved.width and saved.width > 0 then
+    button:SetWidth(saved.width)
+  end
+  if saved.height and saved.height > 0 then
+    button:SetHeight(saved.height)
   end
   button:ClearAllPoints()
   for point, info in pairs(saved.anchors) do
@@ -1329,6 +1345,72 @@ local function clearAddonCompartmentEntries()
   end
   if changed and AddonCompartmentFrame.UpdateDisplay then
     AddonCompartmentFrame:UpdateDisplay()
+  end
+end
+
+local function applyAddonCompartmentFontSize(matchClock)
+  if not AddonCompartmentFrame then return end
+  local fs = AddonCompartmentFrame.Text
+    or (AddonCompartmentFrame.GetFontString and AddonCompartmentFrame:GetFontString())
+  if not fs then
+    local ok, regions = pcall(function() return { AddonCompartmentFrame:GetRegions() } end)
+    if ok and regions then
+      for _, r in ipairs(regions) do
+        if r:IsObjectType("FontString") then
+          fs = r
+          break
+        end
+      end
+    end
+  end
+  if not fs or not fs.GetFont or not fs.SetFont then return end
+
+  if not AddonCompartmentFrame.slackHacksOrigFont then
+    local fontFile, fontHeight, fontFlags = fs:GetFont()
+    if fontHeight and fontHeight > 0 then
+      AddonCompartmentFrame.slackHacksOrigFont = {
+        fontFile = fontFile,
+        fontHeight = fontHeight,
+        fontFlags = fontFlags,
+      }
+    end
+  end
+
+  local orig = AddonCompartmentFrame.slackHacksOrigFont
+  if not orig then return end
+
+  if matchClock then
+    local targetHeight = orig.fontHeight
+    local clockFs = (TimeManagerClockButton and TimeManagerClockButton.GetFontString and TimeManagerClockButton:GetFontString())
+      or (TimeManagerClockButton and TimeManagerClockButton.Text)
+    if not clockFs and TimeManagerClockButton then
+      local ok, regions = pcall(function() return { TimeManagerClockButton:GetRegions() } end)
+      if ok and regions then
+        for _, r in ipairs(regions) do
+          if r:IsObjectType("FontString") then
+            clockFs = r
+            break
+          end
+        end
+      end
+    end
+
+    if clockFs and clockFs.GetFont then
+      local _, clockHeight = clockFs:GetFont()
+      if clockHeight and clockHeight > 0 then
+        -- Scale by relative frame scales (clock scale / compartment scale) so effective rendered size matches
+        local clockEffectiveScale = TITLE_BAR_CLOCK_SCALE / TITLE_BAR_CALENDAR_TRACKING_SCALE
+        targetHeight = math.floor(clockHeight * clockEffectiveScale + 0.5) + 2
+      else
+        targetHeight = targetHeight + 2
+      end
+    else
+      targetHeight = targetHeight + 2
+    end
+
+    fs:SetFont(orig.fontFile, targetHeight, orig.fontFlags)
+  else
+    fs:SetFont(orig.fontFile, orig.fontHeight, orig.fontFlags)
   end
 end
 
@@ -1722,23 +1804,33 @@ local function layoutCornerIcons()
   end
 end
 
-local TITLE_BAR_HEIGHT = 18
-local TITLE_BAR_ICON_SCALE = 0.7
-local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
-local TITLE_BAR_GARRISON_SCALE = 0.7
-local TITLE_BAR_ADDON_COMPARTMENT_SCALE = 1.05 -- sized up a few pixels so text is about the same size as the clock
-
 local function getButtonScaledWidth(button)
   local scale = TITLE_BAR_ICON_SCALE
   if button == TimeManagerClockButton then
     scale = TITLE_BAR_CLOCK_SCALE
   elseif button == getGarrisonButton() then
     scale = TITLE_BAR_GARRISON_SCALE
-  elseif button == AddonCompartmentFrame then
-    scale = TITLE_BAR_ADDON_COMPARTMENT_SCALE
+  elseif button == AddonCompartmentFrame or button == GameTimeFrame or button == (MinimapCluster and MinimapCluster.Tracking) then
+    scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
   end
   local btnW = button:GetWidth()
+  if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
+    btnW = math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA)
+  end
   return (btnW and btnW > 0 and btnW or 32) * scale, scale
+end
+
+local function getButtonYOffset(button)
+  if button == GameTimeFrame then
+    return TITLE_BAR_CALENDAR_Y_OFFSET
+  elseif button == (MinimapCluster and MinimapCluster.Tracking) then
+    return TITLE_BAR_TRACKING_Y_OFFSET
+  elseif button == AddonCompartmentFrame then
+    return TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET
+  elseif button == TimeManagerClockButton then
+    return TITLE_BAR_CLOCK_Y_OFFSET
+  end
+  return 0
 end
 
 --- Builds the list of buttons for the permanent title bar flow.
@@ -1901,10 +1993,11 @@ local function layoutAddonIconsContainer(anchorRightTo)
       if button.Raise then button:Raise() end
       button.slackHacksRealClearAllPoints(button)
       local isSubsequent = (previousHover ~= nil)
+      local yOffset = getButtonYOffset(button)
       if previousHover then
-        button.slackHacksRealSetPoint(button, "RIGHT", previousHover, "LEFT", -buttonGap, 0)
+        button.slackHacksRealSetPoint(button, "RIGHT", previousHover, "LEFT", -buttonGap, yOffset)
       else
-        button.slackHacksRealSetPoint(button, "RIGHT", container, "RIGHT", 0, 0)
+        button.slackHacksRealSetPoint(button, "RIGHT", container, "RIGHT", 0, yOffset)
       end
       previousHover = button
       totalWidth = totalWidth + scaledW + (isSubsequent and buttonGap or 0)
@@ -1936,14 +2029,19 @@ local function layoutTitleBarIcons()
       setShownSafely(button, true)
       button:SetAlpha(1)
       local _, scale = getButtonScaledWidth(button)
+      local yOffset = getButtonYOffset(button)
+      if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
+        button:SetWidth(math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA))
+      end
       button:SetScale(scale)
       setFrameStrataSafe(button, row:GetFrameStrata())
       setFrameLevelRecursive(button, row:GetFrameLevel() + 1)
       button.slackHacksRealClearAllPoints(button)
+      local xOffset = (button == TimeManagerClockButton) and TITLE_BAR_CLOCK_X_OFFSET or 0
       if previous then
-        button.slackHacksRealSetPoint(button, "RIGHT", previous, "LEFT", -2, 0)
+        button.slackHacksRealSetPoint(button, "RIGHT", previous, "LEFT", -2 + xOffset, yOffset)
       else
-        button.slackHacksRealSetPoint(button, "RIGHT", row, "RIGHT", 0, 0)
+        button.slackHacksRealSetPoint(button, "RIGHT", row, "RIGHT", xOffset, yOffset)
       end
       previous = button
     else
@@ -1979,6 +2077,7 @@ applyTitleBarLayout = function()
     end
     disableAllStacking()
     restoreRoundMinimapCluster()
+    applyAddonCompartmentFontSize(nil)
     updateEditModeSelectionBounds()
     updateHoverVisibility()
     if Minimap_Update then
@@ -2002,6 +2101,7 @@ applyTitleBarLayout = function()
   if zb then hookHoverFrame(zb) end
 
   applyBlizzardIconBorders(true)
+  applyAddonCompartmentFontSize(true)
   layoutTitleBarIcons()
   updateEditModeSelectionBounds()
 end
@@ -2471,6 +2571,7 @@ function module:OnDisable()
   restoreMinimapRotation()
   restoreCoordinates()
   clearAddonCompartmentEntries()
+  applyAddonCompartmentFontSize(nil)
   applyBlizzardIconBorders(false)
   if squareBorderFrame then squareBorderFrame:Hide() end
   if titleBarFrame then titleBarFrame:Hide() end
