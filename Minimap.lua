@@ -171,6 +171,27 @@ local function getGarrisonButton()
   return ExpansionLandingPageMinimapButton or GarrisonLandingPageMinimapButton
 end
 
+local function isGarrisonLandingPageAvailable()
+  if not isRetail() then return false end
+  local btn = getGarrisonButton()
+  if not btn then return false end
+  -- Modern Retail: ExpansionLandingPageMinimapButton handles all expansion landing pages
+  -- (War Within, Dragonflight, Shadowlands Covenants, BfA, Legion, WoD).
+  if C_PlayerInfo and C_PlayerInfo.CanPlayerUseExpansionLandingPage then
+    local ok, canUse = pcall(C_PlayerInfo.CanPlayerUseExpansionLandingPage)
+    if ok and canUse then return true end
+  end
+  if C_Garrison and C_Garrison.GetLandingPageGarrisonType then
+    local ok, gType = pcall(C_Garrison.GetLandingPageGarrisonType)
+    if ok and gType and gType > 0 then return true end
+  end
+  if GarrisonLandingPage_HasGarrison then
+    local ok, hasGarrison = pcall(GarrisonLandingPage_HasGarrison)
+    if ok and hasGarrison then return true end
+  end
+  return false
+end
+
 local function getStandardMinimapIcons()
   local list = {}
   if GameTimeFrame then table.insert(list, GameTimeFrame) end
@@ -1752,7 +1773,7 @@ isButtonShown = function(button)
       return settings().showInstanceDifficulty and true or false
     end
     if button == garrison then
-      return settings().showGarrison and true or false
+      return settings().showGarrison and isGarrisonLandingPageAvailable()
     end
     if button == TimeManagerClockButton then
       return settings().showClock and true or false
@@ -1768,7 +1789,7 @@ isButtonShown = function(button)
     end
   end
 
-  if not isRetail() and button == crafting then
+  if not isRetail() and (button == crafting or button == garrison) then
     return false
   end
 
@@ -2512,6 +2533,9 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_DIFFICULTY_CHANGED", "ApplyAll")
   self:RegisterEvent("UPDATE_INSTANCE_INFO", "ApplyAll")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "ApplyAll")
+  if isRetail() then
+    self:RegisterEvent("GARRISON_LANDING_PAGE_UPDATED", "ApplyAll")
+  end
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_STARTED_MOVING")
