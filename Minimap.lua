@@ -183,15 +183,32 @@ local function isGarrisonLandingPageAvailable()
   if not isRetail() then return false end
   local btn = getGarrisonButton()
   if not btn then return false end
-  -- Modern Retail: ExpansionLandingPageMinimapButton handles all expansion landing pages
-  -- (War Within, Dragonflight, Shadowlands Covenants, BfA, Legion, WoD).
+
+  -- Newer expansions route through ExpansionOverlay mode (not the legacy Garrison type system) --
+  -- trust Blizzard's own resolved title/description as the availability signal there.
+  if btn.IsExpansionOverlayMode and btn:IsExpansionOverlayMode() then
+    return btn.title ~= nil and btn.title ~= ""
+  end
+
+  -- Legacy Garrison mode: mirror Blizzard's own RefreshButton() visibility gate
+  -- (C_Garrison.IsLandingPageMinimapButtonVisible) instead of re-deriving availability ourselves.
+  -- GetLandingPageGarrisonType() can resolve to a stale/inapplicable type (e.g. Shadowlands Covenant
+  -- with no active covenant chosen) whose title Blizzard still populates -- forcing the button
+  -- visible/clickable in that state crashes Blizzard's own SetTooltip/ToggleLandingPage/
+  -- UpdateButtonTextures (nil title / nil covenantData) since it was never meant to be shown.
+  if C_Garrison and C_Garrison.GetLandingPageGarrisonType and C_Garrison.IsLandingPageMinimapButtonVisible then
+    local typeOk, gType = pcall(C_Garrison.GetLandingPageGarrisonType)
+    if typeOk and gType and gType > 0 then
+      local visOk, visible = pcall(C_Garrison.IsLandingPageMinimapButtonVisible, gType)
+      if visOk then return visible and true or false end
+    end
+    return false
+  end
+
+  -- Fallback for clients without the modern Garrison API (shouldn't normally be reached on retail).
   if C_PlayerInfo and C_PlayerInfo.CanPlayerUseExpansionLandingPage then
     local ok, canUse = pcall(C_PlayerInfo.CanPlayerUseExpansionLandingPage)
     if ok and canUse then return true end
-  end
-  if C_Garrison and C_Garrison.GetLandingPageGarrisonType then
-    local ok, gType = pcall(C_Garrison.GetLandingPageGarrisonType)
-    if ok and gType and gType > 0 then return true end
   end
   if GarrisonLandingPage_HasGarrison then
     local ok, hasGarrison = pcall(GarrisonLandingPage_HasGarrison)
