@@ -1160,30 +1160,7 @@ end
 -- Addon Button Diel Border Reskinning (Forever only)
 --=====================================================================
 
-local CYCLE_BORDER_ATLASES = {
-  "ui-hud-minimap-frame-cycle",
-  "UI-HUD-Minimap-Frame-Cycle",
-  "ui-hud-minimap-frame-cycle-c60",
-  "UI-HUD-Minimap-Frame-Cycle-c60",
-}
-
-local function getDielFrameBorderAtlas()
-  if MinimapCluster and MinimapCluster.DielFrame then
-    local ok, regions = pcall(function() return { MinimapCluster.DielFrame:GetRegions() } end)
-    if ok and regions then
-      for _, r in ipairs(regions) do
-        if r:IsObjectType("Texture") and r.GetAtlas then
-          local a = r:GetAtlas()
-          if a and a ~= "" and not a:lower():find("daycycle") and not a:lower():find("nightcycle") then
-            return a
-          end
-        end
-      end
-    end
-  end
-
-  return "ui-hud-minimap-frame-cycle"
-end
+local DIEL_BORDER_ATLAS = "ui-hud-minimap-frame-cycle"
 
 local function getOrCreateButtonBorder(button)
   local border = findButtonBorder(button)
@@ -1199,9 +1176,8 @@ local function applyCycleBorderToAddonButton(button)
   local border = getOrCreateButtonBorder(button)
   if not border then return end
 
-  local atlas = getDielFrameBorderAtlas()
   if border.SetAtlas then
-    border:SetAtlas(atlas)
+    border:SetAtlas(DIEL_BORDER_ATLAS)
   end
   border:SetTexCoord(0, 1, 0, 1)
 
