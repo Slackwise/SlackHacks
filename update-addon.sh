@@ -207,7 +207,7 @@ assert_git_installed
 invoke_git_wipe "$repo_path"
 invoke_git_pull "$repo_path"
 
-script_name="$(basename "$0")"
+script_name="update-addon.sh"
 pulled_script="$repo_path/$script_name"
 if [[ -f "$pulled_script" ]]; then
   # git doesn't preserve the executable bit reliably across pulls on all platforms.
