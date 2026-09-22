@@ -13,6 +13,10 @@ Self.Minimap = module
 
 local ROUND_MASK_TEXTURE = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
 local SQUARE_MASK_TEXTURE = "Interface\\BUTTONS\\WHITE8X8"
+local SQUARE_CLUSTER_WIDTH_EXTRA = 8
+local SQUARE_CLUSTER_HEIGHT_EXTRA = 23
+local SQUARE_SELECTION_LEFT_INSET = 4
+local SQUARE_SELECTION_TOP_EXTENSION = 0
 
 -- Falls back to Blizzard's untouched defaults whenever the module is disabled.
 local DEFAULT_VISUALS = {
@@ -79,6 +83,7 @@ local origMinimapClusterLayout
 local origMinimapClusterWidth, origMinimapClusterHeight
 local origMinimapClusterHitInsets
 local origMinimapContainerPoints
+local squareMinimapWidth, squareMinimapHeight
 local isSquareClusterApplied = false
 local origSetHeaderUnderneath
 local origSetRotateMinimap
@@ -524,6 +529,10 @@ local function cacheMinimapClusterDefaults()
   if not origMinimapClusterHitInsets and MinimapCluster.GetHitRectInsets then
     origMinimapClusterHitInsets = { MinimapCluster:GetHitRectInsets() }
   end
+  if not squareMinimapWidth and _G.Minimap and _G.Minimap.GetWidth and _G.Minimap:GetWidth() > 0 then
+    squareMinimapWidth = _G.Minimap:GetWidth()
+    squareMinimapHeight = _G.Minimap:GetHeight()
+  end
   local container = MinimapCluster.MinimapContainer
   if container and not origMinimapContainerPoints and container.GetNumPoints and container:GetNumPoints() > 0 then
     origMinimapContainerPoints = {}
@@ -544,10 +553,10 @@ local function getSquareMinimapDimensions()
   local container = MinimapCluster and MinimapCluster.MinimapContainer
   local scale = (container and container:GetScale()) or 1
   if not scale or scale <= 0 then scale = 1 end
-  local mmW = (_G.Minimap and _G.Minimap:GetWidth() and _G.Minimap:GetWidth() > 0 and _G.Minimap:GetWidth()) or 198
-  local mmH = (_G.Minimap and _G.Minimap:GetHeight() and _G.Minimap:GetHeight() > 0 and _G.Minimap:GetHeight()) or 198
-  local visualW = math.floor((mmW * scale) + 12 + 0.5)
-  local visualH = math.floor((mmH * scale) + 26 + 0.5)
+  local mmW = squareMinimapWidth or 198
+  local mmH = squareMinimapHeight or 198
+  local visualW = math.floor((mmW * scale) + 0.5)
+  local visualH = math.floor((mmH * scale) + 0.5)
   return visualW, visualH, scale
 end
 
@@ -586,7 +595,7 @@ local function applySquareMinimapCluster()
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
-  MinimapCluster:SetSize(visualW, visualH)
+  MinimapCluster:SetSize(visualW + SQUARE_CLUSTER_WIDTH_EXTRA, visualH + SQUARE_CLUSTER_HEIGHT_EXTRA)
   if MinimapCluster.SetHitRectInsets then
     MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
   end
@@ -603,8 +612,11 @@ local function applySquareMinimapCluster()
   -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
   if MinimapCluster.Selection then
     MinimapCluster.Selection:ClearAllPoints()
-    MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
+    MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", SQUARE_SELECTION_LEFT_INSET, SQUARE_SELECTION_TOP_EXTENSION)
     MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
+    if MinimapCluster.Selection.SetClipsChildren then
+      MinimapCluster.Selection:SetClipsChildren(true)
+    end
   end
 
   if MinimapCluster.UpdateClampOffsets then
@@ -662,6 +674,9 @@ local function restoreRoundMinimapCluster()
   if MinimapCluster.Selection then
     MinimapCluster.Selection:ClearAllPoints()
     MinimapCluster.Selection:SetAllPoints(MinimapCluster)
+    if MinimapCluster.Selection.SetClipsChildren then
+      MinimapCluster.Selection:SetClipsChildren(false)
+    end
   end
   if MinimapCluster.UpdateClampOffsets then
     MinimapCluster:UpdateClampOffsets()
