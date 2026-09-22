@@ -535,6 +535,14 @@ local function createSquareBorder()
 
   local nineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   nineSlice:EnableMouse(false)
+
+  -- Re-assert AFTER creating the nine-slice (its OnLoad can flip mouse back on for a draggable-dialog
+  -- style frame). Also HookScript OnShow, since Show()/re-layout can retrigger the same behavior later
+  -- (confirmed via /framestack: this border kept winning mouse focus over the map/POI pins underneath it
+  -- even after the one-time post-creation EnableMouse(false) call).
+  frame:EnableMouse(false)
+  frame:HookScript("OnShow", function(self) self:EnableMouse(false) end)
+
   squareBorderFrame = frame
   return frame
 end
@@ -614,10 +622,11 @@ local function applySquareMinimapCluster()
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
+  -- NOTE: deliberately NOT forcing MinimapCluster's own hit rect to (0,0,0,0) here -- that made
+  -- MinimapCluster's own mouse-interactive area fully overlap the visible map/POI pins underneath it,
+  -- which was swallowing hover before it reached quest/vignette icons (no tooltips, square mode only).
+  -- Leaving Blizzard's own cached insets in place keeps parity with how round mode already avoids this.
   MinimapCluster:SetSize(visualW + SQUARE_CLUSTER_WIDTH_EXTRA, visualH + SQUARE_CLUSTER_HEIGHT_EXTRA + (isForever() and SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA or 0))
-  if MinimapCluster.SetHitRectInsets then
-    MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
-  end
 
   -- Snap the square border to MinimapCluster
   local border = createSquareBorder()
@@ -626,6 +635,7 @@ local function applySquareMinimapCluster()
     border:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
     border:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
     border:Show()
+    border:EnableMouse(false) -- belt-and-suspenders: re-assert every layout pass, not just at creation
   end
 
   -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
@@ -2282,7 +2292,10 @@ applyTitleBarLayout = function()
 
   local bar = createTitleBar()
   bar:Show()
-  hookHoverFrame(_G.Minimap)
+  -- Deliberately NOT hooking _G.Minimap's own OnEnter/OnLeave here (unlike the other reference frames
+  -- below) -- that hook sits directly on the real Blizzard frame hosting quest/vignette POI pins, and
+  -- was suspected of interfering with their native tooltip display in square mode. MinimapCluster's own
+  -- hover hook (and the polling ticker) already cover the same on-screen area for our hover-reveal feature.
   hookHoverFrame(titleBarFrame)
   hookHoverFrame(squareBorderFrame)
   hookHoverFrame(MinimapCluster)
