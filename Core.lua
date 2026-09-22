@@ -306,8 +306,25 @@ function setCVars()
     ensureCVar("cameraDistanceMaxZoomFactor", GetCVarDefault("cameraDistanceMaxZoomFactor"))
   end
 
+  applyDynamicCamera()
+
   if setSlackwiseCvars then
     setSlackwiseCvars()
+  end
+end
+
+function applyDynamicCamera()
+  if db.profile.general.enableDynamicCamera then
+    ensureCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
+    -- CameraKeepCharacterCentered=1 silently blocks ActionCam's dynamic pitch from having any effect.
+    -- Mirrors what turning ON the in-game "Motion Sickness" checkbox does (CameraKeepCharacterCentered=false,
+    -- CameraReduceUnexpectedMovement=true) -- these two cvars are always set as an inverse pair.
+    ensureCVar("CameraKeepCharacterCentered", 0)
+    ensureCVar("CameraReduceUnexpectedMovement", 1)
+  else
+    ensureCVar("test_cameraDynamicPitch", GetCVarDefault("test_cameraDynamicPitch"))
+    ensureCVar("CameraKeepCharacterCentered", GetCVarDefault("CameraKeepCharacterCentered"))
+    ensureCVar("CameraReduceUnexpectedMovement", GetCVarDefault("CameraReduceUnexpectedMovement"))
   end
 end
 

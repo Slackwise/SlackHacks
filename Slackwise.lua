@@ -17,6 +17,7 @@ SLACKWISE_CONFIG = {
   profile = {
     general = {
       maximumCameraZoom = true,
+      enableDynamicCamera = true,
     },
     minimap = {
       enabled = true,
@@ -29,16 +30,6 @@ SLACKWISE_CONFIG = {
 --- Set game CVars to personal preferred values.
 function setSlackwiseCvars()
   if not isSlackwise() then return end
-
-  -- Camera:
-  ensureCVar("test_cameraDynamicPitch", 1) -- Equal to `/console ActionCam basic`
-  -- CameraKeepCharacterCentered=1 silently blocks ActionCam's dynamic pitch/shoulder offset from having
-  -- any effect. This mirrors what the in-game "Motion Sickness" checkbox does when turned ON (confirmed
-  -- via Blizzard_SettingsDefinitions_Frame/Accessibility.lua: it sets CameraKeepCharacterCentered = false
-  -- and CameraReduceUnexpectedMovement = true) -- the two CVars are always set as an inverse pair, never
-  -- both 0, so match that invariant here instead of disabling both.
-  ensureCVar("CameraKeepCharacterCentered", 0)
-  ensureCVar("CameraReduceUnexpectedMovement", 1)
 
   -- Logging:
   ensureCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings

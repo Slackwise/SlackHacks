@@ -45,7 +45,8 @@ dbDefaults = {
       autoSellGreyItems = false,
       autoRepair = false,
       autoRepairMode = "personal",
-      maximumCameraZoom = false
+      maximumCameraZoom = false,
+      enableDynamicCamera = false
     },
     combat = {
       raiseCastingNameplates = false,

@@ -175,6 +175,19 @@ options = {
           end,
           order = 1
         },
+        enableDynamicCamera = {
+          name = "Enable Dynamic Camera (Basic Mode)",
+          desc = "Causes the camera to shift in view for more visibility. Try it out!",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.general.enableDynamicCamera end,
+          set = function(_, value)
+            db.profile.general.enableDynamicCamera = value
+            applyDynamicCamera()
+          end,
+          order = 2
+        },
         autoSellGreyItems = {
           name = "Auto Sell Grey Items",
           desc = "Automatically sell grey-quality items when visiting a merchant.",
