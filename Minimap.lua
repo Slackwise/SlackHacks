@@ -15,8 +15,10 @@ local ROUND_MASK_TEXTURE = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
 local SQUARE_MASK_TEXTURE = "Interface\\BUTTONS\\WHITE8X8"
 local SQUARE_CLUSTER_WIDTH_EXTRA = 8
 local SQUARE_CLUSTER_HEIGHT_EXTRA = 23
+local SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA = 0
 local SQUARE_SELECTION_LEFT_INSET = 4
 local SQUARE_SELECTION_TOP_EXTENSION = 0
+local SQUARE_FOREVER_SELECTION_TOP_EXTENSION = 3
 
 -- Falls back to Blizzard's untouched defaults whenever the module is disabled.
 local DEFAULT_VISUALS = {
@@ -595,7 +597,8 @@ local function applySquareMinimapCluster()
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
-  MinimapCluster:SetSize(visualW + SQUARE_CLUSTER_WIDTH_EXTRA, visualH + SQUARE_CLUSTER_HEIGHT_EXTRA)
+  print("Forever height adjustment: " .. (isForever() and SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA or 0))
+  MinimapCluster:SetSize(visualW + SQUARE_CLUSTER_WIDTH_EXTRA, visualH + SQUARE_CLUSTER_HEIGHT_EXTRA + (isForever() and SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA or 0))
   if MinimapCluster.SetHitRectInsets then
     MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
   end
@@ -612,7 +615,7 @@ local function applySquareMinimapCluster()
   -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
   if MinimapCluster.Selection then
     MinimapCluster.Selection:ClearAllPoints()
-    MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", SQUARE_SELECTION_LEFT_INSET, SQUARE_SELECTION_TOP_EXTENSION)
+    MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", SQUARE_SELECTION_LEFT_INSET, SQUARE_SELECTION_TOP_EXTENSION + (isForever() and SQUARE_FOREVER_SELECTION_TOP_EXTENSION or 0))
     MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
     if MinimapCluster.Selection.SetClipsChildren then
       MinimapCluster.Selection:SetClipsChildren(true)
