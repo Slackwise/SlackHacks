@@ -293,7 +293,15 @@ function Self:OnInitialize()
   Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
 
   -- Disabling ActionCam warning/confirmation popup: https://github.com/mpstark/DynamicCam/blob/master/Core.lua#L628C1-L629C68
-  UIParent:UnregisterEvent("EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED")
+  -- As of a recent client update, this event is no longer dispatched to UIParent (or any other
+  -- addon-visible frame) -- it's consumed internally by Blizzard_Game's own event dispatcher
+  -- (Interface/AddOns/Blizzard_Game/Shared/EventRouting.lua), so UnregisterEvent on UIParent is a no-op.
+  -- `GameEvent` is the (non-local, addon-accessible) table that owns that dispatcher.
+  if GameEvent and GameEvent.UnregisterInternalEvent then
+    GameEvent.UnregisterInternalEvent("EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED")
+  else
+    UIParent:UnregisterEvent("EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED")
+  end
 end
 
 function isInitialized()
