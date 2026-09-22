@@ -622,11 +622,10 @@ local function applySquareMinimapCluster()
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
-  -- NOTE: deliberately NOT forcing MinimapCluster's own hit rect to (0,0,0,0) here -- that made
-  -- MinimapCluster's own mouse-interactive area fully overlap the visible map/POI pins underneath it,
-  -- which was swallowing hover before it reached quest/vignette icons (no tooltips, square mode only).
-  -- Leaving Blizzard's own cached insets in place keeps parity with how round mode already avoids this.
   MinimapCluster:SetSize(visualW + SQUARE_CLUSTER_WIDTH_EXTRA, visualH + SQUARE_CLUSTER_HEIGHT_EXTRA + (isForever() and SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA or 0))
+  if MinimapCluster.SetHitRectInsets then
+    MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
+  end
 
   -- Snap the square border to MinimapCluster
   local border = createSquareBorder()
@@ -635,7 +634,7 @@ local function applySquareMinimapCluster()
     border:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", 0, 0)
     border:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
     border:Show()
-    border:EnableMouse(false) -- belt-and-suspenders: re-assert every layout pass, not just at creation
+    border:EnableMouse(false) -- OnShow only refires the hook on hidden->shown transitions, not repeat Show() calls while already shown
   end
 
   -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
@@ -2292,10 +2291,7 @@ applyTitleBarLayout = function()
 
   local bar = createTitleBar()
   bar:Show()
-  -- Deliberately NOT hooking _G.Minimap's own OnEnter/OnLeave here (unlike the other reference frames
-  -- below) -- that hook sits directly on the real Blizzard frame hosting quest/vignette POI pins, and
-  -- was suspected of interfering with their native tooltip display in square mode. MinimapCluster's own
-  -- hover hook (and the polling ticker) already cover the same on-screen area for our hover-reveal feature.
+  hookHoverFrame(_G.Minimap)
   hookHoverFrame(titleBarFrame)
   hookHoverFrame(squareBorderFrame)
   hookHoverFrame(MinimapCluster)
