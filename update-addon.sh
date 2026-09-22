@@ -209,6 +209,11 @@ invoke_git_pull "$repo_path"
 
 script_name="$(basename "$0")"
 pulled_script="$repo_path/$script_name"
+if [[ -f "$pulled_script" ]]; then
+  # git doesn't preserve the executable bit reliably across pulls on all platforms.
+  chmod +x "$pulled_script"
+fi
+
 if [[ "$rerun" != true && -f "$pulled_script" ]]; then
   echo "Checking whether a newer version of this updater script is available..." >&2
   running_hash="$(sha256sum "$0" | awk '{print $1}')"
