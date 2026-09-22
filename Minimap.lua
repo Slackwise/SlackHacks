@@ -2660,7 +2660,7 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_DIFFICULTY_CHANGED", "ApplyAll")
   self:RegisterEvent("UPDATE_INSTANCE_INFO", "ApplyAll")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "ApplyAll")
-  if isRetail() then
+  if isRetail() and (not C_EventUtils or C_EventUtils.IsEventValid("GARRISON_LANDING_PAGE_UPDATED")) then
     self:RegisterEvent("GARRISON_LANDING_PAGE_UPDATED", "ApplyAll")
   end
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
