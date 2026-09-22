@@ -6,6 +6,8 @@ BINDING_NAME_SLACKHACKS_RELOADUI = "Reload UI"
 BINDING_NAME_SLACKHACKS_MOUNT = "Mount"
 BINDING_NAME_SLACKHACKS_SETBINDINGS = "Load Keybindings"
 BINDING_NAME_SLACKHACKS_OPTIONS = "Open Options"
+BINDING_NAME_SLACKHACKS_QUICK_KEYBIND_MODE = "Open Quick Keybind Mode"
+BINDING_NAME_SLACKHACKS_CLICK_CASTING = "Open Click Casting"
 BINDING_NAME_SLACKHACKS_BEST_HEALING_POTION = "Use Best Healing Potion"
 BINDING_NAME_SLACKHACKS_BEST_MANA_POTION = "Use Best Mana Potion"
 BINDING_NAME_SLACKHACKS_BEST_BANDAGE = "Use Best Bandage"
@@ -31,6 +33,24 @@ BINDING_TYPE = {
 }
 
 BT = BINDING_TYPE
+
+function openQuickKeybindMode()
+  if not QuickKeybindFrame and LoadAddOn then
+    LoadAddOn("Blizzard_QuickKeybind")
+  end
+  if QuickKeybindFrame then
+    QuickKeybindFrame:Show()
+  end
+end
+
+function openClickCasting()
+  if ClickBindingFrame_LoadUI then
+    ClickBindingFrame_LoadUI()
+  end
+  if ClickBindingFrame and ClickBindingFrame_Toggle and not ClickBindingFrame:IsShown() then
+    ClickBindingFrame_Toggle()
+  end
+end
 
 BINDINGS_FUNCTIONS = {
   [BT.COMMAND] = SetBinding,

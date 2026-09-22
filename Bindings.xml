@@ -14,6 +14,12 @@
   <Binding name="SLACKHACKS_OPTIONS" category="BINDING_HEADER_SLACKHACKS">
     SlackHacks.openOptions()
   </Binding>
+  <Binding name="SLACKHACKS_QUICK_KEYBIND_MODE" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.openQuickKeybindMode()
+  </Binding>
+  <Binding name="SLACKHACKS_CLICK_CASTING" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.openClickCasting()
+  </Binding>
   <Binding name="SLACKHACKS_BEST_HEALING_POTION" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
   <Binding name="SLACKHACKS_BEST_MANA_POTION" category="BINDING_HEADER_SLACKHACKS">
