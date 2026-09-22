@@ -597,7 +597,6 @@ local function applySquareMinimapCluster()
   end
 
   -- Size MinimapCluster to match the visible square minimap + border
-  print("Forever height adjustment: " .. (isForever() and SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA or 0))
   MinimapCluster:SetSize(visualW + SQUARE_CLUSTER_WIDTH_EXTRA, visualH + SQUARE_CLUSTER_HEIGHT_EXTRA + (isForever() and SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA or 0))
   if MinimapCluster.SetHitRectInsets then
     MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
