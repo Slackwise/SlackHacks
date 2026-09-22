@@ -115,6 +115,23 @@ assert_git_installed() {
   fi
 }
 
+invoke_git_wipe() {
+  local path="$1"
+
+  # Discard any local modifications/untracked files before pulling so the update always applies cleanly.
+  echo "Discarding local changes for '$path'..." >&2
+  git -C "$path" reset --hard HEAD
+  if [[ $? -ne 0 ]]; then
+    fail_and_pause "Failed to discard local changes for '$path'. Please resolve any git issues and try again."
+  fi
+
+  git -C "$path" clean -fdx
+  if [[ $? -ne 0 ]]; then
+    fail_and_pause "Failed to remove untracked files for '$path'. Please resolve any git issues and try again."
+  fi
+  echo "Local changes discarded successfully." >&2
+}
+
 invoke_git_pull() {
   local path="$1"
 
@@ -176,6 +193,7 @@ cd "$repo_path" || {
 }
 
 assert_git_installed
+invoke_git_wipe "$repo_path"
 invoke_git_pull "$repo_path"
 
 script_name="$(basename "$0")"

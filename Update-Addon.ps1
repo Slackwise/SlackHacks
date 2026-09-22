@@ -31,6 +31,26 @@ function Assert-GitInstalled {
     exit 1
 }
 
+function Invoke-GitWipe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    # Discard any local modifications/untracked files before pulling so the update always applies cleanly.
+    git -C $Path reset --hard HEAD
+    if ($LASTEXITCODE -ne 0) {
+        Show-ErrorMessageBox -Title 'Git Reset Failed' -Message "Failed to discard local changes for '$Path'. Please resolve any git issues and try again."
+        exit 1
+    }
+
+    git -C $Path clean -fdx
+    if ($LASTEXITCODE -ne 0) {
+        Show-ErrorMessageBox -Title 'Git Clean Failed' -Message "Failed to remove untracked files for '$Path'. Please resolve any git issues and try again."
+        exit 1
+    }
+}
+
 function Invoke-GitPull {
     param(
         [Parameter(Mandatory = $true)]
@@ -103,6 +123,7 @@ try {
     Set-Location -Path $RepoPath
 
     Assert-GitInstalled
+    Invoke-GitWipe -Path $RepoPath
     Invoke-GitPull -Path $RepoPath
 
     $scriptName = Split-Path -Path $PSCommandPath -Leaf
