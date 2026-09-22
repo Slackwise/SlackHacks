@@ -1873,14 +1873,22 @@ local function getExistingAddonButtons()
     end
   end
 
-  -- 2. Direct children of Minimap that are buttons, shown, and not Blizzard
+  -- 2. Direct children of Minimap that are buttons, shown, and not Blizzard.
+  -- IMPORTANT: quest POI icons and gathering-node ("Find Herbs"/"Find Minerals") vignette icons are also
+  -- pooled Button-type frames parented directly to Minimap, but unlike real addon minimap buttons they are
+  -- anonymous (no global name, since they come from a CreateFramePool and are reused/repositioned every
+  -- refresh) -- require a real name (and a plausible icon-button size) so we never hijack SetPoint/parent
+  -- on Blizzard's own native quest/node icons.
   if _G.Minimap and _G.Minimap.GetChildren then
     local ok, children = pcall(function() return { _G.Minimap:GetChildren() } end)
     if ok and children then
       for _, child in ipairs(children) do
         if child and not seen[child] and not isBlizzardFrame(child) and child:IsShown() then
           local okType, objType = pcall(child.GetObjectType, child)
-          if okType and objType == "Button" then
+          local name = child.GetName and child:GetName()
+          local w = child.GetWidth and child:GetWidth() or 0
+          local h = child.GetHeight and child:GetHeight() or 0
+          if okType and objType == "Button" and name and w >= 14 and w <= 64 and h >= 14 and h <= 64 then
             table.insert(buttons, child)
             seen[child] = true
           end
