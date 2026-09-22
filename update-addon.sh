@@ -129,6 +129,17 @@ invoke_git_wipe() {
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to remove untracked files for '$path'. Please resolve any git issues and try again."
   fi
+
+  # Submodule working trees (e.g. Libs/Ace3) aren't touched by the superproject's own reset/clean.
+  git -C "$path" submodule foreach --recursive git reset --hard HEAD
+  if [[ $? -ne 0 ]]; then
+    fail_and_pause "Failed to discard local changes in submodules for '$path'. Please resolve any git issues and try again."
+  fi
+
+  git -C "$path" submodule foreach --recursive git clean -fdx
+  if [[ $? -ne 0 ]]; then
+    fail_and_pause "Failed to remove untracked files in submodules for '$path'. Please resolve any git issues and try again."
+  fi
   echo "Local changes discarded successfully." >&2
 }
 

@@ -49,6 +49,19 @@ function Invoke-GitWipe {
         Show-ErrorMessageBox -Title 'Git Clean Failed' -Message "Failed to remove untracked files for '$Path'. Please resolve any git issues and try again."
         exit 1
     }
+
+    # Submodule working trees (e.g. Libs/Ace3) aren't touched by the superproject's own reset/clean.
+    git -C $Path submodule foreach --recursive git reset --hard HEAD
+    if ($LASTEXITCODE -ne 0) {
+        Show-ErrorMessageBox -Title 'Git Reset Failed' -Message "Failed to discard local changes in submodules for '$Path'. Please resolve any git issues and try again."
+        exit 1
+    }
+
+    git -C $Path submodule foreach --recursive git clean -fdx
+    if ($LASTEXITCODE -ne 0) {
+        Show-ErrorMessageBox -Title 'Git Clean Failed' -Message "Failed to remove untracked files in submodules for '$Path'. Please resolve any git issues and try again."
+        exit 1
+    }
 }
 
 function Invoke-GitPull {
