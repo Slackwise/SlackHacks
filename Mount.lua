@@ -68,22 +68,6 @@ end
 
 MOUNTS_BY_USAGE = { }
 
-function setupEkil()
-  if isEkil() then
-    MOUNTS_BY_USAGE = {
-      DEFAULT = {
-        ['GROUND']           = MOUNT_IDS["Ironbound Proto-Drake"],
-        ['FLYING']           = MOUNT_IDS["Ironbound Proto-Drake"],
-        ['WATER']            = MOUNT_IDS["Ironbound Proto-Drake"],
-        ['GROUND_PASSENGER'] = MOUNT_IDS["Renewed Proto-Drake"],
-        ['FLYING_PASSENGER'] = MOUNT_IDS["Renewed Proto-Drake"],
-        ['GROUND_SHOWOFF']   = MOUNT_IDS["Ironbound Proto-Drake"],
-        ['FLYING_SHOWOFF']   = MOUNT_IDS["Ironbound Proto-Drake"],
-      }
-    }
-  end
-end
-
 function mountByUsage(usage)
   if isDebugging() then
     -- printDebugMapInfo()

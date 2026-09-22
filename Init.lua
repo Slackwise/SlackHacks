@@ -286,8 +286,9 @@ end
 function Self:OnInitialize()
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
   migrateConfig()
-  if setSlackwiseOptions then
-    setSlackwiseOptions()
+  local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
+  if customConfig and customConfig.setOptions then
+    customConfig.setOptions()
   end
   config:RegisterOptionsTable("SlackHacks", options)
   Self:RegisterChatCommand("slack", handleSlashCommand)

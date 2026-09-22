@@ -130,11 +130,6 @@ function inVehicle()
   return UnitHasVehicleUI("player")
 end
 
-function isEkil()
-  return getBattletag() == "ekil#1612" or false
-end
-
-
 function getClassName()
   return select(2, UnitClass("player"))
 end
@@ -308,8 +303,9 @@ function setCVars()
 
   applyDynamicCamera()
 
-  if setSlackwiseCvars then
-    setSlackwiseCvars()
+  local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
+  if customConfig and customConfig.setCvars then
+    customConfig.setCvars()
   end
 end
 

@@ -96,6 +96,13 @@ function setSlackwiseOptions()
   end
 end
 
+-- Register myself in the shared CustomConfigs lookup table (see CustomConfigs.lua).
+CustomConfigs["Slackwise#1121"] = {
+  config = SLACKWISE_CONFIG,
+  setCvars = setSlackwiseCvars,
+  setOptions = setSlackwiseOptions,
+}
+
 MOUNTS_BY_USAGE = {
   DEFAULT = {
     ['GROUND']            = MOUNT_IDS["Swift Razzashi Raptor"],

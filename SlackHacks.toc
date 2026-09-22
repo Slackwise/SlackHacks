@@ -20,4 +20,5 @@ Weeklies.lua
 Minimap.lua
 Options.lua
 Mount.lua
+CustomConfigs.lua
 Slackwise.lua
