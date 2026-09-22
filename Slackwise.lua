@@ -54,46 +54,7 @@ end
 --- Merge personal configuration overrides from `SLACKWISE_CONFIG` into the addon DB.
 function setSlackwiseOptions()
   if not isSlackwise() then return end
-
-  -- Merge my own `SLACKWISE_CONFIG` table over the current addon config:
-  local targetDB = _G.SlackHacksDB or SlackHacksDB or (db and rawget(db, "sv"))
-  if targetDB and type(SLACKWISE_CONFIG) == "table" then
-    if type(SLACKWISE_CONFIG.global) == "table" then
-      targetDB.global = targetDB.global or {}
-      recursiveMerge(targetDB.global, SLACKWISE_CONFIG.global)
-    end
-    if type(SLACKWISE_CONFIG.profile) == "table" and targetDB.profiles then
-      local profileKey = (db and db.GetCurrentProfile and db:GetCurrentProfile()) or "Default"
-      targetDB.profiles[profileKey] = targetDB.profiles[profileKey] or {}
-      recursiveMerge(targetDB.profiles[profileKey], SLACKWISE_CONFIG.profile)
-    end
-  end
-
-  if db and type(SLACKWISE_CONFIG) == "table" then
-    if type(SLACKWISE_CONFIG.profile) == "table" and type(db.profile) == "table" then
-      recursiveMerge(db.profile, SLACKWISE_CONFIG.profile)
-    end
-    if type(SLACKWISE_CONFIG.global) == "table" and type(db.global) == "table" then
-      recursiveMerge(db.global, SLACKWISE_CONFIG.global)
-    end
-    if type(SLACKWISE_CONFIG.char) == "table" and type(db.char) == "table" then
-      recursiveMerge(db.char, SLACKWISE_CONFIG.char)
-    end
-    for k, v in pairs(SLACKWISE_CONFIG) do
-      if k ~= "profile" and k ~= "global" and k ~= "char" and k ~= "profiles" and k ~= "profileKeys" then
-        if type(v) == "table" and type(db.profile) == "table" and (type(db.profile[k]) == "table" or (dbDefaults and dbDefaults.profile and dbDefaults.profile[k] ~= nil)) then
-          if type(db.profile[k]) ~= "table" then
-            db.profile[k] = {}
-          end
-          recursiveMerge(db.profile[k], v)
-        end
-      end
-    end
-  end
-
-  if isInitialized() and Self.Minimap and Self.Minimap.Refresh then
-    Self.Minimap:Refresh()
-  end
+  applyCustomConfig(SLACKWISE_CONFIG)
 end
 
 -- Register myself in the shared CustomConfigs lookup table (see CustomConfigs.lua).
