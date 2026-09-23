@@ -1,6 +1,123 @@
 local addonName, addonTable = ...
 setfenv(1, _G.SlackHacks)
 
+dbDefaults = {
+  global = {
+    configVersion = CONFIG_VERSION,
+    isDebugging = false,
+    logs = {},
+    logPurgeEnabled = true,
+    logPurgeHours = 48
+  },
+  char = {
+    cache = {
+      lastKnownGildedStashesRemaining = nil
+    }
+  },
+  profile = {
+    inventory = {
+      autoSellGreyItems = false,
+      autoRepair = false,
+      autoRepairMode = "personal"
+    },
+    controls = {
+      maximumCameraZoom = false,
+      enableDynamicCamera = false
+    },
+    combat = {
+      raiseCastingNameplates = false,
+      paladin = {
+        trackHolyShockCharges = false,
+        holyShockChargesPosition = "below"
+      }
+    },
+    movableWindows = {
+      enabled = false,
+      modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
+      enableScaling = false, -- scaleModifierKey + mouse wheel over a title bar resizes a registered frame
+      scaleModifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to scale a registered frame
+      savePositionStrategy = "permanent", -- "off" | "session" | "permanent"
+      saveScaleStrategy = "permanent", -- "session" | "permanent"
+      points = {},
+      scales = {}
+    },
+    minimap = {
+      enabled = false,
+      shape = "circle",
+      showIconsOnHover = false,
+      showAddonIconsOnHover = false,
+      hideDiel = false,
+      showAllMinimapTracking = false,
+      alpha = 100,
+      fadeEnabled = false,
+      combatAlpha = 100,
+      movingAlpha = 100,
+      showZoneText = true,
+      showClock = true,
+      showTracking = true,
+      showCalendar = true,
+      showInstanceDifficulty = true,
+      showGarrison = true,
+      showAddonCompartment = true,
+      addonsInCompartment = false
+    },
+    buffs = {
+      enabled = false,
+      point = "TOP",
+      relativePoint = "TOP",
+      x = 0,
+      y = -130,
+      iconSize = 150,
+      iconGap = 6,
+      showGlow = true,
+      showIfExpiring = true,
+      durationPosition = "below",
+      contentTypes = {
+        mythicDungeons = true,
+        nonLfrRaids = true
+      },
+      categories = {
+        wellFed = true,
+        flask = true,
+        oil = true,
+        rune = false
+      }
+    },
+    selfVendor = {
+      enabled = false,
+      source = "murlok",
+      modes = {
+        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = false, triggerEmote = "SALUTE" },
+        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = false, triggerEmote = "GLARE" },
+        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = false, triggerEmote = "GAZE" },
+        [Enum.SelfVendorMode.OIL] = { enabled = false, triggerEmote = "FLIRT" },
+        [Enum.SelfVendorMode.RUNES] = { enabled = false, triggerEmote = "FLEX", runeQuantity = 5 },
+        [Enum.SelfVendorMode.AUGMENTS] = { enabled = false, triggerEmote = "VICTORY" },
+      }
+    },
+    weeklies = {
+      enabled = false,
+      trackDelves = true
+    },
+    mounts = {
+      ["ground"] = nil,
+      ["ground-showoff"] = nil,
+      ["skyriding"] = nil,
+      ["skyriding-showoff"] = nil,
+      ["steadyflight"] = nil,
+      ["steadyflight-showoff"] = nil,
+      ["water"] = nil,
+      ["water-showoff"] = nil,
+      ["ground-passenger"] = nil,
+      ["ground-passenger-showoff"] = nil,
+      ["skyriding-passenger"] = nil,
+      ["skyriding-passenger-showoff"] = nil,
+      ["steadyflight-passenger"] = nil,
+      ["steadyflight-passenger-showoff"] = nil,
+    }
+  }
+}
+
 -- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
 
 function openOptions()
@@ -1078,4 +1195,18 @@ options = {
   --   }
   -- }
 }
+
+-- Registers the AceConfig options table above and the Blizzard options panel entry.
+-- Called from OnInitialize, after all addon files/modules have loaded.
+function registerOptions()
+  options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
+  options.args.profiles.order = 1
+  migrateConfig()
+  local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
+  if customConfig and customConfig.setOptions then
+    customConfig.setOptions()
+  end
+  config:RegisterOptionsTable("SlackHacks", options)
+  Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
+end
 
