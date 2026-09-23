@@ -294,7 +294,10 @@ end
 
 --Event Handlers
 function Self:OnInitialize()
-  Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults)
+  -- true = share one "Default" profile across all characters instead of a per-character profile
+  Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
+  options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
+  options.args.profiles.order = 5.5
   migrateConfig()
   local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
   if customConfig and customConfig.setOptions then
