@@ -590,6 +590,7 @@ end
 
 local function applySquareMinimapCluster()
   if not MinimapCluster then return end
+  if InCombatLockdown() then return end -- MinimapCluster:SetSize() is protected in combat; PLAYER_REGEN_ENABLED re-applies
   cacheMinimapClusterDefaults()
 
   -- Disable Blizzard's MinimapCluster layout so it doesn't fight our sizing or points
@@ -657,6 +658,7 @@ end
 
 local function restoreRoundMinimapCluster()
   if not MinimapCluster or not isSquareClusterApplied then return end
+  if InCombatLockdown() then return end -- MinimapCluster:SetSize() is protected in combat; PLAYER_REGEN_ENABLED re-applies
 
   -- Unhijack/restore Mail, Crafting Orders, GameTimeFrame, Tracking, etc. to their native anchors
   -- BEFORE showing IndicatorFrame -- otherwise Blizzard's own layout cascade (triggered by Show())
