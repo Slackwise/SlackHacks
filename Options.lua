@@ -925,7 +925,7 @@ options = {
         },
         enableScaling = {
           name = "Enable Scaling (Modifier + Mouse Wheel)",
-          desc = "Hold the modifier key below and scroll the mouse wheel over a window to resize it.",
+          desc = "Hold the modifier key below and scroll the mouse wheel over a window's title bar to resize it (scrolling elsewhere on the window is left alone).",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -936,7 +936,7 @@ options = {
         },
         scaleModifierKey = {
           name = "Scale Modifier Key",
-          desc = "Key that must be held while scrolling the mouse wheel over a window to resize it. Choose None to allow resizing with a plain mouse wheel scroll.",
+          desc = "Key that must be held while scrolling the mouse wheel over a window's title bar to resize it. Choose None to allow resizing with a plain mouse wheel scroll.",
           type = "select",
           width = "full",
           values = {

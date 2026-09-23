@@ -24,6 +24,10 @@ Self.MovableWindows = module
 local MIN_SCALE = 0.3 -- steps are 0.1, kept above 0.25 so nothing can shrink to invisible
 local MAX_SCALE = 2.5
 local DEFAULT_TITLE_BAR_HEIGHT = 20 -- matches most Blizzard windows' native title/border strip height
+-- Blizzard's own portrait/title-bar decorations (NineSlice, TitleContainer, CloseButton, etc.) are commonly
+-- placed at up to frame:GetFrameLevel()+510 (see PortraitFrameMixin:SetFrameLevelsFromBaseLevel); the drag
+-- handle needs to sit above all of that or those elements silently eat the mousedown before it ever arrives.
+local TITLE_BAR_HANDLE_LEVEL_OFFSET = 1000
 local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
@@ -695,19 +699,33 @@ end
 -- protected frame still goes through Blizzard's native StartMoving()/StopMovingOrSizing(), just triggered
 -- by our own OnMouseDown/OnMouseUp instead of the template's built-in unconditional left-click-drag.
 -- Sized to only the top title-bar strip of the frame, not the whole window, so drags only start there.
-local function makeMoveHandle(frame, rootFrame, titleBarHeight)
+-- Also owns the mouse-wheel-scaling hover region for the same reason: scroll-to-scale should only engage
+-- over the title bar, not anywhere on the window (unless ignoreMouseWheel opts the frame out entirely).
+local function makeMoveHandle(frame, rootFrame, titleBarHeight, ignoreMouseWheel)
   local handle = CreateFrame("Frame", nil, rootFrame, "PanelDragBarTemplate")
   handle:SetParent(frame)
   handle:SetPoint("TOPLEFT", frame, "TOPLEFT")
   handle:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
   handle:SetHeight(titleBarHeight)
-  handle:SetFrameLevel(frame:GetFrameLevel() + 1)
+  handle:SetFrameLevel(frame:GetFrameLevel() + TITLE_BAR_HANDLE_LEVEL_OFFSET)
   handle:SetPropagateMouseMotion(true)
   handle:SetPropagateMouseClicks(true)
   handle.onDragStartCallback = function() return false end
   handle:HookScript("OnMouseDown", onMouseDown)
   handle:HookScript("OnMouseUp", onMouseUp)
   handle:HookScript("OnDragStop", function(self) onMouseUp(self, "LeftButton") end)
+
+  if not ignoreMouseWheel then
+    handle:EnableMouseWheel(true)
+    handle:HookScript("OnEnter", function() onEnter(frame) end)
+    handle:HookScript("OnLeave", function() onLeave(frame) end)
+    if handle:IsMouseOver() then
+      RunNextFrame(function()
+        if handle:IsMouseOver() then onEnter(frame) end
+      end)
+    end
+  end
+
   return handle
 end
 
@@ -724,7 +742,7 @@ local function makeMoveHandles(frame, frameData)
   end
   local rootFrame = (rootData.storage and rootData.storage.frame) or frame
 
-  local handle = makeMoveHandle(frame, rootFrame, frameData.TitleBarHeight or DEFAULT_TITLE_BAR_HEIGHT)
+  local handle = makeMoveHandle(frame, rootFrame, frameData.TitleBarHeight or DEFAULT_TITLE_BAR_HEIGHT, frameData.IgnoreMouseWheel)
   frameData.moveHandle = handle
   moveHandles[handle] = true
 end
@@ -744,25 +762,19 @@ local function makeFrameMovable(frame, frameName, frameData, frameParent)
   }
   frameRegistry[frame] = frameData
 
+  -- Alias/preload storage.points from the saved-variable table now (not just lazily on first mouse-down)
+  -- so the very first onSetPoint watchdog call below can already see a previous session's saved position.
+  setupPointStorage(frame, frameData)
+
   frame:SetMovable(true)
   if not frameData.IgnoreClamping then
     frame:SetClampedToScreen(clampFrame)
   end
 
   if not frameData.NonDraggable then
-    -- always via the title-bar-sized handle (not whole-frame EnableMouse) so dragging only starts there.
+    -- always via the title-bar-sized handle (not whole-frame EnableMouse) so dragging -- and scaling --
+    -- only starts there (see makeMoveHandle).
     makeMoveHandles(frame, frameData)
-  end
-
-  if not frameData.IgnoreMouseWheel then
-    frame:EnableMouseWheel(true)
-    hookScript(frame, "OnEnter", onEnter)
-    hookScript(frame, "OnLeave", onLeave)
-    if frame:IsMouseOver() then
-      RunNextFrame(function()
-        if frame:IsMouseOver() then onEnter(frame) end
-      end)
-    end
   end
 
   hookScript(frame, "OnShow", onShow)
