@@ -888,7 +888,7 @@ options = {
     movableWindows = {
       type = "group",
       name = "Movable Windows",
-      desc = "Drag most Blizzard windows to reposition them, and resize them with the mouse wheel.",
+      desc = "Drag most Blizzard windows by their title bar to reposition them, and resize them with the mouse wheel.",
       order = 9,
       args = {
         enabled = {
@@ -908,7 +908,7 @@ options = {
         },
         modifierKey = {
           name = "Move Modifier Key",
-          desc = "Key that must be held while left-click-dragging a window to move it. Choose None to allow moving with a plain left-click-drag.",
+          desc = "Key that must be held while left-click-dragging a window's title bar to move it (dragging elsewhere on the window does nothing). Choose None to allow moving with a plain left-click-drag.",
           type = "select",
           width = "full",
           values = {

@@ -3,15 +3,13 @@ setfenv(1, _G.SlackHacks)
 --=====================================================================
 -- Movable Windows
 --=====================================================================
--- Lets you drag most Blizzard windows around and resize them with the mouse wheel.
+-- Lets you drag most Blizzard windows around by their title bar, and resize them with the mouse wheel.
 -- Reviewed directly against Blizzard's own FrameXML, specifically `PanelDragBarMixin`
 -- (Blizzard_SharedXML/SharedUIPanelTemplates.lua) -- the exact native drag-bar mixin Blizzard's own
--- movable panels use. Protected/secure Blizzard frames are made draggable via a plain, unprotected child
--- overlay button inheriting the real "PanelDragBarTemplate" (so dragging goes through Blizzard's own
--- frame:StartMoving()/StopMovingOrSizing() path, not a custom position hack); everything else just gets
--- EnableMouse(true) plus a secure post-hook (AceHook-3.0's SecureHookScript, which observes without
--- tainting) on OnMouseDown/OnMouseUp. This is the least invasive approach that still works on protected
--- frames outside combat lockdown.
+-- movable panels use. Every registered window gets the same unprotected child overlay, sized to just its
+-- title-bar strip (not the whole window), inheriting the real "PanelDragBarTemplate" (so dragging goes
+-- through Blizzard's own frame:StartMoving()/StopMovingOrSizing() path, not a custom position hack, and
+-- still works on protected frames outside combat lockdown).
 --
 -- This only ships a curated subset of commonly-used frames (not an exhaustive, version-gated database of
 -- every frame across every WoW expansion back to Vanilla) since we only target current retail and WoW
@@ -25,6 +23,7 @@ Self.MovableWindows = module
 --=====================================================================
 local MIN_SCALE = 0.3 -- steps are 0.1, kept above 0.25 so nothing can shrink to invisible
 local MAX_SCALE = 2.5
+local DEFAULT_TITLE_BAR_HEIGHT = 20 -- matches most Blizzard windows' native title/border strip height
 local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
@@ -639,12 +638,6 @@ function checkMouseWheelCapture()
     local frameData = frameRegistry[frame]
     local shouldHandle = frameData and not frameData.IgnoreMouseWheel
 
-    if frameData and frameData.IgnoreMouseWheel then
-      -- explicitly opted out (e.g. WorldMapFrame's native wheel-zoom) -- always defer, regardless of
-      -- whatever else is also under the cursor at this point.
-      return
-    end
-
     if
       not shouldHandle
       and (
@@ -701,10 +694,13 @@ end
 -- A plain (unprotected) overlay button inheriting Blizzard's own PanelDragBarTemplate, so dragging a
 -- protected frame still goes through Blizzard's native StartMoving()/StopMovingOrSizing(), just triggered
 -- by our own OnMouseDown/OnMouseUp instead of the template's built-in unconditional left-click-drag.
-local function makeMoveHandle(frame, rootFrame)
+-- Sized to only the top title-bar strip of the frame, not the whole window, so drags only start there.
+local function makeMoveHandle(frame, rootFrame, titleBarHeight)
   local handle = CreateFrame("Frame", nil, rootFrame, "PanelDragBarTemplate")
   handle:SetParent(frame)
-  handle:SetAllPoints(frame)
+  handle:SetPoint("TOPLEFT", frame, "TOPLEFT")
+  handle:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
+  handle:SetHeight(titleBarHeight)
   handle:SetFrameLevel(frame:GetFrameLevel() + 1)
   handle:SetPropagateMouseMotion(true)
   handle:SetPropagateMouseClicks(true)
@@ -728,7 +724,7 @@ local function makeMoveHandles(frame, frameData)
   end
   local rootFrame = (rootData.storage and rootData.storage.frame) or frame
 
-  local handle = makeMoveHandle(frame, rootFrame)
+  local handle = makeMoveHandle(frame, rootFrame, frameData.TitleBarHeight or DEFAULT_TITLE_BAR_HEIGHT)
   frameData.moveHandle = handle
   moveHandles[handle] = true
 end
@@ -754,19 +750,8 @@ local function makeFrameMovable(frame, frameName, frameData, frameParent)
   end
 
   if not frameData.NonDraggable then
-    local rootData = frameData
-    while rootData.parentData do
-      rootData = rootData.parentData
-    end
-    local rootFrame = rootData.storage and rootData.storage.frame
-
-    if frameData.ForceUseSecureMoveHandle or frame:IsProtected() or (rootFrame and rootFrame:IsProtected()) then
-      makeMoveHandles(frame, frameData)
-    else
-      frame:EnableMouse(true)
-      hookScript(frame, "OnMouseDown", onMouseDown)
-      hookScript(frame, "OnMouseUp", onMouseUp)
-    end
+    -- always via the title-bar-sized handle (not whole-frame EnableMouse) so dragging only starts there.
+    makeMoveHandles(frame, frameData)
   end
 
   if not frameData.IgnoreMouseWheel then
@@ -856,7 +841,7 @@ end
 --- frame doesn't exist yet (e.g. a Blizzard sub-addon that hasn't loaded), it's retried automatically.
 ---@param frameName string - Global name of the frame, e.g. "CharacterFrame" or "Parent.ChildFrame".
 ---@param frameData table? - Optional flags: SubFrames, Detachable, NonDraggable, IgnoreMouseWheel,
----  IgnoreClamping, ManuallyScaleWithParent, ForceUseSecureMoveHandle, ForcePosition.
+---  IgnoreClamping, ManuallyScaleWithParent, ForceUseSecureMoveHandle, ForcePosition, TitleBarHeight.
 function module:RegisterFrame(frameName, frameData)
   frameData = frameData or {}
   registeredFrames[frameName] = frameData
@@ -899,10 +884,11 @@ local function registerDefaultFrames()
     ["GuildBankFrame"] = {},
     ["MacroFrame"] = {},
     ["FriendsFrame"] = {},
-    ["WorldMapFrame"] = { IgnoreMouseWheel = true }, -- native wheel zooms the map
+    ["WorldMapFrame"] = {}, -- native wheel-zoom on the map canvas already defers scaling; title bar/border still scalable
     ["QuestFrame"] = {},
     ["GossipFrame"] = {},
     ["AddonList"] = {},
+    ["AchievementFrame"] = {},
   }
   for i = 1, 13 do
     sharedFrames["ContainerFrame" .. i] = {}
