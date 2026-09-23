@@ -55,7 +55,7 @@ dbDefaults = {
         holyShockChargesPosition = "below"
       }
     },
-    movableFrames = {
+    movableWindows = {
       enabled = false,
       modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
       enableScaling = true, -- scaleModifierKey + mouse wheel resizes a registered frame

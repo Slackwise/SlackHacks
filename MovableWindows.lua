@@ -1,7 +1,7 @@
 setfenv(1, _G.SlackHacks)
 
 --=====================================================================
--- Movable Frames
+-- Movable Windows
 --=====================================================================
 -- Lets you drag most Blizzard windows around and resize them with the mouse wheel.
 -- Reviewed directly against Blizzard's own FrameXML, specifically `PanelDragBarMixin`
@@ -17,15 +17,15 @@ setfenv(1, _G.SlackHacks)
 -- every frame across every WoW expansion back to Vanilla) since we only target current retail and WoW
 -- Forever (Classic Era). Use module:RegisterFrame(frameName, frameData) to add more.
 
-local module = Self:NewModule("MovableFrames", "AceEvent-3.0", "AceHook-3.0")
-Self.MovableFrames = module
+local module = Self:NewModule("MovableWindows", "AceEvent-3.0", "AceHook-3.0")
+Self.MovableWindows = module
 
 --=====================================================================
 -- Constants & state
 --=====================================================================
 local MIN_SCALE = 0.3 -- steps are 0.1, kept above 0.25 so nothing can shrink to invisible
 local MAX_SCALE = 2.5
-local FAKE_UI_PARENT_NAME = "SlackHacksMovableFramesFakeUIParent"
+local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
 -- since UIParent itself can be protected/tainted in ways that make re-anchoring to it directly unreliable.
@@ -51,7 +51,7 @@ local onMouseDown, onMouseUp, onMouseWheel, onShow, onSetPoint, onSizeUpdate, ch
 -- Settings helpers
 --=====================================================================
 local function settings()
-  return db.profile.movableFrames
+  return db.profile.movableWindows
 end
 
 local function isModuleEnabled()
@@ -639,15 +639,24 @@ function checkMouseWheelCapture()
     local frameData = frameRegistry[frame]
     local shouldHandle = frameData and not frameData.IgnoreMouseWheel
 
+    if frameData and frameData.IgnoreMouseWheel then
+      -- explicitly opted out (e.g. WorldMapFrame's native wheel-zoom) -- always defer, regardless of
+      -- whatever else is also under the cursor at this point.
+      return
+    end
+
     if
       not shouldHandle
       and (
         frame:IsForbidden()
         or (frame.HasSecretValues and frame:HasSecretValues())
-        or (not moveHandles[frame] and (frame:IsMouseWheelEnabled() or frame:IsMouseClickEnabled()))
+        or (not moveHandles[frame] and frame:IsMouseWheelEnabled())
       )
     then
-      -- something clickable/scrollable is in the way; defer to it
+      -- something that actually wants the wheel (scroll list, edit box, etc.) is in the way; defer to it.
+      -- plain clickable widgets (buttons, tabs, item slots) don't consume wheel input, so they shouldn't
+      -- block scaling -- otherwise densely-buttoned windows (CharacterFrame, MerchantFrame, BankFrame,
+      -- etc.) would never be scalable except over their few blank spots.
       return
     end
 
@@ -659,7 +668,7 @@ function checkMouseWheelCapture()
 end
 
 local function initMouseWheelCaptureFrame()
-  mouseWheelCaptureFrame = CreateFrame("Frame", "SlackHacksMovableFramesMouseWheelCapture")
+  mouseWheelCaptureFrame = CreateFrame("Frame", "SlackHacksMovableWindowsMouseWheelCapture")
   mouseWheelCaptureFrame:SetPoint("TOPLEFT")
   mouseWheelCaptureFrame:SetPoint("BOTTOMRIGHT")
   mouseWheelCaptureFrame:SetScript("OnUpdate", checkMouseWheelCapture)
@@ -929,11 +938,11 @@ end
 
 function module:Toggle()
   self:SetEnabled(not settings().enabled)
-  print("SlackHacks: Movable Frames " .. (settings().enabled and "enabled" or "disabled"))
+  print("SlackHacks: Movable Windows " .. (settings().enabled and "enabled" or "disabled"))
 end
 
-function toggleMovableFrames()
-  Self.MovableFrames:Toggle()
+function toggleMovableWindows()
+  Self.MovableWindows:Toggle()
 end
 
 function module:OnInitialize()

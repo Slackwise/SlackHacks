@@ -885,9 +885,9 @@ options = {
         }
       }
     },
-    movableFrames = {
+    movableWindows = {
       type = "group",
-      name = "Movable Frames",
+      name = "Movable Windows",
       desc = "Drag most Blizzard windows to reposition them, and resize them with the mouse wheel.",
       order = 9,
       args = {
@@ -897,12 +897,12 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.movableFrames.enabled end,
-          set = function(_, value) Self.MovableFrames:SetEnabled(value) end,
+          get = function() return db.profile.movableWindows.enabled end,
+          set = function(_, value) Self.MovableWindows:SetEnabled(value) end,
           order = 0
         },
         keybindHint = {
-          name = "Set a keybinding for \"Toggle Movable Frames\" under Key Bindings > SlackHacks to quickly enable/disable this without opening options.",
+          name = "Set a keybinding for \"Toggle Movable Windows\" under Key Bindings > SlackHacks to quickly enable/disable this without opening options.",
           type = "description",
           order = 0.1
         },
@@ -918,9 +918,9 @@ options = {
             ALT = "Alt"
           },
           sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
-          get = function() return db.profile.movableFrames.modifierKey end,
-          set = function(_, value) db.profile.movableFrames.modifierKey = value end,
-          disabled = function() return not db.profile.movableFrames.enabled end,
+          get = function() return db.profile.movableWindows.modifierKey end,
+          set = function(_, value) db.profile.movableWindows.modifierKey = value end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
           order = 1
         },
         enableScaling = {
@@ -929,9 +929,9 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.movableFrames.enableScaling end,
-          set = function(_, value) db.profile.movableFrames.enableScaling = value end,
-          disabled = function() return not db.profile.movableFrames.enabled end,
+          get = function() return db.profile.movableWindows.enableScaling end,
+          set = function(_, value) db.profile.movableWindows.enableScaling = value end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
           order = 2
         },
         scaleModifierKey = {
@@ -946,9 +946,9 @@ options = {
             ALT = "Alt"
           },
           sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
-          get = function() return db.profile.movableFrames.scaleModifierKey end,
-          set = function(_, value) db.profile.movableFrames.scaleModifierKey = value end,
-          disabled = function() return not db.profile.movableFrames.enabled or not db.profile.movableFrames.enableScaling end,
+          get = function() return db.profile.movableWindows.scaleModifierKey end,
+          set = function(_, value) db.profile.movableWindows.scaleModifierKey = value end,
+          disabled = function() return not db.profile.movableWindows.enabled or not db.profile.movableWindows.enableScaling end,
           order = 2.5
         },
         savePositionStrategy = {
@@ -965,9 +965,9 @@ options = {
             permanent = "Remember Permanently"
           },
           sorting = { "off", "session", "permanent" },
-          get = function() return db.profile.movableFrames.savePositionStrategy end,
-          set = function(_, value) db.profile.movableFrames.savePositionStrategy = value end,
-          disabled = function() return not db.profile.movableFrames.enabled end,
+          get = function() return db.profile.movableWindows.savePositionStrategy end,
+          set = function(_, value) db.profile.movableWindows.savePositionStrategy = value end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
           order = 3
         },
         saveScaleStrategy = {
@@ -982,9 +982,9 @@ options = {
             permanent = "Remember Permanently"
           },
           sorting = { "session", "permanent" },
-          get = function() return db.profile.movableFrames.saveScaleStrategy end,
-          set = function(_, value) db.profile.movableFrames.saveScaleStrategy = value end,
-          disabled = function() return not db.profile.movableFrames.enabled end,
+          get = function() return db.profile.movableWindows.saveScaleStrategy end,
+          set = function(_, value) db.profile.movableWindows.saveScaleStrategy = value end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
           order = 4
         },
         resetPositions = {
@@ -993,11 +993,11 @@ options = {
           type = "execute",
           width = 1.5,
           func = function()
-            Self.MovableFrames:ResetPositions()
+            Self.MovableWindows:ResetPositions()
             ReloadUI()
           end,
           confirm = function() return "Are you sure you want to reset all remembered window positions? This will reload the UI." end,
-          disabled = function() return not db.profile.movableFrames.enabled end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
           order = 5
         },
         resetScales = {
@@ -1006,11 +1006,11 @@ options = {
           type = "execute",
           width = 1.5,
           func = function()
-            Self.MovableFrames:ResetScales()
+            Self.MovableWindows:ResetScales()
             ReloadUI()
           end,
           confirm = function() return "Are you sure you want to reset all remembered window scales? This will reload the UI." end,
-          disabled = function() return not db.profile.movableFrames.enabled end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
           order = 6
         }
       }
