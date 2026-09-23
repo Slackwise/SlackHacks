@@ -638,16 +638,19 @@ function checkMouseWheelCapture()
   local foci = GetMouseFoci and GetMouseFoci() or {}
   if not next(foci) then return end
 
-  for _, frame in ipairs(foci) do
+  for _, focusFrame in ipairs(foci) do
+    -- our title-bar handle -- not the base window -- is what's actually mouse-enabled and shows up here,
+    -- so resolve the real registered window through it before consulting frameRegistry/mouseoverFrames.
+    local frame = moveHandles[focusFrame] and focusFrame:GetParent() or focusFrame
     local frameData = frameRegistry[frame]
     local shouldHandle = frameData and not frameData.IgnoreMouseWheel
 
     if
       not shouldHandle
       and (
-        frame:IsForbidden()
-        or (frame.HasSecretValues and frame:HasSecretValues())
-        or (not moveHandles[frame] and frame:IsMouseWheelEnabled())
+        focusFrame:IsForbidden()
+        or (focusFrame.HasSecretValues and focusFrame:HasSecretValues())
+        or (not moveHandles[focusFrame] and focusFrame:IsMouseWheelEnabled())
       )
     then
       -- something that actually wants the wheel (scroll list, edit box, etc.) is in the way; defer to it.
@@ -672,7 +675,8 @@ local function initMouseWheelCaptureFrame()
   mouseWheelCaptureFrame:SetScript("OnEvent", checkMouseWheelCapture)
   mouseWheelCaptureFrame:RegisterEvent("MODIFIER_STATE_CHANGED")
   mouseWheelCaptureFrame:SetScript("OnMouseWheel", function(_, delta)
-    for _, frame in ipairs(GetMouseFoci()) do
+    for _, focusFrame in ipairs(GetMouseFoci()) do
+      local frame = moveHandles[focusFrame] and focusFrame:GetParent() or focusFrame
       local frameData = frameRegistry[frame]
       if frameData and not frameData.IgnoreMouseWheel and mouseoverFrames[frame] then
         onMouseWheel(frame, delta)
@@ -900,7 +904,8 @@ local function registerDefaultFrames()
     ["QuestFrame"] = {},
     ["GossipFrame"] = {},
     ["AddonList"] = {},
-    ["AchievementFrame"] = {},
+    -- Header (points/search/filter row) makes the visible title area taller than the default strip.
+    ["AchievementFrame"] = { TitleBarHeight = 40 },
   }
   for i = 1, 13 do
     sharedFrames["ContainerFrame" .. i] = {}
