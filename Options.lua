@@ -167,8 +167,8 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.general.autoSellGreyItems end,
-          set = function(_, value) db.profile.general.autoSellGreyItems = value end,
+          get = function() return db.profile.inventory.autoSellGreyItems end,
+          set = function(_, value) db.profile.inventory.autoSellGreyItems = value end,
           order = 3
         },
         autoRepairGroup = {
@@ -184,8 +184,8 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.general.autoRepair end,
-              set = function(_, value) db.profile.general.autoRepair = value end,
+              get = function() return db.profile.inventory.autoRepair end,
+              set = function(_, value) db.profile.inventory.autoRepair = value end,
               order = 1
             },
             autoRepairMode = {
@@ -199,9 +199,9 @@ options = {
                 guildRaid = "Guild Funds (Only in Raids)"
               },
               sorting = { "personal", "guild", "guildRaid" },
-              get = function() return db.profile.general.autoRepairMode end,
-              set = function(_, value) db.profile.general.autoRepairMode = value end,
-              disabled = function() return not db.profile.general.autoRepair end,
+              get = function() return db.profile.inventory.autoRepairMode end,
+              set = function(_, value) db.profile.inventory.autoRepairMode = value end,
+              disabled = function() return not db.profile.inventory.autoRepair end,
               order = 2
             },
             autoRepairModeDescription = {

@@ -64,10 +64,10 @@ function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of comb
 end
 
 function Self:MERCHANT_SHOW(eventName)
-  if db.profile.general.autoRepair then
+  if db.profile.inventory.autoRepair then
     repairAllItems()
   end
-  if db.profile.general.autoSellGreyItems then
+  if db.profile.inventory.autoSellGreyItems then
     sellGreyItems()
   end
 end
@@ -309,8 +309,8 @@ end
 
 function repairAllItems()
   if CanMerchantRepair() then
-    local useGuildRepair = db.profile.general.autoRepairMode == "guild"
-    if db.profile.general.autoRepairMode == "guildRaid" then
+    local useGuildRepair = db.profile.inventory.autoRepairMode == "guild"
+    if db.profile.inventory.autoRepairMode == "guildRaid" then
       useGuildRepair = IsInRaid()
     end
     RepairAllItems(useGuildRepair)
