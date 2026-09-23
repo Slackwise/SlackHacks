@@ -219,7 +219,12 @@ end
 
 function migrateConfig()
   local version = Self.db.global.configVersion or 0
-  if version >= CONFIG_VERSION then
+  if version == CONFIG_VERSION then
+    return
+  end
+  if version > CONFIG_VERSION then
+    -- Saved data is newer than this build of the addon (e.g. a downgrade/rollback) and can't be trusted.
+    resetConfig("saved config version " .. version .. " is newer than CONFIG_VERSION " .. CONFIG_VERSION)
     return
   end
   local ok, err = pcall(function()
