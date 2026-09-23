@@ -57,9 +57,10 @@ dbDefaults = {
     },
     movableFrames = {
       enabled = false,
-      modifierKey = "SHIFT", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
-      enableScaling = true, -- CTRL + mouse wheel resizes a registered frame
-      savePositionStrategy = "session", -- "off" | "session" | "permanent"
+      modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
+      enableScaling = true, -- scaleModifierKey + mouse wheel resizes a registered frame
+      scaleModifierKey = "CTRL", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to scale a registered frame
+      savePositionStrategy = "permanent", -- "off" | "session" | "permanent"
       saveScaleStrategy = "session", -- "session" | "permanent"
       points = {},
       scales = {}

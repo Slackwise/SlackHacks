@@ -58,12 +58,19 @@ local function isModuleEnabled()
   return settings() and settings().enabled or false
 end
 
-local function isMoveModifierDown()
-  local key = settings().modifierKey
+local function isModifierKeyDown(key)
   if key == "SHIFT" then return IsShiftKeyDown() end
   if key == "CTRL" then return IsControlKeyDown() end
   if key == "ALT" then return IsAltKeyDown() end
   return true -- "NONE": no modifier required
+end
+
+local function isMoveModifierDown()
+  return isModifierKeyDown(settings().modifierKey)
+end
+
+local function isScaleModifierDown()
+  return isModifierKeyDown(settings().scaleModifierKey)
 end
 
 --=====================================================================
@@ -442,7 +449,7 @@ local function doOnMouseUp(frame, button, moveHandle)
         end
       end
 
-      if IsControlKeyDown() or fullReset then
+      if isScaleModifierDown() or fullReset then
         returnValue = setFrameScale(frame, 1) or returnValue
       end
 
@@ -489,7 +496,7 @@ local function doOnMouseWheel(frame, delta)
 end
 
 function onMouseWheel(frame, delta)
-  if not IsControlKeyDown() or not settings().enableScaling then return false end
+  if not settings().enableScaling or not isScaleModifierDown() then return false end
   return doOnMouseWheel(frame, delta)
 end
 
@@ -614,15 +621,16 @@ end
 --=====================================================================
 -- Mouse wheel capture
 --=====================================================================
--- A full-screen, top-strata frame arbitrates CTRL+MouseWheel: it only actually captures the wheel when
--- CTRL is held over a registered frame that isn't already fielding wheel/click input on its own (so we
--- never steal scrolling from a spellbook list, quest log, scrollable dialog, etc).
+-- A full-screen, top-strata frame arbitrates the scale-modifier+MouseWheel combo: it only actually
+-- captures the wheel when the configured scale modifier is held over a registered frame that isn't
+-- already fielding wheel/click input on its own (so we never steal scrolling from a spellbook list, quest
+-- log, scrollable dialog, etc).
 function checkMouseWheelCapture()
   if not mouseWheelCaptureFrame then return end
   mouseWheelCaptureFrame:EnableMouseWheel(false)
 
   if not settings().enableScaling then return end
-  if not IsControlKeyDown() or not next(mouseoverFrames) then return end
+  if not isScaleModifierDown() or not next(mouseoverFrames) then return end
 
   local foci = GetMouseFoci and GetMouseFoci() or {}
   if not next(foci) then return end

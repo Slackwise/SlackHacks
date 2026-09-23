@@ -924,8 +924,8 @@ options = {
           order = 1
         },
         enableScaling = {
-          name = "Enable Scaling (Ctrl + Mouse Wheel)",
-          desc = "Hold Ctrl and scroll the mouse wheel over a window to resize it.",
+          name = "Enable Scaling (Modifier + Mouse Wheel)",
+          desc = "Hold the modifier key below and scroll the mouse wheel over a window to resize it.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -933,6 +933,23 @@ options = {
           set = function(_, value) db.profile.movableFrames.enableScaling = value end,
           disabled = function() return not db.profile.movableFrames.enabled end,
           order = 2
+        },
+        scaleModifierKey = {
+          name = "Scale Modifier Key",
+          desc = "Key that must be held while scrolling the mouse wheel over a window to resize it. Choose None to allow resizing with a plain mouse wheel scroll.",
+          type = "select",
+          width = "full",
+          values = {
+            NONE = "None",
+            SHIFT = "Shift",
+            CTRL = "Ctrl",
+            ALT = "Alt"
+          },
+          sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
+          get = function() return db.profile.movableFrames.scaleModifierKey end,
+          set = function(_, value) db.profile.movableFrames.scaleModifierKey = value end,
+          disabled = function() return not db.profile.movableFrames.enabled or not db.profile.movableFrames.enableScaling end,
+          order = 2.5
         },
         savePositionStrategy = {
           name = "Remember Positions",
