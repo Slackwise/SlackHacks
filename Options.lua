@@ -155,7 +155,7 @@ options = {
       set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
       order = 0 -- first
     },
-    general = {
+    inventory = {
       type = "group",
       name = "Inventory",
       desc = "Small quality-of-life features.",
