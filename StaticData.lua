@@ -48,6 +48,7 @@ ITEM_NAMES = {
   ["Enchant Ring - Zul'jin's Mastery"] = 243959,
   ["Enchant Shoulders - Flight of the Eagle"] = 243961,
   ["Enchant Chest - Mark of the Magister"] = 244003,
+  ["Vantus Rune: Tides"] = 272194,
 }
 
 ITEM_NAMES_BY_ID = {}
@@ -131,6 +132,9 @@ SLOT_IDS = {
 
 SECONDARY_GEM_QUANTITY = 6
 DEFAULT_ENHANCEMENT_SOURCE = "murlok"
+-- Vantus Runes buff versatility vs. a specific raid instance's bosses; unlike augment runes (RUNE_ITEM_NAMES
+-- above) they are NOT stat-boosting consumables used everywhere, so keep this entirely separate from those.
+CURRENT_VANTUS_RUNE_NAME = "Vantus Rune: Tides"
 
 SELF_VENDOR_TRIGGER_EMOTES = {
   ABSENT = { slashCommands = "/absent", example = "You look at %s absently.", trigger = "you look at %s absently." },
@@ -379,8 +383,9 @@ SELF_VENDOR_MODES = {
   [Enum.SelfVendorMode.CONSUMABLES_ALL] = { key = "consumables", name = "Consumables", description = "Always trades a flask, oil, and five runes.", command = "consumables" },
   [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { key = "flaskandoil", name = "Flask and Oil", description = "Always trades one flask and one oil.", command = "flaskandoil" },
   [Enum.SelfVendorMode.OIL] = { key = "oil", name = "Oil", description = "Always trades one oil.", command = "oil" },
-  [Enum.SelfVendorMode.RUNES] = { key = "runes", name = "Runes", description = "Always trades the selected number of runes as one stack.", command = "runes" },
+  [Enum.SelfVendorMode.AUGMENT_RUNES] = { key = "augmentrunes", name = "Augment Runes", description = "Always trades the selected number of augment runes as one stack.", command = "augmentrunes" },
   [Enum.SelfVendorMode.AUGMENTS] = { key = "augments", name = "Augments", description = "Trades the target's missing recommended enchants, gems, and armor kits.", command = "augments" },
+  [Enum.SelfVendorMode.VANTUS_RUNE] = { key = "vantusrune", name = "Vantus Rune", description = "Always trades a single Vantus Rune (a per-raid versatility rune, not an Augment Rune).", command = "vantusrune" },
 }
 
 ENHANCEMENTS_BIS = {

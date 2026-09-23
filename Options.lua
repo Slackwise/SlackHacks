@@ -91,8 +91,9 @@ dbDefaults = {
         [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = false, triggerEmote = "GLARE" },
         [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = false, triggerEmote = "GAZE" },
         [Enum.SelfVendorMode.OIL] = { enabled = false, triggerEmote = "FLIRT" },
-        [Enum.SelfVendorMode.RUNES] = { enabled = false, triggerEmote = "FLEX", runeQuantity = 5 },
+        [Enum.SelfVendorMode.AUGMENT_RUNES] = { enabled = false, triggerEmote = "FLEX", runeQuantity = 5 },
         [Enum.SelfVendorMode.AUGMENTS] = { enabled = false, triggerEmote = "VICTORY" },
+        [Enum.SelfVendorMode.VANTUS_RUNE] = { enabled = false, triggerEmote = "GLARE" },
       }
     },
     weeklies = {
@@ -154,7 +155,7 @@ toggleOptions = openOptions
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "vendor" then
-    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|augmentrunes|vantusrune|augments] [wowhead|icyveins|murlok]")
   elseif command == "clearlogs" then
     clearLogs()
     print("SlackHacks: logs cleared")
@@ -193,7 +194,8 @@ local selfVendorModeSorting = {
   Enum.SelfVendorMode.CONSUMABLES_ALL,
   Enum.SelfVendorMode.CONSUMABLES_PERSISTENT,
   Enum.SelfVendorMode.OIL,
-  Enum.SelfVendorMode.RUNES,
+  Enum.SelfVendorMode.AUGMENT_RUNES,
+  Enum.SelfVendorMode.VANTUS_RUNE,
   Enum.SelfVendorMode.AUGMENTS,
 }
 
@@ -244,7 +246,7 @@ local function selfVendorModeOptions()
         },
       },
     }
-    if mode == Enum.SelfVendorMode.RUNES then
+    if mode == Enum.SelfVendorMode.AUGMENT_RUNES then
       args[details.key].args.runeQuantity = {
         name = "Rune Stack Size",
         type = "input",

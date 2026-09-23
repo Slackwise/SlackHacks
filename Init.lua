@@ -23,8 +23,9 @@ Enum.SelfVendorMode = {
   CONSUMABLES_ALL = 2,
   CONSUMABLES_PERSISTENT = 3,
   OIL = 4,
-  RUNES = 5,
+  AUGMENT_RUNES = 5,
   AUGMENTS = 6,
+  VANTUS_RUNE = 7,
 }
 
 function getBattletag()

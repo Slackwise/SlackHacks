@@ -93,7 +93,8 @@ local function buildBISEnhancementRecommendation(data, flaskName)
     consumables = {
       { itemName = flaskName, itemID = ITEM_NAMES[flaskName], kind = "flask", buffName = "Flask" },
       { itemName = "Thalassian Phoenix Oil", itemID = ITEM_NAMES["Thalassian Phoenix Oil"], kind = "oil", buffName = "Thalassian Phoenix Oil", auraSpellID = 1237006 },
-      { itemName = RUNE_ITEM_NAMES[1], itemID = RUNE_ITEM_IDS[1], kind = "augmentRune", buffName = "Void-Touched", quantity = 5 }
+      { itemName = RUNE_ITEM_NAMES[1], itemID = RUNE_ITEM_IDS[1], kind = "augmentRune", buffName = "Void-Touched", quantity = 5 },
+      { itemName = CURRENT_VANTUS_RUNE_NAME, itemID = ITEM_NAMES[CURRENT_VANTUS_RUNE_NAME], kind = "vantusRune", buffName = "Vantus Rune", quantity = 1 }
     }
   }
 end
@@ -382,7 +383,7 @@ function module:SetModeTriggerEmote(mode, emote)
 end
 
 function module:SetRuneQuantity(value)
-  local configuration = modeConfiguration(VendorMode.RUNES)
+  local configuration = modeConfiguration(VendorMode.AUGMENT_RUNES)
   if configuration then configuration.runeQuantity = math.max(1, math.min(100, tonumber(value) or 1)) end
 end
 
@@ -419,7 +420,7 @@ function module:HandleSlash(input)
     end
     self:BeginEmoteTrade(targetName, mode)
   elseif command == "mode" then
-    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins|murlok]")
   elseif command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
@@ -429,7 +430,7 @@ function module:HandleSlash(input)
     log("Self Vendor queue manually cleared; removed " .. count .. " entries")
     print("SlackHacks: cleared " .. count .. " player(s) from the Self Vendor queue.")
   else
-    print("Usage: /slack vendor [toggle|clearqueue|consumablesmissing|consumables|flaskandoil|oil|runes|augments] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [toggle|clearqueue|consumablesmissing|consumables|flaskandoil|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins|murlok]")
   end
 end
 
@@ -698,11 +699,13 @@ local function modeIncludesGear(mode)
 end
 
 local function modeIncludesConsumable(mode, kind)
-  return mode == VendorMode.CONSUMABLES_MISSING
-    or mode == VendorMode.CONSUMABLES_ALL
+  -- Vantus Runes are situational/per-raid, not part of the general "consumables" bundle.
+  return mode == VendorMode.CONSUMABLES_MISSING and kind ~= "vantusRune"
+    or mode == VendorMode.CONSUMABLES_ALL and kind ~= "vantusRune"
     or mode == VendorMode.CONSUMABLES_PERSISTENT and (kind == "flask" or kind == "oil")
-    or mode == VendorMode.RUNES and kind == "augmentRune"
+    or mode == VendorMode.AUGMENT_RUNES and kind == "augmentRune"
     or mode == VendorMode.OIL and kind == "oil"
+    or mode == VendorMode.VANTUS_RUNE and kind == "vantusRune"
 end
 
 function module:GetRequiredItems()
@@ -752,8 +755,8 @@ function module:GetRequiredItems()
   for _, item in ipairs(recommendationData.consumables) do
     if modeIncludesConsumable(mode, item.kind) then
       local quantity = item.quantity
-      if mode == VendorMode.RUNES then
-        quantity = modeConfiguration(VendorMode.RUNES).runeQuantity
+      if mode == VendorMode.AUGMENT_RUNES then
+        quantity = modeConfiguration(VendorMode.AUGMENT_RUNES).runeQuantity
       end
       local hasBuff = mode == VendorMode.CONSUMABLES_MISSING
         and item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
