@@ -53,6 +53,46 @@ function openClickCasting()
   end
 end
 
+--- Best-effort: expands our own "SlackHacks" section in the (already-open-or-about-to-open) Key Bindings
+--- category, so its keybindings are visible immediately instead of collapsed behind a header. Pokes at
+--- undocumented Settings-panel internals (category/layout/initializer objects) that could be renamed or
+--- restructured across client versions, so every step is guarded and the whole thing is safe to just skip
+--- on failure -- the caller always falls back to a plain, guaranteed-to-work panel open regardless.
+local function expandSlackHacksKeybindingSection()
+  if not (Settings and Settings.KEYBINDINGS_CATEGORY_ID and SettingsPanel and SettingsPanel.GetCategory and SettingsPanel.GetLayout) then
+    return
+  end
+  pcall(function()
+    local category = SettingsPanel:GetCategory(Settings.KEYBINDINGS_CATEGORY_ID)
+    local layout = category and SettingsPanel:GetLayout(category)
+    if not (layout and layout.EnumerateInitializers) then return end
+    for _, initializer in layout:EnumerateInitializers() do
+      if initializer.GetName and initializer:GetName() == BINDING_HEADER_SLACKHACKS then
+        initializer.data.expanded = true
+        break
+      end
+    end
+  end)
+end
+
+--- Opens the Blizzard Key Bindings settings category, best-effort expanded/scrolled to our own
+--- "SlackHacks" header so the user doesn't have to hunt for it in the full keybindings list. Always falls
+--- back to at least opening the Settings panel if the fancy expand-and-scroll trick isn't available or
+--- errors out on this client build.
+function openKeybindings()
+  if InCombatLockdown() then return end
+  if not (Settings and Settings.OpenToCategory) then
+    print("SlackHacks: unable to open Key Bindings automatically on this client. Open it via the Game Menu > Settings > Key Bindings.")
+    return
+  end
+  expandSlackHacksKeybindingSection()
+  if Settings.KEYBINDINGS_CATEGORY_ID then
+    Settings.OpenToCategory(Settings.KEYBINDINGS_CATEGORY_ID, BINDING_HEADER_SLACKHACKS)
+  elseif SettingsPanel then
+    ShowUIPanel(SettingsPanel)
+  end
+end
+
 BINDINGS_FUNCTIONS = {
   [BT.COMMAND] = SetBinding,
   [BT.SPELL]   = SetBindingSpell,

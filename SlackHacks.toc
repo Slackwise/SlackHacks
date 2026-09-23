@@ -19,6 +19,7 @@ Buffs.lua
 Weeklies.lua
 Minimap.lua
 MovableWindows.lua
+Controls.lua
 Options.lua
 Mount.lua
 CustomConfigs.lua

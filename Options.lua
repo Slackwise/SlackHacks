@@ -162,32 +162,6 @@ options = {
       desc = "Small quality-of-life features.",
       order = 5,
       args = {
-        maximumCameraZoom = {
-          name = "Maximum Camera Zoom",
-          desc = "Allow the camera to zoom out to its maximum distance.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.general.maximumCameraZoom end,
-          set = function(_, value)
-            db.profile.general.maximumCameraZoom = value
-            setCVars()
-          end,
-          order = 1
-        },
-        enableDynamicCamera = {
-          name = "Enable Dynamic Camera (Basic Mode)",
-          desc = "Causes the camera to shift in view for more visibility. Try it out!",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.general.enableDynamicCamera end,
-          set = function(_, value)
-            db.profile.general.enableDynamicCamera = value
-            applyDynamicCamera()
-          end,
-          order = 2
-        },
         autoSellGreyItems = {
           name = "Auto Sell Grey Items",
           desc = "Automatically sell grey-quality items when visiting a merchant.",
@@ -238,6 +212,47 @@ options = {
               order = 3
             }
           },
+        }
+      }
+    },
+    controls = {
+      type = "group",
+      name = "Controls",
+      desc = "Camera behavior and keybinding options.",
+      order = 5.2,
+      args = {
+        openKeybindings = {
+          name = "Open Key Bindings (SlackHacks)",
+          desc = "Open the Blizzard Key Bindings menu, expanded to the SlackHacks section.",
+          type = "execute",
+          func = function() openKeybindings() end,
+          order = 0
+        },
+        maximumCameraZoom = {
+          name = "Maximum Camera Zoom",
+          desc = "Allow the camera to zoom out to its maximum distance.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.controls.maximumCameraZoom end,
+          set = function(_, value)
+            db.profile.controls.maximumCameraZoom = value
+            Self.Controls:ApplyAll()
+          end,
+          order = 1
+        },
+        enableDynamicCamera = {
+          name = "Enable Dynamic Camera (Basic Mode)",
+          desc = "Causes the camera to shift in view for more visibility. Try it out!",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.controls.enableDynamicCamera end,
+          set = function(_, value)
+            db.profile.controls.enableDynamicCamera = value
+            Self.Controls:ApplyAll()
+          end,
+          order = 2
         }
       }
     },

@@ -33,7 +33,7 @@ CustomConfigs = {
   ["blockspiders#1398"] = {
     config = {
       profile = {
-        general = {
+        controls = {
           maximumCameraZoom = true,
           enableDynamicCamera = true,
         },

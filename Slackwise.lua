@@ -15,7 +15,7 @@ SLACKWISE_CONFIG = {
     logPurgeEnabled = true,
   },
   profile = {
-    general = {
+    controls = {
       maximumCameraZoom = true,
       enableDynamicCamera = true,
     },

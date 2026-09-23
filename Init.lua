@@ -16,7 +16,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 3
+CONFIG_VERSION = 4
 
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
@@ -44,7 +44,9 @@ dbDefaults = {
     general = {
       autoSellGreyItems = false,
       autoRepair = false,
-      autoRepairMode = "personal",
+      autoRepairMode = "personal"
+    },
+    controls = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
     },
@@ -276,6 +278,17 @@ CONFIG_MIGRATIONS = {
     if general and general.showAllMinimapTracking ~= nil then
       Self.db.profile.minimap.showAllMinimapTracking = general.showAllMinimapTracking
       general.showAllMinimapTracking = nil
+    end
+  end,
+  [4] = function()
+    local general = Self.db.profile.general
+    if general and general.maximumCameraZoom ~= nil then
+      Self.db.profile.controls.maximumCameraZoom = general.maximumCameraZoom
+      general.maximumCameraZoom = nil
+    end
+    if general and general.enableDynamicCamera ~= nil then
+      Self.db.profile.controls.enableDynamicCamera = general.enableDynamicCamera
+      general.enableDynamicCamera = nil
     end
   end,
 }
