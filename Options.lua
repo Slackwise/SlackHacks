@@ -327,26 +327,18 @@ options = {
       desc = "Combat-related features.",
       order = 7,
       args = {
-        general = {
-          type = "group",
-          name = "General",
-          desc = "Combat features that apply to all classes.",
-          order = 1,
-          args = {
-            raiseCastingNameplates = {
-              name = "Raise Casting Nameplates",
-              desc = "Raise enemy nameplates while they are casting.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.combat.raiseCastingNameplates end,
-              set = function(_, value)
-                db.profile.combat.raiseCastingNameplates = value
-                resetNameplateCastLift()
-              end,
-              order = 1
-            }
-          }
+        raiseCastingNameplates = {
+          name = "Raise Casting Nameplates",
+          desc = "Raise enemy nameplates while they are casting.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.combat.raiseCastingNameplates end,
+          set = function(_, value)
+            db.profile.combat.raiseCastingNameplates = value
+            resetNameplateCastLift()
+          end,
+          order = 1
         },
         paladin = {
           type = "group",
