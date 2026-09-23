@@ -702,15 +702,17 @@ end
 -- A plain (unprotected) overlay button inheriting Blizzard's own PanelDragBarTemplate, so dragging a
 -- protected frame still goes through Blizzard's native StartMoving()/StopMovingOrSizing(), just triggered
 -- by our own OnMouseDown/OnMouseUp instead of the template's built-in unconditional left-click-drag.
--- Sized to only the top title-bar strip of the frame, not the whole window, so drags only start there.
+-- Sized to only the top title-bar strip of the frame, not the whole window, so drags only start there --
+-- optionally raised by titleBarRaise pixels above the frame's own top edge, for windows whose visible
+-- title/banner art bleeds upward past their technical top-left corner (e.g. AchievementFrame).
 -- Also owns the mouse-wheel-scaling hover region for the same reason: scroll-to-scale should only engage
 -- over the title bar, not anywhere on the window (unless ignoreMouseWheel opts the frame out entirely).
-local function makeMoveHandle(frame, rootFrame, titleBarHeight, ignoreMouseWheel)
+local function makeMoveHandle(frame, rootFrame, titleBarHeight, titleBarRaise, ignoreMouseWheel)
   local handle = CreateFrame("Frame", nil, rootFrame, "PanelDragBarTemplate")
   handle:SetParent(frame)
-  handle:SetPoint("TOPLEFT", frame, "TOPLEFT")
-  handle:SetPoint("TOPRIGHT", frame, "TOPRIGHT")
-  handle:SetHeight(titleBarHeight)
+  handle:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, titleBarRaise)
+  handle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, titleBarRaise)
+  handle:SetHeight(titleBarHeight + titleBarRaise)
   handle:SetFrameLevel(frame:GetFrameLevel() + TITLE_BAR_HANDLE_LEVEL_OFFSET)
   handle:SetPropagateMouseMotion(true)
   handle:SetPropagateMouseClicks(true)
@@ -746,7 +748,13 @@ local function makeMoveHandles(frame, frameData)
   end
   local rootFrame = (rootData.storage and rootData.storage.frame) or frame
 
-  local handle = makeMoveHandle(frame, rootFrame, frameData.TitleBarHeight or DEFAULT_TITLE_BAR_HEIGHT, frameData.IgnoreMouseWheel)
+  local handle = makeMoveHandle(
+    frame,
+    rootFrame,
+    frameData.TitleBarHeight or DEFAULT_TITLE_BAR_HEIGHT,
+    frameData.TitleBarRaise or 0,
+    frameData.IgnoreMouseWheel
+  )
   frameData.moveHandle = handle
   moveHandles[handle] = true
 end
@@ -857,7 +865,8 @@ end
 --- frame doesn't exist yet (e.g. a Blizzard sub-addon that hasn't loaded), it's retried automatically.
 ---@param frameName string - Global name of the frame, e.g. "CharacterFrame" or "Parent.ChildFrame".
 ---@param frameData table? - Optional flags: SubFrames, Detachable, NonDraggable, IgnoreMouseWheel,
----  IgnoreClamping, ManuallyScaleWithParent, ForceUseSecureMoveHandle, ForcePosition, TitleBarHeight.
+---  IgnoreClamping, ManuallyScaleWithParent, ForceUseSecureMoveHandle, ForcePosition, TitleBarHeight,
+---  TitleBarRaise.
 function module:RegisterFrame(frameName, frameData)
   frameData = frameData or {}
   registeredFrames[frameName] = frameData
@@ -904,8 +913,9 @@ local function registerDefaultFrames()
     ["QuestFrame"] = {},
     ["GossipFrame"] = {},
     ["AddonList"] = {},
-    -- Header (points/search/filter row) makes the visible title area taller than the default strip.
-    ["AchievementFrame"] = { TitleBarHeight = 40 },
+    -- Its ornate banner art bleeds upward past the frame's own top edge -- raise the hit target to cover
+    -- that space instead of extending further down into the Header/search row content.
+    ["AchievementFrame"] = { TitleBarRaise = 25 },
   }
   for i = 1, 13 do
     sharedFrames["ContainerFrame" .. i] = {}
