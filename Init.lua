@@ -309,6 +309,14 @@ end
 function Self:OnInitialize()
   -- true = share one "Default" profile across all characters instead of a per-character profile
   Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
+
+  -- One-time nudge for anyone still parked on an old auto-generated per-character profile (e.g. from
+  -- before "Reset All Data" explicitly forced "Default", or a stale account predating this convention).
+  local autoCharacterProfile = UnitName("player") .. " - " .. GetRealmName()
+  if Self.db:GetCurrentProfile() == autoCharacterProfile then
+    Self.db:SetProfile("Default")
+  end
+
   options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
   options.args.profiles.order = 1
   migrateConfig()

@@ -147,10 +147,9 @@ options = {
   icon = SLACKHACKS_ICON,
   args = {
     enable = {
-      name = "Enable",
+      name = "Enable Addon",
       desc = "Fully enables/disables the entire addon",
       type = "toggle",
-      descStyle = "inline",
       width = "full",
       get = function() return Self:IsEnabled() end,
       set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
@@ -1065,16 +1064,6 @@ options = {
       desc = "Set binding presets for current character's class and spec.",
       func = function() setBindings() end,
       hidden = true -- Current just used by me
-    },
-    reset = {
-      type = "execute",
-      name = "Reset All Data",
-      desc = "DANGER: Wipes all settings! Cannot be undone!",
-      func = function()
-        db:ResetDB()
-        print("SlackHacks: ALL DATA WIPED")
-      end,
-      confirm = true
     }
   },
   -- mount = {
