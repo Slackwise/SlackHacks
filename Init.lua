@@ -190,22 +190,68 @@ CONFIG_MIGRATIONS = {
   end,
 }
 
+-- Version 1 predates this migration system entirely (no data shape changed getting to it), so it's the
+-- only version allowed to have no migration function without being treated as unrecoverable.
+CONFIG_RESET_POPUP = "SLACKHACKS_CONFIG_RESET"
+StaticPopupDialogs[CONFIG_RESET_POPUP] = {
+  text = "SlackHacks: your saved settings were reset to defaults because they were out of date or could not be loaded. Please review your settings.",
+  button1 = OKAY,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+  showAlert = true,
+}
+
+function notifyConfigReset()
+  StaticPopup_Show(CONFIG_RESET_POPUP)
+end
+
+-- Resets the current profile back to defaults (leaves other profiles/characters alone, same as the
+-- native AceDBOptions "Reset Profile" button) and informs the user via a popup.
+function resetConfig(reason)
+  log("Resetting SlackHacks config: " .. tostring(reason))
+  if Self.db then
+    Self.db:ResetProfile()
+    Self.db.global.configVersion = CONFIG_VERSION
+  end
+  notifyConfigReset()
+end
+
 function migrateConfig()
   local version = Self.db.global.configVersion or 0
-  while version < CONFIG_VERSION do
-    version = version + 1
-    local migrate = CONFIG_MIGRATIONS[version]
-    if migrate then
-      migrate()
+  if version >= CONFIG_VERSION then
+    return
+  end
+  local ok, err = pcall(function()
+    while version < CONFIG_VERSION do
+      version = version + 1
+      local migrate = CONFIG_MIGRATIONS[version]
+      if migrate then
+        migrate()
+      elseif version > 1 then
+        error("no migration function defined for config version " .. version)
+      end
+      Self.db.global.configVersion = version
     end
-    Self.db.global.configVersion = version
+  end)
+  if not ok then
+    resetConfig(err)
   end
 end
 
 --Event Handlers
 function Self:OnInitialize()
   -- true = share one "Default" profile across all characters instead of a per-character profile
-  Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
+  local ok, err = pcall(function()
+    Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
+  end)
+  if not ok or not Self.db then
+    -- Saved variables were corrupted/unreadable: wipe and recreate from defaults rather than erroring out.
+    print("SlackHacks: failed to load saved settings (" .. tostring(err) .. "), resetting to defaults.")
+    _G.SlackHacksDB = nil
+    Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
+    notifyConfigReset()
+  end
 
   -- One-time nudge for anyone still parked on an old auto-generated per-character profile (e.g. from
   -- before "Reset All Data" explicitly forced "Default", or a stale account predating this convention).
