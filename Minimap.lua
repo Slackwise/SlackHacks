@@ -76,6 +76,7 @@ local setFrameLevelRecursive
 local updateHoverVisibility
 local isButtonShown
 local isBlizzardFrame
+local disableAllStacking
 local registeredButtons = {}
 local registeredButtonsByFrame = {}
 local addonButtons = {}
@@ -656,6 +657,12 @@ end
 
 local function restoreRoundMinimapCluster()
   if not MinimapCluster or not isSquareClusterApplied then return end
+
+  -- Unhijack/restore Mail, Crafting Orders, GameTimeFrame, Tracking, etc. to their native anchors
+  -- BEFORE showing IndicatorFrame -- otherwise Blizzard's own layout cascade (triggered by Show())
+  -- can hit a stale real anchor still pointing into our title bar hierarchy and throw a circular
+  -- anchor error ("Cannot anchor to a region dependent on it").
+  disableAllStacking()
 
   -- Restore MinimapContainer points
   local container = MinimapCluster.MinimapContainer
@@ -1823,7 +1830,7 @@ local function applyRoundAddonCompartment()
   end
 end
 
-local function disableAllStacking()
+disableAllStacking = function()
   -- These were only ever faded via SetAlpha while hidden-until-hover in square mode (never SetShown),
   -- so just restore full opacity before handing them back to Blizzard's own show/hide logic.
   for _, btn in ipairs(hoverContainerButtons) do
