@@ -24,7 +24,7 @@ local STATUS_WIDTH = 20
 local CELL_PAD = 4
 local WINDOW_WIDTH = 700 -- must comfortably fit every fixed column + the name column's minimum width,
                          -- or trailing columns (e.g. Bind) get clipped outside the scroll frame's bounds
-local WINDOW_HEIGHT = 420
+local WINDOW_HEIGHT = 460 -- a bit taller than before to make room for the search box row
 
 -- Reorderable columns (Collapse/expand and Lock/Trash status are pinned to the far left and are not
 -- part of this list -- reordering them away from the row's leading edge would be confusing).
@@ -236,12 +236,13 @@ end
 -- Frame construction (declared up front, built lazily the first time the module is enabled)
 --=====================================================================
 
-local frame, content, scrollFrame, scrollChild, headerFrame, footer
+local frame, content, scrollFrame, scrollChild, headerFrame, footer, searchBox
 local headerButtons = {}
 local columnLayout = {}
 local rowPool = {}
 local expandedGroups = {}
 local viewToggleButton
+local searchText = ""
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
 
 -- Distributes the header/row widths for the currently reorderable columns, giving the "name" column
@@ -482,32 +483,35 @@ end
 
 -- Flattens grouped items into the final display list: one row per group, plus (when expanded) one
 -- child row per underlying bag slot so a specific stack can be dragged/split/locked individually.
+-- Groups not matching the search box's text (an item-name substring match) are dropped entirely.
 local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
   for _, group in ipairs(groups) do
-    group.isGroupHeader = #group.entries > 1
-    rows[#rows + 1] = group
-    if group.isGroupHeader and expandedGroups[group.key] then
-      for _, entry in ipairs(group.entries) do
-        rows[#rows + 1] = {
-          isChild = true,
-          groupKey = group.key,
-          itemID = group.itemID,
-          hyperlink = group.hyperlink,
-          itemName = group.itemName,
-          icon = group.icon,
-          quality = group.quality,
-          count = entry.count,
-          entries = { entry },
-          isArmor = group.isArmor,
-          itemLevel = group.itemLevel,
-          trackSuffix = group.trackSuffix,
-          armorType = group.armorType,
-          armorSlot = group.armorSlot,
-          bindLabel = group.bindLabel,
-          trashKey = group.trashKey,
-        }
+    if searchText == "" or (group.itemName and group.itemName:lower():find(searchText, 1, true)) then
+      group.isGroupHeader = #group.entries > 1
+      rows[#rows + 1] = group
+      if group.isGroupHeader and expandedGroups[group.key] then
+        for _, entry in ipairs(group.entries) do
+          rows[#rows + 1] = {
+            isChild = true,
+            groupKey = group.key,
+            itemID = group.itemID,
+            hyperlink = group.hyperlink,
+            itemName = group.itemName,
+            icon = group.icon,
+            quality = group.quality,
+            count = entry.count,
+            entries = { entry },
+            isArmor = group.isArmor,
+            itemLevel = group.itemLevel,
+            trackSuffix = group.trackSuffix,
+            armorType = group.armorType,
+            armorSlot = group.armorSlot,
+            bindLabel = group.bindLabel,
+            trashKey = group.trashKey,
+          }
+        end
       end
     end
   end
@@ -593,7 +597,7 @@ end
 local currencyWidgets = {}
 
 local function updateFooter()
-  footer.moneyText:SetText(GetCoinTextureString(GetMoney()))
+  MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
 
   local shown = 0
   local numCurrencies = C_CurrencyInfo.GetCurrencyListSize()
@@ -631,11 +635,14 @@ end
 local function createFooter()
   footer = CreateFrame("Frame", nil, content)
   footer:SetHeight(20)
-  footer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 8, 6)
-  footer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -8, 6)
+  footer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 8, 8)
+  footer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -8, 8)
 
-  footer.moneyText = footer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  footer.moneyText:SetPoint("LEFT", footer, "LEFT", 0, 0)
+  -- The real Blizzard small money display (same one the default bags use) instead of a hand-rolled
+  -- FontString, so gold/silver/copper formatting and colors match natively.
+  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "SmallMoneyFrameTemplate")
+  footer.moneyFrame:SetPoint("LEFT", footer, "LEFT", 0, 0)
+  MoneyFrame_SetType(footer.moneyFrame, "PLAYER")
 
   -- A plain text button (rather than a guessed icon atlas) to reliably open Blizzard's own Currency tab.
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
@@ -719,21 +726,18 @@ local function buildFrame()
   frame:Hide()
   tinsert(UISpecialFrames, FRAME_NAME) -- lets Escape close it, like every other Blizzard panel
 
-  -- Reuses the exact "book style" default Blizzard panel border/background technique already proven
-  -- elsewhere in this addon (see Minimap.lua's square border) instead of guessing at a full XML template.
-  frame.layoutType = "ButtonFrameTemplateNoPortrait"
+  -- Reuses Blizzard's own "Combined Bags" window chrome exactly (confirmed via wow-ui-source's
+  -- ContainerFrame.xml/PortraitFrameFlatBaseTemplate): a portrait-style border with a round icon in
+  -- the top-left corner and a flat solid background, rather than guessing at a plain rectangular style.
+  frame.layoutType = "PortraitFrameTemplate"
 
-  -- NineSlicePanelTemplate only draws the border art (corners/edges) with nothing behind it, so a
-  -- separate opaque backing is needed underneath or the window body would be see-through. This is the
-  -- same tiled marble texture Blizzard's own inset text panels (e.g. the Guild/Communities chat pane)
-  -- sit on top of, so it's fully opaque and matches native windows instead of a flat color fill.
-  -- Insets match Blizzard's own "DefaultPanelTemplate" Bg anchors exactly (confirmed via
-  -- wow-ui-source's SharedUIPanelTemplates.xml) for this same "ButtonFrameTemplateNoPortrait" border,
-  -- so the fill meets the border art on every side with no gap.
-  frame.Background = frame:CreateTexture(nil, "BACKGROUND")
-  frame.Background:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", true, true)
-  frame.Background:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -20)
-  frame.Background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+  -- PortraitFrameFlatBaseTemplate's own Bg uses FlatPanelBackgroundTemplate at this exact inset --
+  -- NineSlicePanelTemplate only draws the border art (corners/edges), so this opaque fill is required
+  -- underneath it or the window body would be see-through.
+  frame.Background = CreateFrame("Frame", nil, frame, "FlatPanelBackgroundTemplate")
+  frame.Background:SetFrameLevel(1) -- must stay below the NineSlice's hardcoded frameLevel of 500
+  frame.Background:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -20)
+  frame.Background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 3)
 
   frame.NineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   frame.NineSlice:SetAllPoints()
@@ -742,14 +746,43 @@ local function buildFrame()
   content:SetAllPoints()
   content:SetFrameLevel(600) -- above the NineSlice border's hardcoded frameLevel of 500
 
-  content.title = content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  -- Blizzard's own PortraitContainer sits BELOW the NineSlice border (frame level base+400 vs.
+  -- base+500) so the border's decorative ring art draws on top of/around the portrait icon instead of
+  -- covering it -- a plain child of `content` (level 600) would render over the ring and hide it.
+  local portraitContainer = CreateFrame("Frame", nil, frame)
+  content.portrait = portraitContainer:CreateTexture(nil, "OVERLAY")
+  content.portrait:SetSize(62, 62)
+  content.portrait:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
+  content.portrait:SetTexture("Interface\\Icons\\INV_Misc_Bag_08")
+  local portraitMask = portraitContainer:CreateMaskTexture()
+  portraitMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+  portraitMask:SetAllPoints(content.portrait)
+  content.portrait:AddMaskTexture(portraitMask)
+
+  -- Invisible click target for the view-toggle, above the border so it's always clickable; the actual
+  -- portrait icon underneath (see portraitContainer above) is what's visually framed by the border ring.
+  viewToggleButton = CreateFrame("CheckButton", nil, content)
+  viewToggleButton:SetAllPoints(content.portrait)
+  viewToggleButton:SetScript("OnClick", function(self) setListViewActive(self:GetChecked()) end)
+  viewToggleButton:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Toggle List View")
+    GameTooltip:Show()
+  end)
+  viewToggleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+  -- Matches PortraitFrameBaseTemplate's own TitleContainer anchors/frame level exactly.
+  content.title = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   content.title:SetPoint("TOP", content, "TOP", 0, -6)
+  content.title:SetPoint("LEFT", content, "TOPLEFT", 58, 0)
+  content.title:SetPoint("RIGHT", content, "TOPRIGHT", -24, 0)
   content.title:SetText("Item List")
 
   -- The whole top strip is a native move handle (StartMoving/StopMovingOrSizing), matching how every
-  -- other Blizzard window is dragged.
+  -- other Blizzard window is dragged. Starts right of the portrait icon so it doesn't steal clicks
+  -- from the view-toggle button sitting on top of that icon.
   local dragHandle = CreateFrame("Frame", nil, content)
-  dragHandle:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
+  dragHandle:SetPoint("TOPLEFT", content, "TOPLEFT", 58, 0)
   dragHandle:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0)
   dragHandle:SetHeight(20)
   dragHandle:EnableMouse(true)
@@ -762,26 +795,23 @@ local function buildFrame()
     settings().point = { point, relPoint, x, y }
   end)
 
-  content.closeButton = CreateFrame("Button", nil, content, "UIPanelCloseButton")
-  content.closeButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -2, -2) -- matches Blizzard's own close-button inset for this border
+  content.closeButton = CreateFrame("Button", nil, content, "UIPanelCloseButtonDefaultAnchors")
   content.closeButton:SetScript("OnClick", function() frame:Hide() end) -- just closes; doesn't change the view mode
 
-  -- Toggles between this list view and Blizzard's default grid bag windows.
-  viewToggleButton = CreateFrame("CheckButton", nil, content, "UICheckButtonTemplate")
-  viewToggleButton:SetSize(20, 20)
-  viewToggleButton:SetPoint("RIGHT", content.closeButton, "LEFT", -2, 0)
-  viewToggleButton:SetScript("OnClick", function(self) setListViewActive(self:GetChecked()) end)
-  viewToggleButton:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:SetText("Toggle List View")
-    GameTooltip:Show()
+  -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
+  searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
+  searchBox:SetSize(200, 20)
+  searchBox:SetPoint("TOPLEFT", content, "TOPLEFT", 62, -32)
+  searchBox:SetScript("OnTextChanged", function(self)
+    SearchBoxTemplate_OnTextChanged(self)
+    searchText = self:GetText():lower()
+    renderRows()
   end)
-  viewToggleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   headerFrame = CreateFrame("Frame", nil, content)
   headerFrame:SetHeight(HEADER_HEIGHT)
-  headerFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -26)
-  headerFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -26)
+  headerFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -56)
+  headerFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -56)
   createHeaderButtons()
 
   scrollFrame = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
