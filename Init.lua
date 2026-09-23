@@ -61,7 +61,7 @@ dbDefaults = {
       enableScaling = true, -- scaleModifierKey + mouse wheel resizes a registered frame
       scaleModifierKey = "CTRL", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to scale a registered frame
       savePositionStrategy = "permanent", -- "off" | "session" | "permanent"
-      saveScaleStrategy = "session", -- "session" | "permanent"
+      saveScaleStrategy = "permanent", -- "session" | "permanent"
       points = {},
       scales = {}
     },
