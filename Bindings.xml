@@ -26,4 +26,7 @@
   </Binding>
   <Binding name="SLACKHACKS_BEST_BANDAGE" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
+  <Binding name="SLACKHACKS_TOGGLE_MOVABLE_FRAMES" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.toggleMovableFrames()
+  </Binding>
 </Bindings>

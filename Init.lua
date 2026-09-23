@@ -55,6 +55,15 @@ dbDefaults = {
         holyShockChargesPosition = "below"
       }
     },
+    movableFrames = {
+      enabled = false,
+      modifierKey = "SHIFT", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
+      enableScaling = true, -- CTRL + mouse wheel resizes a registered frame
+      savePositionStrategy = "session", -- "off" | "session" | "permanent"
+      saveScaleStrategy = "session", -- "session" | "permanent"
+      points = {},
+      scales = {}
+    },
     minimap = {
       enabled = false,
       shape = "circle",

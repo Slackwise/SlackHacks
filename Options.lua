@@ -885,6 +885,119 @@ options = {
         }
       }
     },
+    movableFrames = {
+      type = "group",
+      name = "Movable Frames",
+      desc = "Drag most Blizzard windows to reposition them, and resize them with the mouse wheel.",
+      order = 9,
+      args = {
+        enabled = {
+          name = "Enable",
+          desc = "Make registered Blizzard windows draggable and mouse-wheel scalable.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.movableFrames.enabled end,
+          set = function(_, value) Self.MovableFrames:SetEnabled(value) end,
+          order = 0
+        },
+        keybindHint = {
+          name = "Set a keybinding for \"Toggle Movable Frames\" under Key Bindings > SlackHacks to quickly enable/disable this without opening options.",
+          type = "description",
+          order = 0.1
+        },
+        modifierKey = {
+          name = "Move Modifier Key",
+          desc = "Key that must be held while left-click-dragging a window to move it. Choose None to allow moving with a plain left-click-drag.",
+          type = "select",
+          width = "full",
+          values = {
+            NONE = "None",
+            SHIFT = "Shift",
+            CTRL = "Ctrl",
+            ALT = "Alt"
+          },
+          sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
+          get = function() return db.profile.movableFrames.modifierKey end,
+          set = function(_, value) db.profile.movableFrames.modifierKey = value end,
+          disabled = function() return not db.profile.movableFrames.enabled end,
+          order = 1
+        },
+        enableScaling = {
+          name = "Enable Scaling (Ctrl + Mouse Wheel)",
+          desc = "Hold Ctrl and scroll the mouse wheel over a window to resize it.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.movableFrames.enableScaling end,
+          set = function(_, value) db.profile.movableFrames.enableScaling = value end,
+          disabled = function() return not db.profile.movableFrames.enabled end,
+          order = 2
+        },
+        savePositionStrategy = {
+          name = "Remember Positions",
+          desc =
+            "Do Not Remember >> positions reset when you close and reopen a window\n\n" ..
+            "In Session >> positions are kept until you reload your UI\n\n" ..
+            "Remember Permanently >> positions are kept until reset or changed again",
+          type = "select",
+          width = 1.5,
+          values = {
+            off = "Do Not Remember",
+            session = "In Session, Until Reload",
+            permanent = "Remember Permanently"
+          },
+          sorting = { "off", "session", "permanent" },
+          get = function() return db.profile.movableFrames.savePositionStrategy end,
+          set = function(_, value) db.profile.movableFrames.savePositionStrategy = value end,
+          disabled = function() return not db.profile.movableFrames.enabled end,
+          order = 3
+        },
+        saveScaleStrategy = {
+          name = "Remember Scales",
+          desc =
+            "In Session >> scales are kept until you reload your UI\n\n" ..
+            "Remember Permanently >> scales are kept until reset or changed again",
+          type = "select",
+          width = 1.5,
+          values = {
+            session = "In Session, Until Reload",
+            permanent = "Remember Permanently"
+          },
+          sorting = { "session", "permanent" },
+          get = function() return db.profile.movableFrames.saveScaleStrategy end,
+          set = function(_, value) db.profile.movableFrames.saveScaleStrategy = value end,
+          disabled = function() return not db.profile.movableFrames.enabled end,
+          order = 4
+        },
+        resetPositions = {
+          name = "Reset Remembered Positions",
+          desc = "Clear all permanently remembered window positions. Reloads your UI.",
+          type = "execute",
+          width = 1.5,
+          func = function()
+            Self.MovableFrames:ResetPositions()
+            ReloadUI()
+          end,
+          confirm = function() return "Are you sure you want to reset all remembered window positions? This will reload the UI." end,
+          disabled = function() return not db.profile.movableFrames.enabled end,
+          order = 5
+        },
+        resetScales = {
+          name = "Reset Remembered Scales",
+          desc = "Clear all permanently remembered window scales. Reloads your UI.",
+          type = "execute",
+          width = 1.5,
+          func = function()
+            Self.MovableFrames:ResetScales()
+            ReloadUI()
+          end,
+          confirm = function() return "Are you sure you want to reset all remembered window scales? This will reload the UI." end,
+          disabled = function() return not db.profile.movableFrames.enabled end,
+          order = 6
+        }
+      }
+    },
     vendor = {
       type = "group",
       name = "Self Vendor",

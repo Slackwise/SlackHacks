@@ -11,6 +11,7 @@ BINDING_NAME_SLACKHACKS_CLICK_CASTING = "Open Click Casting"
 BINDING_NAME_SLACKHACKS_BEST_HEALING_POTION = "Use Best Healing Potion"
 BINDING_NAME_SLACKHACKS_BEST_MANA_POTION = "Use Best Mana Potion"
 BINDING_NAME_SLACKHACKS_BEST_BANDAGE = "Use Best Bandage"
+BINDING_NAME_SLACKHACKS_TOGGLE_MOVABLE_FRAMES = "Toggle Movable Frames"
 
 
 -- Change implicit global scope to our addon "namespace":

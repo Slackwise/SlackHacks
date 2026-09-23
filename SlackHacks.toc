@@ -18,6 +18,7 @@ Bindings.lua
 Buffs.lua
 Weeklies.lua
 Minimap.lua
+MovableFrames.lua
 Options.lua
 Mount.lua
 CustomConfigs.lua
