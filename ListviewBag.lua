@@ -891,6 +891,7 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_MONEY", "Refresh")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "Refresh")
   self:RegisterEvent("MERCHANT_SHOW")
+  EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.Refresh, self)
   if settings().listViewActive then
     setListViewActive(true)
   end
@@ -904,6 +905,7 @@ function module:OnDisable()
     frame:Hide()
     showDefaultBags()
   end
+  EventRegistry:UnregisterCallback("TokenFrame.OnTokenWatchChanged", self)
 end
 
 function module:MERCHANT_SHOW()
