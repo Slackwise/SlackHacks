@@ -615,7 +615,7 @@ renderRows = function()
       row.qualitySwatch:Hide()
     end
 
-    row.quantityText:SetText(tostring(data.count or 1))
+    row.quantityText:SetText((data.count or 1) > 1 and tostring(data.count) or "")
     if data.isArmor and data.itemLevel then
       local upgradeTrack = data.upgradeTrack and (" |cff9d9d9d" .. data.upgradeTrack .. "|r") or ""
       row.ilvlText:SetText(tostring(data.itemLevel) .. upgradeTrack)
