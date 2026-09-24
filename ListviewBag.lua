@@ -20,21 +20,22 @@ local FRAME_NAME = "SlackHacksListviewBagFrame"
 local ROW_HEIGHT = 20
 local HEADER_HEIGHT = 18
 local COLLAPSE_WIDTH = 16
-local STATUS_WIDTH = 36
+local STATUS_WIDTH = 20
 local CELL_PAD = 4
-local WINDOW_WIDTH = 560
+local WINDOW_WIDTH = 700 -- must comfortably fit every fixed column + the name column's minimum width,
+                         -- or trailing columns (e.g. Bind) get clipped outside the scroll frame's bounds
 local WINDOW_HEIGHT = 420
 
--- Reorderable columns (Collapse/expand and Lock+Trash status are pinned to the far left and are not
+-- Reorderable columns (Collapse/expand and Lock/Trash status are pinned to the far left and are not
 -- part of this list -- reordering them away from the row's leading edge would be confusing).
 local COLUMN_DEFS = {
   quantity =  { label = "Qty",   width = 36 },
   name =      { label = "Name",  width = 200, flexible = true },
-  quality =   { label = "Qual",  width = 30 },
+  quality =   { label = "Qual",  width = 24 },
   ilvl =      { label = "iLvl",  width = 100 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
-  bind =      { label = "Bind",  width = 60 },
+  bind =      { label = "Bind",  width = 24 },
 }
 local DEFAULT_COLUMN_ORDER = { "quantity", "name", "quality", "ilvl", "armorType", "armorSlot", "bind" }
 
@@ -43,6 +44,23 @@ local DEFAULT_COLUMN_ORDER = { "quantity", "name", "quality", "ilvl", "armorType
 local TRACK_NAMES = { Explorer = true, Adventurer = true, Veteran = true, Champion = true, Hero = true, Myth = true, Awakened = true }
 
 local ARMOR_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Armor) or 4
+
+-- The gold padlock icon subregion of Blizzard's own talent-point-lock art (confirmed via wow-ui-source's
+-- SharedXML template definitions), reused here instead of a custom texture for the "Locked" status icon.
+local LOCK_ICON_TEXTURE = "Interface\\TalentFrame\\TalentFrame-Parts"
+local LOCK_ICON_COORDS = { 0.9296875, 0.99609375, 0.68359375, 0.72460938 }
+-- Blizzard's own small gold-coin icon (used throughout money frames), reused for the "Trash/Sell" status icon.
+local TRASH_ICON_TEXTURE = "Interface\\MoneyFrame\\UI-GoldIcon"
+
+-- Bind-status swatch colors (same "colored icon" language as the quality swatch, since there's no
+-- confirmed native icon set for bind type specifically).
+local BIND_ICON_COLORS = {
+  Soulbound = { 0.8, 0.2, 0.2 },
+  Warbound = { 0.2, 0.5, 0.9 },
+  BoE = { 0.2, 0.8, 0.2 },
+  BoU = { 0.2, 0.8, 0.2 },
+  Quest = { 0.9, 0.8, 0.2 },
+}
 
 --=====================================================================
 -- Small helpers
@@ -87,19 +105,40 @@ end
 -- Item inspection (bind label + gear track use the tooltip since neither is exposed by a direct API)
 --=====================================================================
 
+-- A hidden GameTooltip used purely to read text lines off a bag item -- the classic, universally-
+-- compatible scanning technique (SetBagItem + numbered TextLeft FontStrings) instead of the newer
+-- C_TooltipInfo API, since that one's availability/shape can't be confirmed on this bleeding-edge
+-- interface version and silently returning nothing would make every bind/track lookup go blank.
+local scanTooltip = CreateFrame("GameTooltip", "SlackHacksListviewBagScanTooltip", nil, "GameTooltipTemplate")
+scanTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+
+local function scanBagItemLines(bagID, slot)
+  local lines = {}
+  local ok = pcall(function()
+    scanTooltip:ClearLines()
+    scanTooltip:SetBagItem(bagID, slot)
+    for i = 1, scanTooltip:NumLines() do
+      local fs = _G["SlackHacksListviewBagScanTooltipTextLeft" .. i]
+      if fs then
+        lines[#lines + 1] = fs:GetText()
+      end
+    end
+  end)
+  if not ok then
+    return {}
+  end
+  return lines
+end
+
 -- Reads the bag item's tooltip and looks for one of Blizzard's own localized bind-status lines. This
 -- is more reliable than guessing at Enum.ItemBind values (which vary by bind type/expansion) since it
 -- reuses the exact strings the tooltip itself would show, and is automatically correct for any locale.
 local function getBindLabel(bagID, slot, itemLink)
-  local ok, tooltipData = pcall(C_TooltipInfo.GetBagItem, bagID, slot)
-  if ok and tooltipData and tooltipData.lines then
-    for _, line in ipairs(tooltipData.lines) do
-      local text = line.leftText
-      if text and text == ITEM_SOULBOUND then
-        return "Soulbound"
-      elseif text and (text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_TO_ACCOUNT or text == ITEM_BNETACCOUNTBOUND) then
-        return "Warbound"
-      end
+  for _, text in ipairs(scanBagItemLines(bagID, slot)) do
+    if text == ITEM_SOULBOUND then
+      return "Soulbound"
+    elseif text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_TO_ACCOUNT or text == ITEM_BNETACCOUNTBOUND then
+      return "Warbound"
     end
   end
   local bindType = select(14, GetItemInfo(itemLink))
@@ -118,16 +157,10 @@ end
 -- Extracts the upgrade-track suffix (e.g. "Champion 5/6") from the tooltip. There's no direct API for
 -- this -- every addon that shows it does the same tooltip-line scan.
 local function getTrackSuffix(bagID, slot)
-  local ok, tooltipData = pcall(C_TooltipInfo.GetBagItem, bagID, slot)
-  if ok and tooltipData and tooltipData.lines then
-    for _, line in ipairs(tooltipData.lines) do
-      local text = line.leftText
-      if text then
-        local track, cur, max = text:match("^(%a+)%s+(%d+)/(%d+)$")
-        if track and TRACK_NAMES[track] then
-          return (" (%s %s/%s)"):format(track, cur, max)
-        end
-      end
+  for _, text in ipairs(scanBagItemLines(bagID, slot)) do
+    local track, cur, max = text:match("^(%a+)%s+(%d+)/(%d+)$")
+    if track and TRACK_NAMES[track] then
+      return (" (%s %s/%s)"):format(track, cur, max)
     end
   end
   return ""
@@ -222,7 +255,7 @@ local function computeLayout()
       fixedWidth = fixedWidth + def.width + CELL_PAD
     end
   end
-  local flexWidth = math.max(80, contentWidth - COLLAPSE_WIDTH - STATUS_WIDTH - fixedWidth - CELL_PAD)
+  local flexWidth = math.max(COLUMN_DEFS.name.width, contentWidth - COLLAPSE_WIDTH - STATUS_WIDTH - fixedWidth - CELL_PAD)
 
   local x = COLLAPSE_WIDTH + STATUS_WIDTH + CELL_PAD
   columnLayout = {}
@@ -306,18 +339,18 @@ end
 -- Row widgets
 --=====================================================================
 
--- Toggles our own addon-managed "locked" flag (independent of Blizzard's own item state) which just
--- prevents this window's rows from being dragged -- implemented client-side instead of relying on an
--- undocumented native lock API.
-local function toggleLocked(itemID)
-  settings().lockedItems[itemID] = not isLockedItem(itemID) or nil
-  renderRows()
-end
-
--- Toggles whether this item (or, for armor, this exact name+ilvl) should be auto-sold the next time a
--- merchant window is open (see module:MERCHANT_SHOW below).
-local function toggleTrash(key)
-  settings().trashItems[key] = not isTrashItem(key) or nil
+-- Cycles this row's combined lock/trash status: None -> Locked -> Trash -> None. Locked and Trash are
+-- still stored in their own separate tables (lockedItems by itemID, trashItems by the armor-aware key
+-- from trashKey()) -- only the on-screen control is unified into a single click target.
+local function cycleStatus(itemID, key)
+  if isLockedItem(itemID) then
+    settings().lockedItems[itemID] = nil
+    settings().trashItems[key] = true
+  elseif isTrashItem(key) then
+    settings().trashItems[key] = nil
+  else
+    settings().lockedItems[itemID] = true
+  end
   renderRows()
 end
 
@@ -338,15 +371,25 @@ local function createRow(index)
     renderRows()
   end)
 
-  row.lockCheck = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-  row.lockCheck:SetSize(16, 16)
-  row.lockCheck:SetPoint("LEFT", row, "LEFT", COLLAPSE_WIDTH, 0)
-  row.lockCheck:SetScript("OnClick", function() toggleLocked(row.itemID) end)
-
-  row.trashCheck = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-  row.trashCheck:SetSize(16, 16)
-  row.trashCheck:SetPoint("LEFT", row.lockCheck, "RIGHT", 0, 0)
-  row.trashCheck:SetScript("OnClick", function() toggleTrash(row.trashKey) end)
+  -- Single icon button cycling None -> Locked -> Trash -> None (instead of two separate checkboxes).
+  row.statusBtn = CreateFrame("Button", nil, row)
+  row.statusBtn:SetSize(STATUS_WIDTH, STATUS_WIDTH)
+  row.statusBtn:SetPoint("LEFT", row, "LEFT", COLLAPSE_WIDTH, 0)
+  row.statusBtn.icon = row.statusBtn:CreateTexture(nil, "ARTWORK")
+  row.statusBtn.icon:SetAllPoints()
+  row.statusBtn:SetScript("OnClick", function() cycleStatus(row.itemID, row.trashKey) end)
+  row.statusBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if isLockedItem(row.itemID) then
+      GameTooltip:SetText("Locked (click to mark as Trash instead)")
+    elseif isTrashItem(row.trashKey) then
+      GameTooltip:SetText("Trash - sold automatically at merchants (click to clear)")
+    else
+      GameTooltip:SetText("Click to lock, click again to mark as Trash")
+    end
+    GameTooltip:Show()
+  end)
+  row.statusBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   row.icon = row:CreateTexture(nil, "ARTWORK")
   row.icon:SetSize(ROW_HEIGHT - 4, ROW_HEIGHT - 4)
@@ -361,7 +404,8 @@ local function createRow(index)
   row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.armorSlotText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  row.bindText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.bindIcon = row:CreateTexture(nil, "ARTWORK")
+  row.bindIcon:SetSize(10, 10)
 
   -- Dragging/using/splitting the item reuses the exact unprotected Container APIs the default bags
   -- use, called directly from a real hardware click/drag event -- this is what keeps right-click "use"
@@ -413,20 +457,23 @@ positionRowCells = function(row)
   row.icon:ClearAllPoints()
   row.nameText:ClearAllPoints()
   row.qualitySwatch:ClearAllPoints()
+  row.bindIcon:ClearAllPoints()
   local nameLayout = columnLayout.name
   local indent = row.isChild and 14 or 0
   row.icon:SetPoint("LEFT", row, "LEFT", nameLayout.x + indent, 0)
   row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
   row.nameText:SetWidth(math.max(20, nameLayout.width - indent - ROW_HEIGHT))
 
-  for colID, cell in pairs({ quantity = row.quantityText, quality = row.qualitySwatch, ilvl = row.ilvlText, armorType = row.armorTypeText, armorSlot = row.armorSlotText, bind = row.bindText }) do
-    if colID ~= "quality" then
-      cell:ClearAllPoints()
-      cell:SetPoint("LEFT", row, "LEFT", columnLayout[colID].x, 0)
-      cell:SetWidth(columnLayout[colID].width)
-    end
+  for _, colID in ipairs({ "quantity", "ilvl", "armorType", "armorSlot" }) do
+    local cell = row[colID .. "Text"]
+    cell:ClearAllPoints()
+    cell:SetPoint("LEFT", row, "LEFT", columnLayout[colID].x, 0)
+    cell:SetWidth(columnLayout[colID].width)
   end
-  row.qualitySwatch:SetPoint("LEFT", row, "LEFT", columnLayout.quality.x, 0)
+
+  -- Small centered icon swatches (quality, bind) instead of left-aligned text.
+  row.qualitySwatch:SetPoint("LEFT", row, "LEFT", columnLayout.quality.x + (columnLayout.quality.width - 10) / 2, 0)
+  row.bindIcon:SetPoint("LEFT", row, "LEFT", columnLayout.bind.x + (columnLayout.bind.width - 10) / 2, 0)
 end
 
 --=====================================================================
@@ -496,20 +543,40 @@ renderRows = function()
       row.collapseBtn:Hide()
     end
 
-    row.lockCheck:SetChecked(row.locked)
-    row.trashCheck:SetChecked(isTrashItem(data.trashKey))
+    if isLockedItem(data.itemID) then
+      row.statusBtn.icon:SetTexture(LOCK_ICON_TEXTURE)
+      row.statusBtn.icon:SetTexCoord(unpack(LOCK_ICON_COORDS))
+      row.statusBtn.icon:Show()
+    elseif isTrashItem(data.trashKey) then
+      row.statusBtn.icon:SetTexture(TRASH_ICON_TEXTURE)
+      row.statusBtn.icon:SetTexCoord(0, 1, 0, 1)
+      row.statusBtn.icon:Show()
+    else
+      row.statusBtn.icon:Hide()
+    end
 
     row.icon:SetTexture(data.icon)
-    local qualityColor = ITEM_QUALITY_COLORS[data.quality] or ITEM_QUALITY_COLORS[1]
+    local qualityColor = data.quality and (ITEM_QUALITY_COLORS[data.quality] or ITEM_QUALITY_COLORS[1])
     row.nameText:SetText((data.itemName or "?") .. (data.trackSuffix or ""))
-    row.nameText:SetTextColor(qualityColor.color:GetRGB())
-    row.qualitySwatch:SetColorTexture(qualityColor.color:GetRGB())
+    if qualityColor then
+      row.nameText:SetTextColor(qualityColor.color:GetRGB())
+      row.qualitySwatch:SetColorTexture(qualityColor.color:GetRGB())
+      row.qualitySwatch:Show()
+    else
+      row.qualitySwatch:Hide()
+    end
 
     row.quantityText:SetText(tostring(data.count or 1))
     row.ilvlText:SetText(data.isArmor and data.itemLevel and tostring(data.itemLevel) or "")
     row.armorTypeText:SetText(data.isArmor and data.armorType or "")
     row.armorSlotText:SetText(data.isArmor and data.armorSlot or "")
-    row.bindText:SetText(data.bindLabel or "")
+    local bindColor = data.bindLabel and BIND_ICON_COLORS[data.bindLabel]
+    if bindColor then
+      row.bindIcon:SetColorTexture(unpack(bindColor))
+      row.bindIcon:Show()
+    else
+      row.bindIcon:Hide()
+    end
 
     positionRowCells(row)
   end
@@ -660,10 +727,13 @@ local function buildFrame()
   -- separate opaque backing is needed underneath or the window body would be see-through. This is the
   -- same tiled marble texture Blizzard's own inset text panels (e.g. the Guild/Communities chat pane)
   -- sit on top of, so it's fully opaque and matches native windows instead of a flat color fill.
+  -- Insets match Blizzard's own "DefaultPanelTemplate" Bg anchors exactly (confirmed via
+  -- wow-ui-source's SharedUIPanelTemplates.xml) for this same "ButtonFrameTemplateNoPortrait" border,
+  -- so the fill meets the border art on every side with no gap.
   frame.Background = frame:CreateTexture(nil, "BACKGROUND")
   frame.Background:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", true, true)
-  frame.Background:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6)
-  frame.Background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
+  frame.Background:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -20)
+  frame.Background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
 
   frame.NineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   frame.NineSlice:SetAllPoints()
@@ -693,7 +763,7 @@ local function buildFrame()
   end)
 
   content.closeButton = CreateFrame("Button", nil, content, "UIPanelCloseButton")
-  content.closeButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -4, -4)
+  content.closeButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -2, -2) -- matches Blizzard's own close-button inset for this border
   content.closeButton:SetScript("OnClick", function() frame:Hide() end) -- just closes; doesn't change the view mode
 
   -- Toggles between this list view and Blizzard's default grid bag windows.
