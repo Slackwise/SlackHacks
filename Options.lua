@@ -213,7 +213,7 @@ local function applyWIPOptionsDecoration()
         end
 
         group.args.wipWarning = {
-          name = "|cffff8000Warning:|r This module is a work in progress and currently experimental. Use |cffffffff/slack nowip|r to disable all WIP modules.",
+          name = "|cffff8000Warning:|r This module is a work in progress and currently experimental. Use |cffffffff/slack wipoff|r to disable all WIP modules.",
           type = "description",
           order = 0
         }
@@ -267,7 +267,7 @@ local function printSlashHelp()
   print("  " .. color("FFFFFF")("/slack debug") .. " - Toggle debug mode on/off")
   print("  " .. color("FFFFFF")("/slack bugs") .. " - View and report error logs")
   print("  " .. color("FFFFFF")("/slack reset") .. " - Reset profile and addon state to defaults")
-  print("  " .. color("FFFFFF")("/slack nowip") .. " - Disable work-in-progress modules (" .. getWIPModuleNames() .. ")")
+  print("  " .. color("FFFFFF")("/slack wipoff") .. " - Disable work-in-progress modules (" .. getWIPModuleNames() .. ")")
 end
 
 function disableWIPModules()
@@ -297,7 +297,7 @@ function handleSlashCommand(input)
     Self.Debug:ReportErrors()
   elseif command == "reset" then
     promptResetProfile()
-  elseif command == "nowip" then
+  elseif command == "wipoff" then
     disableWIPModules()
   else
     print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
