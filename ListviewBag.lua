@@ -18,7 +18,6 @@ Self.ListviewBag = module
 
 local FRAME_NAME = "SlackHacksListviewBagFrame"
 local ROW_HEIGHT = 20
-local HEADER_HEIGHT = 18
 local COLLAPSE_WIDTH = 16
 local STATUS_WIDTH = 20
 local CELL_PAD = 4
@@ -310,29 +309,27 @@ end
 
 layoutHeaders = function()
   computeLayout()
-  for colID, layout in pairs(columnLayout) do
-    local btn = headerButtons[colID]
-    if btn then
-      btn:ClearAllPoints()
-      btn:SetPoint("LEFT", headerFrame, "LEFT", layout.x, 0)
-      btn:SetWidth(layout.width)
-    end
-  end
-end
 
-local function createHeaderButtons()
-  for colID, def in pairs(COLUMN_DEFS) do
-    local btn = CreateFrame("Button", nil, headerFrame)
-    btn:SetHeight(HEADER_HEIGHT)
-    btn.columnID = colID
-    btn:RegisterForDrag("LeftButton")
-    btn:SetScript("OnDragStart", onHeaderDragStart)
-    btn:SetScript("OnDragStop", onHeaderDragStop)
-    btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    btn.text:SetAllPoints()
-    btn.text:SetJustifyH("LEFT")
-    btn.text:SetText(def.label)
-    headerButtons[colID] = btn
+  -- Blizzard's own ColumnDisplayMixin:LayoutColumns() (confirmed via SharedUIPanelTemplates.lua) builds
+  -- and positions the header buttons itself (BOTTOMLEFT-chained, real "ColumnDisplayButtonTemplate" art)
+  -- -- reused directly instead of hand-positioning plain buttons, which is what didn't look right before.
+  local columnInfo = {}
+  for _, colID in ipairs(settings().columnOrder) do
+    columnInfo[#columnInfo + 1] = { title = COLUMN_DEFS[colID].label, width = columnLayout[colID].width }
+  end
+  headerFrame:LayoutColumns(columnInfo)
+
+  -- LayoutColumns sets each header's ID to its 1-based position in columnInfo -- used here (rather than
+  -- relying on the FramePool's active-object iteration order, which isn't guaranteed) to reattach our
+  -- own column identity and drag-to-reorder scripts on top of Blizzard's real header buttons.
+  wipe(headerButtons)
+  for header in headerFrame.columnHeaders:EnumerateActive() do
+    local colID = settings().columnOrder[header:GetID()]
+    header.columnID = colID
+    header:RegisterForDrag("LeftButton")
+    header:SetScript("OnDragStart", onHeaderDragStart)
+    header:SetScript("OnDragStop", onHeaderDragStop)
+    headerButtons[colID] = header
   end
 end
 
@@ -359,6 +356,14 @@ local function createRow(index)
   local row = CreateFrame("Button", nil, scrollChild)
   row:SetHeight(ROW_HEIGHT)
   row:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- default Button widgets ignore right-click
+
+  -- Same row hover-highlight bar and alternating-row background strip the Guild/Community roster list
+  -- uses (CommunitiesMemberListEntryTemplate), reused here instead of a custom highlight color.
+  row:SetHighlightTexture("Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar", "ADD")
+  row.stripe = row:CreateTexture(nil, "BACKGROUND")
+  row.stripe:SetAllPoints()
+  row.stripe:SetTexture("Interface\\GuildFrame\\GuildFrame")
+  row.stripe:SetTexCoord(0.36230469, 0.38183594, 0.95898438, 0.99804688)
 
   row.collapseBtn = CreateFrame("Button", nil, row)
   row.collapseBtn:SetSize(COLLAPSE_WIDTH, ROW_HEIGHT)
@@ -531,8 +536,7 @@ renderRows = function()
     row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
     row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
     row:Show()
-
-    row.groupKey = data.key or data.groupKey
+    row.stripe:SetShown(i % 2 == 0) -- alternating-row banding, same look as the guild roster list
     row.itemID = data.itemID
     row.hyperlink = data.hyperlink
     row.isChild = data.isChild
@@ -638,6 +642,12 @@ local function createFooter()
   footer:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 8, 8)
   footer:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -8, 8)
 
+  -- Same tiled background bar as the column header (and Blizzard's own ColumnDisplayTemplate), so the
+  -- footer reads as a matching bar rather than plain floating text.
+  footer.Bg = footer:CreateTexture(nil, "BACKGROUND")
+  footer.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock", true, true)
+  footer.Bg:SetAllPoints()
+
   -- The real Blizzard small money display (same one the default bags use) instead of a hand-rolled
   -- FontString, so gold/silver/copper formatting and colors match natively.
   footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "SmallMoneyFrameTemplate")
@@ -726,18 +736,23 @@ local function buildFrame()
   frame:Hide()
   tinsert(UISpecialFrames, FRAME_NAME) -- lets Escape close it, like every other Blizzard panel
 
-  -- Reuses Blizzard's own "Combined Bags" window chrome exactly (confirmed via wow-ui-source's
-  -- ContainerFrame.xml/PortraitFrameFlatBaseTemplate): a portrait-style border with a round icon in
-  -- the top-left corner and a flat solid background, rather than guessing at a plain rectangular style.
+  -- Reuses Blizzard's own portrait-window chrome exactly (confirmed via wow-ui-source's
+  -- SharedUIPanelTemplates.xml): a portrait-style border with a round icon in the top-left corner.
   frame.layoutType = "PortraitFrameTemplate"
 
-  -- PortraitFrameFlatBaseTemplate's own Bg uses FlatPanelBackgroundTemplate at this exact inset --
-  -- NineSlicePanelTemplate only draws the border art (corners/edges), so this opaque fill is required
-  -- underneath it or the window body would be see-through.
-  frame.Background = CreateFrame("Frame", nil, frame, "FlatPanelBackgroundTemplate")
+  -- PortraitFrameTexturedBaseTemplate's own Bg/TopTileStreaks -- the same Rock tile + streak art used
+  -- by ColumnDisplayTemplate below, so the window body and the column header bar match instead of
+  -- clashing (a flat solid fill next to a tiled header looked mismatched).
+  frame.Background = CreateFrame("Frame", nil, frame)
   frame.Background:SetFrameLevel(1) -- must stay below the NineSlice's hardcoded frameLevel of 500
-  frame.Background:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -20)
-  frame.Background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 3)
+  frame.Bg = frame.Background:CreateTexture(nil, "BACKGROUND")
+  frame.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock", true, true)
+  frame.Bg:SetPoint("TOPLEFT", frame, "TOPLEFT", 2, -21)
+  frame.Bg:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -2, 2)
+  frame.TopTileStreaks = frame.Background:CreateTexture(nil, "BORDER")
+  frame.TopTileStreaks:SetAtlas("_UI-Frame-TopTileStreaks", true)
+  frame.TopTileStreaks:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -21)
+  frame.TopTileStreaks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -2, -21)
 
   frame.NineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   frame.NineSlice:SetAllPoints()
@@ -808,14 +823,23 @@ local function buildFrame()
     renderRows()
   end)
 
-  headerFrame = CreateFrame("Frame", nil, content)
-  headerFrame:SetHeight(HEADER_HEIGHT)
-  headerFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 10, -56)
+  -- Keep the native column buttons, but let the window's own header texture show behind them.
+  -- Inset by COLLAPSE_WIDTH+STATUS_WIDTH so its first column aligns with the row cells after the pinned
+  -- collapse/status cells (which have no header of their own).
+  headerFrame = CreateFrame("Frame", nil, content, "ColumnDisplayTemplate")
+  headerFrame:SetHeight(30)
+  headerFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 10 + COLLAPSE_WIDTH + STATUS_WIDTH, -56)
   headerFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -56)
-  createHeaderButtons()
+  headerFrame.Background:Hide()
+  headerFrame.TopTileStreaks:Hide()
+
+  -- Recessed marble list panel behind the rows, matching the guild roster's own InsetFrameTemplate look.
+  local listInset = CreateFrame("Frame", nil, content, "InsetFrameTemplate")
+  listInset:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -4 - COLLAPSE_WIDTH - STATUS_WIDTH, 0)
+  listInset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -4, 30)
 
   scrollFrame = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
-  scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -4)
+  scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -COLLAPSE_WIDTH - STATUS_WIDTH, -4)
   scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -30, 34)
 
   scrollChild = CreateFrame("Frame", nil, scrollFrame)
