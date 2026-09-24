@@ -448,6 +448,8 @@ local function createRow(index)
 
   row.quantityText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.quantityText:SetJustifyH("RIGHT")
+  row.ilvlText:SetJustifyH("LEFT")
   row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.armorSlotText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.bindIcon = row:CreateTexture(nil, "ARTWORK")
