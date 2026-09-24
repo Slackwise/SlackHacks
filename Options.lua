@@ -30,6 +30,7 @@ dbDefaults = {
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
+      autoSellMarkedItems = false,
       point = nil
     },
     controls = {
@@ -497,6 +498,15 @@ options = {
               end,
               order = 1
             },
+            autoSellMarkedItems = {
+              name = "Auto-Sell Items Marked for Vendoring",
+              desc = "Sell marked items automatically when opening a merchant. Otherwise, they sell when you confirm Blizzard's Sell All Junk action.",
+              type = "toggle",
+              get = function() return db.profile.listviewBag.autoSellMarkedItems end,
+              set = function(_, value) db.profile.listviewBag.autoSellMarkedItems = value end,
+              width = "full",
+              order = 2
+            },
             autoVendorItems = {
               name = "Auto-Vendor Items",
               desc = "Uncheck an item to remove it from the auto-vendor list.",
@@ -512,7 +522,7 @@ options = {
                 end
               end,
               width = "full",
-              order = 2
+              order = 3
             }
           }
         }

@@ -1094,6 +1094,17 @@ local function sellMarkedTrashItems()
   end
 end
 
+local merchantJunkHooked = false
+local function hookMerchantJunkButton()
+  if merchantJunkHooked or not _G.MerchantFrame_OnSellAllJunkButtonConfirmed then return end
+  merchantJunkHooked = true
+  hooksecurefunc("MerchantFrame_OnSellAllJunkButtonConfirmed", function()
+    if isModuleEnabled() and not settings().autoSellMarkedItems then
+      sellMarkedTrashItems()
+    end
+  end)
+end
+
 --=====================================================================
 -- Lifecycle
 --=====================================================================
@@ -1113,6 +1124,7 @@ function module:OnEnable()
   end
   installBagMenuOptions()
   buildFrame()
+  hookMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
@@ -1145,7 +1157,9 @@ function module:MERCHANT_SHOW()
   if settings().listViewActive then
     frame:Show()
   end
-  sellMarkedTrashItems()
+  if settings().autoSellMarkedItems then
+    sellMarkedTrashItems()
+  end
 end
 
 function module:OnNativeBagOpen()
