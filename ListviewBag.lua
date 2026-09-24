@@ -314,8 +314,13 @@ layoutHeaders = function()
   -- and positions the header buttons itself (BOTTOMLEFT-chained, real "ColumnDisplayButtonTemplate" art)
   -- -- reused directly instead of hand-positioning plain buttons, which is what didn't look right before.
   local columnInfo = {}
-  for _, colID in ipairs(settings().columnOrder) do
-    columnInfo[#columnInfo + 1] = { title = COLUMN_DEFS[colID].label, width = columnLayout[colID].width }
+  local order = settings().columnOrder
+  for index, colID in ipairs(order) do
+    local width = columnLayout[colID].width
+    if index < #order then
+      width = width + CELL_PAD + 2
+    end
+    columnInfo[#columnInfo + 1] = { title = COLUMN_DEFS[colID].label, width = width }
   end
   headerFrame:LayoutColumns(columnInfo)
 
@@ -839,7 +844,7 @@ local function buildFrame()
   listInset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -4, 30)
 
   scrollFrame = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
-  scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -COLLAPSE_WIDTH - STATUS_WIDTH, -4)
+  scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -COLLAPSE_WIDTH - STATUS_WIDTH - 2, -4)
   scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -30, 34)
 
   scrollChild = CreateFrame("Frame", nil, scrollFrame)
