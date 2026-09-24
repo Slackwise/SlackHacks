@@ -9,8 +9,8 @@
 ## SavedVariables: SlackHacksDB
 embeds.xml
 Init.lua
+Debug.lua
 Core.lua
-ErrorLog.lua
 StaticData.lua
 SelfVendor.lua
 Nameplates.lua

@@ -85,17 +85,6 @@ function getGameType()
   end
 end
 
-function isDebugging()
-  if isInitialized() then
-    return Self.db.global.logs and Self.db.global.logs.isDebugging
-  end
-  if isSlackwise() then
-    return true
-  else
-    return false
-  end
-end
-
 COLOR_START = "\124c"
 COLOR_END   = "\124r"
 
@@ -109,70 +98,6 @@ grey = color("AAAAAA")
 
 function icon(size)
   return "\124T" .. SLACKHACKS_ICON .. ":" .. (size or 16) .. "\124t"
-end
-
-function log(message, ...)
-  if isDebugging() then
-    local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
-    print(grey(timestamp) .. "  " .. message)
-    if isInitialized() and Self.db.global.logs and Self.db.global.logs.debug then
-      table.insert(Self.db.global.logs.debug, { timestamp, message })
-      if arg then
-        for i, v in ipairs(arg) do
-          print("Arg " .. i .. " = " .. v)
-          table.insert(Self.db.global.logs.debug, { timestamp, "Arg " .. i .. " = " .. v })
-        end
-      end
-    end
-  end
-end
-
-LOG_PURGE_MIN_HOURS = 1
-LOG_PURGE_MAX_HOURS = 24 * 30 -- 30 days
-
---- Shared by debug logs (`{timestamp, message}` array-form entries) and error logs (`{timestamp = ...}`
---- named-field entries) -- both are pruned by the same "Log Purging" settings.
----@param logTable table - Array of log entries to filter.
----@param cutoff number - Unix timestamp; entries older than this are dropped.
----@return table - Entries at or after `cutoff` (an unparseable timestamp is kept defensively).
-function purgeLogTable(logTable, cutoff)
-  local kept = {}
-  for _, entry in ipairs(logTable) do
-    local timestamp = entry.timestamp or entry[1]
-    local year, month, day, hour, min, sec = timestamp:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
-    local entryTime = year and time({ year = year, month = month, day = day, hour = hour, min = min, sec = sec })
-    if not entryTime or entryTime >= cutoff then
-      table.insert(kept, entry)
-    end
-  end
-  return kept
-end
-
-function purgeOldLogs()
-  if not Self.db.global.logs or not Self.db.global.logs.logPurgeEnabled then
-    return
-  end
-  local purgeHours = Self.db.global.logs.logPurgeHours or 48
-  local cutoff = time() - (purgeHours * 60 * 60)
-  if Self.db.global.logs.debug then
-    Self.db.global.logs.debug = purgeLogTable(Self.db.global.logs.debug, cutoff)
-  end
-  if Self.db.global.logs.error then
-    Self.db.global.logs.error = purgeLogTable(Self.db.global.logs.error, cutoff)
-  end
-end
-
-function clearDebugLogs()
-  if Self.db.global.logs and Self.db.global.logs.debug then
-    wipe(Self.db.global.logs.debug)
-  end
-end
-clearLogs = clearDebugLogs
-
-function clearErrorLogs()
-  if Self.db.global.logs and Self.db.global.logs.error then
-    wipe(Self.db.global.logs.error)
-  end
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.

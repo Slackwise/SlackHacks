@@ -1,7 +1,8 @@
 setfenv(1, _G.SlackHacks)
 
-local module = Self:NewModule("ErrorLog", "AceEvent-3.0")
-Self.ErrorLog = module
+local module = Self:NewModule("Debug", "AceEvent-3.0")
+Self.Debug = module
+Self.ErrorLog = module -- backwards-compatibility alias
 
 --[[
   Reference addons for this feature (both installed locally, readable via read_file/run_in_terminal):
@@ -30,8 +31,42 @@ TARGET_GUILD_NAME = "Pulling Aggro IRL"
 TARGET_CHARACTER_NAME = "Slack"
 BNET_CHUNK_SIZE = 200
 
+LOG_PURGE_MIN_HOURS = 1
+LOG_PURGE_MAX_HOURS = 24 * 30 -- 30 days
+
 -----------------------------------------------------------------------
--- Storage (de-duplicated by message, pruned by the same "Log Purging" settings as debug logs)
+-- Debug mode & general logging
+-----------------------------------------------------------------------
+
+function isDebugging()
+  if isInitialized() then
+    return Self.db.global.logs and Self.db.global.logs.isDebugging
+  end
+  if isSlackwise() then
+    return true
+  else
+    return false
+  end
+end
+
+function log(message, ...)
+  if isDebugging() then
+    local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
+    print(grey(timestamp) .. "  " .. message)
+    if isInitialized() and Self.db.global.logs and Self.db.global.logs.debug then
+      table.insert(Self.db.global.logs.debug, { timestamp, message })
+      if arg then
+        for i, v in ipairs(arg) do
+          print("Arg " .. i .. " = " .. v)
+          table.insert(Self.db.global.logs.debug, { timestamp, "Arg " .. i .. " = " .. v })
+        end
+      end
+    end
+  end
+end
+
+-----------------------------------------------------------------------
+-- Storage & Purging
 -----------------------------------------------------------------------
 
 local function isErrorLoggingEnabled()
@@ -48,6 +83,55 @@ local function errorLogTable()
   end
   return db.global.logs.error
 end
+
+--- Shared by debug logs (`{timestamp, message}` array-form entries) and error logs (`{timestamp = ...}`
+--- named-field entries) -- both are pruned by the same "Log Purging" settings.
+---@param logTable table - Array of log entries to filter.
+---@param cutoff number - Unix timestamp; entries older than this are dropped.
+---@return table - Entries at or after `cutoff` (an unparseable timestamp is kept defensively).
+function purgeLogTable(logTable, cutoff)
+  local kept = {}
+  for _, entry in ipairs(logTable) do
+    local timestamp = entry.timestamp or entry[1]
+    local year, month, day, hour, min, sec = timestamp:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
+    local entryTime = year and time({ year = year, month = month, day = day, hour = hour, min = min, sec = sec })
+    if not entryTime or entryTime >= cutoff then
+      table.insert(kept, entry)
+    end
+  end
+  return kept
+end
+
+function purgeOldLogs()
+  if not Self.db.global.logs or not Self.db.global.logs.logPurgeEnabled then
+    return
+  end
+  local purgeHours = Self.db.global.logs.logPurgeHours or 48
+  local cutoff = time() - (purgeHours * 60 * 60)
+  if Self.db.global.logs.debug then
+    Self.db.global.logs.debug = purgeLogTable(Self.db.global.logs.debug, cutoff)
+  end
+  if Self.db.global.logs.error then
+    Self.db.global.logs.error = purgeLogTable(Self.db.global.logs.error, cutoff)
+  end
+end
+
+function clearDebugLogs()
+  if Self.db.global.logs and Self.db.global.logs.debug then
+    wipe(Self.db.global.logs.debug)
+  end
+end
+clearLogs = clearDebugLogs
+
+function clearErrorLogs()
+  if Self.db.global.logs and Self.db.global.logs.error then
+    wipe(Self.db.global.logs.error)
+  end
+end
+
+-----------------------------------------------------------------------
+-- Error recording
+-----------------------------------------------------------------------
 
 local function isOurAddonError(message, stack)
   for _, marker in ipairs(ERROR_LOG_ADDON_PATH_MARKERS) do
@@ -374,68 +458,73 @@ end
 
 function module:BuildMarkdown()
   local list = errorLogTable() or {}
-  local entries = {}
-  for _, entry in ipairs(list) do
-    table.insert(entries, entry)
-  end
-  -- ISO timestamps sort lexically the same as chronologically, so this is a true reverse-chronological sort.
-  table.sort(entries, function(a, b) return (a.timestamp or "") > (b.timestamp or "") end)
+  local lines = {}
+  table.insert(lines, "### SlackHacks Error Report")
+  table.insert(lines, "")
+  table.insert(lines, "- **Addon Version**: " .. tostring(GetAddOnMetadata and (GetAddOnMetadata("SlackHacks", "Version") or "") or "0.5"))
+  table.insert(lines, "- **Client Flavor**: " .. tostring(gameClientFlavor and gameClientFlavor() or "unknown"))
+  table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
+  table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
+  table.insert(lines, "")
 
-  local submitter = characterFullName(UnitName("player"), GetRealmName()) or UnitName("player")
-  local lines = {
-    "# SlackHacks Error Log",
-    ("Submitted by **%s** at `%s`"):format(submitter, date("%Y-%m-%dT%H:%M:%S")),
-    "",
-  }
-
-  if #entries == 0 then
-    table.insert(lines, "_No errors logged._")
-  end
-
-  for _, entry in ipairs(entries) do
-    local header = ("### %s -- %s"):format(entry.timestamp or "unknown time", entry.senderName or "unknown")
-    if entry.count and entry.count > 1 then
-      header = header .. (" (x%d)"):format(entry.count)
-    end
-    table.insert(lines, header)
-    table.insert(lines, "```")
-    table.insert(lines, entry.message or "")
-    if entry.stack and entry.stack ~= "" then
-      table.insert(lines, "")
-      table.insert(lines, entry.stack)
-    end
-    table.insert(lines, "```")
+  if #list == 0 then
+    table.insert(lines, "_No errors currently recorded in SlackHacks._")
+  else
+    table.insert(lines, ("**Total unique errors**: %d"):format(#list))
     table.insert(lines, "")
+    for index, entry in ipairs(list) do
+      table.insert(lines, ("#### %d. %s"):format(index, (entry.message or "Unknown error"):gsub("[\r\n].*", "")))
+      table.insert(lines, ("- **Occurred**: %s"):format(entry.timestamp or "Unknown"))
+      table.insert(lines, ("- **Count**: %d"):format(entry.count or 1))
+      if entry.senderName then
+        table.insert(lines, ("- **Reporter**: %s"):format(entry.senderName))
+      end
+      table.insert(lines, "")
+      table.insert(lines, "```text")
+      table.insert(lines, entry.message or "")
+      if entry.stack and #entry.stack > 0 then
+        table.insert(lines, "")
+        table.insert(lines, entry.stack)
+      end
+      table.insert(lines, "```")
+      table.insert(lines, "")
+    end
   end
 
   return table.concat(lines, "\n")
 end
 
 function module:ShowWindow()
-  if self.window then
-    self.markdownBox:SetText(self:BuildMarkdown())
-    self.window:Show()
+  local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
+  if not AceGUI then
+    print("SlackHacks: AceGUI-3.0 not available to display error log.")
     return
   end
 
-  local AceGUI = LibStub("AceGUI-3.0")
+  if self.frame then
+    self.markdownBox:SetText(self:BuildMarkdown())
+    self.frame:Show()
+    return
+  end
+
   local frame = AceGUI:Create("Frame")
   frame:SetTitle("SlackHacks Error Log")
-  frame:SetStatusText("Please send your error log so Slack can fix it.")
+  frame:SetStatusText("Copy the markdown below and paste it into a new GitHub issue.")
   frame:SetLayout("Flow")
-  frame:SetWidth(620)
-  frame:SetHeight(540)
-  frame:SetCallback("OnClose", function(widget) widget:Hide() end)
-  self.window = frame
+  frame:SetWidth(650)
+  frame:SetHeight(500)
+  frame:EnableResize(true)
+  frame:SetCallback("OnClose", function(widget)
+    widget:Hide()
+  end)
+  self.frame = frame
 
-  local instructions = AceGUI:Create("Label")
-  instructions:SetFullWidth(true)
-  instructions:SetText("Copy the Markdown below and paste it into a new GitHub issue using the link below, " ..
-    "or try \"/slack bug\" first to attempt sending it directly.")
-  frame:AddChild(instructions)
+  local linkLabel = AceGUI:Create("Label")
+  linkLabel:SetText("New issue link (copy into your browser):")
+  linkLabel:SetFullWidth(true)
+  frame:AddChild(linkLabel)
 
   local linkBox = AceGUI:Create("EditBox")
-  linkBox:SetLabel("GitHub Issue Link")
   linkBox:SetFullWidth(true)
   linkBox:SetText(GITHUB_NEW_ISSUE_URL)
   linkBox:DisableButton(true)
