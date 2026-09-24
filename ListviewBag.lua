@@ -30,13 +30,12 @@ local WINDOW_HEIGHT = 460 -- a bit taller than before to make room for the searc
 local COLUMN_DEFS = {
   quantity =  { label = "Qty",   width = 36 },
   name =      { label = "Name",  width = 200, flexible = true },
-  quality =   { label = "Qual",  width = 24 },
   ilvl =      { label = "iLvl",  width = 100 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
   bind =      { label = "Bind",  width = 24 },
 }
-local DEFAULT_COLUMN_ORDER = { "quantity", "name", "quality", "ilvl", "armorType", "armorSlot", "bind" }
+local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
 
 -- English-only track-name recognizer used to pull the gear "track" (e.g. "Champion 5/6") out of the
 -- tooltip, since there is no direct API exposing it -- this is a deliberate, documented simplification.
@@ -75,7 +74,16 @@ local function bagIDs()
 end
 
 local function settings()
-  return db.profile.listviewBag
+  local listviewSettings = db.profile.listviewBag
+  local columnOrder = listviewSettings and listviewSettings.columnOrder
+  if columnOrder then
+    for index = #columnOrder, 1, -1 do
+      if columnOrder[index] == "quality" then
+        table.remove(columnOrder, index)
+      end
+    end
+  end
+  return listviewSettings
 end
 
 local function isModuleEnabled()
@@ -207,6 +215,15 @@ local function collectGroups()
   for _, group in ipairs(order) do
     local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = GetItemInfo(group.hyperlink)
     group.itemName = itemName or group.itemName
+    if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
+      local ok, craftedQuality = pcall(C_TradeSkillUI.GetItemCraftedQualityByItemInfo, group.hyperlink)
+      group.craftedQuality = ok and craftedQuality or nil
+    end
+    local qualityInfo = C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityInfo
+      and C_TradeSkillUI.GetItemReagentQualityInfo(group.itemID)
+    group.qualityAtlas = qualityInfo and qualityInfo.iconChat
+      or group.craftedQuality and group.craftedQuality > 0
+      and "Professions-Icon-Quality-12-Tier" .. group.craftedQuality .. "-Inv"
     group.isArmor = classID == ARMOR_CLASS_ID
     if group.isArmor then
       local detailedLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink)
@@ -409,7 +426,7 @@ local function createRow(index)
   row.nameText:SetJustifyH("LEFT")
 
   row.qualitySwatch = row:CreateTexture(nil, "ARTWORK")
-  row.qualitySwatch:SetSize(10, 10)
+  row.qualitySwatch:SetSize(16, 16)
 
   row.quantityText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -473,7 +490,7 @@ positionRowCells = function(row)
   local indent = row.isChild and 14 or 0
   row.icon:SetPoint("LEFT", row, "LEFT", nameLayout.x + indent, 0)
   row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
-  row.nameText:SetWidth(math.max(20, nameLayout.width - indent - ROW_HEIGHT))
+  row.nameText:SetWidth(math.max(20, nameLayout.width - indent - ROW_HEIGHT - 19))
 
   for _, colID in ipairs({ "quantity", "ilvl", "armorType", "armorSlot" }) do
     local cell = row[colID .. "Text"]
@@ -482,8 +499,8 @@ positionRowCells = function(row)
     cell:SetWidth(columnLayout[colID].width)
   end
 
-  -- Small centered icon swatches (quality, bind) instead of left-aligned text.
-  row.qualitySwatch:SetPoint("LEFT", row, "LEFT", columnLayout.quality.x + (columnLayout.quality.width - 10) / 2, 0)
+  local qualityOffset = math.min(row.nameText:GetStringWidth(), row.nameText:GetWidth())
+  row.qualitySwatch:SetPoint("LEFT", row.nameText, "LEFT", qualityOffset + 4, 0)
   row.bindIcon:SetPoint("LEFT", row, "LEFT", columnLayout.bind.x + (columnLayout.bind.width - 10) / 2, 0)
 end
 
@@ -511,6 +528,8 @@ local function buildDisplayRows()
             itemName = group.itemName,
             icon = group.icon,
             quality = group.quality,
+            craftedQuality = group.craftedQuality,
+            qualityAtlas = group.qualityAtlas,
             count = entry.count,
             entries = { entry },
             isArmor = group.isArmor,
@@ -574,7 +593,9 @@ renderRows = function()
     row.nameText:SetText((data.itemName or "?") .. (data.trackSuffix or ""))
     if qualityColor then
       row.nameText:SetTextColor(qualityColor.color:GetRGB())
-      row.qualitySwatch:SetColorTexture(qualityColor.color:GetRGB())
+    end
+    if data.qualityAtlas then
+      row.qualitySwatch:SetAtlas(data.qualityAtlas)
       row.qualitySwatch:Show()
     else
       row.qualitySwatch:Hide()
