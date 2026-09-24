@@ -116,6 +116,18 @@ function purgeOldLogs()
   end
 end
 
+function processLogs(shouldProcess, delay)
+  if shouldProcess == false then
+    return
+  end
+  local waitSeconds = delay or 10
+  C_Timer.After(waitSeconds, function()
+    purgeOldLogs()
+    module:AttemptSend()
+  end)
+end
+module.ProcessLogs = function(self, ...) processLogs(...) end
+
 function clearDebugLogs()
   if Self.db.global.logs and Self.db.global.logs.debug then
     wipe(Self.db.global.logs.debug)
