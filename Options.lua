@@ -129,7 +129,6 @@ WIP_MODULES = {
   {
     key = "buffs",
     name = "Consumable Buff Reminders",
-    warningOrder = -1,
     disable = function()
       if Self.db and Self.db.profile and Self.db.profile.buffs then
         Self.db.profile.buffs.enabled = false
@@ -142,7 +141,6 @@ WIP_MODULES = {
   {
     key = "combat",
     name = "Combat",
-    warningOrder = 0,
     disable = function()
       if Self.db and Self.db.profile and Self.db.profile.combat then
         Self.db.profile.combat.raiseCastingNameplates = false
@@ -163,18 +161,27 @@ local function applyWIPOptionsDecoration()
     local group = options and options.args and options.args[mod.key]
     if group then
       if not group.name:find("%(WIP%)") then
-        group.name = group.name .. " (WIP)"
+        group.name = "(WIP) " .. group.name
       end
       local originalDesc = group.desc or ""
       if not originalDesc:find("%[Work in Progress%]") then
-        group.desc = icon(134070) .. " |cffff8000[Work in Progress]|r " .. originalDesc
+        group.desc = "|cffff8000[Work in Progress]|r " .. originalDesc
       end
       group.icon = 134070
-      if group.args and not group.args.wipWarning then
+      if group.args then
+        -- In AceConfigDialog, negative orders sort AFTER positive orders (designed for bottom/footer buttons).
+        -- To put something at the very top, order must be >= 0 and smaller than any positive order.
+        -- Shift all existing non-negative args up by 1, and set wipWarning order = 0.
+        for key, arg in pairs(group.args) do
+          if key ~= "wipWarning" and type(arg) == "table" and type(arg.order) == "number" and arg.order >= 0 then
+            arg.order = arg.order + 1
+          end
+        end
+
         group.args.wipWarning = {
           name = "|cffff8000Warning:|r This module is a work in progress and currently experimental. Use |cffffffff/slack nowip|r to disable all WIP modules.",
           type = "description",
-          order = mod.warningOrder or -1
+          order = 0
         }
       end
     end
@@ -593,7 +600,7 @@ options = {
       type = "group",
       name = "Combat",
       desc = "Combat-related features.",
-      order = 7,
+      order = 98,
       args = {
         raiseCastingNameplates = {
           name = "Raise Casting Nameplates",
@@ -943,7 +950,7 @@ options = {
       type = "group",
       name = "Consumable Buff Reminders",
       desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
-      order = 8,
+      order = 99,
       args = {
         enabled = {
           name = "Enable",
