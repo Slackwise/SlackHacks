@@ -275,7 +275,7 @@ local function computeLayout()
   end
   local flexWidth = math.max(COLUMN_DEFS.name.width, contentWidth - COLLAPSE_WIDTH - STATUS_WIDTH - fixedWidth - CELL_PAD)
 
-  local x = COLLAPSE_WIDTH + STATUS_WIDTH + CELL_PAD
+  local x = COLLAPSE_WIDTH + CELL_PAD
   columnLayout = {}
   for _, colID in ipairs(settings().columnOrder) do
     local def = COLUMN_DEFS[colID]
@@ -409,7 +409,7 @@ local function createRow(index)
   -- Single icon button cycling None -> Locked -> Trash -> None (instead of two separate checkboxes).
   row.statusBtn = CreateFrame("Button", nil, row)
   row.statusBtn:SetSize(STATUS_WIDTH, STATUS_WIDTH)
-  row.statusBtn:SetPoint("LEFT", row, "LEFT", COLLAPSE_WIDTH, 0)
+  row.statusBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
   row.statusBtn.icon = row.statusBtn:CreateTexture(nil, "ARTWORK")
   row.statusBtn.icon:SetAllPoints()
   row.statusBtn:SetScript("OnClick", function() cycleStatus(row.itemID, row.trashKey) end)
@@ -855,22 +855,21 @@ local function buildFrame()
   end)
 
   -- Keep the native column buttons, but let the window's own header texture show behind them.
-  -- Inset by COLLAPSE_WIDTH+STATUS_WIDTH so its first column aligns with the row cells after the pinned
-  -- collapse/status cells (which have no header of their own).
+  -- Inset by COLLAPSE_WIDTH so its first column aligns with the row cells after the pinned expand cell.
   headerFrame = CreateFrame("Frame", nil, content, "ColumnDisplayTemplate")
   headerFrame:SetHeight(30)
-  headerFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 10 + COLLAPSE_WIDTH + STATUS_WIDTH, -56)
+  headerFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 10 + COLLAPSE_WIDTH, -56)
   headerFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -56)
   headerFrame.Background:Hide()
   headerFrame.TopTileStreaks:Hide()
 
   -- Recessed marble list panel behind the rows, matching the guild roster's own InsetFrameTemplate look.
   local listInset = CreateFrame("Frame", nil, content, "InsetFrameTemplate")
-  listInset:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -4 - COLLAPSE_WIDTH - STATUS_WIDTH, 0)
+  listInset:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -4 - COLLAPSE_WIDTH, 0)
   listInset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -4, 30)
 
   scrollFrame = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
-  scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -COLLAPSE_WIDTH - STATUS_WIDTH - 2, -4)
+  scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -COLLAPSE_WIDTH - 2, -4)
   scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -30, 34)
 
   scrollChild = CreateFrame("Frame", nil, scrollFrame)
