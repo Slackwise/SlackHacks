@@ -545,6 +545,7 @@ renderRows = function()
     row.itemID = data.itemID
     row.hyperlink = data.hyperlink
     row.isChild = data.isChild
+    row.groupKey = data.isGroupHeader and data.key or nil
     row.trashKey = data.trashKey
     row.primaryEntry = data.entries and data.entries[1]
     row.locked = isLockedItem(data.itemID)
