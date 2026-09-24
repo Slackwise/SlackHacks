@@ -291,6 +291,7 @@ local viewToggleButton
 local bagKeyBindingButton
 local searchText = ""
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
+local sellMarkedTrashItems
 
 -- Distributes the header/row widths for the currently reorderable columns, giving the "name" column
 -- whatever space is left over. Non-reorderable cells (collapse arrow, lock/trash status) are pinned.
@@ -508,6 +509,7 @@ local function createRow(index)
   row:SetScript("OnClick", function(_, button)
     if not row.primaryEntry then return end
     if button == "RightButton" then
+      if row.locked and MerchantFrame and MerchantFrame:IsShown() then return end
       C_Container.UseContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot)
     elseif IsModifiedClick("SPLITSTACK") and row.primaryEntry.count and row.primaryEntry.count > 1 then
       row.SplitStack = function(_, split)
@@ -720,7 +722,15 @@ local function createFooter()
 
   footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetSize(168, 16)
+  footer.moneyFrame:SetPoint("LEFT", footer, "LEFT", 88, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
+
+  footer.sellTrashButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
+  footer.sellTrashButton:SetSize(80, 20)
+  footer.sellTrashButton:SetPoint("LEFT", footer, "LEFT", 0, 0)
+  footer.sellTrashButton:SetText("Sell Trash")
+  footer.sellTrashButton:SetEnabled(MerchantFrame and MerchantFrame:IsShown())
+  footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
 
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.currencyButton:SetSize(20, 20)
@@ -1078,7 +1088,7 @@ end
 -- Mirrors sellGreyItems()'s existing pattern in Core.lua (C_Container.UseContainerItem at a merchant
 -- sells the item) but drives off the player's own per-item/per-armor-piece "trash" flags instead of
 -- quality.
-local function sellMarkedTrashItems()
+sellMarkedTrashItems = function()
   for _, bagID in ipairs(bagIDs()) do
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
@@ -1132,6 +1142,7 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
   self:RegisterEvent("MERCHANT_SHOW")
+  self:RegisterEvent("MERCHANT_CLOSED")
   EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.RefreshFooter, self)
   if settings().listViewActive then
     setListViewActive(true)
@@ -1159,6 +1170,15 @@ function module:MERCHANT_SHOW()
   end
   if settings().autoSellMarkedItems then
     sellMarkedTrashItems()
+  end
+  if footer and footer.sellTrashButton then
+    footer.sellTrashButton:SetEnabled(true)
+  end
+end
+
+function module:MERCHANT_CLOSED()
+  if footer and footer.sellTrashButton then
+    footer.sellTrashButton:SetEnabled(false)
   end
 end
 
