@@ -623,13 +623,22 @@ local function createFooter()
   footer.Bg:SetAllPoints()
 
   footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "ContainerMoneyFrameTemplate")
-  footer.moneyFrame:SetPoint("LEFT", footer, "LEFT", 0, 0)
+  footer.moneyFrame:SetSize(168, 16)
+  MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-  footer.currencyButton:SetSize(72, 20)
-  footer.currencyButton:SetText("Currency")
+  footer.currencyButton:SetSize(20, 20)
+  footer.currencyButton:SetNormalTexture(133784)
+  footer.currencyButton:SetPushedTexture(133784)
+  footer.currencyButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
   footer.currencyButton:SetPoint("RIGHT", footer, "RIGHT", 0, 0)
   footer.currencyButton:SetScript("OnClick", function() ToggleCharacter("TokenFrame") end)
+  footer.currencyButton:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText("Open Currencies Window")
+    GameTooltip:Show()
+  end)
+  footer.currencyButton:SetScript("OnLeave", GameTooltip_Hide)
 
   if C_AddOns and C_AddOns.LoadAddOn then
     C_AddOns.LoadAddOn("Blizzard_TokenUI")
@@ -638,8 +647,9 @@ local function createFooter()
   end
   footer.tokenFrame = CreateFrame("Frame", nil, footer, "BackpackTokenFrameTemplate")
   footer.tokenFrame:SetIsCombinedInventory(true)
-  footer.tokenFrame:SetPoint("LEFT", footer.moneyFrame, "RIGHT", 8, 0)
+  footer.tokenFrame:SetWidth(150)
   footer.tokenFrame:SetPoint("RIGHT", footer.currencyButton, "LEFT", -4, 0)
+  footer.moneyFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
 end
 
 --=====================================================================
