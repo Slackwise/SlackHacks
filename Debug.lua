@@ -298,14 +298,15 @@ local function sendBattleNetChunked(gameAccountID, text, doneCallback)
 end
 
 function module:SendErrorLogs(kind, target, onComplete)
+  local callback = type(onComplete) == "function" and onComplete or nil
   if InCombatLockdown() then
-    runAfterCombat(function() module:SendErrorLogs(kind, target, onComplete) end)
-    if onComplete then onComplete(false, "in_combat") end
+    runAfterCombat(function() module:SendErrorLogs(kind, target, callback) end)
+    if callback then callback(false, "in_combat") end
     return
   end
   local list = errorLogTable()
   if not list or #list == 0 then
-    if onComplete then onComplete(false, "no_logs") end
+    if callback then callback(false, "no_logs") end
     return
   end
 
@@ -317,46 +318,47 @@ function module:SendErrorLogs(kind, target, onComplete)
   if kind == "bnet" then
     sendBattleNetChunked(target, payload, function(success)
       if success then clearErrorLogs() end
-      if onComplete then onComplete(success) end
+      if callback then callback(success) end
     end)
   elseif kind == "guild" then
     Self:SendCommMessage(ERROR_LOG_COMM_PREFIX, payload, "WHISPER", target, "BULK", function(_, sent, total)
       if sent and total and sent >= total then
         clearErrorLogs()
-        if onComplete then onComplete(true) end
+        if callback then callback(true) end
       end
     end)
   else
-    if onComplete then onComplete(false, "unknown_kind") end
+    if callback then callback(false, "unknown_kind") end
   end
 end
 
 function module:AttemptSend(onComplete)
+  local callback = type(onComplete) == "function" and onComplete or nil
   if not isErrorLoggingEnabled() then
-    if onComplete then onComplete(false, "logging_disabled") end
+    if callback then callback(false, "logging_disabled") end
     return
   end
   if isSlackwise() then
-    if onComplete then onComplete(false, "is_slack") end
+    if callback then callback(false, "is_slack") end
     return
   end -- never applicable to Slack's own client
   if not isEligibleToSendErrorLogs() then
-    if onComplete then onComplete(false, "ineligible") end
+    if callback then callback(false, "ineligible") end
     return
   end
   local list = errorLogTable()
   if not list or #list == 0 then
-    if onComplete then onComplete(false, "no_logs") end
+    if callback then callback(false, "no_logs") end
     return
   end
 
   local kind, target = resolveSlackTarget()
   if not kind then
-    if onComplete then onComplete(false, "target_offline") end
+    if callback then callback(false, "target_offline") end
     return
   end
 
-  module:SendErrorLogs(kind, target, onComplete)
+  module:SendErrorLogs(kind, target, callback)
 end
 
 -----------------------------------------------------------------------
