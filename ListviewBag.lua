@@ -848,6 +848,11 @@ end
 local lastNativeBagToggle = 0
 local function toggleListViewFromNativeBagAction()
   if not frame or not isModuleEnabled() or not settings().listViewActive then return end
+  if MerchantFrame and MerchantFrame:IsShown() then
+    hideDefaultBags()
+    frame:Show()
+    return
+  end
   local now = GetTime()
   if now - lastNativeBagToggle < 0.01 then return end
   lastNativeBagToggle = now
