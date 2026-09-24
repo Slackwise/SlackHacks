@@ -30,7 +30,7 @@ local WINDOW_HEIGHT = 460 -- a bit taller than before to make room for the searc
 local COLUMN_DEFS = {
   quantity =  { label = "Qty",   width = 36 },
   name =      { label = "Name",  width = 200, flexible = true },
-  ilvl =      { label = "iLvl",  width = 100 },
+  ilvl =      { label = "iLvl",  width = 60 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
   bind =      { label = "Bind",  width = 24 },
@@ -161,16 +161,17 @@ local function getBindLabel(bagID, slot, itemLink)
   return ""
 end
 
--- Extracts the upgrade-track suffix (e.g. "Champion 5/6") from the tooltip. There's no direct API for
+-- Extracts the upgrade track (e.g. "Champion 5/6") from the tooltip. There's no direct API for
 -- this -- every addon that shows it does the same tooltip-line scan.
-local function getTrackSuffix(bagID, slot)
+local function getUpgradeTrack(bagID, slot)
   for _, text in ipairs(scanBagItemLines(bagID, slot)) do
-    local track, cur, max = text:match("^(%a+)%s+(%d+)/(%d+)$")
+    local plainText = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    local track, cur, max = plainText:match("(%a+)%s+(%d+)%s*/%s*(%d+)")
     if track and TRACK_NAMES[track] then
-      return (" (%s %s/%s)"):format(track, cur, max)
+      return track:sub(1, 1):upper() .. cur
     end
   end
-  return ""
+  return nil
 end
 
 --=====================================================================
@@ -229,7 +230,7 @@ local function collectGroups()
       local detailedLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink)
       group.itemLevel = detailedLevel or itemLevel
       local first = group.entries[1]
-      group.trackSuffix = first and getTrackSuffix(first.bagID, first.slot) or ""
+      group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
       group.armorType = itemSubType
       group.armorSlot = itemEquipLoc and _G[itemEquipLoc]
     end
@@ -545,7 +546,7 @@ local function buildDisplayRows()
             entries = { entry },
             isArmor = group.isArmor,
             itemLevel = group.itemLevel,
-            trackSuffix = group.trackSuffix,
+            upgradeTrack = group.upgradeTrack,
             armorType = group.armorType,
             armorSlot = group.armorSlot,
             bindLabel = group.bindLabel,
@@ -601,7 +602,7 @@ renderRows = function()
 
     row.icon:SetTexture(data.icon)
     local qualityColor = data.quality and (ITEM_QUALITY_COLORS[data.quality] or ITEM_QUALITY_COLORS[1])
-    row.nameText:SetText((data.itemName or "?") .. (data.trackSuffix or ""))
+    row.nameText:SetText(data.itemName or "?")
     if qualityColor then
       row.nameText:SetTextColor(qualityColor.color:GetRGB())
     end
@@ -613,7 +614,12 @@ renderRows = function()
     end
 
     row.quantityText:SetText(tostring(data.count or 1))
-    row.ilvlText:SetText(data.isArmor and data.itemLevel and tostring(data.itemLevel) or "")
+    if data.isArmor and data.itemLevel then
+      local upgradeTrack = data.upgradeTrack and (" |cff9d9d9d" .. data.upgradeTrack .. "|r") or ""
+      row.ilvlText:SetText(tostring(data.itemLevel) .. upgradeTrack)
+    else
+      row.ilvlText:SetText("")
+    end
     row.armorTypeText:SetText(data.isArmor and data.armorType or "")
     row.armorSlotText:SetText(data.isArmor and data.armorSlot or "")
     local bindColor = data.bindLabel and BIND_ICON_COLORS[data.bindLabel]
