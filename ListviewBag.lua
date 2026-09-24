@@ -24,6 +24,7 @@ local CELL_PAD = 4
 local WINDOW_WIDTH = 700 -- must comfortably fit every fixed column + the name column's minimum width,
                          -- or trailing columns (e.g. Bind) get clipped outside the scroll frame's bounds
 local WINDOW_HEIGHT = 460 -- a bit taller than before to make room for the search box row
+local SORT_ARROW_TEXTURE = "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up"
 
 -- Reorderable columns (Collapse/expand and Lock/Trash status are pinned to the far left and are not
 -- part of this list -- reordering them away from the row's leading edge would be confusing).
@@ -42,6 +43,14 @@ local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSl
 local TRACK_NAMES = { Explorer = true, Adventurer = true, Veteran = true, Champion = true, Hero = true, Myth = true, Awakened = true }
 
 local ARMOR_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Armor) or 4
+local sortColumn
+local sortAscending = true
+
+local function sortValueBefore(left, right)
+  if left == right then return nil end
+  if sortAscending then return left < right end
+  return left > right
+end
 
 local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
 local VENDOR_ICON_ATLAS = "bags-junkcoin"
@@ -235,7 +244,24 @@ local function collectGroups()
   end
 
   table.sort(order, function(a, b)
-    if a.quality ~= b.quality then return a.quality > b.quality end
+    if not a or not b then return a ~= nil end
+    local result
+    if sortColumn == "quantity" then
+      result = sortValueBefore(a.count, b.count)
+    elseif sortColumn == "name" then
+      result = sortValueBefore((a.itemName or ""):lower(), (b.itemName or ""):lower())
+    elseif sortColumn == "ilvl" then
+      result = sortValueBefore(a.itemLevel or 0, b.itemLevel or 0)
+    elseif sortColumn == "armorType" then
+      result = sortValueBefore(a.armorType or "", b.armorType or "")
+    elseif sortColumn == "armorSlot" then
+      result = sortValueBefore(a.armorSlot or "", b.armorSlot or "")
+    elseif sortColumn == "bind" then
+      result = sortValueBefore(a.bindLabel or "", b.bindLabel or "")
+    else
+      if a.quality ~= b.quality then return a.quality > b.quality end
+    end
+    if result ~= nil then return result end
     return (a.itemName or "") < (b.itemName or "")
   end)
 
@@ -342,6 +368,16 @@ layoutHeaders = function()
   for header in headerFrame.columnHeaders:EnumerateActive() do
     local colID = settings().columnOrder[header:GetID()]
     header.columnID = colID
+    if not header.sortIcon then
+      header.sortIcon = header:CreateTexture(nil, "OVERLAY")
+      header.sortIcon:SetTexture(SORT_ARROW_TEXTURE)
+      header.sortIcon:SetSize(10, 10)
+      header.sortIcon:SetPoint("RIGHT", header, "RIGHT", -3, 0)
+    end
+    header.sortIcon:SetShown(sortColumn == colID)
+    if sortColumn == colID then
+      header.sortIcon:SetRotation(sortAscending and math.pi / 2 or -math.pi / 2)
+    end
     header:RegisterForDrag("LeftButton")
     header:SetScript("OnDragStart", onHeaderDragStart)
     header:SetScript("OnDragStop", onHeaderDragStop)
@@ -866,6 +902,16 @@ local function buildFrame()
   headerFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -56)
   headerFrame.Background:Hide()
   headerFrame.TopTileStreaks:Hide()
+  headerFrame.sortingFunction = function(_, columnIndex)
+    local colID = settings().columnOrder[columnIndex]
+    if sortColumn == colID then
+      sortAscending = not sortAscending
+    else
+      sortColumn = colID
+      sortAscending = true
+    end
+    renderRows()
+  end
   content.statusHeaderButton = CreateFrame("Button", nil, headerFrame, "ColumnDisplayButtonNoScriptsTemplate")
   content.statusHeaderButton:SetSize(24, 24)
   content.statusHeaderButton:SetPoint("BOTTOM", headerFrame, "BOTTOMRIGHT", -30, 1)
