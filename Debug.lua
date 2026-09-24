@@ -123,7 +123,14 @@ function processLogs(shouldProcess, delay)
   local waitSeconds = delay or 10
   C_Timer.After(waitSeconds, function()
     purgeOldLogs()
-    module:AttemptSend()
+    module:AttemptReport(function(success, reason)
+      if not success and not isSlackwise() then
+        local list = errorLogTable()
+        if list and #list > 0 then
+          print(grey(icon(14)) .. " SlackHacks: you have " .. #list .. " un-reported error(s). Use " .. grey("/slack reporterrors") .. " to view and report them.")
+        end
+      end
+    end)
   end)
 end
 module.ProcessLogs = function(self, ...) processLogs(...) end
@@ -235,10 +242,10 @@ end
 installErrorCapture() -- run immediately (file load time) to start capturing as early as possible
 
 -----------------------------------------------------------------------
--- Who's eligible to relay their error log to Slack, and how to reach him
+-- Who's eligible to report their error log to Slack, and how to reach him
 -----------------------------------------------------------------------
 
-local function isEligibleToSendErrorLogs()
+local function isEligibleToReportErrorLogs()
   return isRetail() or isForever()
 end
 
@@ -275,7 +282,7 @@ local function resolveSlackTarget()
 end
 
 -----------------------------------------------------------------------
--- Sending (chunked over a hidden addon channel, queued after combat)
+-- Reporting (chunked over a hidden addon channel, queued after combat)
 -----------------------------------------------------------------------
 
 local function sendBattleNetChunked(gameAccountID, text, doneCallback)
@@ -297,10 +304,10 @@ local function sendBattleNetChunked(gameAccountID, text, doneCallback)
   doneCallback(allOk)
 end
 
-function module:SendErrorLogs(kind, target, onComplete)
+function module:ReportErrorLogs(kind, target, onComplete)
   local callback = type(onComplete) == "function" and onComplete or nil
   if InCombatLockdown() then
-    runAfterCombat(function() module:SendErrorLogs(kind, target, callback) end)
+    runAfterCombat(function() module:ReportErrorLogs(kind, target, callback) end)
     if callback then callback(false, "in_combat") end
     return
   end
@@ -331,8 +338,9 @@ function module:SendErrorLogs(kind, target, onComplete)
     if callback then callback(false, "unknown_kind") end
   end
 end
+module.SendErrorLogs = module.ReportErrorLogs
 
-function module:AttemptSend(onComplete)
+function module:AttemptReport(onComplete)
   local callback = type(onComplete) == "function" and onComplete or nil
   if not isErrorLoggingEnabled() then
     if callback then callback(false, "logging_disabled") end
@@ -342,7 +350,7 @@ function module:AttemptSend(onComplete)
     if callback then callback(false, "is_slack") end
     return
   end -- never applicable to Slack's own client
-  if not isEligibleToSendErrorLogs() then
+  if not isEligibleToReportErrorLogs() then
     if callback then callback(false, "ineligible") end
     return
   end
@@ -358,8 +366,9 @@ function module:AttemptSend(onComplete)
     return
   end
 
-  module:SendErrorLogs(kind, target, callback)
+  module:ReportErrorLogs(kind, target, callback)
 end
+module.AttemptSend = module.AttemptReport
 
 -----------------------------------------------------------------------
 -- Receiving (only ever meaningful on Slack's own client, but harmless otherwise)
@@ -462,8 +471,8 @@ end
 -----------------------------------------------------------------------
 
 function module:OnEnable()
-  self:RegisterEvent("BN_FRIEND_ACCOUNT_ONLINE", "AttemptSend")
-  self:RegisterEvent("GUILD_ROSTER_UPDATE", "AttemptSend")
+  self:RegisterEvent("BN_FRIEND_ACCOUNT_ONLINE", "AttemptReport")
+  self:RegisterEvent("GUILD_ROSTER_UPDATE", "AttemptReport")
   self:RegisterEvent("BN_CHAT_MSG_ADDON")
   Self:RegisterComm(ERROR_LOG_COMM_PREFIX, "OnErrorLogCommReceived")
 
@@ -477,7 +486,7 @@ function module:OnEnable()
         GuildRoster()
       end
     end
-    module:AttemptSend()
+    module:AttemptReport()
   end)
 end
 
@@ -578,7 +587,7 @@ function module:ShowWindow()
   markdownBox:SetText(self:BuildMarkdown())
 end
 
-function module:HandleBugCommand()
+function module:ReportErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
     print("SlackHacks: no errors recorded.")
@@ -586,16 +595,17 @@ function module:HandleBugCommand()
     return
   end
 
-  module:AttemptSend(function(success, reason)
+  module:AttemptReport(function(success, reason)
     if success then
-      print("SlackHacks: bug logs successfully sent to Slack!")
+      print("SlackHacks: bug logs successfully reported to Slack!")
     else
       if reason == "target_offline" then
-        print("SlackHacks: Slack is not currently online to receive logs directly.")
+        print("SlackHacks: Slack is not currently online to receive reported logs directly.")
       elseif reason == "in_combat" then
-        print("SlackHacks: in combat; queued to send after combat.")
+        print("SlackHacks: in combat; queued to report after combat.")
       end
       module:ShowWindow()
     end
   end)
 end
+module.HandleBugCommand = module.ReportErrors

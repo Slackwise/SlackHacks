@@ -163,8 +163,8 @@ function handleSlashCommand(input)
   elseif command == "clearlogs" or command == "cleardebuglogs" then
     clearDebugLogs()
     print("SlackHacks: debug logs cleared")
-  elseif command == "bug" then
-    Self.Debug:HandleBugCommand()
+  elseif command == "reporterrors" or command == "reportbugs" or command == "bug" then
+    Self.Debug:ReportErrors()
   elseif command == "options" or command == "config" or command == "opt" then
     openOptions()
   elseif command:find("^vendor%s+") then
@@ -409,11 +409,11 @@ options = {
               end,
               order = 1
             },
-            showSendErrorLog = {
-              name = "Show/Send Error Log",
-              desc = "Opens a window displaying all errors formatted in GitHub-compatible Markdown, provides a direct issue link, and attempts to send pending logs directly to Slack.",
+            showReportErrorLog = {
+              name = "Report Errors",
+              desc = "Opens a window displaying all errors formatted in GitHub-compatible Markdown, provides a direct issue link, and attempts to report pending logs directly to Slack.",
               type = "execute",
-              func = function() Self.Debug:HandleBugCommand() end,
+              func = function() Self.Debug:ReportErrors() end,
               order = 2
             },
             clearErrorLog = {
