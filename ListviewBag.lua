@@ -33,7 +33,7 @@ local COLUMN_DEFS = {
   ilvl =      { label = "iLvl",  width = 60 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
-  bind =      { label = "|TInterface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture:18:18:0:0:128:64:38:56:7:28|t", width = 24 },
+  bind =      { label = "|TInterface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture:18:18:0:0:128:64:6:26:7:28|t", width = 24 },
 }
 local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
 
