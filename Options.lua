@@ -167,9 +167,9 @@ local function applyWIPOptionsDecoration()
       end
       local originalDesc = group.desc or ""
       if not originalDesc:find("%[Work in Progress%]") then
-        group.desc = icon(14) .. " |cffff8000[Work in Progress]|r " .. originalDesc
+        group.desc = icon(134070) .. " |cffff8000[Work in Progress]|r " .. originalDesc
       end
-      group.icon = group.icon or SLACKHACKS_ICON
+      group.icon = 134070
       if group.args and not group.args.wipWarning then
         group.args.wipWarning = {
           name = "|cffff8000Warning:|r This module is a work in progress and currently experimental. Use |cffffffff/slack nowip|r to disable all WIP modules.",
