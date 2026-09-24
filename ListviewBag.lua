@@ -33,7 +33,7 @@ local COLUMN_DEFS = {
   ilvl =      { label = "iLvl",  width = 60 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
-  bind =      { label = "Bind",  width = 24 },
+  bind =      { label = "|TInterface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture:18:18:0:0:128:64:38:56:7:28|t", width = 24 },
 }
 local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
 
@@ -50,15 +50,7 @@ local LOCK_ICON_COORDS = { 0.9296875, 0.99609375, 0.68359375, 0.72460938 }
 -- Blizzard's own small gold-coin icon (used throughout money frames), reused for the "Trash/Sell" status icon.
 local TRASH_ICON_TEXTURE = "Interface\\MoneyFrame\\UI-GoldIcon"
 
--- Bind-status swatch colors (same "colored icon" language as the quality swatch, since there's no
--- confirmed native icon set for bind type specifically).
-local BIND_ICON_COLORS = {
-  Soulbound = { 0.8, 0.2, 0.2 },
-  Warbound = { 0.2, 0.5, 0.9 },
-  BoE = { 0.2, 0.8, 0.2 },
-  BoU = { 0.2, 0.8, 0.2 },
-  Quest = { 0.9, 0.8, 0.2 },
-}
+local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
 
 --=====================================================================
 -- Small helpers
@@ -140,25 +132,30 @@ end
 -- Reads the bag item's tooltip and looks for one of Blizzard's own localized bind-status lines. This
 -- is more reliable than guessing at Enum.ItemBind values (which vary by bind type/expansion) since it
 -- reuses the exact strings the tooltip itself would show, and is automatically correct for any locale.
-local function getBindLabel(bagID, slot, itemLink)
+local function getBindInfo(bagID, slot, itemLink)
+  local itemInfo = C_Container.GetContainerItemInfo(bagID, slot)
+  local bindType = select(14, GetItemInfo(itemLink))
+  local accountBound = false
   for _, text in ipairs(scanBagItemLines(bagID, slot)) do
     if text == ITEM_SOULBOUND then
-      return "Soulbound"
+      return "Soulbound", bindType, false, itemInfo and itemInfo.isBound
     elseif text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_TO_ACCOUNT or text == ITEM_BNETACCOUNTBOUND then
-      return "Warbound"
+      accountBound = true
     end
   end
-  local bindType = select(14, GetItemInfo(itemLink))
-  if bindType == 1 then
-    return "Soulbound"
-  elseif bindType == 2 then
-    return "BoE"
-  elseif bindType == 3 then
-    return "BoU"
-  elseif bindType == 4 then
-    return "Quest"
+  if accountBound then
+    return "Warbound", bindType, true, itemInfo and itemInfo.isBound
   end
-  return ""
+  if bindType == 1 then
+    return "Soulbound", bindType, false, itemInfo and itemInfo.isBound
+  elseif bindType == 2 then
+    return "BoE", bindType, false, itemInfo and itemInfo.isBound
+  elseif bindType == 3 then
+    return "BoU", bindType, false, itemInfo and itemInfo.isBound
+  elseif bindType == 4 then
+    return "Quest", bindType, false, itemInfo and itemInfo.isBound
+  end
+  return "", bindType, false, itemInfo and itemInfo.isBound
 end
 
 -- Extracts the upgrade track (e.g. "Champion 5/6") from the tooltip. There's no direct API for
@@ -236,7 +233,7 @@ local function collectGroups()
     end
     local first = group.entries[1]
     if first then
-      group.bindLabel = getBindLabel(first.bagID, first.slot, group.hyperlink)
+      group.bindLabel, group.bindType, group.accountBound, group.isBound = getBindInfo(first.bagID, first.slot, group.hyperlink)
     end
     group.trashKey = trashKey(group.itemID, group.itemName, group.itemLevel, group.isArmor)
   end
@@ -453,7 +450,7 @@ local function createRow(index)
   row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.armorSlotText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.bindIcon = row:CreateTexture(nil, "ARTWORK")
-  row.bindIcon:SetSize(10, 10)
+  row.bindIcon:SetSize(18, 18)
 
   -- Dragging/using/splitting the item reuses the exact unprotected Container APIs the default bags
   -- use, called directly from a real hardware click/drag event -- this is what keeps right-click "use"
@@ -552,6 +549,9 @@ local function buildDisplayRows()
             armorType = group.armorType,
             armorSlot = group.armorSlot,
             bindLabel = group.bindLabel,
+            bindType = group.bindType,
+            accountBound = group.accountBound,
+            isBound = entry.isBound,
             trashKey = group.trashKey,
           }
         end
@@ -624,9 +624,19 @@ renderRows = function()
     end
     row.armorTypeText:SetText(data.isArmor and data.armorType or "")
     row.armorSlotText:SetText(data.isArmor and data.armorSlot or "")
-    local bindColor = data.bindLabel and BIND_ICON_COLORS[data.bindLabel]
-    if bindColor then
-      row.bindIcon:SetColorTexture(unpack(bindColor))
+    if data.bindType and data.bindType > 0 then
+      local bindType = data.bindType == 4 and 1 or data.bindType
+      local x = (bindType - 1) / 4
+      local y = data.isBound and 0 or 0.5
+      if data.accountBound then
+        if bindType == 1 then
+          x = 0.75
+        elseif bindType == 2 then
+          x = data.isBound and 0 or 0.75
+        end
+      end
+      row.bindIcon:SetTexture(BIND_ICON_TEXTURE)
+      row.bindIcon:SetTexCoord(x, x + 0.25, y, y + 0.5)
       row.bindIcon:Show()
     else
       row.bindIcon:Hide()
