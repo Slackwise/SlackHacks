@@ -4,10 +4,14 @@ setfenv(1, _G.SlackHacks)
 dbDefaults = {
   global = {
     configVersion = CONFIG_VERSION,
-    isDebugging = false,
-    logs = {},
-    logPurgeEnabled = true,
-    logPurgeHours = 48
+    logs = {
+      debug = {},
+      error = {},
+      isDebugging = false,
+      errorLoggingEnabled = true,
+      logPurgeEnabled = true,
+      logPurgeHours = 48,
+    },
   },
   char = {
     cache = {
@@ -156,9 +160,11 @@ function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "vendor" then
     print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|augmentrunes|vantusrune|augments] [wowhead|icyveins|murlok]")
-  elseif command == "clearlogs" then
-    clearLogs()
-    print("SlackHacks: logs cleared")
+  elseif command == "clearlogs" or command == "cleardebuglogs" then
+    clearDebugLogs()
+    print("SlackHacks: debug logs cleared")
+  elseif command == "bug" then
+    Self.ErrorLog:HandleBugCommand()
   elseif command == "options" or command == "config" or command == "opt" then
     openOptions()
   elseif command:find("^vendor%s+") then
@@ -378,42 +384,94 @@ options = {
     debug = {
       type = "group",
       name = "Debug",
-      desc = "Debugging and logging options.",
+      desc = "Debugging, error logging, and reporting options.",
       order = 2,
       args = {
-        toggle = {
-          name = "Debug Mode",
-          desc = "Prints debug information to the chat window and logs to DB for later analysis",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.global.isDebugging end,
-          set = function()
-            db.global.isDebugging = not db.global.isDebugging
-            if db.global.isDebugging then
-              print("SlackHacks Debugging ON")
-            else
-              print("SlackHacks Debugging OFF")
-            end
-            Self.Buffs:Refresh()
-          end,
-          order = 1
+        errorReportingGroup = {
+          type = "group",
+          name = "Error Logging and Reporting",
+          desc = "Captures and reports errors that occur within SlackHacks.",
+          inline = true,
+          order = 1,
+          args = {
+            logErrors = {
+              name = "Log Errors",
+              desc = "Captures errors that occur specifically within SlackHacks (not other addons), with timestamps, " ..
+                "character names, and de-duplicated by message. Works independently of Debug Mode. " ..
+                "BugSack and BugGrabber continue capturing all errors normally.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.global.logs and db.global.logs.errorLoggingEnabled end,
+              set = function(_, value)
+                if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
+                db.global.logs.errorLoggingEnabled = value
+              end,
+              order = 1
+            },
+            showSendErrorLog = {
+              name = "Show/Send Error Log",
+              desc = "Opens a window displaying all errors formatted in GitHub-compatible Markdown, provides a direct issue link, and attempts to send pending logs directly to Slack.",
+              type = "execute",
+              func = function() Self.ErrorLog:HandleBugCommand() end,
+              order = 2
+            },
+            clearErrorLog = {
+              name = "Clear Error Log",
+              desc = "Clear all SlackHacks error logs stored in SlackHacksDB.",
+              type = "execute",
+              func = function()
+                clearErrorLogs()
+                print("SlackHacks: error logs cleared")
+              end,
+              confirm = true,
+              order = 3
+            }
+          }
         },
-        clearLogs = {
-          name = "Clear Logs",
-          desc = "Clear all debug logs stored in SlackHacksDB.",
-          type = "execute",
-          func = function()
-            clearLogs()
-            print("SlackHacks: logs cleared")
-          end,
-          confirm = true,
-          order = 2
+        debugModeGroup = {
+          type = "group",
+          name = "Debug Mode",
+          desc = "Debug logging and verbose output options.",
+          inline = true,
+          order = 2,
+          args = {
+            debugLogging = {
+              name = "Debug Logging",
+              desc = "Prints debug information to the chat window and logs to DB for later analysis.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.global.logs and db.global.logs.isDebugging end,
+              set = function()
+                if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
+                db.global.logs.isDebugging = not db.global.logs.isDebugging
+                if db.global.logs.isDebugging then
+                  print("SlackHacks Debugging ON")
+                else
+                  print("SlackHacks Debugging OFF")
+                end
+                Self.Buffs:Refresh()
+              end,
+              order = 1
+            },
+            clearDebugLogs = {
+              name = "Clear Debug Logs",
+              desc = "Clear all debug logs stored in SlackHacksDB.",
+              type = "execute",
+              func = function()
+                clearDebugLogs()
+                print("SlackHacks: debug logs cleared")
+              end,
+              confirm = true,
+              order = 2
+            }
+          }
         },
         logPurgeGroup = {
           type = "group",
           name = "Log Purging",
-          desc = "Automatically remove old debug logs so SlackHacksDB doesn't grow unbounded.",
+          desc = "Automatically remove old debug logs and error logs so SlackHacksDB doesn't grow unbounded.",
           inline = true,
           order = 3,
           args = {
@@ -423,8 +481,11 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.global.logPurgeEnabled end,
-              set = function(_, value) db.global.logPurgeEnabled = value end,
+              get = function() return db.global.logs and db.global.logs.logPurgeEnabled end,
+              set = function(_, value)
+                if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
+                db.global.logs.logPurgeEnabled = value
+              end,
               order = 1
             },
             logPurgeHours = {
@@ -432,13 +493,16 @@ options = {
               desc = "Number of hours to keep a log entry before it is eligible for automatic purging.",
               type = "input",
               width = "full",
-              get = function() return tostring(db.global.logPurgeHours) end,
-              set = function(_, value) db.global.logPurgeHours = tonumber(value) end,
+              get = function() return tostring(db.global.logs and db.global.logs.logPurgeHours or 48) end,
+              set = function(_, value)
+                if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
+                db.global.logs.logPurgeHours = tonumber(value)
+              end,
               validate = function(_, value)
                 local hours = tonumber(value)
                 return hours and hours >= LOG_PURGE_MIN_HOURS and hours <= LOG_PURGE_MAX_HOURS
               end,
-              disabled = function() return not db.global.logPurgeEnabled end,
+              disabled = function() return not (db.global.logs and db.global.logs.logPurgeEnabled) end,
               order = 2
             },
             purgeNow = {

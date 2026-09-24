@@ -2,7 +2,9 @@
 local Self = LibStub("AceAddon-3.0"):NewAddon(
   "SlackHacks",
   "AceConsole-3.0",
-  "AceEvent-3.0"
+  "AceEvent-3.0",
+  "AceComm-3.0",
+  "AceSerializer-3.0"
 )
 Self.config = LibStub("AceConfig-3.0")
 Self.frame = CreateFrame("Frame", "SlackHacks")
@@ -16,7 +18,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 5
+CONFIG_VERSION = 6
 
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
@@ -32,8 +34,10 @@ function getBattletag()
   return select(2, BNGetInfo())
 end
 
+SLACKWISE_BATTLETAG = "Slackwise#1121"
+
 function isSlackwise()
-  return getBattletag() == "Slackwise#1121" or false
+  return getBattletag() == SLACKWISE_BATTLETAG or false
 end
 
 -- Gatekeeping new features with no UI
@@ -83,7 +87,7 @@ end
 
 function isDebugging()
   if isInitialized() then
-    return Self.db.global.isDebugging
+    return Self.db.global.logs and Self.db.global.logs.isDebugging
   end
   if isSlackwise() then
     return true
@@ -111,12 +115,12 @@ function log(message, ...)
   if isDebugging() then
     local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
     print(grey(timestamp) .. "  " .. message)
-    if isInitialized() then -- we have a DB to save to:
-      table.insert(Self.db.global.logs, { timestamp, message })
+    if isInitialized() and Self.db.global.logs and Self.db.global.logs.debug then
+      table.insert(Self.db.global.logs.debug, { timestamp, message })
       if arg then
         for i, v in ipairs(arg) do
           print("Arg " .. i .. " = " .. v)
-          table.insert(Self.db.global.logs, { timestamp, "Arg " .. i .. " = " .. v })
+          table.insert(Self.db.global.logs.debug, { timestamp, "Arg " .. i .. " = " .. v })
         end
       end
     end
@@ -126,24 +130,49 @@ end
 LOG_PURGE_MIN_HOURS = 1
 LOG_PURGE_MAX_HOURS = 24 * 30 -- 30 days
 
-function purgeOldLogs()
-  if not Self.db.global.logPurgeEnabled then
-    return
-  end
-  local cutoff = time() - (Self.db.global.logPurgeHours * 60 * 60)
+--- Shared by debug logs (`{timestamp, message}` array-form entries) and error logs (`{timestamp = ...}`
+--- named-field entries) -- both are pruned by the same "Log Purging" settings.
+---@param logTable table - Array of log entries to filter.
+---@param cutoff number - Unix timestamp; entries older than this are dropped.
+---@return table - Entries at or after `cutoff` (an unparseable timestamp is kept defensively).
+function purgeLogTable(logTable, cutoff)
   local kept = {}
-  for _, entry in ipairs(Self.db.global.logs) do
-    local year, month, day, hour, min, sec = entry[1]:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
+  for _, entry in ipairs(logTable) do
+    local timestamp = entry.timestamp or entry[1]
+    local year, month, day, hour, min, sec = timestamp:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
     local entryTime = year and time({ year = year, month = month, day = day, hour = hour, min = min, sec = sec })
     if not entryTime or entryTime >= cutoff then
       table.insert(kept, entry)
     end
   end
-  Self.db.global.logs = kept
+  return kept
 end
 
-function clearLogs()
-  wipe(Self.db.global.logs)
+function purgeOldLogs()
+  if not Self.db.global.logs or not Self.db.global.logs.logPurgeEnabled then
+    return
+  end
+  local purgeHours = Self.db.global.logs.logPurgeHours or 48
+  local cutoff = time() - (purgeHours * 60 * 60)
+  if Self.db.global.logs.debug then
+    Self.db.global.logs.debug = purgeLogTable(Self.db.global.logs.debug, cutoff)
+  end
+  if Self.db.global.logs.error then
+    Self.db.global.logs.error = purgeLogTable(Self.db.global.logs.error, cutoff)
+  end
+end
+
+function clearDebugLogs()
+  if Self.db.global.logs and Self.db.global.logs.debug then
+    wipe(Self.db.global.logs.debug)
+  end
+end
+clearLogs = clearDebugLogs
+
+function clearErrorLogs()
+  if Self.db.global.logs and Self.db.global.logs.error then
+    wipe(Self.db.global.logs.error)
+  end
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
@@ -188,6 +217,41 @@ CONFIG_MIGRATIONS = {
       Self.db.profile.inventory.autoRepairMode = general.autoRepairMode
     end
     Self.db.profile.general = nil
+  end,
+  [6] = function()
+    local g = Self.db.global
+    if not g then return end
+    local debugTable = g.debugLogs or (type(g.logs) == "table" and not g.logs.debug and g.logs) or (type(g.logs) == "table" and g.logs.debug) or {}
+    local errorTable = g.errorLogs or (type(g.logs) == "table" and g.logs.error) or {}
+    local isDebugging = (type(g.logs) == "table" and g.logs.isDebugging ~= nil and g.logs.isDebugging) or (g.isDebugging ~= nil and g.isDebugging) or false
+    local errorLoggingEnabled = true
+    if type(g.logs) == "table" and g.logs.errorLoggingEnabled ~= nil then
+      errorLoggingEnabled = g.logs.errorLoggingEnabled
+    elseif g.errorLoggingEnabled ~= nil then
+      errorLoggingEnabled = g.errorLoggingEnabled
+    end
+    local logPurgeEnabled = true
+    if type(g.logs) == "table" and g.logs.logPurgeEnabled ~= nil then
+      logPurgeEnabled = g.logs.logPurgeEnabled
+    elseif g.logPurgeEnabled ~= nil then
+      logPurgeEnabled = g.logPurgeEnabled
+    end
+    local logPurgeHours = (type(g.logs) == "table" and g.logs.logPurgeHours) or g.logPurgeHours or 48
+
+    g.logs = {
+      debug = debugTable,
+      error = errorTable,
+      isDebugging = isDebugging,
+      errorLoggingEnabled = errorLoggingEnabled,
+      logPurgeEnabled = logPurgeEnabled,
+      logPurgeHours = logPurgeHours,
+    }
+    g.debugLogs = nil
+    g.errorLogs = nil
+    g.isDebugging = nil
+    g.errorLoggingEnabled = nil
+    g.logPurgeEnabled = nil
+    g.logPurgeHours = nil
   end,
 }
 

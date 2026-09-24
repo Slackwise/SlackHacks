@@ -10,6 +10,7 @@
 embeds.xml
 Init.lua
 Core.lua
+ErrorLog.lua
 StaticData.lua
 SelfVendor.lua
 Nameplates.lua

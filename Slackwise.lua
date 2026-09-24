@@ -12,7 +12,9 @@ setfenv(1, _G.SlackHacks)
 
 SLACKWISE_CONFIG = {
   global = {
-    logPurgeEnabled = true,
+    logs = {
+      logPurgeEnabled = true,
+    },
   },
   profile = {
     controls = {
