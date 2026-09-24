@@ -278,6 +278,7 @@ local columnLayout = {}
 local rowPool = {}
 local expandedGroups = {}
 local viewToggleButton
+local bagKeyBindingButton
 local searchText = ""
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
 
@@ -737,33 +738,53 @@ end
 -- Toggling the list view vs. the default bag windows
 --=====================================================================
 
--- Best-effort: hides whichever default bag frame(s) Blizzard actually opened. Rather than hardcode a
--- fixed count of "ContainerFrameN" globals (which has changed across expansions -- reagent bag, bank
--- tabs, warbank, etc. all add more), this scans _G for anything matching Blizzard's long-standing
--- ContainerFrame naming convention and hides whichever of those happen to be shown.
-local function hideDefaultBags()
+local defaultBagFrameState = {}
+local function forEachDefaultBagFrame(callback)
   for name, obj in pairs(_G) do
-    if type(name) == "string" and type(obj) == "table" and obj.IsShown and obj.Hide
-        and (name == "ContainerFrameCombinedBags" or name:match("^ContainerFrame%d+$"))
-        and obj:IsShown() then
-      obj:Hide()
+    if type(name) == "string" and type(obj) == "table" and obj.SetAlpha and obj.EnableMouse
+        and (name == "ContainerFrameCombinedBags" or name:match("^ContainerFrame%d+$")) then
+      callback(obj)
     end
   end
 end
 
-local defaultBagHidePending = false
-local function hideDefaultBagsSoon()
-  if defaultBagHidePending then return end
-  defaultBagHidePending = true
-  C_Timer.After(0, function()
-    defaultBagHidePending = false
-    if isModuleEnabled() and settings().listViewActive then
-      hideDefaultBags()
+local function setDefaultBagsInert(inert)
+  forEachDefaultBagFrame(function(defaultFrame)
+    if inert then
+      if not defaultBagFrameState[defaultFrame] then
+        defaultBagFrameState[defaultFrame] = {
+          alpha = defaultFrame:GetAlpha(),
+          mouseEnabled = defaultFrame:IsMouseEnabled(),
+        }
+      end
+      defaultFrame:SetAlpha(0)
+      defaultFrame:EnableMouse(false)
+    else
+      local state = defaultBagFrameState[defaultFrame]
+      if state then
+        defaultFrame:SetAlpha(state.alpha)
+        defaultFrame:EnableMouse(state.mouseEnabled)
+        defaultBagFrameState[defaultFrame] = nil
+      end
     end
   end)
 end
 
+local function hideDefaultBags()
+  setDefaultBagsInert(true)
+end
+
+local function areDefaultBagsShown()
+  local shown = false
+  forEachDefaultBagFrame(function(defaultFrame)
+    shown = shown or defaultFrame:IsShown()
+  end)
+  return shown
+end
+
 local function showDefaultBags()
+  setDefaultBagsInert(false)
+  if areDefaultBagsShown() then return end
   if _G.ToggleAllBags then
     ToggleAllBags()
   elseif _G.OpenAllBags then
@@ -778,27 +799,59 @@ local function setListViewActive(active)
   end
   if active then
     hideDefaultBags()
+    module:UpdateListViewBindings()
     frame:Show()
   else
     frame:Hide()
+    module:UpdateListViewBindings()
     showDefaultBags()
   end
 end
 
+local function updateListViewBindings()
+  if not bagKeyBindingButton or InCombatLockdown() then return end
+  ClearOverrideBindings(bagKeyBindingButton)
+  if not isModuleEnabled() or not settings().listViewActive then return end
+  for _, command in ipairs({ "TOGGLEBACKPACK", "OPENALLBAGS" }) do
+    for _, key in ipairs({ GetBindingKey(command) }) do
+      if key then
+        SetOverrideBindingClick(bagKeyBindingButton, true, key, bagKeyBindingButton:GetName())
+      end
+    end
+  end
+end
+
 local lastNativeBagToggle = 0
-local suppressListReopenUntil = 0
 local function toggleListViewFromNativeBagAction()
   if not frame or not isModuleEnabled() or not settings().listViewActive then return end
   local now = GetTime()
   if now - lastNativeBagToggle < 0.01 then return end
   lastNativeBagToggle = now
   hideDefaultBags()
-  hideDefaultBagsSoon()
   if frame:IsShown() then
     frame:Hide()
-    suppressListReopenUntil = now + 0.1
   else
     frame:Show()
+  end
+end
+
+local bagMenuHooksInstalled = false
+local function installBagMenuOptions()
+  if bagMenuHooksInstalled or not Menu or not Menu.ModifyMenu then return end
+  bagMenuHooksInstalled = true
+  for _, menuTag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }) do
+    Menu.ModifyMenu(menuTag, function(_, rootDescription)
+      rootDescription:CreateDivider()
+      rootDescription:CreateButton("Show SlackHacks's Listview Bag", function()
+        settings().enabled = true
+        settings().listViewActive = true
+        if module:IsEnabled() then
+          setListViewActive(true)
+        else
+          module:Enable()
+        end
+      end)
+    end)
   end
 end
 
@@ -896,7 +949,7 @@ local function buildFrame()
   content.title:SetPoint("TOP", content, "TOP", 0, -6)
   content.title:SetPoint("LEFT", content, "TOPLEFT", 58, 0)
   content.title:SetPoint("RIGHT", content, "TOPRIGHT", -24, 0)
-  content.title:SetText("Item List")
+  content.title:SetText((UnitName("player") or "Character") .. "'s Inventory")
 
   -- The whole top strip is a native move handle (StartMoving/StopMovingOrSizing), matching how every
   -- other Blizzard window is dragged. Starts right of the portrait icon so it doesn't steal clicks
@@ -917,6 +970,26 @@ local function buildFrame()
 
   content.closeButton = CreateFrame("Button", nil, content, "UIPanelCloseButtonDefaultAnchors")
   content.closeButton:SetScript("OnClick", function() frame:Hide() end) -- just closes; doesn't change the view mode
+
+  content.openBagsButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+  content.openBagsButton:SetSize(82, 20)
+  content.openBagsButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, -32)
+  content.openBagsButton:SetText("Open Bags")
+  content.openBagsButton:SetScript("OnClick", function()
+    setListViewActive(false)
+    settings().enabled = false
+    module:Disable()
+  end)
+
+  bagKeyBindingButton = CreateFrame("Button", "SlackHacksListviewBagToggleButton", UIParent)
+  bagKeyBindingButton:SetSize(1, 1)
+  bagKeyBindingButton:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
+  bagKeyBindingButton:SetAlpha(0)
+  bagKeyBindingButton:SetScript("OnClick", function()
+    if isModuleEnabled() and settings().listViewActive then
+      if frame:IsShown() then frame:Hide() else frame:Show() end
+    end
+  end)
 
   -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
   searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
@@ -1013,6 +1086,7 @@ end
 
 function module:OnInitialize()
   hookDefaultBagToggles()
+  installBagMenuOptions()
   if not isModuleEnabled() then
     self:SetEnabledState(false)
   end
@@ -1023,8 +1097,10 @@ function module:OnEnable()
     self:SetEnabledState(false)
     return
   end
+  installBagMenuOptions()
   buildFrame()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
+  self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
@@ -1040,8 +1116,11 @@ function module:OnDisable()
   -- Only swap back to the default bags if our window was actually open -- doesn't force bags open,
   -- and deliberately leaves the player's list-view preference (settings().listViewActive) untouched
   -- so it's remembered next time the module/feature is re-enabled.
-  if frame and frame:IsShown() then
-    frame:Hide()
+  local wasShown = frame and frame:IsShown()
+  if frame then frame:Hide() end
+  setDefaultBagsInert(false)
+  self:UpdateListViewBindings()
+  if wasShown then
     showDefaultBags()
   end
   EventRegistry:UnregisterCallback("TokenFrame.OnTokenWatchChanged", self)
@@ -1049,7 +1128,6 @@ end
 
 function module:MERCHANT_SHOW()
   hideDefaultBags()
-  hideDefaultBagsSoon()
   if settings().listViewActive then
     frame:Show()
   end
@@ -1059,11 +1137,12 @@ end
 function module:OnNativeBagOpen()
   if isModuleEnabled() and settings().listViewActive then
     hideDefaultBags()
-    hideDefaultBagsSoon()
-    if GetTime() >= suppressListReopenUntil then
-      frame:Show()
-    end
+    frame:Show()
   end
+end
+
+function module:UpdateListViewBindings()
+  updateListViewBindings()
 end
 
 function module:RefreshFooter()
