@@ -605,6 +605,7 @@ end
 
 local function updateFooter()
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
+  footer.tokenFrame:Show()
   footer.tokenFrame:Update()
   footer.tokenFrame:SetShown(footer.tokenFrame:ShouldShow())
 end
