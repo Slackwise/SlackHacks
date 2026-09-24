@@ -471,6 +471,9 @@ options = {
               set = function(_, value)
                 db.profile.listviewBag.enabled = value
                 if value then
+                  -- Otherwise there'd be no way to reach the in-window toggle button the first time,
+                  -- since it lives inside a window that only shows once list view is already active.
+                  db.profile.listviewBag.listViewActive = true
                   Self.ListviewBag:Enable()
                 else
                   Self.ListviewBag:Disable()

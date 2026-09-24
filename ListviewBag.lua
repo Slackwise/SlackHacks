@@ -582,18 +582,16 @@ end
 -- Toggling the list view vs. the default bag windows
 --=====================================================================
 
--- Best-effort: hides whichever default bag frame(s) Blizzard actually opened. Frame/function names are
--- looked up defensively (existence-checked) since the default bag UI has changed shape across
--- expansions and this addon deliberately doesn't hardcode a single client version's frame name.
-local DEFAULT_BAG_FRAME_NAMES = {
-  "ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3", "ContainerFrame4", "ContainerFrame5",
-}
-
+-- Best-effort: hides whichever default bag frame(s) Blizzard actually opened. Rather than hardcode a
+-- fixed count of "ContainerFrameN" globals (which has changed across expansions -- reagent bag, bank
+-- tabs, warbank, etc. all add more), this scans _G for anything matching Blizzard's long-standing
+-- ContainerFrame naming convention and hides whichever of those happen to be shown.
 local function hideDefaultBags()
-  for _, name in ipairs(DEFAULT_BAG_FRAME_NAMES) do
-    local f = _G[name]
-    if f and f.Hide and f:IsShown() then
-      f:Hide()
+  for name, obj in pairs(_G) do
+    if type(name) == "string" and type(obj) == "table" and obj.IsShown and obj.Hide
+        and (name == "ContainerFrameCombinedBags" or name:match("^ContainerFrame%d+$"))
+        and obj:IsShown() then
+      obj:Hide()
     end
   end
 end
@@ -657,6 +655,16 @@ local function buildFrame()
   -- Reuses the exact "book style" default Blizzard panel border/background technique already proven
   -- elsewhere in this addon (see Minimap.lua's square border) instead of guessing at a full XML template.
   frame.layoutType = "ButtonFrameTemplateNoPortrait"
+
+  -- NineSlicePanelTemplate only draws the border art (corners/edges) with nothing behind it, so a
+  -- separate opaque backing is needed underneath or the window body would be see-through. This is the
+  -- same tiled marble texture Blizzard's own inset text panels (e.g. the Guild/Communities chat pane)
+  -- sit on top of, so it's fully opaque and matches native windows instead of a flat color fill.
+  frame.Background = frame:CreateTexture(nil, "BACKGROUND")
+  frame.Background:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", true, true)
+  frame.Background:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -6)
+  frame.Background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -6, 6)
+
   frame.NineSlice = CreateFrame("Frame", nil, frame, "NineSlicePanelTemplate")
   frame.NineSlice:SetAllPoints()
 
