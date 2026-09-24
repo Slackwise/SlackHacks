@@ -18,7 +18,7 @@ Self.ListviewBag = module
 
 local FRAME_NAME = "SlackHacksListviewBagFrame"
 local ROW_HEIGHT = 20
-local COLLAPSE_WIDTH = 16
+local COLLAPSE_WIDTH = ROW_HEIGHT
 local STATUS_WIDTH = 20
 local CELL_PAD = 4
 local WINDOW_WIDTH = 700 -- must comfortably fit every fixed column + the name column's minimum width,
@@ -390,7 +390,7 @@ local function createRow(index)
   row.collapseBtn = CreateFrame("Button", nil, row)
   row.collapseBtn:SetSize(COLLAPSE_WIDTH, ROW_HEIGHT)
   row.collapseBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
-  row.collapseBtn.text = row.collapseBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  row.collapseBtn.text = row.collapseBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   row.collapseBtn.text:SetAllPoints()
   row.collapseBtn.text:SetJustifyH("CENTER")
   row.collapseBtn:SetScript("OnClick", function()
@@ -398,6 +398,12 @@ local function createRow(index)
     expandedGroups[groupKey] = not expandedGroups[groupKey]
     renderRows()
   end)
+  row.collapseBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(expandedGroups[row.groupKey] and "Combine Stacks" or "Show Stacks")
+    GameTooltip:Show()
+  end)
+  row.collapseBtn:SetScript("OnLeave", GameTooltip_Hide)
 
   -- Single icon button cycling None -> Locked -> Trash -> None (instead of two separate checkboxes).
   row.statusBtn = CreateFrame("Button", nil, row)
