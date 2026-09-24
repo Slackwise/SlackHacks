@@ -24,6 +24,14 @@ dbDefaults = {
       autoRepair = false,
       autoRepairMode = "personal"
     },
+    listviewBag = {
+      enabled = false,
+      listViewActive = false,
+      columnOrder = { "quantity", "name", "quality", "ilvl", "armorType", "armorSlot", "bind" },
+      lockedItems = {},
+      trashItems = {},
+      point = nil
+    },
     controls = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
@@ -153,12 +161,38 @@ WIP_MODULES = {
         Self.ChargeTracking:Refresh()
       end
     end
+  },
+  {
+    -- Nested under the "Inventory" group instead of a top-level options.args entry.
+    key = { "inventory", "listviewBag" },
+    name = "Listview Bag",
+    disable = function()
+      if Self.db and Self.db.profile and Self.db.profile.listviewBag then
+        Self.db.profile.listviewBag.enabled = false
+      end
+      if Self.ListviewBag then
+        Self.ListviewBag:Disable()
+      end
+    end
   }
 }
 
+-- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
+-- nested .args groups (e.g. {"inventory", "listviewBag"}).
+local function resolveWIPGroup(key)
+  if type(key) == "string" then
+    return options and options.args and options.args[key]
+  end
+  local group = options and options.args and options.args[key[1]]
+  for i = 2, #key do
+    group = group and group.args and group.args[key[i]]
+  end
+  return group
+end
+
 local function applyWIPOptionsDecoration()
   for _, mod in ipairs(WIP_MODULES) do
-    local group = options and options.args and options.args[mod.key]
+    local group = resolveWIPGroup(mod.key)
     if group then
       if not group.name:find("%(WIP%)") then
         group.name = "(WIP) " .. group.name
@@ -420,6 +454,31 @@ options = {
               order = 3
             }
           },
+        },
+        listviewBag = {
+          type = "group",
+          name = "Listview Bag",
+          desc = "A sortable list-view alternative to the default grid bag window.",
+          order = 5,
+          args = {
+            enabled = {
+              name = "Enable",
+              desc = "Adds a toggle button to the bag window's title bar that switches between the default grid view and a sortable list view of your inventory.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.listviewBag.enabled end,
+              set = function(_, value)
+                db.profile.listviewBag.enabled = value
+                if value then
+                  Self.ListviewBag:Enable()
+                else
+                  Self.ListviewBag:Disable()
+                end
+              end,
+              order = 1
+            }
+          }
         }
       }
     },

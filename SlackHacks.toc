@@ -18,6 +18,7 @@ ChargeTracking.lua
 Bindings.lua
 Buffs.lua
 Weeklies.lua
+ListviewBag.lua
 Minimap.lua
 MovableWindows.lua
 Controls.lua
