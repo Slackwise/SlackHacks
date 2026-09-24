@@ -147,7 +147,7 @@ invoke_git_pull() {
   local path="$1"
 
   echo "Starting git pull for '$path'..." >&2
-  git -C "$path" pull --ff-only
+  git -C "$path" pull --force --ff-only
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to pull the latest changes for '$path'. Please resolve any git issues and try again."
   fi

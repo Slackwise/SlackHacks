@@ -70,7 +70,7 @@ function Invoke-GitPull {
         [string]$Path
     )
 
-    git -C $Path pull --ff-only
+    git -C $Path pull --force --ff-only
     if ($LASTEXITCODE -ne 0) {
         Show-ErrorMessageBox -Title 'Git Pull Failed' -Message "Failed to pull the latest changes for '$Path'. Please resolve any git issues and try again."
         exit 1
