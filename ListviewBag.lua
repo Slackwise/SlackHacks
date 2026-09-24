@@ -603,42 +603,10 @@ end
 -- Footer: gold + tracked currencies + a shortcut to open the Currency panel
 --=====================================================================
 
-local currencyWidgets = {}
-
 local function updateFooter()
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
-
-  local shown = 0
-  local numCurrencies = C_CurrencyInfo.GetCurrencyListSize()
-  for i = 1, numCurrencies do
-    local info = C_CurrencyInfo.GetCurrencyListInfo(i)
-    if info and not info.isHeader and info.isShowInBackpack then
-      shown = shown + 1
-      local widget = currencyWidgets[shown]
-      if not widget then
-        widget = CreateFrame("Frame", nil, footer)
-        widget.icon = widget:CreateTexture(nil, "ARTWORK")
-        widget.icon:SetSize(16, 16)
-        widget.icon:SetPoint("LEFT", widget, "LEFT", 0, 0)
-        widget.text = widget:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        widget.text:SetPoint("LEFT", widget.icon, "RIGHT", 2, 0)
-        currencyWidgets[shown] = widget
-      end
-      widget.icon:SetTexture(info.iconFileID)
-      widget.text:SetText(info.quantity)
-      widget:SetSize(16 + 2 + widget.text:GetStringWidth(), 16)
-      widget:ClearAllPoints()
-      if shown == 1 then
-        widget:SetPoint("RIGHT", footer.currencyButton, "LEFT", -10, 0)
-      else
-        widget:SetPoint("RIGHT", currencyWidgets[shown - 1], "LEFT", -10, 0)
-      end
-      widget:Show()
-    end
-  end
-  for i = shown + 1, #currencyWidgets do
-    currencyWidgets[i]:Hide()
-  end
+  footer.tokenFrame:Update()
+  footer.tokenFrame:SetShown(footer.tokenFrame:ShouldShow())
 end
 
 local function createFooter()
@@ -653,18 +621,24 @@ local function createFooter()
   footer.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock", true, true)
   footer.Bg:SetAllPoints()
 
-  -- The real Blizzard small money display (same one the default bags use) instead of a hand-rolled
-  -- FontString, so gold/silver/copper formatting and colors match natively.
-  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "SmallMoneyFrameTemplate")
+  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetPoint("LEFT", footer, "LEFT", 0, 0)
-  MoneyFrame_SetType(footer.moneyFrame, "PLAYER")
 
-  -- A plain text button (rather than a guessed icon atlas) to reliably open Blizzard's own Currency tab.
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.currencyButton:SetSize(72, 20)
   footer.currencyButton:SetText("Currency")
   footer.currencyButton:SetPoint("RIGHT", footer, "RIGHT", 0, 0)
   footer.currencyButton:SetScript("OnClick", function() ToggleCharacter("TokenFrame") end)
+
+  if C_AddOns and C_AddOns.LoadAddOn then
+    C_AddOns.LoadAddOn("Blizzard_TokenUI")
+  else
+    UIParentLoadAddOn("Blizzard_TokenUI")
+  end
+  footer.tokenFrame = CreateFrame("Frame", nil, footer, "BackpackTokenFrameTemplate")
+  footer.tokenFrame:SetIsCombinedInventory(true)
+  footer.tokenFrame:SetPoint("LEFT", footer.moneyFrame, "RIGHT", 8, 0)
+  footer.tokenFrame:SetPoint("RIGHT", footer.currencyButton, "LEFT", -4, 0)
 end
 
 --=====================================================================
