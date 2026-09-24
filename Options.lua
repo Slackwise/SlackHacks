@@ -323,6 +323,22 @@ local selfVendorModeSorting = {
   Enum.SelfVendorMode.AUGMENTS,
 }
 
+local function listviewVendorItemValues()
+  local values = {}
+  for key, item in pairs(db.profile.listviewBag.trashItems or {}) do
+    if type(item) == "table" then
+      local suffix = "Quality " .. tostring(item.quality or 0) .. ", iLvl " .. tostring(item.itemLevel or 0)
+      if item.upgradeTrack and item.upgradeTrack ~= "" then
+        suffix = suffix .. ", " .. item.upgradeTrack
+      end
+      values[key] = (item.name or "Unknown item") .. " (" .. suffix .. ")"
+    else
+      values[key] = tostring(key)
+    end
+  end
+  return values
+end
+
 local function selfVendorModeOptions()
   local args = {}
   args.enabled = {
@@ -480,6 +496,23 @@ options = {
                 end
               end,
               order = 1
+            },
+            autoVendorItems = {
+              name = "Auto-Vendor Items",
+              desc = "Uncheck an item to remove it from the auto-vendor list.",
+              type = "multiselect",
+              values = listviewVendorItemValues,
+              get = function(_, key) return db.profile.listviewBag.trashItems[key] ~= nil end,
+              set = function(_, key, value)
+                if not value then
+                  db.profile.listviewBag.trashItems[key] = nil
+                  if Self.ListviewBag then
+                    Self.ListviewBag:Refresh()
+                  end
+                end
+              end,
+              width = "full",
+              order = 2
             }
           }
         }
