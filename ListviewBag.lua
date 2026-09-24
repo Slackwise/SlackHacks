@@ -751,6 +751,18 @@ local function hideDefaultBags()
   end
 end
 
+local defaultBagHidePending = false
+local function hideDefaultBagsSoon()
+  if defaultBagHidePending then return end
+  defaultBagHidePending = true
+  C_Timer.After(0, function()
+    defaultBagHidePending = false
+    if isModuleEnabled() and settings().listViewActive then
+      hideDefaultBags()
+    end
+  end)
+end
+
 local function showDefaultBags()
   if _G.ToggleAllBags then
     ToggleAllBags()
@@ -774,14 +786,17 @@ local function setListViewActive(active)
 end
 
 local lastNativeBagToggle = 0
+local suppressListReopenUntil = 0
 local function toggleListViewFromNativeBagAction()
   if not frame or not isModuleEnabled() or not settings().listViewActive then return end
   local now = GetTime()
   if now - lastNativeBagToggle < 0.01 then return end
   lastNativeBagToggle = now
   hideDefaultBags()
+  hideDefaultBagsSoon()
   if frame:IsShown() then
     frame:Hide()
+    suppressListReopenUntil = now + 0.1
   else
     frame:Show()
   end
@@ -1009,6 +1024,7 @@ function module:OnEnable()
     return
   end
   buildFrame()
+  self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
@@ -1032,7 +1048,22 @@ function module:OnDisable()
 end
 
 function module:MERCHANT_SHOW()
+  hideDefaultBags()
+  hideDefaultBagsSoon()
+  if settings().listViewActive then
+    frame:Show()
+  end
   sellMarkedTrashItems()
+end
+
+function module:OnNativeBagOpen()
+  if isModuleEnabled() and settings().listViewActive then
+    hideDefaultBags()
+    hideDefaultBagsSoon()
+    if GetTime() >= suppressListReopenUntil then
+      frame:Show()
+    end
+  end
 end
 
 function module:RefreshFooter()
