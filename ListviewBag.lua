@@ -70,6 +70,16 @@ local function bagIDs()
   return ids
 end
 
+local function findEmptyBagSlot()
+  for _, bagID in ipairs(bagIDs()) do
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      if not C_Container.GetContainerItemInfo(bagID, slot) then
+        return bagID, slot
+      end
+    end
+  end
+end
+
 local function settings()
   local listviewSettings = db.profile.listviewBag
   listviewSettings.protectedItems = listviewSettings.protectedItems or {}
@@ -502,6 +512,10 @@ local function createRow(index)
     elseif IsModifiedClick("SPLITSTACK") and row.primaryEntry.count and row.primaryEntry.count > 1 then
       row.SplitStack = function(_, split)
         C_Container.SplitContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot, split)
+        local bagID, slot = findEmptyBagSlot()
+        if bagID and slot then
+          C_Container.PickupContainerItem(bagID, slot)
+        end
       end
       StackSplitFrame:OpenStackSplitFrame(row.primaryEntry.count, row, "BOTTOMLEFT", "TOPLEFT")
     elseif row.hyperlink and (IsModifiedClick("CHATLINK") or IsModifiedClick("DRESSUP")) then
