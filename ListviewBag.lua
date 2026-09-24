@@ -503,7 +503,7 @@ local function createRow(index)
       row.SplitStack = function(_, split)
         C_Container.SplitContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot, split)
       end
-      OpenStackSplitFrame(row.primaryEntry.count, row, "BOTTOMLEFT", "TOPLEFT")
+      StackSplitFrame:OpenStackSplitFrame(row.primaryEntry.count, row, "BOTTOMLEFT", "TOPLEFT")
     elseif row.hyperlink and (IsModifiedClick("CHATLINK") or IsModifiedClick("DRESSUP")) then
       HandleModifiedItemClick(row.hyperlink)
     end
