@@ -430,6 +430,17 @@ local function createRow(index)
 
   row.nameText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.nameText:SetJustifyH("LEFT")
+  row.nameTooltip = CreateFrame("Frame", nil, row)
+  row.nameTooltip:EnableMouse(true)
+  row.nameTooltip:SetPropagateMouseClicks(true)
+  row.nameTooltip:SetScript("OnEnter", function(self)
+    if row.hyperlink then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetHyperlink(row.hyperlink)
+      GameTooltip:Show()
+    end
+  end)
+  row.nameTooltip:SetScript("OnLeave", GameTooltip_Hide)
 
   row.qualitySwatch = row:CreateTexture(nil, "ARTWORK")
   row.qualitySwatch:SetSize(16, 16)
@@ -466,15 +477,6 @@ local function createRow(index)
       HandleModifiedItemClick(row.hyperlink)
     end
   end)
-  row:SetScript("OnEnter", function()
-    if row.hyperlink then
-      GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-      GameTooltip:SetHyperlink(row.hyperlink)
-      GameTooltip:Show()
-    end
-  end)
-  row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
   return row
 end
 
@@ -490,6 +492,7 @@ end
 positionRowCells = function(row)
   row.icon:ClearAllPoints()
   row.nameText:ClearAllPoints()
+  row.nameTooltip:ClearAllPoints()
   row.qualitySwatch:ClearAllPoints()
   row.bindIcon:ClearAllPoints()
   local nameLayout = columnLayout.name
@@ -497,6 +500,8 @@ positionRowCells = function(row)
   row.icon:SetPoint("LEFT", row, "LEFT", nameLayout.x + indent, 0)
   row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
   row.nameText:SetWidth(math.max(20, nameLayout.width - indent - ROW_HEIGHT - 19))
+  row.nameTooltip:SetPoint("LEFT", row.nameText, "LEFT")
+  row.nameTooltip:SetSize(math.min(row.nameText:GetStringWidth(), row.nameText:GetWidth()), ROW_HEIGHT)
 
   for _, colID in ipairs({ "quantity", "ilvl", "armorType", "armorSlot" }) do
     local cell = row[colID .. "Text"]
