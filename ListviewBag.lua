@@ -773,22 +773,41 @@ local function setListViewActive(active)
   end
 end
 
-local function onDefaultBagsShown()
-  if isModuleEnabled() and settings().listViewActive then
-    hideDefaultBags()
+local lastNativeBagToggle = 0
+local function toggleListViewFromNativeBagAction()
+  if not frame or not isModuleEnabled() or not settings().listViewActive then return end
+  local now = GetTime()
+  if now - lastNativeBagToggle < 0.01 then return end
+  lastNativeBagToggle = now
+  hideDefaultBags()
+  if frame:IsShown() then
+    frame:Hide()
+  else
     frame:Show()
   end
 end
 
--- Hooked (not overridden) so the default keybinding/bag-bar button still works exactly as before;
--- we just additionally swap in our own window afterward when list view is the player's active choice.
 local hookedBagToggleFuncs = {}
 local function hookDefaultBagToggles()
-  for _, funcName in ipairs({ "ToggleAllBags", "OpenAllBags", "ToggleBackpack", "OpenBackpack", "ToggleBag" }) do
+  for _, funcName in ipairs({ "ToggleBackpack", "OpenBackpack", "ToggleBag", "OpenBag" }) do
     if _G[funcName] and not hookedBagToggleFuncs[funcName] then
       hookedBagToggleFuncs[funcName] = true
-      hooksecurefunc(funcName, onDefaultBagsShown)
+      hooksecurefunc(funcName, toggleListViewFromNativeBagAction)
     end
+  end
+  if _G.CloseBackpack and not hookedBagToggleFuncs.CloseBackpack then
+    hookedBagToggleFuncs.CloseBackpack = true
+    hooksecurefunc("CloseBackpack", function()
+      if frame and isModuleEnabled() and settings().listViewActive then
+        frame:Hide()
+      end
+    end)
+  end
+end
+
+local function refreshFooter()
+  if frame and frame:IsShown() then
+    updateFooter()
   end
 end
 
@@ -869,7 +888,7 @@ local function buildFrame()
   -- from the view-toggle button sitting on top of that icon.
   local dragHandle = CreateFrame("Frame", nil, content)
   dragHandle:SetPoint("TOPLEFT", content, "TOPLEFT", 58, 0)
-  dragHandle:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, 0)
+  dragHandle:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, 0)
   dragHandle:SetHeight(20)
   dragHandle:EnableMouse(true)
   frame:SetMovable(true)
@@ -992,10 +1011,10 @@ function module:OnEnable()
   buildFrame()
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
-  self:RegisterEvent("PLAYER_MONEY", "Refresh")
-  self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "Refresh")
+  self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
+  self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
   self:RegisterEvent("MERCHANT_SHOW")
-  EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.Refresh, self)
+  EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.RefreshFooter, self)
   if settings().listViewActive then
     setListViewActive(true)
   end
@@ -1016,8 +1035,10 @@ function module:MERCHANT_SHOW()
   sellMarkedTrashItems()
 end
 
--- Shared refresh entry point for every event above; cheap enough to call unconditionally since it
--- no-ops while the window is hidden (see renderRows()'s IsShown guard).
+function module:RefreshFooter()
+  refreshFooter()
+end
+
 function module:Refresh()
   if not frame then return end
   renderRows()
