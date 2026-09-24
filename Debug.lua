@@ -285,13 +285,17 @@ local function sendBattleNetChunked(gameAccountID, text, doneCallback)
   doneCallback(allOk)
 end
 
-function module:SendErrorLogs(kind, target)
+function module:SendErrorLogs(kind, target, onComplete)
   if InCombatLockdown() then
-    runAfterCombat(function() module:SendErrorLogs(kind, target) end)
+    runAfterCombat(function() module:SendErrorLogs(kind, target, onComplete) end)
+    if onComplete then onComplete(false, "in_combat") end
     return
   end
   local list = errorLogTable()
-  if not list or #list == 0 then return end
+  if not list or #list == 0 then
+    if onComplete then onComplete(false, "no_logs") end
+    return
+  end
 
   local payload = Self:Serialize({
     sender = characterFullName(UnitName("player"), GetRealmName()) or UnitName("player"),
@@ -301,27 +305,46 @@ function module:SendErrorLogs(kind, target)
   if kind == "bnet" then
     sendBattleNetChunked(target, payload, function(success)
       if success then clearErrorLogs() end
+      if onComplete then onComplete(success) end
     end)
   elseif kind == "guild" then
     Self:SendCommMessage(ERROR_LOG_COMM_PREFIX, payload, "WHISPER", target, "BULK", function(_, sent, total)
       if sent and total and sent >= total then
         clearErrorLogs()
+        if onComplete then onComplete(true) end
       end
     end)
+  else
+    if onComplete then onComplete(false, "unknown_kind") end
   end
 end
 
-function module:AttemptSend()
-  if not isErrorLoggingEnabled() then return end
-  if isSlackwise() then return end -- never applicable to Slack's own client
-  if not isEligibleToSendErrorLogs() then return end
+function module:AttemptSend(onComplete)
+  if not isErrorLoggingEnabled() then
+    if onComplete then onComplete(false, "logging_disabled") end
+    return
+  end
+  if isSlackwise() then
+    if onComplete then onComplete(false, "is_slack") end
+    return
+  end -- never applicable to Slack's own client
+  if not isEligibleToSendErrorLogs() then
+    if onComplete then onComplete(false, "ineligible") end
+    return
+  end
   local list = errorLogTable()
-  if not list or #list == 0 then return end
+  if not list or #list == 0 then
+    if onComplete then onComplete(false, "no_logs") end
+    return
+  end
 
   local kind, target = resolveSlackTarget()
-  if not kind then return end
+  if not kind then
+    if onComplete then onComplete(false, "target_offline") end
+    return
+  end
 
-  module:SendErrorLogs(kind, target)
+  module:SendErrorLogs(kind, target, onComplete)
 end
 
 -----------------------------------------------------------------------
@@ -543,10 +566,22 @@ end
 
 function module:HandleBugCommand()
   local list = errorLogTable()
-  if list and #list > 0 then
-    module:AttemptSend()
-  else
-    print("SlackHacks: no error log entries to send.")
+  if not list or #list == 0 then
+    print("SlackHacks: no errors recorded.")
+    module:ShowWindow()
+    return
   end
-  module:ShowWindow()
+
+  module:AttemptSend(function(success, reason)
+    if success then
+      print("SlackHacks: bug logs successfully sent to Slack!")
+    else
+      if reason == "target_offline" then
+        print("SlackHacks: Slack is not currently online to receive logs directly.")
+      elseif reason == "in_combat" then
+        print("SlackHacks: in combat; queued to send after combat.")
+      end
+      module:ShowWindow()
+    end
+  end)
 end
