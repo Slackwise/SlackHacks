@@ -49,6 +49,27 @@ function isDebugging()
   end
 end
 
+function toggleDebugging()
+  if not isInitialized() then return false end
+  if not Self.db.global.logs then
+    Self.db.global.logs = { debug = {}, error = {} }
+  end
+  Self.db.global.logs.isDebugging = not Self.db.global.logs.isDebugging
+  if Self.db.global.logs.isDebugging then
+    print("SlackHacks Debugging ON")
+  else
+    print("SlackHacks Debugging OFF")
+  end
+  if Self.Buffs and Self.Buffs.Refresh then
+    Self.Buffs:Refresh()
+  end
+  local acr = LibStub("AceConfigRegistry-3.0", true)
+  if acr then
+    acr:NotifyChange("SlackHacks")
+  end
+  return Self.db.global.logs.isDebugging
+end
+
 function log(message, ...)
   if isDebugging() then
     local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
@@ -127,7 +148,7 @@ function processLogs(shouldProcess, delay)
       if not success and not isSlackwise() then
         local list = errorLogTable()
         if list and #list > 0 then
-          print(grey(icon(14)) .. " SlackHacks: you have " .. #list .. " un-reported error(s). Use " .. grey("/slack reporterrors") .. " to view and report them.")
+          print(grey(icon(14)) .. " SlackHacks: you have " .. #list .. " un-reported error(s). Use " .. grey("/slack bugs") .. " to view and report them.")
         end
       end
     end)

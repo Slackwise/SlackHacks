@@ -125,6 +125,62 @@ dbDefaults = {
 
 -- Documentation for AceConfig "Options" tables: https://www.wowace.com/projects/ace3/pages/ace-config-3-0-options-tables
 
+WIP_MODULES = {
+  {
+    key = "buffs",
+    name = "Consumable Buff Reminders",
+    warningOrder = -1,
+    disable = function()
+      if Self.db and Self.db.profile and Self.db.profile.buffs then
+        Self.db.profile.buffs.enabled = false
+      end
+      if Self.Buffs and Self.Buffs.Refresh then
+        Self.Buffs:Refresh()
+      end
+    end
+  },
+  {
+    key = "combat",
+    name = "Combat",
+    warningOrder = 0,
+    disable = function()
+      if Self.db and Self.db.profile and Self.db.profile.combat then
+        Self.db.profile.combat.raiseCastingNameplates = false
+        if Self.db.profile.combat.paladin then
+          Self.db.profile.combat.paladin.trackHolyShockCharges = false
+        end
+      end
+      resetNameplateCastLift()
+      if Self.ChargeTracking and Self.ChargeTracking.Refresh then
+        Self.ChargeTracking:Refresh()
+      end
+    end
+  }
+}
+
+local function applyWIPOptionsDecoration()
+  for _, mod in ipairs(WIP_MODULES) do
+    local group = options and options.args and options.args[mod.key]
+    if group then
+      if not group.name:find("%(WIP%)") then
+        group.name = group.name .. " (WIP)"
+      end
+      local originalDesc = group.desc or ""
+      if not originalDesc:find("%[Work in Progress%]") then
+        group.desc = icon(14) .. " |cffff8000[Work in Progress]|r " .. originalDesc
+      end
+      group.icon = group.icon or SLACKHACKS_ICON
+      if group.args and not group.args.wipWarning then
+        group.args.wipWarning = {
+          name = "|cffff8000Warning:|r This module is a work in progress and currently experimental. Use |cffffffff/slack nowip|r to disable all WIP modules.",
+          type = "description",
+          order = mod.warningOrder or -1
+        }
+      end
+    end
+  end
+end
+
 function openOptions()
   -- If Blizzard SettingsPanel is already open, toggle it closed:
   if SettingsPanel and SettingsPanel:IsShown() then
@@ -156,33 +212,54 @@ function openOptions()
 end
 toggleOptions = openOptions
 
+local function getWIPModuleNames()
+  local names = {}
+  for _, mod in ipairs(WIP_MODULES) do
+    table.insert(names, mod.name)
+  end
+  return table.concat(names, ", ")
+end
+
+local function printSlashHelp()
+  print(grey(icon(16)) .. " " .. color("FFD100")("SlackHacks Slash Commands:") .. "")
+  print("  " .. color("FFFFFF")("/slack") .. " or " .. color("FFFFFF")("/slack help") .. " - Show this list of slash commands")
+  print("  " .. color("FFFFFF")("/slack debug") .. " - Toggle debug mode on/off")
+  print("  " .. color("FFFFFF")("/slack bugs") .. " - View and report error logs")
+  print("  " .. color("FFFFFF")("/slack reset") .. " - Reset profile and addon state to defaults")
+  print("  " .. color("FFFFFF")("/slack nowip") .. " - Disable work-in-progress modules (" .. getWIPModuleNames() .. ")")
+end
+
+function disableWIPModules()
+  if not Self.db or not Self.db.profile then return end
+
+  for _, mod in ipairs(WIP_MODULES) do
+    if mod.disable then
+      mod.disable()
+    end
+  end
+
+  local acr = LibStub("AceConfigRegistry-3.0", true)
+  if acr then
+    acr:NotifyChange("SlackHacks")
+  end
+
+  print("SlackHacks: disabled all WIP modules (" .. getWIPModuleNames() .. ").")
+end
+
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
-  if command == "vendor" then
-    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|augmentrunes|vantusrune|augments] [wowhead|icyveins|murlok]")
-  elseif command == "clearlogs" or command == "cleardebuglogs" then
-    clearDebugLogs()
-    print("SlackHacks: debug logs cleared")
-  elseif command == "reporterrors" or command == "reportbugs" or command == "bug" then
+  if command == "" or command == "help" then
+    printSlashHelp()
+  elseif command == "debug" then
+    toggleDebugging()
+  elseif command == "bugs" then
     Self.Debug:ReportErrors()
-  elseif command == "options" or command == "config" or command == "opt" then
-    openOptions()
-  elseif command:find("^vendor%s+") then
-    Self.SelfVendor:HandleSlash(command:sub(8))
-  elseif command:find("^sendaugs%s+") then
-    if not isSlackwise() then
-      print("SlackHacks: unknown command.")
-      return
-    end
-    local arguments = command:match("^sendaugs%s+(.+)$")
-    if arguments then
-      Self.SelfVendor:SendAugsForClassSpec(arguments)
-    else
-      print("Usage: /slack sendaugs <class> <spec> [wowhead|icyveins|murlok]")
-      print("SlackHacks: personal overrides use /slack sendaugs <character> <realm> [wowhead|icyveins|murlok]")
-    end
+  elseif command == "reset" then
+    promptResetProfile()
+  elseif command == "nowip" then
+    disableWIPModules()
   else
-    LibStub("AceConfigCmd-3.0"):HandleCommand("slack", "SlackHacks", input or "")
+    print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
   end
 end
 
@@ -444,14 +521,7 @@ options = {
               width = "full",
               get = function() return db.global.logs and db.global.logs.isDebugging end,
               set = function()
-                if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
-                db.global.logs.isDebugging = not db.global.logs.isDebugging
-                if db.global.logs.isDebugging then
-                  print("SlackHacks Debugging ON")
-                else
-                  print("SlackHacks Debugging OFF")
-                end
-                Self.Buffs:Refresh()
+                toggleDebugging()
               end,
               order = 1
             },
@@ -1267,6 +1337,8 @@ options = {
 function registerOptions()
   options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
   options.args.profiles.order = 1
+  hookResetProfileOption()
+  applyWIPOptionsDecoration()
   migrateConfig()
   local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
   if customConfig and customConfig.setOptions then

@@ -192,8 +192,66 @@ StaticPopupDialogs[CONFIG_RESET_POPUP] = {
   showAlert = true,
 }
 
+RESET_PROFILE_CONFIRM_POPUP = "SLACKHACKS_RESET_PROFILE_CONFIRM"
+StaticPopupDialogs[RESET_PROFILE_CONFIRM_POPUP] = {
+  text = "Are you sure you want to reset all SlackHacks settings for the current profile? This will wipe your profile settings and reset the addon (and may reload your UI).",
+  button1 = YES,
+  button2 = NO,
+  OnAccept = function()
+    resetCurrentProfileAndAddon()
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+  showAlert = true,
+}
+
 function notifyConfigReset()
   StaticPopup_Show(CONFIG_RESET_POPUP)
+end
+
+function promptResetProfile()
+  StaticPopup_Show(RESET_PROFILE_CONFIRM_POPUP)
+end
+
+-- Resets the current profile and reinitializes the entire addon state.
+-- If an error occurs during reinitialization, it falls back to reloading the UI.
+function resetCurrentProfileAndAddon()
+  local ok, err = pcall(function()
+    if Self.db then
+      Self.db:ResetProfile()
+      Self.db.global.configVersion = CONFIG_VERSION
+    end
+
+    -- Reset addon state by disabling and re-enabling the addon and its modules
+    Self:Disable()
+    Self:Enable()
+
+    local acr = LibStub("AceConfigRegistry-3.0", true)
+    if acr then
+      acr:NotifyChange("SlackHacks")
+    end
+
+    print("SlackHacks: profile and addon state have been reset to defaults.")
+  end)
+
+  if not ok then
+    print("SlackHacks: error resetting addon (" .. tostring(err) .. "). Reloading UI...")
+    ReloadUI()
+  end
+end
+
+function hookResetProfileOption()
+  if not (options and options.args and options.args.profiles and options.args.profiles.args) then
+    return
+  end
+  local resetOpt = options.args.profiles.args.reset
+  if resetOpt then
+    resetOpt.func = function()
+      promptResetProfile()
+    end
+    resetOpt.confirm = nil
+  end
 end
 
 -- Resets the current profile back to defaults (leaves other profiles/characters alone, same as the
