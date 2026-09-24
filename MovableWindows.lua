@@ -714,8 +714,14 @@ local function makeMoveHandle(frame, rootFrame, titleBarHeight, titleBarRaise, i
   handle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, titleBarRaise)
   handle:SetHeight(titleBarHeight + titleBarRaise)
   handle:SetFrameLevel(frame:GetFrameLevel() + TITLE_BAR_HANDLE_LEVEL_OFFSET)
-  handle:SetPropagateMouseMotion(true)
-  handle:SetPropagateMouseClicks(true)
+  -- SetPropagateMouseMotion/Clicks are protected once the handle is parented under a protected frame
+  -- (e.g. CharacterFrame) -- guard with IsProtected()+pcall so it just silently no-ops there instead of
+  -- throwing ADDON_ACTION_BLOCKED; harmless to skip, it only affects click/tooltip passthrough under the
+  -- handle's own small title-bar strip.
+  if not frame:IsProtected() then
+    pcall(handle.SetPropagateMouseMotion, handle, true)
+    pcall(handle.SetPropagateMouseClicks, handle, true)
+  end
   handle.onDragStartCallback = function() return false end
   handle:HookScript("OnMouseDown", onMouseDown)
   handle:HookScript("OnMouseUp", onMouseUp)
