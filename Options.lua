@@ -28,7 +28,7 @@ dbDefaults = {
       enabled = false,
       listViewActive = false,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
-      lockedItems = {},
+      protectedItems = {},
       trashItems = {},
       point = nil
     },

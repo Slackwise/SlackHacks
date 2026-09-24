@@ -43,12 +43,8 @@ local TRACK_NAMES = { Explorer = true, Adventurer = true, Veteran = true, Champi
 
 local ARMOR_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Armor) or 4
 
--- The gold padlock icon subregion of Blizzard's own talent-point-lock art (confirmed via wow-ui-source's
--- SharedXML template definitions), reused here instead of a custom texture for the "Locked" status icon.
-local LOCK_ICON_TEXTURE = "Interface\\TalentFrame\\TalentFrame-Parts"
-local LOCK_ICON_COORDS = { 0.9296875, 0.99609375, 0.68359375, 0.72460938 }
--- Blizzard's own small gold-coin icon (used throughout money frames), reused for the "Trash/Sell" status icon.
-local TRASH_ICON_TEXTURE = "Interface\\MoneyFrame\\UI-GoldIcon"
+local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
+local VENDOR_ICON_ATLAS = "bags-junkcoin"
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
 
@@ -67,6 +63,8 @@ end
 
 local function settings()
   local listviewSettings = db.profile.listviewBag
+  listviewSettings.protectedItems = listviewSettings.protectedItems or {}
+  listviewSettings.trashItems = listviewSettings.trashItems or {}
   local columnOrder = listviewSettings and listviewSettings.columnOrder
   if columnOrder then
     for index = #columnOrder, 1, -1 do
@@ -82,22 +80,16 @@ local function isModuleEnabled()
   return settings() and settings().enabled
 end
 
--- Trash items are keyed by itemID normally, but for armor we key by "name|itemLevel" instead (per
--- design) so that only the specific item-level variant the player flagged gets auto-sold -- a fresh,
--- higher-ilvl drop of the same-named piece is left alone until the player re-flags it.
-local function trashKey(itemID, itemName, itemLevel, isArmor)
-  if isArmor and itemName and itemLevel then
-    return itemName .. "|" .. itemLevel
-  end
-  return itemID
+local function itemStatusKey(itemName, quality, itemLevel, upgradeTrack)
+  return table.concat({ itemName or "", quality or 0, itemLevel or 0, upgradeTrack or "" }, "\031")
 end
 
-local function isLockedItem(itemID)
-  return settings().lockedItems[itemID] == true
+local function isProtectedItem(key)
+  return settings().protectedItems[key] ~= nil
 end
 
 local function isTrashItem(key)
-  return settings().trashItems[key] == true
+  return settings().trashItems[key] ~= nil
 end
 
 --=====================================================================
@@ -222,20 +214,24 @@ local function collectGroups()
     group.qualityAtlas = qualityInfo and qualityInfo.iconChat
       or group.craftedQuality and group.craftedQuality > 0
       and "Professions-Icon-Quality-12-Tier" .. group.craftedQuality .. "-Inv"
+    local first = group.entries[1]
+    group.itemLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink) or itemLevel
+    group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
     group.isArmor = classID == ARMOR_CLASS_ID
     if group.isArmor then
-      local detailedLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink)
-      group.itemLevel = detailedLevel or itemLevel
-      local first = group.entries[1]
-      group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
       group.armorType = itemSubType
       group.armorSlot = itemEquipLoc and _G[itemEquipLoc]
     end
-    local first = group.entries[1]
     if first then
       group.bindLabel, group.bindType, group.accountBound, group.isBound = getBindInfo(first.bagID, first.slot, group.hyperlink)
     end
-    group.trashKey = trashKey(group.itemID, group.itemName, group.itemLevel, group.isArmor)
+    group.statusKey = itemStatusKey(group.itemName, group.quality, group.itemLevel, group.upgradeTrack)
+    group.statusInfo = {
+      name = group.itemName,
+      quality = group.quality,
+      itemLevel = group.itemLevel,
+      upgradeTrack = group.upgradeTrack,
+    }
   end
 
   table.sort(order, function(a, b)
@@ -357,17 +353,14 @@ end
 -- Row widgets
 --=====================================================================
 
--- Cycles this row's combined lock/trash status: None -> Locked -> Trash -> None. Locked and Trash are
--- still stored in their own separate tables (lockedItems by itemID, trashItems by the armor-aware key
--- from trashKey()) -- only the on-screen control is unified into a single click target.
-local function cycleStatus(itemID, key)
-  if isLockedItem(itemID) then
-    settings().lockedItems[itemID] = nil
-    settings().trashItems[key] = true
+local function cycleStatus(key, statusInfo)
+  if isProtectedItem(key) then
+    settings().protectedItems[key] = nil
+    settings().trashItems[key] = statusInfo
   elseif isTrashItem(key) then
     settings().trashItems[key] = nil
   else
-    settings().lockedItems[itemID] = true
+    settings().protectedItems[key] = statusInfo
   end
   renderRows()
 end
@@ -408,16 +401,17 @@ local function createRow(index)
   row.statusBtn:SetSize(STATUS_WIDTH, STATUS_WIDTH)
   row.statusBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
   row.statusBtn.icon = row.statusBtn:CreateTexture(nil, "ARTWORK")
-  row.statusBtn.icon:SetAllPoints()
-  row.statusBtn:SetScript("OnClick", function() cycleStatus(row.itemID, row.trashKey) end)
+  row.statusBtn.icon:SetSize(14, 14)
+  row.statusBtn.icon:SetPoint("CENTER")
+  row.statusBtn:SetScript("OnClick", function() cycleStatus(row.statusKey, row.statusInfo) end)
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    if isLockedItem(row.itemID) then
-      GameTooltip:SetText("Locked (click to mark as Trash instead)")
-    elseif isTrashItem(row.trashKey) then
-      GameTooltip:SetText("Trash - sold automatically at merchants (click to clear)")
+    if isProtectedItem(row.statusKey) then
+      GameTooltip:SetText("Protected (click to mark for Vendor instead)")
+    elseif isTrashItem(row.statusKey) then
+      GameTooltip:SetText("Marked for Vendor (click to clear)")
     else
-      GameTooltip:SetText("Click to lock, click again to mark as Trash")
+      GameTooltip:SetText("Click to Protect, click again to mark for Vendor")
     end
     GameTooltip:Show()
   end)
@@ -552,7 +546,8 @@ local function buildDisplayRows()
             bindType = group.bindType,
             accountBound = group.accountBound,
             isBound = entry.isBound,
-            trashKey = group.trashKey,
+            statusKey = group.statusKey,
+            statusInfo = group.statusInfo,
           }
         end
       end
@@ -579,9 +574,10 @@ renderRows = function()
     row.hyperlink = data.hyperlink
     row.isChild = data.isChild
     row.groupKey = data.isGroupHeader and data.key or nil
-    row.trashKey = data.trashKey
+    row.statusKey = data.statusKey
+    row.statusInfo = data.statusInfo
     row.primaryEntry = data.entries and data.entries[1]
-    row.locked = isLockedItem(data.itemID)
+    row.locked = isProtectedItem(data.statusKey)
 
     if data.isGroupHeader then
       row.collapseBtn:Show()
@@ -590,13 +586,11 @@ renderRows = function()
       row.collapseBtn:Hide()
     end
 
-    if isLockedItem(data.itemID) then
-      row.statusBtn.icon:SetTexture(LOCK_ICON_TEXTURE)
-      row.statusBtn.icon:SetTexCoord(unpack(LOCK_ICON_COORDS))
+    if isProtectedItem(data.statusKey) then
+      row.statusBtn.icon:SetAtlas(PROTECT_ICON_ATLAS)
       row.statusBtn.icon:Show()
-    elseif isTrashItem(data.trashKey) then
-      row.statusBtn.icon:SetTexture(TRASH_ICON_TEXTURE)
-      row.statusBtn.icon:SetTexCoord(0, 1, 0, 1)
+    elseif isTrashItem(data.statusKey) then
+      row.statusBtn.icon:SetAtlas(VENDOR_ICON_ATLAS)
       row.statusBtn.icon:Show()
     else
       row.statusBtn.icon:Hide()
@@ -872,6 +866,10 @@ local function buildFrame()
   headerFrame:SetPoint("TOPRIGHT", content, "TOPRIGHT", -10, -56)
   headerFrame.Background:Hide()
   headerFrame.TopTileStreaks:Hide()
+  content.statusHeaderButton = CreateFrame("Button", nil, headerFrame, "ColumnDisplayButtonNoScriptsTemplate")
+  content.statusHeaderButton:SetSize(24, 24)
+  content.statusHeaderButton:SetPoint("BOTTOM", headerFrame, "BOTTOMRIGHT", -30, 1)
+  content.statusHeaderButton:SetText(CreateAtlasMarkup(PROTECT_ICON_ATLAS, 14, 14))
 
   -- Recessed marble list panel behind the rows, matching the guild roster's own InsetFrameTemplate look.
   local listInset = CreateFrame("Frame", nil, content, "InsetFrameTemplate")
@@ -917,11 +915,11 @@ local function sellMarkedTrashItems()
   for _, bagID in ipairs(bagIDs()) do
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID and not isLockedItem(info.itemID) then
-        local itemName, itemLink, _, itemLevel, _, _, _, _, _, _, _, classID = GetItemInfo(info.hyperlink)
-        local isArmor = classID == ARMOR_CLASS_ID
-        local key = trashKey(info.itemID, itemName, isArmor and (C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel), isArmor)
-        if isTrashItem(key) then
+      if info and info.itemID then
+        local itemName, itemLink, _, itemLevel = GetItemInfo(info.hyperlink)
+        local upgradeTrack = getUpgradeTrack(bagID, slot)
+        local key = itemStatusKey(itemName or info.itemName, info.quality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
+        if isTrashItem(key) and not isProtectedItem(key) then
           C_Container.UseContainerItem(bagID, slot)
         end
       end
