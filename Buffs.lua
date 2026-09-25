@@ -19,6 +19,7 @@ local RAID_DIFFICULTY_IDS = { [14] = true, [15] = true, [16] = true } -- Normal,
 local MYTHIC_DUNGEON_THRESHOLD_SECONDS = 40 * 60
 local RAID_THRESHOLD_SECONDS = 15 * 60
 local runeBuffIDSet = {}
+local wellFedBuffIDSet = { [1284617] = true }
 
 -- Buff categories, in display order. `itemNames` key into StaticData's ITEM_NAMES table.
 local BUFF_CATEGORIES = {
@@ -28,7 +29,10 @@ local BUFF_CATEGORIES = {
     icon = 133943,
     itemNames = FOOD_ITEM_NAMES,
     itemIDs = FOOD_ITEM_IDS,
-    matchAura = function(auraName) return auraName == "Well Fed" or auraName == "Hearty Well Fed" end,
+    matchAura = function(auraName, spellID)
+      if wellFedBuffIDSet[spellID] then return true end
+      return type(auraName) == "string" and auraName:find("Well Fed", 1, true) ~= nil
+    end,
   },
   {
     dbKey = "flask",
@@ -169,17 +173,34 @@ local function categoryIcon(category)
   return category.icon or SLACKHACKS_ICON
 end
 
---- Returns false if a secret aura (e.g. right as a Mythic+ key or encounter starts) aborted the scan
---- partway through, so the caller knows not to trust it as a complete picture of the player's auras.
+local function lastUsedItems()
+  local buffs = db.profile.buffs
+  buffs.lastUsedItems = buffs.lastUsedItems or {}
+  return buffs.lastUsedItems
+end
+
+local function lastUsedItemID(category)
+  return lastUsedItems()[category.dbKey]
+end
+
+--- The remembered default item, or nil if the player has none of it left in their bags.
+local function availableDefaultItemID(category)
+  local itemID = lastUsedItemID(category)
+  if itemID and C_Item.GetItemCount(itemID) > 0 then return itemID end
+  return nil
+end
+
+--- Iterates the player's buffs, skipping any secret (tainted) auras instead of aborting the whole scan,
+--- since a secret aura elsewhere (e.g. a Mythic+/encounter mechanic) doesn't affect readability of others.
 local function forEachPlayerBuff(callback)
   for i = 1, 40 do
-    -- A secret aura throws instead of returning nil while tainted; stop rather than keep hitting it.
+    -- A secret aura throws instead of returning nil while tainted; skip it and keep scanning.
     local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
-    if not ok then return false end
-    if not aura then break end
-    callback(aura)
+    if ok then
+      if not aura then break end
+      callback(aura)
+    end
   end
-  return true
 end
 
 local function recalculateAuraExpirations()
@@ -233,15 +254,10 @@ end
 local function rebuildAuraCache()
   local previousTrackedAuras = trackedAuras
   trackedAuras = {}
-  if forEachPlayerBuff(trackAura) then
-    recalculateAuraExpirations()
-    auraCacheInitialized = true
-    return auraCachesDiffer(previousTrackedAuras, trackedAuras)
-  else
-    -- Auras are secret for now; keep the last known-good state instead of showing every buff as missing.
-    trackedAuras = previousTrackedAuras
-    return false
-  end
+  forEachPlayerBuff(trackAura)
+  recalculateAuraExpirations()
+  auraCacheInitialized = true
+  return auraCachesDiffer(previousTrackedAuras, trackedAuras)
 end
 
 local function updateAuraCache(updateInfo)
@@ -343,10 +359,9 @@ end
 
 local function shouldTrackAuras()
   if not db.profile.buffs.enabled then return false end
-  local inInstance = IsInInstance()
-  if not inInstance then return false end
   local debugging = isDebugging()
   if debugging then return true end
+  if not IsInInstance() then return false end
 
   local context = currentContentContext()
   if not context or not (IsInGroup() or IsInRaid()) then return false end
@@ -404,7 +419,9 @@ local function activeCategories()
 end
 
 local function updateAuraEventRegistration()
-  local shouldRegister = not InCombatLockdown() and shouldTrackAuras()
+  -- Registering/unregistering an event isn't a protected action, so keep tracking through combat too
+  -- (otherwise reminders go stale for the whole fight instead of reacting to buffs used/falling off).
+  local shouldRegister = shouldTrackAuras()
   if shouldRegister and not auraEventRegistered then
     rebuildAuraCache()
     module:RegisterEvent("UNIT_AURA")
@@ -418,9 +435,29 @@ local function updateAuraEventRegistration()
   end
 end
 
+--- Combat-safe visual sync for one button: only Hide()/Show()/glow, never touches secure attributes.
+local function applyCombatSafeVisual(category)
+  local button = iconButtons[category.dbKey]
+  if not button or not button:IsShown() then return end
+  local expiration = categoryBuffExpiration(category)
+  button.expirationTime = expiration
+  if expiration then
+    button:Hide()
+  else
+    setNativeOverlayGlow(button, db.profile.buffs.showGlow)
+  end
+end
+
 function module:UNIT_AURA(_, unit, updateInfo)
-  if unit ~= "player" or InCombatLockdown() then return end
-  if updateAuraCache(updateInfo) then self:Refresh() end
+  if unit ~= "player" then return end
+  if not updateAuraCache(updateInfo) then return end
+  if InCombatLockdown() then
+    for _, category in ipairs(BUFF_CATEGORIES) do
+      applyCombatSafeVisual(category)
+    end
+  else
+    self:Refresh()
+  end
 end
 
 local function hideBuffs()
@@ -469,7 +506,7 @@ end
 
 local function scheduleDurationUpdates()
   cancelDurationUpdates()
-  if not container or not container:IsShown() or isEditing then return end
+  if InCombatLockdown() or not container or not container:IsShown() or isEditing then return end
   if GetCVarBool and not GetCVarBool("buffDurations") then return end
 
   local hasDuration = false
@@ -504,7 +541,7 @@ end
 
 local function createContainer()
   if container then return end
-  container = CreateFrame("Frame", "SlackHacksBuffReminders", UIParent)
+  container = CreateFrame("Frame", "SlackHacksBuffReminders", UIParent, "SecureHandlerStateTemplate")
   container:SetMovable(true)
   container:SetClampedToScreen(true)
   container:SetDontSavePosition(true)
@@ -512,12 +549,24 @@ local function createContainer()
   container:SetScale(scale)
   container:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   updatePosition()
-  container:Hide()
-  -- Hide()/Show() are protected in combat once secure buttons are parented here, so a plain Hide()
-  -- call from our (tainted) code would be blocked; a state driver hides it via secure code instead,
-  -- which also genuinely hides it from clicks rather than just visually fading it.
-  RegisterStateDriver(container, "visibility", "[combat] hide; show")
-  container:Hide()
+  container:SetAttribute("_onstate-combat", [[
+    local food = self:GetFrameRef("wellFed")
+    local flask = self:GetFrameRef("flask")
+    local oil = self:GetFrameRef("oil")
+    local rune = self:GetFrameRef("rune")
+    if newstate == "combat" then
+      if food then food:Hide() end
+      if flask then flask:Hide() end
+      if oil then
+        if oil:GetAttribute("showInCombat") then oil:Show() else oil:Hide() end
+      end
+      if rune then
+        if rune:GetAttribute("showInCombat") then rune:Show() else rune:Hide() end
+      end
+    end
+  ]])
+  RegisterStateDriver(container, "combat", "[combat] combat; nocombat")
+  container:Show()
 end
 
 local function setButtonAction(button, category, item, onlyLeftClick)
@@ -535,18 +584,30 @@ local function setButtonAction(button, category, item, onlyLeftClick)
   if not item or not category then return end
 
   local typeAttr = onlyLeftClick and "type1" or "type"
-  local itemAttr = onlyLeftClick and "item1" or "item"
   local macroAttr = onlyLeftClick and "macrotext1" or "macrotext"
-  local unitAttr = onlyLeftClick and "unit1" or "unit"
 
   if category.dbKey == "oil" then
     button:SetAttribute(typeAttr, "macro")
     button:SetAttribute(macroAttr, "/use item:" .. item.itemID .. "\n/use 16")
   else
-    button:SetAttribute(typeAttr, "item")
-    button:SetAttribute(itemAttr, "item:" .. item.itemID)
-    button:SetAttribute(unitAttr, "player")
+    button:SetAttribute(typeAttr, "macro")
+    button:SetAttribute(macroAttr, "/use item:" .. item.itemID)
   end
+end
+
+local function configureDefaultItem(button, category, itemID)
+  button.defaultItemID = itemID
+  setButtonAction(button, category, itemID and { itemID = itemID } or nil, true)
+  button:SetAttribute("showInCombat", (category.dbKey == "oil" or category.dbKey == "rune") and itemID ~= nil)
+end
+
+local function rememberDefaultItem(button, category, item)
+  if not button or not category or not item then return end
+  lastUsedItems()[category.dbKey] = item.itemID
+  configureDefaultItem(button, category, item.itemID)
+  button.icon:SetTexture(item.icon or categoryIcon(category))
+  button.hasDefaultItem = true
+  setNativeOverlayGlow(button, db.profile.buffs.showGlow and button.expirationTime == nil)
 end
 
 local function createMenuRow(index)
@@ -598,7 +659,12 @@ local function createMenuRow(index)
     scheduleMenuClose()
   end)
 
-  row:SetScript("PostClick", function()
+  row:SetScript("PostClick", function(self)
+    local anchor = menuFrame and menuFrame.anchorButton
+    local category = menuFrame and menuFrame.category
+    if anchor and category and self.item then
+      rememberDefaultItem(anchor, category, self.item)
+    end
     closeContextMenu()
     C_Timer.After(0.2, function() module:Refresh() end)
   end)
@@ -653,6 +719,7 @@ local function openContextMenu(anchorButton, category, items)
   for index, item in ipairs(items) do
     local row = getMenuRow(index)
     row.itemID = item.itemID
+    row.item = item
     row:SetWidth(menuWidth - (padding * 2))
     row:SetHeight(rowHeight)
     row.icon:SetTexture(item.icon or SLACKHACKS_ICON)
@@ -678,6 +745,7 @@ local function openContextMenu(anchorButton, category, items)
   for index = #items + 1, #menuRows do
     local row = menuRows[index]
     row:Hide()
+    row.item = nil
     setButtonAction(row, nil, nil, false)
   end
 
@@ -705,10 +773,10 @@ local function setDurationPosition(duration)
   end
 end
 
-local function createIconButton(index)
-  local button = CreateFrame("Button", "SlackHacksBuffReminder" .. index, container, "AuraButtonTemplate, SecureActionButtonTemplate")
+local function createIconButton(category)
+  local button = CreateFrame("Button", "SlackHacksBuffReminder" .. category.dbKey, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
-  button:RegisterForClicks("AnyUp")
+  button:RegisterForClicks("AnyUp", "AnyDown")
 
   local icon = button.Icon
   button.icon = icon
@@ -719,10 +787,20 @@ local function createIconButton(index)
   duration:SetJustifyH("CENTER")
   duration:Hide()
   button.duration = duration
+  button.category = category
+  button:SetAttribute("showInCombat", false)
+  container:SetFrameRef(category.dbKey, button)
 
   button:SetScript("OnHide", function(self)
     setNativeOverlayGlow(self, false)
     self.duration:Hide()
+  end)
+
+  -- Fires even when the secure combat state driver Show()s this button, so combat glow stays correct
+  -- without us having to touch secure attributes while InCombatLockdown() is true.
+  button:SetScript("OnShow", function(self)
+    self.expirationTime = categoryBuffExpiration(self.category)
+    setNativeOverlayGlow(self, db.profile.buffs.showGlow and self.expirationTime == nil)
   end)
 
   button:SetScript("OnEnter", function(self)
@@ -732,11 +810,14 @@ local function createIconButton(index)
     end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(self.category.label)
-    local article = (self.category.label:sub(1,1):match("[AEIOUaeiou]") and "an " or "a ")
-    if self.hasItems then
-      GameTooltip:AddLine("Click to select " .. article .. self.category.label .. " item to use.", 1, 1, 1)
+    if self.defaultItemID then
+      local itemName = C_Item.GetItemNameByID(self.defaultItemID) or ITEM_NAMES_BY_ID and ITEM_NAMES_BY_ID[self.defaultItemID] or "selected item"
+      GameTooltip:AddLine("Left-click uses " .. itemName .. ".", 1, 1, 1)
     else
-      GameTooltip:AddLine("No " .. self.category.label .. " items in inventory.", 1, 1, 1)
+      GameTooltip:AddLine("No item selected.", 1, 1, 1)
+    end
+    if not InCombatLockdown() then
+      GameTooltip:AddLine("Right-click to select an item.", 1, 1, 1)
     end
     GameTooltip:Show()
   end)
@@ -747,13 +828,19 @@ local function createIconButton(index)
     end
   end)
 
-  button:SetScript("PreClick", function(self, mouseButton)
+  button:SetScript("PreClick", function(self, mouseButton, down)
     if InCombatLockdown() then return end
+    if mouseButton == "LeftButton" then
+      if not down and not self.hasDefaultItem then
+        print("SlackHacks: No " .. self.category.label .. " item selected; right-click to pick one.")
+      end
+      return
+    end
+    -- Both up/down are registered so the secure macro fires reliably; only act on one of them here.
+    if mouseButton ~= "RightButton" or down then return end
     local items = categoryBagItems(self.category)
     if #items == 0 then
-      if mouseButton == "LeftButton" or mouseButton == "RightButton" then
-        print("SlackHacks: No " .. self.category.label .. " items in inventory.")
-      end
+      print("SlackHacks: No " .. self.category.label .. " items in inventory.")
       return
     end
 
@@ -763,9 +850,9 @@ local function createIconButton(index)
   return button
 end
 
-local function iconButton(index)
-  iconButtons[index] = iconButtons[index] or createIconButton(index)
-  return iconButtons[index]
+local function iconButton(category)
+  iconButtons[category.dbKey] = iconButtons[category.dbKey] or createIconButton(category)
+  return iconButtons[category.dbKey]
 end
 
 local function layoutIcons(active, allowCombatDisplay)
@@ -775,10 +862,8 @@ local function layoutIcons(active, allowCombatDisplay)
   if count == 0 and not isEditing then
     closeContextMenu()
     cancelDurationUpdates()
-    container:Hide()
     for _, button in pairs(iconButtons) do
       button:Hide()
-      setButtonAction(button, nil, nil, false)
     end
     return
   end
@@ -789,9 +874,10 @@ local function layoutIcons(active, allowCombatDisplay)
   container:SetSize(math.max(totalWidth, AURA_BUTTON_WIDTH), AURA_BUTTON_WIDTH)
   updatePosition()
 
+  local visibleButtons = {}
   for index, category in ipairs(active) do
-    local button = iconButton(index)
-    button.category = category
+    local button = iconButton(category)
+    visibleButtons[category.dbKey] = true
     button.expirationTime = categoryBuffExpiration(category)
     setDurationPosition(button.duration)
     if not isEditing then
@@ -799,27 +885,22 @@ local function layoutIcons(active, allowCombatDisplay)
     else
       button.duration:Hide()
     end
-    button.icon:SetTexture(categoryIcon(category))
+    local defaultItemID = availableDefaultItemID(category)
+    configureDefaultItem(button, category, defaultItemID)
+    button.icon:SetTexture(defaultItemID and C_Item.GetItemIconByID(defaultItemID) or categoryIcon(category))
     button:Show()
+    button.hasDefaultItem = defaultItemID ~= nil
 
-    local bagItems = categoryBagItems(category)
-    button.hasItems = #bagItems > 0
-
-    if not InCombatLockdown() then
-      setButtonAction(button, nil, nil, false)
-    end
-
-    setNativeOverlayGlow(button, (not isEditing) and db.profile.buffs.showGlow and button.hasItems)
+    setNativeOverlayGlow(button, (not isEditing) and db.profile.buffs.showGlow and button.expirationTime == nil)
 
     button:ClearAllPoints()
     local offsetX = (index - 1) * (AURA_BUTTON_WIDTH + db.profile.buffs.iconGap)
     button:SetPoint("LEFT", container, "LEFT", offsetX, 0)
   end
 
-  for index, button in pairs(iconButtons) do
-    if index > count then
+  for categoryKey, button in pairs(iconButtons) do
+    if not visibleButtons[categoryKey] then
       button:Hide()
-      setButtonAction(button, nil, nil, false)
     end
   end
 
@@ -1251,17 +1332,12 @@ function module:PLAYER_ALIVE()
     self:Refresh()
     return
   end
-  -- Still update the cache so a missing rune shows immediately once PLAYER_REGEN_ENABLED refreshes.
-  -- We can't lay out/show the reminder here: the container's secure button children make Show/SetSize/
-  -- SetPoint protected in combat, and forcing it via allowCombatDisplay risks tainting Blizzard's UI
-  -- and causing a wall of ADDON_ACTION_BLOCKED errors (and the CPU cost of generating them) every frame.
-  rebuildAuraCache()
 end
 
 function module:OnInitialize()
   createContainer()
-  for index in ipairs(BUFF_CATEGORIES) do
-    iconButton(index)
+  for _, category in ipairs(BUFF_CATEGORIES) do
+    iconButton(category)
   end
   db:RegisterCallback("OnDatabaseReset", module.OnDatabaseReset, module)
 
@@ -1297,10 +1373,12 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "Refresh")
   self:RegisterEvent("CHALLENGE_MODE_START", "Refresh")
+  -- GetInstanceInfo()/IsInInstance() can be stale for a moment right after PLAYER_ENTERING_WORLD
+  -- (e.g. on /reload); this fires once the client actually has fresh instance/difficulty data.
+  self:RegisterEvent("UPDATE_INSTANCE_INFO", "Refresh")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_ALIVE")
-  self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive and EditModeManagerFrame:IsEditModeActive() then
     enterEditMode()
   else
@@ -1312,6 +1390,7 @@ function module:PLAYER_REGEN_DISABLED()
   if isEditing then
     exitEditMode()
   end
+  cancelDurationUpdates()
   updateAuraEventRegistration()
 end
 

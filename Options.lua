@@ -85,6 +85,7 @@ dbDefaults = {
       showGlow = true,
       showIfExpiring = true,
       durationPosition = "below",
+      lastUsedItems = {},
       contentTypes = {
         mythicDungeons = true,
         nonLfrRaids = true
