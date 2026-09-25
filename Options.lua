@@ -716,6 +716,7 @@ options = {
           get = function() return db.profile.combat.raiseCastingNameplates end,
           set = function(_, value)
             db.profile.combat.raiseCastingNameplates = value
+            updateNameplateCastEventRegistration()
             resetNameplateCastLift()
           end,
           order = 1

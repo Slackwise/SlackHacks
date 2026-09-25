@@ -23,6 +23,52 @@ setfenv(1, _G.SlackHacks)
 ]]--
 
 --Event Handlers
+local nameplateCastEventsRegistered = false
+local nameplateCastStartEvents = {
+  "UNIT_SPELLCAST_START",
+  "UNIT_SPELLCAST_CHANNEL_START",
+  "UNIT_SPELLCAST_EMPOWER_START",
+  "UNIT_SPELLCAST_INTERRUPTIBLE",
+}
+local nameplateCastStopEvents = {
+  "UNIT_SPELLCAST_STOP",
+  "UNIT_SPELLCAST_FAILED",
+  "UNIT_SPELLCAST_INTERRUPTED",
+  "UNIT_SPELLCAST_CHANNEL_STOP",
+  "UNIT_SPELLCAST_EMPOWER_STOP",
+}
+
+local function setNameplateCastEventRegistration(shouldRegister)
+  if shouldRegister == nameplateCastEventsRegistered then return end
+
+  for _, eventName in ipairs(nameplateCastStartEvents) do
+    if shouldRegister then
+      Self:RegisterEvent(eventName, "handleCasts")
+    else
+      Self:UnregisterEvent(eventName)
+    end
+  end
+  for _, eventName in ipairs(nameplateCastStopEvents) do
+    if shouldRegister then
+      Self:RegisterEvent(eventName, "handleCastStops")
+    else
+      Self:UnregisterEvent(eventName)
+    end
+  end
+  if shouldRegister then
+    Self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "handleNameplateAdded")
+  else
+    Self:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+  end
+
+  nameplateCastEventsRegistered = shouldRegister
+end
+
+function updateNameplateCastEventRegistration()
+  local shouldRegister = db and db.profile and db.profile.combat and db.profile.combat.raiseCastingNameplates
+  setNameplateCastEventRegistration(shouldRegister and true or false)
+end
+
 function Self:OnEnable()
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -32,20 +78,12 @@ function Self:OnEnable()
   -- self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   self:RegisterEvent("BAG_UPDATE_DELAYED")
-  self:RegisterEvent("UNIT_SPELLCAST_START", "handleCasts")
-  self:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START", "handleCasts")
-  self:RegisterEvent("UNIT_SPELLCAST_EMPOWER_START", "handleCasts")
-  self:RegisterEvent("UNIT_SPELLCAST_INTERRUPTIBLE", "handleCasts")
-  self:RegisterEvent("UNIT_SPELLCAST_STOP", "handleCastStops")
-  self:RegisterEvent("UNIT_SPELLCAST_FAILED", "handleCastStops")
-  self:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED", "handleCastStops")
-  self:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP", "handleCastStops")
-  self:RegisterEvent("UNIT_SPELLCAST_EMPOWER_STOP", "handleCastStops")
-  self:RegisterEvent("NAME_PLATE_UNIT_ADDED", "handleNameplateAdded")
+  updateNameplateCastEventRegistration()
   -- self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 end
 
 function Self:OnDisable()
+  setNameplateCastEventRegistration(false)
   resetNameplateCastLift()
 end
 

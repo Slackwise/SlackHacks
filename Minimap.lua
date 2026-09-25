@@ -69,7 +69,7 @@ local titleBarFrame
 local titleBarZoneFallbackButton
 local titleBarIconRow
 local addonIconsContainer
-local hoverCheckTicker
+local hoverLeaveTimer
 local applyTitleBarLayout
 local setFrameStrataSafe
 local setFrameLevelRecursive
@@ -883,6 +883,23 @@ local function isMinimapHovered()
   return false
 end
 
+local function cancelHoverLeaveCheck()
+  if hoverLeaveTimer then
+    hoverLeaveTimer:Cancel()
+    hoverLeaveTimer = nil
+  end
+end
+
+local function scheduleHoverLeaveCheck()
+  cancelHoverLeaveCheck()
+  hoverLeaveTimer = C_Timer.NewTimer(0.05, function()
+    hoverLeaveTimer = nil
+    if not isMinimapHovered() then
+      updateHoverVisibility(false)
+    end
+  end)
+end
+
 updateHoverVisibility = function(hovered)
   if not isModuleEnabled() then return end
   if hovered == nil then
@@ -943,21 +960,6 @@ updateHoverVisibility = function(hovered)
     end
   end
 
-  local needsTicker = isSquare and (mm.showIconsOnHover or mm.showAddonIconsOnHover) or (not isSquare and mm.showAddonIconsOnHover)
-  if hovered and needsTicker then
-    if not hoverCheckTicker then
-      hoverCheckTicker = C_Timer.NewTicker(0.1, function()
-        if not isMinimapHovered() then
-          updateHoverVisibility(false)
-        end
-      end)
-    end
-  else
-    if hoverCheckTicker then
-      hoverCheckTicker:Cancel()
-      hoverCheckTicker = nil
-    end
-  end
 end
 
 local function hookHoverFrame(frame)
@@ -965,14 +967,11 @@ local function hookHoverFrame(frame)
   frame.slackHacksHoverHooked = true
   if frame.HookScript then
     frame:HookScript("OnEnter", function()
+      cancelHoverLeaveCheck()
       updateHoverVisibility(true)
     end)
     frame:HookScript("OnLeave", function()
-      C_Timer.After(0.05, function()
-        if not isMinimapHovered() then
-          updateHoverVisibility(false)
-        end
-      end)
+      scheduleHoverLeaveCheck()
     end)
   end
 end
@@ -1863,10 +1862,7 @@ disableAllStacking = function()
   if addonIconsContainer then
     addonIconsContainer:Hide()
   end
-  if hoverCheckTicker then
-    hoverCheckTicker:Cancel()
-    hoverCheckTicker = nil
-  end
+  cancelHoverLeaveCheck()
 end
 
 local function getExistingAddonButtons()
@@ -2268,10 +2264,7 @@ applyTitleBarLayout = function()
   if mm.shape ~= "square" then
     if titleBarFrame then titleBarFrame:Hide() end
     if addonIconsContainer then addonIconsContainer:Hide() end
-    if hoverCheckTicker then
-      hoverCheckTicker:Cancel()
-      hoverCheckTicker = nil
-    end
+    cancelHoverLeaveCheck()
     disableAllStacking()
     restoreRoundMinimapCluster()
     applyAddonCompartmentFontSize(nil)
@@ -2296,6 +2289,9 @@ applyTitleBarLayout = function()
   hookHoverFrame(MinimapCluster)
   local zb = getZoneTextButton()
   if zb then hookHoverFrame(zb) end
+  for _, icon in ipairs(getStandardMinimapIcons()) do
+    hookHoverFrame(icon)
+  end
 
   applyBlizzardIconBorders(true)
   applyAddonCompartmentFontSize(true)
@@ -2767,10 +2763,7 @@ end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
-  if hoverCheckTicker then
-    hoverCheckTicker:Cancel()
-    hoverCheckTicker = nil
-  end
+  cancelHoverLeaveCheck()
   restoreMinimapRotation()
   restoreCoordinates()
   clearAddonCompartmentEntries()
