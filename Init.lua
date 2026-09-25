@@ -149,7 +149,7 @@ CONFIG_MIGRATIONS = {
     local debugTable = g.debugLogs or (type(g.logs) == "table" and not g.logs.debug and g.logs) or (type(g.logs) == "table" and g.logs.debug) or {}
     local errorTable = g.errorLogs or (type(g.logs) == "table" and g.logs.error) or {}
     local isDebugging = (type(g.logs) == "table" and g.logs.isDebugging ~= nil and g.logs.isDebugging) or (g.isDebugging ~= nil and g.isDebugging) or false
-    local errorLoggingEnabled = true
+    local errorLoggingEnabled = false
     if type(g.logs) == "table" and g.logs.errorLoggingEnabled ~= nil then
       errorLoggingEnabled = g.logs.errorLoggingEnabled
     elseif g.errorLoggingEnabled ~= nil then

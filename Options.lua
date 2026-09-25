@@ -8,7 +8,7 @@ dbDefaults = {
       debug = {},
       error = {},
       isDebugging = false,
-      errorLoggingEnabled = true,
+      errorLoggingEnabled = false,
       logPurgeEnabled = true,
       logPurgeHours = 48,
     },
@@ -594,8 +594,7 @@ options = {
               width = "full",
               get = function() return db.global.logs and db.global.logs.errorLoggingEnabled end,
               set = function(_, value)
-                if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
-                db.global.logs.errorLoggingEnabled = value
+                Self.Debug:SetErrorLoggingEnabled(value)
               end,
               order = 1
             },

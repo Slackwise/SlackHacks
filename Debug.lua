@@ -138,7 +138,7 @@ function purgeOldLogs()
 end
 
 function processLogs(shouldProcess, delay)
-  if shouldProcess == false then
+  if shouldProcess == false or not isErrorLoggingEnabled() then
     return
   end
   local waitSeconds = delay or 10
@@ -241,16 +241,22 @@ end
 -----------------------------------------------------------------------
 
 local chainedErrorHandler
+local errorCaptureInstalled = false
+local listeningToBugGrabber = false
 
 local function ourErrorHandler(message)
-  local ok, stack = pcall(debugstack, 2)
-  recordError(tostring(message), ok and stack or nil)
+  if isErrorLoggingEnabled() then
+    local ok, stack = pcall(debugstack, 2)
+    recordError(tostring(message), ok and stack or nil)
+  end
   if chainedErrorHandler then
     return chainedErrorHandler(message)
   end
 end
 
 local function installErrorCapture()
+  if errorCaptureInstalled or not isErrorLoggingEnabled() then return end
+
   if _G.BugGrabber and EventRegistry and EventRegistry.RegisterCallback then
     EventRegistry:RegisterCallback("BugGrabber.BugGrabbed", function(_, tableID)
       local err = _G.BugGrabber:GetErrorByID(tableID)
@@ -258,13 +264,29 @@ local function installErrorCapture()
         recordError(tostring(err.message), err.stack)
       end
     end, module)
+    listeningToBugGrabber = true
   else
     chainedErrorHandler = geterrorhandler()
     seterrorhandler(ourErrorHandler)
   end
+  errorCaptureInstalled = true
 end
 
-installErrorCapture() -- run immediately (file load time) to start capturing as early as possible
+local function uninstallErrorCapture()
+  if not errorCaptureInstalled then return end
+
+  if listeningToBugGrabber then
+    if EventRegistry and EventRegistry.UnregisterCallback then
+      EventRegistry:UnregisterCallback("BugGrabber.BugGrabbed", module)
+    end
+    listeningToBugGrabber = false
+  elseif geterrorhandler() == ourErrorHandler then
+    seterrorhandler(chainedErrorHandler)
+  end
+
+  chainedErrorHandler = nil
+  errorCaptureInstalled = false
+end
 
 -----------------------------------------------------------------------
 -- Who's eligible to report their error log to Slack, and how to reach him
@@ -331,6 +353,10 @@ end
 
 function module:ReportErrorLogs(kind, target, onComplete)
   local callback = type(onComplete) == "function" and onComplete or nil
+  if not isErrorLoggingEnabled() then
+    if callback then callback(false, "logging_disabled") end
+    return
+  end
   if InCombatLockdown() then
     runAfterCombat(function() module:ReportErrorLogs(kind, target, callback) end)
     if callback then callback(false, "in_combat") end
@@ -449,6 +475,8 @@ local function showToast(title, body)
 end
 
 function module:ProcessReceivedPayload(text, via)
+  if not isErrorLoggingEnabled() then return end
+
   local ok, data = Self:Deserialize(text)
   if not ok or type(data) ~= "table" or type(data.entries) ~= "table" then return end
 
@@ -474,6 +502,7 @@ end
 local bnetSpool = {}
 
 function module:BN_CHAT_MSG_ADDON(eventName, prefix, text, channel, senderID)
+  if not isErrorLoggingEnabled() then return end
   if prefix ~= ERROR_LOG_COMM_PREFIX then return end
   local marker, chunk = text:sub(1, 1), text:sub(2)
   if marker == "\001" then
@@ -495,16 +524,35 @@ end
 -- Lifecycle
 -----------------------------------------------------------------------
 
+function module:RefreshErrorLogging()
+  if isErrorLoggingEnabled() then
+    installErrorCapture()
+    self:RegisterEvent("BN_FRIEND_ACCOUNT_ONLINE", "AttemptReport")
+    self:RegisterEvent("GUILD_ROSTER_UPDATE", "AttemptReport")
+    self:RegisterEvent("BN_CHAT_MSG_ADDON")
+    Self:RegisterComm(ERROR_LOG_COMM_PREFIX, "OnErrorLogCommReceived")
+    self:AttemptReport()
+  else
+    uninstallErrorCapture()
+    self:UnregisterAllEvents()
+    Self:UnregisterComm(ERROR_LOG_COMM_PREFIX)
+  end
+end
+
+function module:SetErrorLoggingEnabled(enabled)
+  if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
+  db.global.logs.errorLoggingEnabled = enabled and true or false
+  self:RefreshErrorLogging()
+end
+
 function module:OnEnable()
-  self:RegisterEvent("BN_FRIEND_ACCOUNT_ONLINE", "AttemptReport")
-  self:RegisterEvent("GUILD_ROSTER_UPDATE", "AttemptReport")
-  self:RegisterEvent("BN_CHAT_MSG_ADDON")
-  Self:RegisterComm(ERROR_LOG_COMM_PREFIX, "OnErrorLogCommReceived")
-  self:AttemptReport()
+  self:RefreshErrorLogging()
 end
 
 function module:OnDisable()
+  uninstallErrorCapture()
   self:UnregisterAllEvents()
+  Self:UnregisterComm(ERROR_LOG_COMM_PREFIX)
 end
 
 -----------------------------------------------------------------------
