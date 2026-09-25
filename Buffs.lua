@@ -145,6 +145,8 @@ local function setNativeOverlayGlow(button, enabled)
 end
 
 local function categoryItemIDs(category)
+  if category.resolvedItemIDs then return category.resolvedItemIDs end
+
   local ids, seen = {}, {}
   for _, itemName in ipairs(category.itemNames) do
     local itemID = ITEM_NAMES and ITEM_NAMES[itemName]
@@ -159,7 +161,8 @@ local function categoryItemIDs(category)
       table.insert(ids, itemID)
     end
   end
-  return ids
+  category.resolvedItemIDs = ids
+  return category.resolvedItemIDs
 end
 
 local function categoryIcon(category)
@@ -212,22 +215,38 @@ local function trackAura(aura)
   return previous ~= nil
 end
 
+local function auraCachesDiffer(previous, current)
+  for auraInstanceID, aura in pairs(current) do
+    local previousAura = previous[auraInstanceID]
+    if not previousAura
+      or previousAura.categoryKey ~= aura.categoryKey
+      or previousAura.expiration ~= aura.expiration then
+      return true
+    end
+  end
+  for auraInstanceID in pairs(previous) do
+    if not current[auraInstanceID] then return true end
+  end
+  return false
+end
+
 local function rebuildAuraCache()
   local previousTrackedAuras = trackedAuras
   trackedAuras = {}
   if forEachPlayerBuff(trackAura) then
     recalculateAuraExpirations()
     auraCacheInitialized = true
+    return auraCachesDiffer(previousTrackedAuras, trackedAuras)
   else
     -- Auras are secret for now; keep the last known-good state instead of showing every buff as missing.
     trackedAuras = previousTrackedAuras
+    return false
   end
 end
 
 local function updateAuraCache(updateInfo)
   if not auraCacheInitialized or not updateInfo then
-    rebuildAuraCache()
-    return true
+    return rebuildAuraCache()
   end
 
   -- In restricted contexts (combat/instances), aura update fields can be "secret" values/tables that
@@ -238,8 +257,7 @@ local function updateAuraCache(updateInfo)
       or issecrettable(updateInfo.updatedAuraInstanceIDs)
       or issecrettable(updateInfo.addedAuras)))
   if isSecretUpdate or updateInfo.isFullUpdate then
-    rebuildAuraCache()
-    return true
+    return rebuildAuraCache()
   end
 
   local changed = false
@@ -290,7 +308,7 @@ end
 local function categoryBagItems(category)
   local items = {}
   for _, itemID in ipairs(categoryItemIDs(category)) do
-    local count = bagItemCount(itemID)
+    local count = C_Item.GetItemCount(itemID)
     if count > 0 then
       local bag, slot = findBagItem(itemID)
       local itemName = C_Item.GetItemNameByID(itemID) or ITEM_NAMES_BY_ID and ITEM_NAMES_BY_ID[itemID] or tostring(itemID)
@@ -325,8 +343,16 @@ end
 
 local function shouldTrackAuras()
   if not db.profile.buffs.enabled then return false end
+  local inInstance = IsInInstance()
+  if not inInstance then return false end
   local debugging = isDebugging()
-  return (debugging or currentContentContext()) and (debugging or IsInGroup() or IsInRaid())
+  if debugging then return true end
+
+  local context = currentContentContext()
+  if not context or not (IsInGroup() or IsInRaid()) then return false end
+  if context == "mythicDungeon" then return db.profile.buffs.contentTypes.mythicDungeons end
+  if context == "raid" then return db.profile.buffs.contentTypes.nonLfrRaids end
+  return false
 end
 
 local function contextIsEnabled(context)
