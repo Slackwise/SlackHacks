@@ -207,6 +207,10 @@ local function recordError(message, stack)
     count = 1,
     senderName = senderName, -- the character/player this error happened to
   })
+
+  if module:IsEnabled() then
+    module:AttemptReport()
+  end
 end
 
 --- Merges an error entry received from another player, de-duplicated the same way as `recordError`.
@@ -496,26 +500,11 @@ function module:OnEnable()
   self:RegisterEvent("GUILD_ROSTER_UPDATE", "AttemptReport")
   self:RegisterEvent("BN_CHAT_MSG_ADDON")
   Self:RegisterComm(ERROR_LOG_COMM_PREFIX, "OnErrorLogCommReceived")
-
-  -- Guild roster online-status is only ever as fresh as the last request; BN_FRIEND_ACCOUNT_ONLINE already
-  -- reacts instantly on its own, so this ticker mainly exists to catch a guild login and as a safety net.
-  self.refreshTicker = C_Timer.NewTicker(60, function()
-    if IsInGuild() then
-      if C_GuildInfo and C_GuildInfo.GuildRoster then
-        C_GuildInfo.GuildRoster()
-      elseif GuildRoster then
-        GuildRoster()
-      end
-    end
-    module:AttemptReport()
-  end)
+  self:AttemptReport()
 end
 
 function module:OnDisable()
-  if self.refreshTicker then
-    self.refreshTicker:Cancel()
-    self.refreshTicker = nil
-  end
+  self:UnregisterAllEvents()
 end
 
 -----------------------------------------------------------------------

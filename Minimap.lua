@@ -93,7 +93,6 @@ local origSetRotateMinimap
 local origShouldShowSetting
 local origSetEditModeScale
 local layoutPending = false
-local addonScanTicker
 
 local function applyMinimapRotation()
   if not isModuleEnabled() then return end
@@ -2266,15 +2265,6 @@ applyTitleBarLayout = function()
   if not isModuleEnabled() then return end
   local mm = settings()
   discoverAddonButtons()
-  if not addonScanTicker then
-    addonScanTicker = C_Timer.NewTicker(2, function()
-      local prevCount = #addonButtons
-      discoverAddonButtons()
-      if #addonButtons ~= prevCount then
-        scheduleTitleBarLayout()
-      end
-    end)
-  end
   if mm.shape ~= "square" then
     if titleBarFrame then titleBarFrame:Hide() end
     if addonIconsContainer then addonIconsContainer:Hide() end
@@ -2729,7 +2719,12 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_STARTED_MOVING")
   self:RegisterEvent("PLAYER_STOPPED_MOVING")
   self:RegisterEvent("CVAR_UPDATE")
+  self:RegisterEvent("ADDON_LOADED")
   self:ApplyAll()
+end
+
+function module:ADDON_LOADED()
+  scheduleTitleBarLayout()
 end
 
 function module:CVAR_UPDATE(event, cvarName)
@@ -2772,10 +2767,6 @@ end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
-  if addonScanTicker then
-    addonScanTicker:Cancel()
-    addonScanTicker = nil
-  end
   if hoverCheckTicker then
     hoverCheckTicker:Cancel()
     hoverCheckTicker = nil

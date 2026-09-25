@@ -80,6 +80,7 @@ local auraEventRegistered = false
 local trackedAuras = {}
 local cachedAuraExpirations = {}
 local auraCacheInitialized = false
+local durationUpdateTimer
 
 local function closeContextMenu()
   if InCombatLockdown() then return end
@@ -433,6 +434,37 @@ local function updateDuration(button)
   button.duration:Show()
 end
 
+local function cancelDurationUpdates()
+  if durationUpdateTimer then
+    durationUpdateTimer:Cancel()
+    durationUpdateTimer = nil
+  end
+end
+
+local function scheduleDurationUpdates()
+  cancelDurationUpdates()
+  if not container or not container:IsShown() or isEditing then return end
+  if GetCVarBool and not GetCVarBool("buffDurations") then return end
+
+  local hasDuration = false
+  for _, button in pairs(iconButtons) do
+    if button:IsShown() and button.expirationTime and button.expirationTime > GetTime() then
+      hasDuration = true
+      break
+    end
+  end
+  if not hasDuration then return end
+
+  local delay = math.max(0.05, math.ceil(GetTime()) - GetTime())
+  durationUpdateTimer = C_Timer.NewTimer(delay, function()
+    durationUpdateTimer = nil
+    for _, button in pairs(iconButtons) do
+      if button:IsShown() then updateDuration(button) end
+    end
+    scheduleDurationUpdates()
+  end)
+end
+
 local function updatePosition()
   if not container then return end
   container:ClearAllPoints()
@@ -661,13 +693,6 @@ local function createIconButton(index)
   duration:SetJustifyH("CENTER")
   duration:Hide()
   button.duration = duration
-  button.durationElapsed = 0
-  button:SetScript("OnUpdate", function(self, elapsed)
-    self.durationElapsed = self.durationElapsed + elapsed
-    if self.durationElapsed < 1 then return end
-    self.durationElapsed = self.durationElapsed - math.floor(self.durationElapsed)
-    updateDuration(self)
-  end)
 
   button:SetScript("OnHide", function(self)
     setNativeOverlayGlow(self, false)
@@ -723,6 +748,7 @@ local function layoutIcons(active, allowCombatDisplay)
   local count = #active
   if count == 0 and not isEditing then
     closeContextMenu()
+    cancelDurationUpdates()
     container:Hide()
     for _, button in pairs(iconButtons) do
       button:Hide()
@@ -741,7 +767,6 @@ local function layoutIcons(active, allowCombatDisplay)
     local button = iconButton(index)
     button.category = category
     button.expirationTime = categoryBuffExpiration(category)
-    button.durationElapsed = 1
     setDurationPosition(button.duration)
     if not isEditing then
       updateDuration(button)
@@ -773,6 +798,7 @@ local function layoutIcons(active, allowCombatDisplay)
   end
 
   container:Show()
+  scheduleDurationUpdates()
 end
 
 local function onDragStart()
@@ -1270,6 +1296,7 @@ end
 function module:OnDisable()
   self:UnregisterAllEvents()
   auraEventRegistered = false
+  cancelDurationUpdates()
   closeContextMenu()
   if isEditing then
     exitEditMode()
