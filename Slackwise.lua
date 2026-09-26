@@ -939,6 +939,7 @@ BINDINGS = {
     HUNTER = {
     },
     MAGE = {
+      {"E",             {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"}},
       {"2",             "Fireball"},
     },
     PALADIN = {
