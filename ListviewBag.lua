@@ -474,7 +474,14 @@ local function createRow(index)
   row.nameTooltip:EnableMouse(true)
   row.nameTooltip:SetPropagateMouseClicks(true)
   row.nameTooltip:SetScript("OnEnter", function(self)
-    if row.hyperlink then
+    -- Mirrors ContainerFrameItemButton_OnEnter: SetBagItem (not SetHyperlink) so the tooltip reflects
+    -- the item's real in-bag state (e.g. actual Soulbound status) instead of a hypothetical "not yet
+    -- acquired" copy of the item.
+    if row.primaryEntry then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetBagItem(row.primaryEntry.bagID, row.primaryEntry.slot)
+      GameTooltip:Show()
+    elseif row.hyperlink then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetHyperlink(row.hyperlink)
       GameTooltip:Show()
