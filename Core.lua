@@ -409,10 +409,16 @@ end
 -- directly -- rather than faking invisibility -- is safe and matches Blizzard's own usage.
 local bagsBarShowHooked = false
 
+-- Edit Mode still needs to see/select the real BagsBar (that's how a user clicks it to reach our
+-- checkbox in the first place), so never hide it while Edit Mode is active.
+local function isEditModeActive()
+  return EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive and EditModeManagerFrame:IsEditModeActive()
+end
+
 function applyHideBagsFrame()
   if not (_G.BagsBar and _G.BagsBar.IsProtected) then return end
   if BagsBar:IsProtected() and InCombatLockdown() then return end
-  if db.profile.inventory.hideBagsFrame then
+  if db.profile.inventory.hideBagsFrame and not isEditModeActive() then
     BagsBar:Hide()
   else
     BagsBar:Show()
@@ -423,7 +429,7 @@ local function hookBagsBarShow()
   if bagsBarShowHooked or not _G.BagsBar then return end
   bagsBarShowHooked = true
   BagsBar:HookScript("OnShow", function(self)
-    if db.profile.inventory.hideBagsFrame then
+    if db.profile.inventory.hideBagsFrame and not isEditModeActive() then
       self:Hide()
     end
   end)
@@ -473,6 +479,11 @@ local function registerBagsEditModeHooks()
     showBagsEditModeCheckbox(systemFrame and systemFrame.system == Enum.EditModeSystem.Bags)
   end)
   EditModeSystemSettingsDialog:HookScript("OnHide", function() showBagsEditModeCheckbox(false) end)
+
+  if EventRegistry and EventRegistry.RegisterCallback then
+    EventRegistry:RegisterCallback("EditMode.Enter", applyHideBagsFrame)
+    EventRegistry:RegisterCallback("EditMode.Exit", applyHideBagsFrame)
+  end
 end
 
 function initBagsFrameHiding()
