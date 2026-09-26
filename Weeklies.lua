@@ -165,12 +165,18 @@ local function openDelveRenownJourney()
 end
 
 local function useItem(itemID)
-  if C_ToyBox and C_ToyBox.GetToyInfo and C_ToyBox.UseToy and C_ToyBox.GetToyInfo(itemID) then
-    C_ToyBox.UseToy(itemID)
-  elseif C_Item and C_Item.UseItemByID then
+  if C_Item and C_Item.UseItemByID then
     C_Item.UseItemByID(itemID)
   elseif UseItemByName then
     UseItemByName(itemID)
+  end
+end
+
+local function useSpell(spellID)
+  if C_Spell and C_Spell.CastSpell then
+    C_Spell.CastSpell(spellID)
+  elseif CastSpellByID then
+    CastSpellByID(spellID)
   end
 end
 
@@ -181,9 +187,9 @@ end
 
 local CONTEXT_MENU_OPTIONS = {
   { name = "Open Delve Renown Journey", icon = DELVE_RENOWN_ICON_ID, action = openDelveRenownJourney },
-  { name = "Use Coffer Key Glue", itemID = 267291 },
-  { name = "Use Delve-O-Bot 7001", itemID = 230850 },
-  { name = "Open Delve Companion Panel", icon = VALEERA_ICON_ID, action = openDelveCompanionPanel },
+  { name = "See Valeera Sanguinar's Loadout", icon = VALEERA_ICON_ID, action = openDelveCompanionPanel },
+  { name = "Use Coffer Key Glue", spellID = 1280020 },
+  { name = "Use Delve-O-Bot 7001", spellID = 467470 },
   { name = "Use L00T RAID-R Mini", itemID = 244193 },
 }
 
@@ -219,12 +225,16 @@ local function createContextMenuRow(index)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetItemByID(self.itemID)
       GameTooltip:Show()
+    elseif self.spellID then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetSpellByID(self.spellID)
+      GameTooltip:Show()
     end
   end)
   row:SetScript("OnLeave", GameTooltip_Hide)
   row:SetScript("OnClick", function(self)
     closeContextMenu()
-    if self.action then self.action() elseif self.itemID then useItem(self.itemID) end
+    if self.action then self.action() elseif self.spellID then useSpell(self.spellID) elseif self.itemID then useItem(self.itemID) end
   end)
 
   return row
@@ -232,6 +242,7 @@ end
 
 local function openContextMenu(anchor)
   if InCombatLockdown() then return end
+  GameTooltip_Hide()
 
   if contextMenu and contextMenu:IsShown() then
     closeContextMenu()
@@ -262,8 +273,15 @@ local function openContextMenu(anchor)
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", padding, -padding - (index - 1) * (rowHeight + rowGap))
     row.itemID = option.itemID
+    row.spellID = option.spellID
     row.action = option.action
-    row.icon:SetTexture(option.icon or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(option.itemID)))
+    local icon = option.icon
+    if not icon and option.spellID and C_Spell and C_Spell.GetSpellTexture then
+      icon = C_Spell.GetSpellTexture(option.spellID)
+    elseif not icon and option.itemID and C_Item and C_Item.GetItemIconByID then
+      icon = C_Item.GetItemIconByID(option.itemID)
+    end
+    row.icon:SetTexture(icon)
     row.name:SetText(option.name)
     row:Show()
   end
