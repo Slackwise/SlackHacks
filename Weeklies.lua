@@ -12,6 +12,7 @@ local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
 local DELVES_ICON_ATLAS_PENDING = "delves-bountiful"
 local DELVES_ICON_ATLAS_DONE = "delves-regular"
 local BUTTON_SIZE = 18
+local TROVEHUNTERS_BOUNTY_ICON = "Interface\\Icons\\INV_Misc_Map_01"
 
 -- The Gilded Stash reward icon already has its ornate gold border baked into the art; a circular mask
 -- just crops the square texture down to that coin shape, used to render the 4 weekly stash slots.
@@ -145,12 +146,12 @@ local function createButton()
   count:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2)
   button.count = count
 
-  local check = button:CreateTexture(nil, "OVERLAY")
-  check:SetSize(14, 14)
-  check:SetPoint("CENTER", button, "CENTER", 6, -6)
-  check:SetAtlas("common-icon-checkmark", true)
-  check:Hide()
-  button.check = check
+  local bounty = button:CreateTexture(nil, "OVERLAY")
+  bounty:SetSize(10, 10)
+  bounty:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", -2, -2)
+  bounty:SetTexture(TROVEHUNTERS_BOUNTY_ICON)
+  bounty:Hide()
+  button.bounty = bounty
 
   button:SetScript("OnEnter", module.ShowTooltip)
   button:SetScript("OnLeave", GameTooltip_Hide)
@@ -265,14 +266,12 @@ function module:Refresh()
   end
 
   local stash = gildedStashInfo()
-  local allDone = stash and stash.completed and trovehuntersBountyCompleted()
-  button.icon:SetAtlas(allDone and DELVES_ICON_ATLAS_DONE or DELVES_ICON_ATLAS_PENDING, false)
+  button.icon:SetAtlas(stash and stash.completed and DELVES_ICON_ATLAS_DONE or DELVES_ICON_ATLAS_PENDING, false)
+  if trovehuntersBountyCompleted() then button.bounty:Hide() else button.bounty:Show() end
 
   if stash and stash.completed then
-    button.check:Show()
     button.count:Hide()
   else
-    button.check:Hide()
     if stash and stash.current and stash.max then
       button.count:SetText(stash.max - stash.current)
       button.count:Show()

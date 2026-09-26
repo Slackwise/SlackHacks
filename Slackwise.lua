@@ -26,8 +26,8 @@ SLACKWISE_CONFIG = {
       enableScaling = true,
     },
     minimap = {
-      enabled = true,
-      shape = "square",
+      -- enabled = true,
+      -- shape = "square",
       showAllMinimapTracking = true,
       showIconsOnHover = true,
       showAddonIconsOnHover = true,
