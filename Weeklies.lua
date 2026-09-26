@@ -9,6 +9,8 @@ local GILDED_STASH_WIDGET_ID = 7591
 local GILDED_STASH_REQUIRED = 4
 local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
 local TROVEHUNTERS_BOUNTY_ICON_ID = 1064187
+local DELVE_RENOWN_ICON_ID = 6025441
+local VALEERA_ICON_ID = 236439
 local DELVE_CURRENCIES = {
   { name = "Restored Coffer Keys", id = 3028 },
   { name = "Coffer Key Shards", id = 3310 },
@@ -244,18 +246,18 @@ function module.ShowTooltip(self)
 
   local companion = companionReputation()
   if companion then
-    GameTooltip:AddDoubleLine(companion.name or "Valeera", COLUMN_GAP .. companion.level .. " / " .. companion.maxLevel, 1, 0.82, 0, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(tooltipIconLabel(companion.name or "Valeera", VALEERA_ICON_ID), COLUMN_GAP .. companion.level .. " / " .. companion.maxLevel, 1, 0.82, 0, 1, 0.82, 0)
   else
-    GameTooltip:AddDoubleLine("Valeera", COLUMN_GAP .. "Unknown", 1, 0.82, 0, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(tooltipIconLabel("Valeera", VALEERA_ICON_ID), COLUMN_GAP .. "Unknown", 1, 0.82, 0, 1, 0.82, 0)
   end
 
   local renown = delveRenownLevel()
   if renown and renown.maxLevel then
-    GameTooltip:AddDoubleLine("Delve Renown", COLUMN_GAP .. renown.level .. " / " .. renown.maxLevel, 1, 0.82, 0, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(tooltipIconLabel("Delve Renown", DELVE_RENOWN_ICON_ID), COLUMN_GAP .. renown.level .. " / " .. renown.maxLevel, 1, 0.82, 0, 1, 0.82, 0)
   elseif renown then
-    GameTooltip:AddDoubleLine("Delve Renown", COLUMN_GAP .. "Level " .. renown.level, 1, 0.82, 0, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(tooltipIconLabel("Delve Renown", DELVE_RENOWN_ICON_ID), COLUMN_GAP .. "Level " .. renown.level, 1, 0.82, 0, 1, 0.82, 0)
   else
-    GameTooltip:AddDoubleLine("Delve Renown", COLUMN_GAP .. "Unknown", 1, 0.82, 0, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(tooltipIconLabel("Delve Renown", DELVE_RENOWN_ICON_ID), COLUMN_GAP .. "Unknown", 1, 0.82, 0, 1, 0.82, 0)
   end
 
   GameTooltip:Show()
