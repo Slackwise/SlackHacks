@@ -170,13 +170,17 @@ end
 local CONTEXT_MENU_OPTIONS = {
   { name = "Open Delve Renown Journey", icon = DELVE_RENOWN_ICON_ID, action = openDelveRenownJourney },
   { name = "See Valeera Sanguinar's Loadout", icon = VALEERA_ICON_ID, action = openDelveCompanionPanel },
-  { name = "Use Coffer Key Glue", spellID = 1280020 },
-  { name = "Use Delve-O-Bot 7001", spellID = 467470 },
+  { name = "Use Coffer Key Glue", toyID = 267291 },
+  { name = "Use Delve-O-Bot 7001", toyID = 230850 },
   { name = "Use L00T RAID-R Mini", itemID = 244193 },
 }
 
 local function contextMenuIcon(option)
   if option.icon then return option.icon end
+  if option.toyID and C_ToyBox and C_ToyBox.GetToyInfo then
+    local _, _, icon = C_ToyBox.GetToyInfo(option.toyID)
+    if icon then return icon end
+  end
   if option.spellID and C_Spell and C_Spell.GetSpellTexture then return C_Spell.GetSpellTexture(option.spellID) end
   if option.itemID and C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(option.itemID) end
 end
@@ -187,7 +191,7 @@ local function addContextMenuOption(rootDescription, option)
     return MenuResponse.CloseAll
   end)
 
-  if option.itemID or option.spellID then
+  if option.itemID or option.spellID or option.toyID then
     description:AddInitializer(function(frame, elementDescription)
       if not frame.secureActionButton then
         frame.secureActionButton = frame:AttachTemplate("SecureActionButtonTemplate")
@@ -204,18 +208,26 @@ local function addContextMenuOption(rootDescription, option)
       actionButton:SetAttribute("type", nil)
       actionButton:SetAttribute("spell", nil)
       actionButton:SetAttribute("item", nil)
-      actionButton:SetAttribute("type", option.spellID and "spell" or "item")
+      actionButton:SetAttribute("toy", nil)
+      actionButton:SetAttribute("type", option.toyID and "toy" or option.spellID and "spell" or "item")
       actionButton:SetAttribute("spell", option.spellID)
       actionButton:SetAttribute("item", option.itemID and "item:" .. option.itemID or nil)
+      actionButton:SetAttribute("toy", option.toyID)
       actionButton:SetScript("PostClick", function(_, mouseButton)
         elementDescription:Pick(MenuInputContext.MouseButton, mouseButton)
       end)
     end)
   end
 
-  if option.itemID or option.spellID then
+  if option.itemID or option.spellID or option.toyID then
     description:SetTooltip(function(tooltip)
-      if option.itemID then tooltip:SetItemByID(option.itemID) else tooltip:SetSpellByID(option.spellID) end
+      if option.toyID then
+        tooltip:SetToyByItemID(option.toyID)
+      elseif option.itemID then
+        tooltip:SetItemByID(option.itemID)
+      else
+        tooltip:SetSpellByID(option.spellID)
+      end
     end)
   end
 end
