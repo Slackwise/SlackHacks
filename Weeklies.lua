@@ -192,11 +192,18 @@ local function addContextMenuOption(rootDescription, option)
       if not frame.secureActionButton then
         frame.secureActionButton = frame:AttachTemplate("SecureActionButtonTemplate")
         frame.secureActionButton:SetAllPoints()
+        frame.secureActionButton:SetFrameLevel(frame:GetFrameLevel() + 1)
         frame.secureActionButton:SetPropagateMouseMotion(true)
-        frame.secureActionButton:RegisterForClicks("AnyUp", "AnyDown")
       end
 
       local actionButton = frame.secureActionButton
+      actionButton:EnableMouse(true)
+      actionButton:SetMouseClickEnabled(true)
+      actionButton:SetMouseMotionEnabled(true)
+      actionButton:RegisterForClicks("AnyUp", "AnyDown")
+      actionButton:SetAttribute("type", nil)
+      actionButton:SetAttribute("spell", nil)
+      actionButton:SetAttribute("item", nil)
       actionButton:SetAttribute("type", option.spellID and "spell" or "item")
       actionButton:SetAttribute("spell", option.spellID)
       actionButton:SetAttribute("item", option.itemID and "item:" .. option.itemID or nil)
