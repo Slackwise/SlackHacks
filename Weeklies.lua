@@ -193,14 +193,10 @@ local function addContextMenuOption(rootDescription, option)
 
   if option.itemID or option.spellID or option.toyID then
     description:AddInitializer(function(frame, elementDescription)
-      if not frame.secureActionButton then
-        frame.secureActionButton = frame:AttachTemplate("SecureActionButtonTemplate")
-        frame.secureActionButton:SetAllPoints()
-        frame.secureActionButton:SetFrameLevel(frame:GetFrameLevel() + 1)
-        frame.secureActionButton:SetPropagateMouseMotion(true)
-      end
-
-      local actionButton = frame.secureActionButton
+      local actionButton = frame:AttachTemplate("SecureActionButtonTemplate")
+      actionButton:SetAllPoints()
+      actionButton:SetFrameLevel(frame:GetFrameLevel() + 1)
+      actionButton:SetPropagateMouseMotion(true)
       actionButton:EnableMouse(true)
       actionButton:SetMouseClickEnabled(true)
       actionButton:SetMouseMotionEnabled(true)
