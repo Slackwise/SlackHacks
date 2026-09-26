@@ -1,5 +1,7 @@
 setfenv(1, _G.SlackHacks)
 
+if not isRetail() then return end
+
 --[[
   Reminds the player to keep up raid/dungeon consumables (food, flask, oil, augment rune) by showing
   clickable icons, similar in spirit to the "ClickableRaidBuffs" addon -- but event-driven instead of

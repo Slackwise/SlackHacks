@@ -179,9 +179,16 @@ WIP_MODULES = {
   }
 }
 
+RETAIL_MODULES = {
+  { key = "buffs", name = "Consumable Buff Reminders" },
+  { key = { "combat", "paladin" }, name = "Paladin" },
+  { key = "vendor", name = "Self Vendor" },
+  { key = "weeklies", name = "Weeklies" },
+}
+
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
--- nested .args groups (e.g. {"inventory", "listviewBag"}).
-local function resolveWIPGroup(key)
+-- nested .args groups (e.g. {"inventory", "listviewBag"} ).
+local function resolveOptionGroup(key)
   if type(key) == "string" then
     return options and options.args and options.args[key]
   end
@@ -194,7 +201,7 @@ end
 
 local function applyWIPOptionsDecoration()
   for _, mod in ipairs(WIP_MODULES) do
-    local group = resolveWIPGroup(mod.key)
+    local group = resolveOptionGroup(mod.key)
     if group then
       if not group.name:find("%(WIP%)") then
         group.name = "(WIP) " .. group.name
@@ -220,6 +227,15 @@ local function applyWIPOptionsDecoration()
           order = 0
         }
       end
+    end
+  end
+end
+
+local function hideNonRetailOptions()
+  for _, mod in ipairs(RETAIL_MODULES) do
+    local group = resolveOptionGroup(mod.key)
+    if group then
+      group.hidden = function() return not isRetail() end
     end
   end
 end
@@ -1452,6 +1468,7 @@ function registerOptions()
   options.args.profiles.order = 1
   hookResetProfileOption()
   applyWIPOptionsDecoration()
+  hideNonRetailOptions()
   migrateConfig()
   local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
   if customConfig and customConfig.setOptions then
