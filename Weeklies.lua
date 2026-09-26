@@ -8,11 +8,12 @@ Self.Weeklies = module
 local GILDED_STASH_WIDGET_ID = 7591
 local GILDED_STASH_REQUIRED = 4
 local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
+local TROVEHUNTERS_BOUNTY_ICON_ID = 1064187
 local DELVE_CURRENCIES = {
-  { name = "Untainted Mana-Crystals" },
-  { name = "Coffer Key Shards" },
   { name = "Restored Coffer Keys", id = 3028 },
-  { name = "Undercoin" },
+  { name = "Coffer Key Shards", id = 3310 },
+  { name = "Untainted Mana-Crystals", id = 3356 },
+  { name = "Undercoin", id = 2803 },
 }
 -- Same door icons used for delve entrances on the world map (glowing = bountiful, plain = regular).
 local DELVES_ICON_ATLAS_PENDING = "delves-bountiful"
@@ -80,15 +81,20 @@ end
 local function currencyAmount(currencyName, currencyID)
   if currencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
     local currency = C_CurrencyInfo.GetCurrencyInfo(currencyID)
-    if currency then return currency.quantity end
+    if currency then return currency.quantity, currency.iconFileID end
   end
 
   if not C_CurrencyInfo or not C_CurrencyInfo.GetCurrencyListSize or not C_CurrencyInfo.GetCurrencyListInfo then return nil end
 
   for index = 1, C_CurrencyInfo.GetCurrencyListSize() do
     local currency = C_CurrencyInfo.GetCurrencyListInfo(index)
-    if currency and currency.name == currencyName then return currency.quantity end
+    if currency and currency.name == currencyName then return currency.quantity, currency.iconFileID end
   end
+end
+
+local function tooltipIconLabel(label, icon)
+  if not icon then return label end
+  return ("|T%s:14:14:0:0|t %s"):format(icon, label)
 end
 
 -- Valeera/Brann's own companion level; a Friendship-style reputation, distinct from the seasonal
@@ -223,17 +229,17 @@ function module.ShowTooltip(self)
   local stash = gildedStashInfo()
   local iconLineIndex
   if stash and stash.current and stash.max then
-    GameTooltip:AddDoubleLine("Gilded Stashes Remaining", COLUMN_GAP .. " ", 1, 0.82, 0, 1, 0.82, 0)
+    GameTooltip:AddDoubleLine(tooltipIconLabel("Gilded Stashes Remaining", GILDED_STASH_ICON_ID), COLUMN_GAP .. " ", 1, 0.82, 0, 1, 0.82, 0)
     iconLineIndex = GameTooltip:NumLines()
   else
-    GameTooltip:AddDoubleLine("Gilded Stashes Remaining", COLUMN_GAP .. "unavailable", 1, 0.82, 0, 0.6, 0.6, 0.6)
+    GameTooltip:AddDoubleLine(tooltipIconLabel("Gilded Stashes Remaining", GILDED_STASH_ICON_ID), COLUMN_GAP .. "unavailable", 1, 0.82, 0, 0.6, 0.6, 0.6)
   end
 
-  GameTooltip:AddDoubleLine("Trovehunter's Bounty", COLUMN_GAP .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0, 1, 0.82, 0)
+  GameTooltip:AddDoubleLine(tooltipIconLabel("Trovehunter's Bounty", TROVEHUNTERS_BOUNTY_ICON_ID), COLUMN_GAP .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0, 1, 0.82, 0)
 
   for _, currency in ipairs(DELVE_CURRENCIES) do
-    local amount = currencyAmount(currency.name, currency.id)
-    GameTooltip:AddDoubleLine(currency.name, COLUMN_GAP .. (amount or "Unknown"), 1, 0.82, 0, 1, 0.82, 0)
+    local amount, icon = currencyAmount(currency.name, currency.id)
+    GameTooltip:AddDoubleLine(tooltipIconLabel(currency.name, icon), COLUMN_GAP .. (amount or "Unknown"), 1, 0.82, 0, 1, 0.82, 0)
   end
 
   local companion = companionReputation()
