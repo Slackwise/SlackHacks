@@ -79,6 +79,7 @@ function Self:OnEnable()
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   self:RegisterEvent("BAG_UPDATE_DELAYED")
   updateNameplateCastEventRegistration()
+  initBagsFrameHiding()
   -- self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 end
 
@@ -97,6 +98,7 @@ function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of comb
   setCVars()
   handleDragonriding()
   processLogs(isLogin or isReload)
+  initBagsFrameHiding()
 end
 
 function Self:MERCHANT_SHOW(eventName)
@@ -397,6 +399,88 @@ function isSpellKnown(spellName)
   end
   return false
 end
+
+--=====================================================================
+-- Bags Bar (the persistent Backpack/Bag icons Edit Mode calls "Bags")
+--=====================================================================
+-- BagsBar (Interface/AddOns/Blizzard_MainMenuBarBagButtons) is the native Edit Mode system for the
+-- movable Backpack/Bag-slot icon cluster (Enum.EditModeSystem.Bags). Its own OnLoad already treats
+-- :Hide() as a supported permanent-off state (see the BagsUIDisabled game rule check), so hiding it
+-- directly -- rather than faking invisibility -- is safe and matches Blizzard's own usage.
+local bagsBarShowHooked = false
+
+function applyHideBagsFrame()
+  if not (_G.BagsBar and _G.BagsBar.IsProtected) then return end
+  if BagsBar:IsProtected() and InCombatLockdown() then return end
+  if db.profile.inventory.hideBagsFrame then
+    BagsBar:Hide()
+  else
+    BagsBar:Show()
+  end
+end
+
+local function hookBagsBarShow()
+  if bagsBarShowHooked or not _G.BagsBar then return end
+  bagsBarShowHooked = true
+  BagsBar:HookScript("OnShow", function(self)
+    if db.profile.inventory.hideBagsFrame then
+      self:Hide()
+    end
+  end)
+end
+
+-- A small checkbox attached beside Blizzard's own Edit Mode settings dialog whenever the Bags system
+-- (BagsBar, a native Edit Mode system unlike our custom Buffs container) is the one selected.
+local bagsEditModeCheckbox
+
+local function createBagsEditModeCheckbox()
+  local cb = CreateFrame("CheckButton", "SlackHacksHideBagsFrameCheckButton", UIParent, "UICheckButtonTemplate")
+  cb:SetSize(24, 24)
+  cb:SetFrameStrata("DIALOG")
+  cb.text:SetText("Hide Bags Frame (SlackHacks)")
+  cb.text:SetFontObject("GameFontHighlight")
+  cb:SetScript("OnClick", function(self)
+    db.profile.inventory.hideBagsFrame = self:GetChecked() and true or false
+    applyHideBagsFrame()
+  end)
+  cb:Hide()
+  return cb
+end
+
+local function showBagsEditModeCheckbox(show)
+  if not show then
+    if bagsEditModeCheckbox then bagsEditModeCheckbox:Hide() end
+    return
+  end
+  bagsEditModeCheckbox = bagsEditModeCheckbox or createBagsEditModeCheckbox()
+  bagsEditModeCheckbox:SetChecked(db.profile.inventory.hideBagsFrame)
+  bagsEditModeCheckbox:ClearAllPoints()
+  if EditModeSystemSettingsDialog and EditModeSystemSettingsDialog:IsShown() then
+    bagsEditModeCheckbox:SetPoint("TOPLEFT", EditModeSystemSettingsDialog, "TOPRIGHT", 10, 0)
+  else
+    bagsEditModeCheckbox:SetPoint("CENTER", UIParent, "CENTER", 200, 0)
+  end
+  bagsEditModeCheckbox:Show()
+end
+
+local bagsEditModeHooksInstalled = false
+local function registerBagsEditModeHooks()
+  if bagsEditModeHooksInstalled then return end
+  if not (EditModeManagerFrame and EditModeSystemSettingsDialog and Enum.EditModeSystem and _G.BagsBar) then return end
+  bagsEditModeHooksInstalled = true
+
+  hooksecurefunc(EditModeSystemSettingsDialog, "AttachToSystemFrame", function(_, systemFrame)
+    showBagsEditModeCheckbox(systemFrame and systemFrame.system == Enum.EditModeSystem.Bags)
+  end)
+  EditModeSystemSettingsDialog:HookScript("OnHide", function() showBagsEditModeCheckbox(false) end)
+end
+
+function initBagsFrameHiding()
+  hookBagsBarShow()
+  registerBagsEditModeHooks()
+  applyHideBagsFrame()
+end
+
 
 --- Trim outer whitespace and leading indentation after each newline.
 ---@param str string - The multiline string to trim.

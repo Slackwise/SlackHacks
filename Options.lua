@@ -22,7 +22,8 @@ dbDefaults = {
     inventory = {
       autoSellGreyItems = false,
       autoRepair = false,
-      autoRepairMode = "personal"
+      autoRepairMode = "personal",
+      hideBagsFrame = false
     },
     listviewBag = {
       enabled = false,
@@ -488,6 +489,19 @@ options = {
               order = 3
             }
           },
+        },
+        hideBagsFrame = {
+          name = "Hide Bags Frame",
+          desc = "Hides the persistent Backpack and Bag icons that you can move with Edit Mode.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.inventory.hideBagsFrame end,
+          set = function(_, value)
+            db.profile.inventory.hideBagsFrame = value
+            applyHideBagsFrame()
+          end,
+          order = 4.5
         },
         listviewBag = {
           type = "group",
