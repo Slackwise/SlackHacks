@@ -767,40 +767,24 @@ end
 -- Toggling the list view vs. the default bag windows
 --=====================================================================
 
-local defaultBagFrameState = {}
 local function forEachDefaultBagFrame(callback)
   for name, obj in pairs(_G) do
-    if type(name) == "string" and type(obj) == "table" and obj.SetAlpha and obj.EnableMouse
+    if type(name) == "string" and type(obj) == "table" and obj.IsShown
         and (name == "ContainerFrameCombinedBags" or name:match("^ContainerFrame%d+$")) then
       callback(obj)
     end
   end
 end
 
-local function setDefaultBagsInert(inert)
-  forEachDefaultBagFrame(function(defaultFrame)
-    if inert then
-      if not defaultBagFrameState[defaultFrame] then
-        defaultBagFrameState[defaultFrame] = {
-          alpha = defaultFrame:GetAlpha(),
-          mouseEnabled = defaultFrame:IsMouseEnabled(),
-        }
-      end
-      defaultFrame:SetAlpha(0)
-      defaultFrame:EnableMouse(false)
-    else
-      local state = defaultBagFrameState[defaultFrame]
-      if state then
-        defaultFrame:SetAlpha(state.alpha)
-        defaultFrame:EnableMouse(state.mouseEnabled)
-        defaultBagFrameState[defaultFrame] = nil
-      end
-    end
-  end)
-end
-
+-- Closes via Blizzard's own CloseAllBags() -- the same call the default UI's close button/ESC use --
+-- instead of reaching in and calling :Hide() on each ContainerFrame ourselves. Hiding the container
+-- frames directly never told Blizzard's own "which bags are open" bookkeeping that they'd closed, and
+-- left sibling elements anchored to them (e.g. the tracked-currency display, which isn't actually a
+-- child of the container) stranded at stale positions instead of being hidden/repositioned with them.
 local function hideDefaultBags()
-  setDefaultBagsInert(true)
+  if _G.CloseAllBags then
+    CloseAllBags()
+  end
 end
 
 local function areDefaultBagsShown()
@@ -811,8 +795,9 @@ local function areDefaultBagsShown()
   return shown
 end
 
+-- Reopens via the same native entry points the default UI uses so Blizzard recomputes each frame's
+-- anchor/position itself, instead of us calling :Show() directly on stale frames.
 local function showDefaultBags()
-  setDefaultBagsInert(false)
   if areDefaultBagsShown() then return end
   if _G.ToggleAllBags then
     ToggleAllBags()
@@ -1165,7 +1150,6 @@ function module:OnDisable()
   -- so it's remembered next time the module/feature is re-enabled.
   local wasShown = frame and frame:IsShown()
   if frame then frame:Hide() end
-  setDefaultBagsInert(false)
   self:UpdateListViewBindings()
   if wasShown then
     showDefaultBags()

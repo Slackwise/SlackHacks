@@ -921,11 +921,11 @@ local function registerDefaultFrames()
     -- Its ornate banner art bleeds upward past the frame's own top edge -- raise the hit target to cover
     -- that space instead of extending further down into the Header/search row content.
     ["AchievementFrame"] = { TitleBarRaise = 25 },
+    -- Deliberately NOT ContainerFrame1..13/ContainerFrameCombinedBags: Blizzard repositions those itself
+    -- every time a bag opens/closes (stacking them side by side based on how many are open), and our
+    -- anti-rubberband SetPoint watchdog would fight that by forcing any one of them back to a stale saved
+    -- spot the instant it was ever dragged, leaving the rest misanchored relative to it.
   }
-  for i = 1, 13 do
-    sharedFrames["ContainerFrame" .. i] = {}
-  end
-
   for frameName, frameData in pairs(sharedFrames) do
     module:RegisterFrame(frameName, frameData)
   end
@@ -967,6 +967,13 @@ function module:OnInitialize()
   if not (isRetail() or isForever()) then
     self:SetEnabledState(false)
     return
+  end
+  -- One-time cleanup: earlier versions registered ContainerFrame1..13 as position-persisted, which could
+  -- have saved a stale dragged position fighting Blizzard's own bag layout; drop any leftover entries.
+  for frameName in pairs(settings().points) do
+    if frameName:match("^ContainerFrame%d*$") then
+      settings().points[frameName] = nil
+    end
   end
   registerDefaultFrames()
   if not settings().enabled then
