@@ -32,6 +32,8 @@ local STASH_ICON_GAP = 2
 local STASH_ICON_COUNT = 4
 
 local button
+local contextMenu
+local contextMenuRows = {}
 
 local function delvesSeasonFactionID()
   return C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason and C_DelvesUI.GetDelvesFactionForSeason()
@@ -185,57 +187,110 @@ local function contextMenuIcon(option)
   if option.itemID and C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(option.itemID) end
 end
 
-local function addContextMenuOption(rootDescription, option)
-  local description = rootDescription:CreateButton(tooltipIconLabel(option.name, contextMenuIcon(option)), function()
-    if option.action then option.action() end
-    return MenuResponse.CloseAll
+local function closeContextMenu()
+  if contextMenu then contextMenu:Hide() end
+end
+
+local function createContextMenuRow(index)
+  local row = CreateFrame("Button", "SlackHacksDelvesContextMenuRow" .. index, contextMenu, "BackdropTemplate, SecureActionButtonTemplate")
+  row:SetHeight(24)
+  row:RegisterForClicks("AnyUp", "AnyDown")
+
+  local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+  highlight:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+  highlight:SetPoint("TOPLEFT", row, "TOPLEFT", 2, -1)
+  highlight:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -2, 1)
+  highlight:SetVertexColor(1, 1, 1, 0.35)
+  highlight:SetBlendMode("ADD")
+
+  local icon = row:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(20, 20)
+  icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  row.icon = icon
+
+  local name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+  name:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+  name:SetJustifyH("LEFT")
+  row.name = name
+
+  row:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if self.toyID then
+      GameTooltip:SetToyByItemID(self.toyID)
+    elseif self.itemID then
+      GameTooltip:SetItemByID(self.itemID)
+    elseif self.spellID then
+      GameTooltip:SetSpellByID(self.spellID)
+    else
+      GameTooltip_Hide()
+      return
+    end
+    GameTooltip:Show()
+  end)
+  row:SetScript("OnLeave", GameTooltip_Hide)
+  row:SetScript("PostClick", function(self)
+    closeContextMenu()
+    if self.action then self.action() end
   end)
 
-  if option.itemID or option.spellID or option.toyID then
-    description:AddInitializer(function(frame, elementDescription)
-      local actionButton = frame:AttachTemplate("SecureActionButtonTemplate")
-      actionButton:SetAllPoints()
-      actionButton:SetFrameLevel(frame:GetFrameLevel() + 1)
-      actionButton:SetPropagateMouseMotion(true)
-      actionButton:EnableMouse(true)
-      actionButton:SetMouseClickEnabled(true)
-      actionButton:SetMouseMotionEnabled(true)
-      actionButton:RegisterForClicks("AnyUp", "AnyDown")
-      actionButton:SetAttribute("type", nil)
-      actionButton:SetAttribute("spell", nil)
-      actionButton:SetAttribute("item", nil)
-      actionButton:SetAttribute("toy", nil)
-      actionButton:SetAttribute("type", option.toyID and "toy" or option.spellID and "spell" or "item")
-      actionButton:SetAttribute("spell", option.spellID)
-      actionButton:SetAttribute("item", option.itemID and "item:" .. option.itemID or nil)
-      actionButton:SetAttribute("toy", option.toyID)
-      actionButton:SetScript("PostClick", function(_, mouseButton)
-        elementDescription:Pick(MenuInputContext.MouseButton, mouseButton)
-      end)
-    end)
-  end
-
-  if option.itemID or option.spellID or option.toyID then
-    description:SetTooltip(function(tooltip)
-      if option.toyID then
-        tooltip:SetToyByItemID(option.toyID)
-      elseif option.itemID then
-        tooltip:SetItemByID(option.itemID)
-      else
-        tooltip:SetSpellByID(option.spellID)
-      end
-    end)
-  end
+  return row
 end
 
 local function openContextMenu(anchor)
-  if InCombatLockdown() or not MenuUtil then return end
+  if InCombatLockdown() then return end
   GameTooltip_Hide()
-  MenuUtil.CreateContextMenu(anchor, function(_, rootDescription)
-    for _, option in ipairs(CONTEXT_MENU_OPTIONS) do
-      addContextMenuOption(rootDescription, option)
-    end
-  end)
+
+  if not contextMenu then
+    contextMenu = CreateFrame("Frame", "SlackHacksDelvesContextMenu", UIParent, "BackdropTemplate")
+    contextMenu:SetFrameStrata("DIALOG")
+    contextMenu:SetClampedToScreen(true)
+    contextMenu:EnableMouse(true)
+    local background = contextMenu:CreateTexture(nil, "BACKGROUND")
+    background:SetAtlas("common-dropdown-c-bg")
+    background:SetPoint("TOPLEFT", -17, 12)
+    background:SetPoint("BOTTOMRIGHT", 17, -22)
+    EventRegistry:RegisterFrameEventAndCallback("GLOBAL_MOUSE_DOWN", function()
+      if contextMenu:IsShown() and not contextMenu:IsMouseOver() and not (contextMenu.anchor and contextMenu.anchor:IsMouseOver()) then
+        closeContextMenu()
+      end
+    end)
+  end
+
+  if contextMenu:IsShown() then
+    closeContextMenu()
+    return
+  end
+
+  local rowHeight = 24
+  local rowGap = 2
+  local padding = 6
+  local menuWidth = 240
+  for index, option in ipairs(CONTEXT_MENU_OPTIONS) do
+    local row = contextMenuRows[index] or createContextMenuRow(index)
+    contextMenuRows[index] = row
+    row:SetSize(menuWidth - (padding * 2), rowHeight)
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", padding, -padding - (index - 1) * (rowHeight + rowGap))
+    row.itemID = option.itemID
+    row.spellID = option.spellID
+    row.toyID = option.toyID
+    row.action = option.action
+    row:SetAttribute("type", option.toyID and "toy" or option.spellID and "spell" or option.itemID and "item" or nil)
+    row:SetAttribute("toy", option.toyID)
+    row:SetAttribute("spell", option.spellID)
+    row:SetAttribute("item", option.itemID and "item:" .. option.itemID or nil)
+    row.icon:SetTexture(contextMenuIcon(option))
+    row.name:SetText(option.name)
+    row:Show()
+  end
+
+  contextMenu:SetSize(menuWidth, (rowHeight + rowGap) * #CONTEXT_MENU_OPTIONS + padding * 2 - rowGap)
+  contextMenu:ClearAllPoints()
+  contextMenu.anchor = anchor
+  contextMenu:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+  contextMenu:Show()
 end
 
 local function createButton()
