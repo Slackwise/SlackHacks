@@ -470,10 +470,23 @@ local function createRow(index)
 
   row.nameText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.nameText:SetJustifyH("LEFT")
-  row.nameTooltip = CreateFrame("Frame", nil, row)
-  row.nameTooltip:EnableMouse(true)
-  row.nameTooltip:SetPropagateMouseClicks(true)
-  row.nameTooltip:SetScript("OnEnter", function(self)
+
+  row.qualitySwatch = row:CreateTexture(nil, "ARTWORK")
+  row.qualitySwatch:SetSize(16, 16)
+
+  row.quantityText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.quantityText:SetJustifyH("RIGHT")
+  row.ilvlText:SetJustifyH("LEFT")
+  row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.armorSlotText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.bindIcon = row:CreateTexture(nil, "ARTWORK")
+  row.bindIcon:SetSize(18, 18)
+
+  -- The item tooltip lives on the row itself (rather than a separate overlay frame covering the
+  -- icon/name) so the row's own native highlight -- driven by SetHighlightTexture based on mouse focus
+  -- -- keeps working while hovering the item instead of being stolen by a mouse-enabled child frame.
+  row:SetScript("OnEnter", function(self)
     -- Mirrors ContainerFrameItemButton_OnEnter: SetBagItem (not SetHyperlink) so the tooltip reflects
     -- the item's real in-bag state (e.g. actual Soulbound status) instead of a hypothetical "not yet
     -- acquired" copy of the item.
@@ -487,19 +500,7 @@ local function createRow(index)
       GameTooltip:Show()
     end
   end)
-  row.nameTooltip:SetScript("OnLeave", GameTooltip_Hide)
-
-  row.qualitySwatch = row:CreateTexture(nil, "ARTWORK")
-  row.qualitySwatch:SetSize(16, 16)
-
-  row.quantityText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  row.quantityText:SetJustifyH("RIGHT")
-  row.ilvlText:SetJustifyH("LEFT")
-  row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  row.armorSlotText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  row.bindIcon = row:CreateTexture(nil, "ARTWORK")
-  row.bindIcon:SetSize(18, 18)
+  row:SetScript("OnLeave", GameTooltip_Hide)
 
   -- Dragging/using/splitting the item reuses the exact unprotected Container APIs the default bags
   -- use, called directly from a real hardware click/drag event -- this is what keeps right-click "use"
@@ -546,7 +547,6 @@ end
 positionRowCells = function(row)
   row.icon:ClearAllPoints()
   row.nameText:ClearAllPoints()
-  row.nameTooltip:ClearAllPoints()
   row.qualitySwatch:ClearAllPoints()
   row.bindIcon:ClearAllPoints()
   local nameLayout = columnLayout.name
@@ -554,8 +554,6 @@ positionRowCells = function(row)
   row.icon:SetPoint("LEFT", row, "LEFT", nameLayout.x + indent, 0)
   row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
   row.nameText:SetWidth(math.max(20, nameLayout.width - indent - ROW_HEIGHT - 19))
-  row.nameTooltip:SetPoint("LEFT", row.nameText, "LEFT")
-  row.nameTooltip:SetSize(math.min(row.nameText:GetStringWidth(), row.nameText:GetWidth()), ROW_HEIGHT)
 
   for _, colID in ipairs({ "quantity", "ilvl", "armorType", "armorSlot" }) do
     local cell = row[colID .. "Text"]
