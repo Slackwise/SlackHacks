@@ -41,6 +41,8 @@ local DEFAULT_VISUALS = {
   addonsInCompartment = false,
 }
 
+local isSquareMaskApplied = false
+
 local function isModuleEnabled()
   return (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) and module:IsEnabled()
 end
@@ -87,6 +89,7 @@ local origMinimapClusterWidth, origMinimapClusterHeight
 local origMinimapClusterHitInsets
 local origMinimapContainerPoints
 local squareMinimapWidth, squareMinimapHeight
+local origContainerScale
 local isSquareClusterApplied = false
 local origSetHeaderUnderneath
 local origSetRotateMinimap
@@ -262,7 +265,14 @@ end
 local function applyShape()
   if not isModuleEnabled() then return end
   if not _G.Minimap.SetMaskTexture then return end -- not available on this client build; shape stays default
-  _G.Minimap:SetMaskTexture(settings().shape == "square" and SQUARE_MASK_TEXTURE or ROUND_MASK_TEXTURE)
+  if settings().shape == "square" then
+    _G.Minimap:SetMaskTexture(SQUARE_MASK_TEXTURE)
+    isSquareMaskApplied = true
+  elseif isSquareMaskApplied then
+    -- Only revert a mask we ourselves swapped in; never touch Blizzard's own default round mask otherwise.
+    _G.Minimap:SetMaskTexture(ROUND_MASK_TEXTURE)
+    isSquareMaskApplied = false
+  end
 end
 
 local function applyAlpha()
@@ -549,19 +559,27 @@ end
 
 local function cacheMinimapClusterDefaults()
   if not MinimapCluster then return end
-  if not origMinimapClusterWidth and MinimapCluster.GetWidth and MinimapCluster:GetWidth() > 0 then
+  -- Re-snapshot every time we're coming from genuine round state (not just once ever) --
+  -- otherwise a mid-session Edit Mode resize of the minimap while square mode is active
+  -- goes unnoticed, and restoring round mode later reverts to the stale, now-mismatched
+  -- cluster/border size while the actual Minimap texture keeps its new (larger) size.
+  if isSquareClusterApplied then return end
+  if MinimapCluster.GetWidth and MinimapCluster:GetWidth() > 0 then
     origMinimapClusterWidth = MinimapCluster:GetWidth()
     origMinimapClusterHeight = MinimapCluster:GetHeight()
   end
-  if not origMinimapClusterHitInsets and MinimapCluster.GetHitRectInsets then
+  if MinimapCluster.GetHitRectInsets then
     origMinimapClusterHitInsets = { MinimapCluster:GetHitRectInsets() }
   end
-  if not squareMinimapWidth and _G.Minimap and _G.Minimap.GetWidth and _G.Minimap:GetWidth() > 0 then
+  if _G.Minimap and _G.Minimap.GetWidth and _G.Minimap:GetWidth() > 0 then
     squareMinimapWidth = _G.Minimap:GetWidth()
     squareMinimapHeight = _G.Minimap:GetHeight()
   end
   local container = MinimapCluster.MinimapContainer
-  if container and not origMinimapContainerPoints and container.GetNumPoints and container:GetNumPoints() > 0 then
+  if container and container.GetScale then
+    origContainerScale = container:GetScale()
+  end
+  if container and container.GetNumPoints and container:GetNumPoints() > 0 then
     origMinimapContainerPoints = {}
     for i = 1, container:GetNumPoints() do
       local point, relativeTo, relativePoint, offsetX, offsetY = container:GetPoint(i)
@@ -683,8 +701,15 @@ local function restoreRoundMinimapCluster()
     end
   end
 
-  -- Restore MinimapCluster size and insets
-  MinimapCluster:SetSize(origMinimapClusterWidth or 256, origMinimapClusterHeight or 256)
+  -- Restore MinimapCluster size and insets, scaled up/down to match any Edit Mode size change
+  -- made while square mode was active (our cached round dimensions are otherwise stale, leaving
+  -- the round border sized for the old scale while the actual Minimap texture uses the new one).
+  local currentScale = container and container.GetScale and container:GetScale()
+  local scaleRatio = 1
+  if currentScale and currentScale > 0 and origContainerScale and origContainerScale > 0 then
+    scaleRatio = currentScale / origContainerScale
+  end
+  MinimapCluster:SetSize((origMinimapClusterWidth or 256) * scaleRatio, (origMinimapClusterHeight or 256) * scaleRatio)
   if MinimapCluster.SetHitRectInsets then
     if origMinimapClusterHitInsets then
       MinimapCluster:SetHitRectInsets(unpack(origMinimapClusterHitInsets))
