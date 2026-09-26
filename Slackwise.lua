@@ -941,6 +941,7 @@ BINDINGS = {
     MAGE = {
       {"E",             {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"}},
       {"2",             "Fireball"},
+      {"4",             "Fire Blast"},
       {"SHIFT-2",       "Frostbolt"},
       {"Z",             "Blink"},
       {"CTRL-SPACE",    "Walk on Air"},
