@@ -936,6 +936,11 @@ BINDINGS = {
       {"CTRL-G",        "Elune's Light"},
       {"CTRL-H",        "Teleport: Moonglade"},
     },
+    HUNTER = {
+    },
+    MAGE = {
+      {"2",             "Fireball"},
+    },
     PALADIN = {
       -- General
       {"E", { "!ENGAGE",
