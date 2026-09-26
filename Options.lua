@@ -492,7 +492,8 @@ options = {
         },
         hideBagsFrame = {
           name = "Hide Bags Frame",
-          desc = "Hides the persistent Backpack and Bag icons that you can move with Edit Mode.",
+          desc = "Hides the Blizzard Backpack and Bag icons/frame. " ..
+            "(Useful if you only use keyboard shortcuts to open your bags.)",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -511,7 +512,8 @@ options = {
           args = {
             enabled = {
               name = "Enable",
-              desc = "Adds a toggle button to the bag window's title bar that switches between the default grid view and a sortable list view of your inventory.",
+              desc = "Adds a toggle button to the bag window's title bar that switches between the default " ..
+                "grid view and a sortable list view of your inventory.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -531,7 +533,8 @@ options = {
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Items Marked for Vendoring",
-              desc = "Sell marked items automatically when opening a merchant. Otherwise, they sell when you confirm Blizzard's Sell All Junk action.",
+              desc = "Sell marked items automatically when opening a merchant. Otherwise, they sell when you " ..
+                "confirm Blizzard's Sell All Junk action.",
               type = "toggle",
               get = function() return db.profile.listviewBag.autoSellMarkedItems end,
               set = function(_, value) db.profile.listviewBag.autoSellMarkedItems = value end,
@@ -630,7 +633,8 @@ options = {
             },
             showReportErrorLog = {
               name = "Report Errors",
-              desc = "Opens a window displaying all errors formatted in GitHub-compatible Markdown, provides a direct issue link, and attempts to report pending logs directly to Slack.",
+              desc = "Opens a window displaying all errors formatted in GitHub-compatible Markdown, provides a " ..
+                "direct issue link, and attempts to report pending logs directly to Slack.",
               type = "execute",
               func = function() Self.Debug:ReportErrors() end,
               order = 2
@@ -800,7 +804,8 @@ options = {
       args = {
         enabled = {
           name = "Enable",
-          desc = "Enable minimap enhancements. When disabled, the minimap looks and behaves exactly like stock Blizzard UI.",
+          desc = "Enable minimap enhancements. When disabled, the minimap looks and behaves exactly like " ..
+            "stock Blizzard UI.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -818,7 +823,8 @@ options = {
         },
         openEditMode = {
           name = "Open Visual Settings via Edit Mode",
-          desc = "Open Blizzard's Edit Mode and select the Minimap to configure its visual settings and position/size.",
+          desc = "Open Blizzard's Edit Mode and select the Minimap to configure its visual settings and " ..
+            "position/size.",
           type = "execute",
           func = function()
             if InCombatLockdown() then return end
@@ -862,7 +868,8 @@ options = {
         },
         addonsInCompartment = {
           name = "Move Addon Icons to Addon Compartment",
-          desc = "Move third-party addon icons into the Addon Compartment menu instead of showing them on the minimap.",
+          desc = "Move third-party addon icons into the Addon Compartment menu instead of showing them on " ..
+            "the minimap.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -1137,7 +1144,8 @@ options = {
           args = {
             showIfExpiring = {
               name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
-              desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or estimated raid boss fight ends.",
+              desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or " ..
+                "estimated raid boss fight ends.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -1291,7 +1299,8 @@ options = {
     movableWindows = {
       type = "group",
       name = "Movable Windows",
-      desc = "Drag most Blizzard windows by their title bar to reposition them, and resize them with the mouse wheel.",
+      desc = "Drag most Blizzard windows by their title bar to reposition them, and resize them with the " ..
+        "mouse wheel.",
       order = 9,
       args = {
         enabled = {
@@ -1305,13 +1314,15 @@ options = {
           order = 0
         },
         keybindHint = {
-          name = "Set a keybinding for \"Toggle Movable Windows\" under Key Bindings > SlackHacks to quickly enable/disable this without opening options.",
+          name = "Set a keybinding for \"Toggle Movable Windows\" under Key Bindings > SlackHacks to quickly " ..
+            "enable/disable this without opening options.",
           type = "description",
           order = 0.1
         },
         modifierKey = {
           name = "Move Modifier Key",
-          desc = "Key that must be held while left-click-dragging a window's title bar to move it (dragging elsewhere on the window does nothing). Choose None to allow moving with a plain left-click-drag.",
+          desc = "Key that must be held while left-click-dragging a window's title bar to move it (dragging " ..
+            "elsewhere on the window does nothing). Choose None to allow moving with a plain left-click-drag.",
           type = "select",
           width = "full",
           values = {
@@ -1328,7 +1339,8 @@ options = {
         },
         enableScaling = {
           name = "Enable Scaling (Modifier + Mouse Wheel)",
-          desc = "Hold the modifier key below and scroll the mouse wheel over a window's title bar to resize it (scrolling elsewhere on the window is left alone).",
+          desc = "Hold the modifier key below and scroll the mouse wheel over a window's title bar to resize " ..
+            "it (scrolling elsewhere on the window is left alone).",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -1339,7 +1351,8 @@ options = {
         },
         scaleModifierKey = {
           name = "Scale Modifier Key",
-          desc = "Key that must be held while scrolling the mouse wheel over a window's title bar to resize it. Choose None to allow resizing with a plain mouse wheel scroll.",
+          desc = "Key that must be held while scrolling the mouse wheel over a window's title bar to resize " ..
+            "it. Choose None to allow resizing with a plain mouse wheel scroll.",
           type = "select",
           width = "full",
           values = {
@@ -1421,7 +1434,8 @@ options = {
     vendor = {
       type = "group",
       name = "Self Vendor",
-      desc = "Trade recommended enchants, gems, and consumables to nearby group or guild members using targeted emotes.",
+      desc = "Trade recommended enchants, gems, and consumables to nearby group or guild members using " ..
+        "targeted emotes.",
       order = 10,
       args = selfVendorModeOptions()
     },
@@ -1443,7 +1457,8 @@ options = {
         },
         trackDelves = {
           name = "Track Delves",
-          desc = "Show a Delves button on the Objective Tracker with the weekly Gilded Stash, Trovehunter's Bounty, Valeera's level, and Delve Renown.",
+          desc = "Show a Delves button on the Objective Tracker with the weekly Gilded Stash, Trovehunter's " ..
+            "Bounty, Valeera's level, and Delve Renown.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
