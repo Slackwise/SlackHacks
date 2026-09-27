@@ -326,7 +326,7 @@ BINDINGS = {
     {"SHIFT-SPACE",          "SLACKHACKS_MOUNT", BT.COMMAND},
     {"SHIFT-HOME",           "SETVIEW1", BT.COMMAND},
     {"HOME",                 "SETVIEW2", BT.COMMAND},
-    {"END",                  "SETVIEW3", BT.COMMAND},
+    -- {"END",                  "SETVIEW3", BT.COMMAND},
     {"PRINTSCREEN",          "SCREENSHOT", BT.COMMAND},
     {"NUMLOCK",              "NONE", BT.COMMAND},
     {"NUMPAD0",              "RAIDTARGET8", BT.COMMAND},
