@@ -295,7 +295,12 @@ function disableWIPModules()
 
   for _, mod in ipairs(WIP_MODULES) do
     if mod.disable then
-      mod.disable()
+      -- pcall'd so one module erroring out can't abort the loop and leave the remaining WIP
+      -- modules (and the options UI refresh below) never touched.
+      local ok, err = pcall(mod.disable)
+      if not ok then
+        geterrorhandler()(("SlackHacks: error disabling WIP module '%s': %s"):format(mod.name, tostring(err)))
+      end
     end
   end
 

@@ -1009,6 +1009,11 @@ local function buildFrame()
       if frame:IsShown() then frame:Hide() else frame:Show() end
     end
   end)
+  -- Registered directly on the frame (not via AceEvent/module lifecycle) so a stale override binding
+  -- left behind by a combat-lockdown-blocked updateListViewBindings() still gets cleared once combat
+  -- ends, even if the module was disabled (and its AceEvent registrations torn down) mid-combat.
+  bagKeyBindingButton:RegisterEvent("PLAYER_REGEN_ENABLED")
+  bagKeyBindingButton:SetScript("OnEvent", function() updateListViewBindings() end)
 
   -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
   searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
