@@ -382,6 +382,8 @@ function module.ShowTooltip(self)
     local displayAmount = amount or "Unknown"
     if currency.id == 3356 and info then
       displayAmount = info.quantity .. " / " .. info.maxWeeklyQuantity .. " (" .. info.maxQuantity .. ")"
+    elseif currency.id == 3310 and info then
+      displayAmount = info.quantity .. " / " .. info.maxWeeklyQuantity
     end
     GameTooltip:AddDoubleLine(tooltipIconLabel(currency.name, icon), COLUMN_GAP .. displayAmount, 1, 0.82, 0, 1, 0.82, 0)
   end
