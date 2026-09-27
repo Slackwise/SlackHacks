@@ -85,14 +85,14 @@ end
 local function currencyAmount(currencyName, currencyID)
   if currencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
     local currency = C_CurrencyInfo.GetCurrencyInfo(currencyID)
-    if currency then return currency.quantity, currency.iconFileID end
+    if currency then return currency.quantity, currency.iconFileID, currency end
   end
 
   if not C_CurrencyInfo or not C_CurrencyInfo.GetCurrencyListSize or not C_CurrencyInfo.GetCurrencyListInfo then return nil end
 
   for index = 1, C_CurrencyInfo.GetCurrencyListSize() do
     local currency = C_CurrencyInfo.GetCurrencyListInfo(index)
-    if currency and currency.name == currencyName then return currency.quantity, currency.iconFileID end
+    if currency and currency.name == currencyName then return currency.quantity, currency.iconFileID, currency end
   end
 end
 
@@ -378,8 +378,12 @@ function module.ShowTooltip(self)
   GameTooltip:AddDoubleLine(tooltipIconLabel("Trovehunter's Bounty", TROVEHUNTERS_BOUNTY_ICON_ID), COLUMN_GAP .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0, 1, 0.82, 0)
 
   for _, currency in ipairs(DELVE_CURRENCIES) do
-    local amount, icon = currencyAmount(currency.name, currency.id)
-    GameTooltip:AddDoubleLine(tooltipIconLabel(currency.name, icon), COLUMN_GAP .. (amount or "Unknown"), 1, 0.82, 0, 1, 0.82, 0)
+    local amount, icon, info = currencyAmount(currency.name, currency.id)
+    local displayAmount = amount or "Unknown"
+    if currency.id == 3356 and info then
+      displayAmount = info.quantity .. " / " .. info.maxWeeklyQuantity .. " (" .. info.maxQuantity .. ")"
+    end
+    GameTooltip:AddDoubleLine(tooltipIconLabel(currency.name, icon), COLUMN_GAP .. displayAmount, 1, 0.82, 0, 1, 0.82, 0)
   end
 
   local companion = companionReputation()
