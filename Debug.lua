@@ -667,3 +667,9 @@ function module:ReportErrors()
   end)
 end
 module.HandleBugCommand = module.ReportErrors
+
+-- Secret, undocumented /slack induce-error command for verifying BugGrabber/BugSack capture our errors.
+function module:InduceError()
+  local induceErrorNilValue = nil
+  induceErrorNilValue.slackHacksInducedError = true
+end

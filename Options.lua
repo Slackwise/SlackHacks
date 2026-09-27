@@ -322,8 +322,7 @@ function handleSlashCommand(input)
   elseif command == "wipoff" then
     disableWIPModules()
   elseif command == "induce-error" then
-    local induceErrorNilValue = nil
-    induceErrorNilValue.slackHacksInducedError = true
+    Self.Debug:InduceError()
   else
     print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
   end
