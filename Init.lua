@@ -315,6 +315,7 @@ function Self:OnInitialize()
 
   registerOptions()
   Self:RegisterChatCommand("slack", handleSlashCommand)
+  Self:RegisterChatCommand("slackhacks", handleSlashCommand)
 
   -- Disabling ActionCam warning/confirmation popup: https://github.com/mpstark/DynamicCam/blob/master/Core.lua#L628C1-L629C68
   -- As of a recent client update, this event is no longer dispatched to UIParent (or any other

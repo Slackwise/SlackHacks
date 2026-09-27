@@ -282,7 +282,8 @@ end
 
 local function printSlashHelp()
   print(grey(icon(16)) .. " " .. color("FFD100")("SlackHacks Slash Commands:") .. "")
-  print("  " .. color("FFFFFF")("/slack") .. " or " .. color("FFFFFF")("/slack help") .. " - Show this list of slash commands")
+  print("  " .. color("FFFFFF")("/slack") .. " - Open the SlackHacks config window")
+  print("  " .. color("FFFFFF")("/slack help") .. " - Show this list of slash commands")
   print("  " .. color("FFFFFF")("/slack debug") .. " - Toggle debug mode on/off")
   print("  " .. color("FFFFFF")("/slack bugs") .. " - View and report error logs")
   print("  " .. color("FFFFFF")("/slack reset") .. " - Reset profile and addon state to defaults")
@@ -308,7 +309,9 @@ end
 
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
-  if command == "" or command == "help" then
+  if command == "" then
+    openOptions()
+  elseif command == "help" then
     printSlashHelp()
   elseif command == "debug" then
     toggleDebugging()
@@ -318,6 +321,9 @@ function handleSlashCommand(input)
     promptResetProfile()
   elseif command == "wipoff" then
     disableWIPModules()
+  elseif command == "induce-error" then
+    local induceErrorNilValue = nil
+    induceErrorNilValue.slackHacksInducedError = true
   else
     print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
   end
