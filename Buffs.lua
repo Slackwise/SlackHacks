@@ -450,16 +450,44 @@ local function applyCombatSafeVisual(category)
   end
 end
 
-function module:UNIT_AURA(_, unit, updateInfo)
-  if unit ~= "player" then return end
-  if not updateAuraCache(updateInfo) then return end
+-- Coalesces rapid-fire UNIT_AURA/WEAPON_ENCHANT_CHANGED events (HoT/DoT ticks, procs, etc. can fire
+-- many times a second mid-raid) into a single visual sync instead of redrawing on every single one.
+local AURA_VISUAL_SYNC_THROTTLE = 0.2
+local auraVisualSyncTimer
+
+local function cancelAuraVisualSync()
+  if auraVisualSyncTimer then
+    auraVisualSyncTimer:Cancel()
+    auraVisualSyncTimer = nil
+  end
+end
+
+local function flushAuraVisualSync()
+  auraVisualSyncTimer = nil
   if InCombatLockdown() then
     for _, category in ipairs(BUFF_CATEGORIES) do
       applyCombatSafeVisual(category)
     end
   else
-    self:Refresh()
+    module:Refresh()
   end
+end
+
+local function scheduleAuraVisualSync()
+  if auraVisualSyncTimer then return end
+  auraVisualSyncTimer = C_Timer.NewTimer(AURA_VISUAL_SYNC_THROTTLE, flushAuraVisualSync)
+end
+
+function module:UNIT_AURA(_, unit, updateInfo)
+  if unit ~= "player" then return end
+  if not updateAuraCache(updateInfo) then return end
+  scheduleAuraVisualSync()
+end
+
+-- Weapon enchants (oils/stones) aren't auras, so UNIT_AURA never fires for them; this is the actual
+-- event Blizzard fires when one is applied/reapplied/falls off.
+function module:WEAPON_ENCHANT_CHANGED()
+  scheduleAuraVisualSync()
 end
 
 local function hideBuffs()
@@ -1381,6 +1409,7 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_ALIVE")
+  self:RegisterEvent("WEAPON_ENCHANT_CHANGED")
   if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive and EditModeManagerFrame:IsEditModeActive() then
     enterEditMode()
   else
@@ -1404,6 +1433,7 @@ function module:OnDisable()
   self:UnregisterAllEvents()
   auraEventRegistered = false
   cancelDurationUpdates()
+  cancelAuraVisualSync()
   closeContextMenu()
   if isEditing then
     exitEditMode()
