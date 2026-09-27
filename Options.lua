@@ -108,7 +108,7 @@ dbDefaults = {
         [Enum.SelfVendorMode.OIL] = { enabled = false, triggerEmote = "FLIRT" },
         [Enum.SelfVendorMode.AUGMENT_RUNES] = { enabled = false, triggerEmote = "FLEX", runeQuantity = 5 },
         [Enum.SelfVendorMode.AUGMENTS] = { enabled = false, triggerEmote = "VICTORY" },
-        [Enum.SelfVendorMode.VANTUS_RUNE] = { enabled = false, triggerEmote = "GLARE" },
+        [Enum.SelfVendorMode.VANTUS_RUNE] = { enabled = false, triggerEmote = "STARE" },
       }
     },
     weeklies = {

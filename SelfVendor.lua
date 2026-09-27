@@ -21,6 +21,15 @@ local function emoteForTargetedMessage(message)
   end
 end
 
+local function requestLabel(mode, emoteToken)
+  local modeName = SELF_VENDOR_MODES[mode] and SELF_VENDOR_MODES[mode].name or "unknown request"
+  local emoteInfo = emoteToken and SELF_VENDOR_TRIGGER_EMOTES[emoteToken]
+  if emoteInfo then
+    return modeName .. " (via " .. emoteInfo.slashCommands:match("%S+") .. ")"
+  end
+  return modeName .. " (manual command)"
+end
+
 local function itemID(itemName)
   return ITEM_NAMES and ITEM_NAMES[itemName]
 end
@@ -136,7 +145,10 @@ local function finishTradePopulation(module, added)
   module.pendingRequired = nil
   module.pendingTradeItems = nil
   module.pendingTradeIndex = nil
+  module.activeTradeMode = module.pendingMode
+  module.activeTradeEmote = module.pendingEmote
   module.pendingMode = nil
+  module.pendingEmote = nil
 end
 
 local function itemName(itemID)
@@ -457,7 +469,10 @@ function module:OnDisable()
   log("Self Vendor disabled; unregistering events")
   self.pendingBagUpdate = nil
   self.pendingMode = nil
+  self.pendingEmote = nil
   self.activeTradeName = nil
+  self.activeTradeMode = nil
+  self.activeTradeEmote = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
@@ -512,6 +527,7 @@ function module:FailPendingTrade(message)
   self.pendingTradeIndex = nil
   self.inspectGUID = nil
   self.pendingMode = nil
+  self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
@@ -531,6 +547,7 @@ function module:ReportMissingItems(shortages)
   self.pendingTradeIndex = nil
   self.inspectGUID = nil
   self.pendingMode = nil
+  self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
@@ -550,28 +567,29 @@ local function removeQueueEntries(queue, name)
 end
 
 -- Enqueue immediately so the player holds a queue position before any async work (inspect, bag checks) begins
-function module:BeginEmoteTrade(sender, mode)
+function module:BeginEmoteTrade(sender, mode, emoteToken)
   self.tradeQueue = self.tradeQueue or {}
+  local label = requestLabel(mode, emoteToken)
   if sameName(self.pendingName, sender) or sameName(self.activeTradeName, sender) then
     removeQueueEntries(self.tradeQueue, sender)
     print("SlackHacks: " .. sender .. " is already being serviced.")
-    log(tostring(sender) .. " emoted again while already being serviced; ignoring duplicate")
+    log(tostring(sender) .. " emoted again (" .. label .. ") while already being serviced; ignoring duplicate")
     return
   end
   local existingPosition = queuePositionFor(self.tradeQueue, sender)
   if existingPosition then
     SendChatMessage("You're already in the queue at position #" .. existingPosition .. ". Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
     print("SlackHacks: " .. sender .. " is already in the Self Vendor queue (position #" .. existingPosition .. ").")
-    log(tostring(sender) .. " emoted again while already queued at position " .. existingPosition)
+    log(tostring(sender) .. " emoted again (" .. label .. ") while already queued at position " .. existingPosition)
     return
   end
-  table.insert(self.tradeQueue, { name = sender, mode = mode })
+  table.insert(self.tradeQueue, { name = sender, mode = mode, emote = emoteToken })
   if self.pendingName or self.activeTradeName then
     local currentName = self.activeTradeName or self.pendingName
     local position = #self.tradeQueue
     SendChatMessage("I'm busy servicing " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
-    print("SlackHacks: " .. sender .. " joined the Self Vendor queue (" .. position .. " in queue).")
-    log("Added " .. sender .. " to the Self Vendor queue; queue size=" .. position)
+    print("SlackHacks: " .. sender .. " joined the Self Vendor queue requesting " .. label .. " (" .. position .. " in queue).")
+    log("Added " .. sender .. " to the Self Vendor queue requesting " .. label .. "; queue size=" .. position)
     return
   end
   self:StartNextQueuedTrade()
@@ -596,7 +614,7 @@ function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelNam
     local configuration = modeConfiguration(mode)
     if configuration and configuration.enabled and configuration.triggerEmote == emoteToken then
       log("Matching " .. details.name .. " trigger received from " .. tostring(sender))
-      self:BeginEmoteTrade(sender, mode)
+      self:BeginEmoteTrade(sender, mode, emoteToken)
       return
     end
   end
@@ -631,6 +649,7 @@ function module:UI_INFO_MESSAGE(_, _, message)
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
   self.pendingMode = nil
+  self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
@@ -657,6 +676,7 @@ function module:StartNextQueuedTrade()
   self.tradeCanceled = nil
   self.pendingName = queuedTrade.name
   self.pendingMode = queuedTrade.mode
+  self.pendingEmote = queuedTrade.emote
   self.pendingUnit = groupUnitFor(queuedTrade.name)
   if not self.pendingUnit and sameName(UnitName("target"), queuedTrade.name) then self.pendingUnit = "target" end
   if queuedTrade.mode == VendorMode.AUGMENTS and self.pendingUnit then
@@ -669,14 +689,17 @@ end
 
 function module:TRADE_CLOSED()
   local servicedName = self.activeTradeName
+  local servicedLabel = requestLabel(self.activeTradeMode, self.activeTradeEmote)
   local successful = self.activeTradeName and self.tradeSucceeded and not self.tradeCanceled
   self.activeTradeName = nil
+  self.activeTradeMode = nil
+  self.activeTradeEmote = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
   if successful then
-    print("SlackHacks: finished servicing " .. servicedName .. ".")
-    log("Finished servicing " .. servicedName)
+    print("SlackHacks: finished servicing " .. servicedName .. " (" .. servicedLabel .. ").")
+    log("Finished servicing " .. servicedName .. " (" .. servicedLabel .. ")")
     self:StartNextQueuedTrade()
     local remaining = self.tradeQueue and #self.tradeQueue or 0
     if remaining > 0 then
@@ -788,6 +811,7 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
+    self.pendingEmote = nil
     self:StartNextQueuedTrade()
     return
   end
@@ -802,6 +826,7 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
+    self.pendingEmote = nil
     self:StartNextQueuedTrade()
     return
   end
@@ -824,6 +849,7 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
+    self.pendingEmote = nil
     self:StartNextQueuedTrade()
     return
   end
