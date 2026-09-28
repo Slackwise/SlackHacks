@@ -32,18 +32,6 @@ local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
 -- Blizzard's alert/toast popups -- achievements, notable items (mounts/toys/recipes/BoE epics/etc.), honor,
 -- garrison, etc. -- all get anchored under this one global container frame.
 local TOAST_FRAME_NAME = "AlertFrame"
--- Reserve a little vertical headroom above wherever the toast box is placed: toasts stack upward from
--- that anchor, and anything stacked above the top of the screen renders off-screen (invisible) -- see the
--- comment above ensureToastMover() for the full explanation. Toasts aren't important enough to be worth
--- fully guaranteeing against that (it's rare to get more than a few at once anyway, and if it happens the
--- oldest ones just clip off-screen), so this only reserves enough room for about 3 stacked toasts rather
--- than trying to cover every possible stack size.
-local TOAST_STACK_HEADROOM = 150
--- Safety cap, as a fraction of the screen height: on a high UI Scale (small effective GetScreenHeight()),
--- a fixed pixel headroom above can eat up a much bigger share of the usable drag range than intended,
--- making the box feel like it can't go much above the middle of the screen. Never reserve more than this
--- fraction so the box can always be dragged well into the upper half regardless of UI Scale.
-local TOAST_STACK_HEADROOM_MAX_FRACTION = 0.15
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
 -- since UIParent itself can be protected/tainted in ways that make re-anchoring to it directly unreliable.
@@ -949,30 +937,17 @@ end
 -- snapshot of wherever Blizzard's own code currently has AlertFrame anchored, so the box starts out
 -- exactly where toasts already appear instead of some arbitrary default.
 --
--- Toasts stack UPWARD from this anchor's top edge (see AlertFrameQueueMixin:AdjustAnchors), and WoW
--- doesn't clip a frame just because it's rendered above the top of the screen -- it just becomes
--- invisible past that edge. So the box is given a small reserved strip of headroom (TOAST_STACK_HEADROOM,
--- enough for a few stacked toasts) via SetClampRectInsets: the native drag-clamping (SetClampedToScreen)
--- then transparently keeps the box from being dropped closer to the top of the screen than that, snapping
--- it back down live during the drag itself if the mouse goes further than that. Toasts aren't important
--- enough to bother guaranteeing every possible stack size never clips -- this is just a reasonable
--- default so the common case doesn't get cut off.
+-- No clamping/headroom reservation here: the user can drag this wherever they want, including off the
+-- edges of the screen -- toasts aren't important enough to be worth restricting placement over.
 local function ensureToastMover()
   if toastMover then return toastMover end
 
   local alertFrame = _G[TOAST_FRAME_NAME]
   if not alertFrame then return nil end
 
-  -- Parented to the real UIParent, not fakeUIParent: SetClampedToScreen() clamps to the frame's own
-  -- parent hierarchy, and fakeUIParent's rendered rect isn't guaranteed to span the actual full screen
-  -- (e.g. some UI-scaling setups size UIParent itself differently than GetScreenHeight()). fakeUIParent
-  -- is still used everywhere else for saved-position anchoring, just not as this frame's real parent.
   local mover = CreateFrame("Frame", nil, UIParent)
   mover:SetSize(240, 50)
   mover:SetMovable(true)
-  mover:SetClampedToScreen(true)
-  local headroom = min(TOAST_STACK_HEADROOM, (GetScreenHeight() or 0) * TOAST_STACK_HEADROOM_MAX_FRACTION)
-  mover:SetClampRectInsets(0, 0, headroom, 0)
   mover:EnableMouse(false) -- purely an anchor point; the selection overlay (below) handles all input
 
   local points = settings().toastPoints or getAbsoluteFramePosition(alertFrame)
