@@ -21,6 +21,13 @@ SLACKWISE_CONFIG = {
       maximumCameraZoom = true,
       enableDynamicCamera = true,
     },
+    mouseRing = {
+      enabled = true,
+      showOutOfCombat = false,
+      scale = 50,
+      opacity = 100,
+      color = { r = 1, g = 1, b = 1 }
+    },
     movableWindows = {
       enabled = true,
       enableScaling = true,
