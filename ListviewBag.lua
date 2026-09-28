@@ -80,6 +80,17 @@ local function findEmptyBagSlot()
   end
 end
 
+-- Every previous fix here focused on how bagID/slot are *stored*, or on reusing Blizzard's mixin
+-- *functions* on a plain anonymous Button, and neither mattered. Per Sorted's own source, the row must
+-- actually be built from the real "ContainerFrameItemButtonTemplate" with an explicit name (see
+-- createRow()) for Blizzard's own click handling to run untainted. row:GetBagID() (template-provided)
+-- falls back to row:GetParent():GetID() since SetBagID/self.bagID is never set -- see createRow().
+local function decodeRowID(row)
+  local slot = row:GetID()
+  if slot == 0 then return nil end
+  return row:GetBagID(), slot
+end
+
 local function settings()
   local listviewSettings = db.profile.listviewBag
   listviewSettings.protectedItems = listviewSettings.protectedItems or {}
@@ -414,9 +425,31 @@ local function cycleStatus(key, statusInfo)
 end
 
 local function createRow(index)
-  local row = CreateFrame("Button", nil, scrollChild)
+  -- Layout wrapper only now (bagID no longer lives on holder -- see row.SetBagID/GetBagID below).
+  local holder = CreateFrame("Frame", nil, scrollChild)
+  holder:SetHeight(ROW_HEIGHT)
+
+  -- Sorted's own source has a comment explaining this exact structure: "For item entry buttons to
+  -- function with Blizzard's code untainted, there must be a parent frame to hold the bag ID" -- and
+  -- critically, the button needs an explicit unique name (not nil), since the template's XML uses
+  -- $parent-relative child names that can't resolve on an anonymous frame. Sorted itself creates this
+  -- as a plain "BUTTON" (not "ItemButton") widget type with this template, so mirror that exactly.
+  local row = CreateFrame("Button", "SlackHacksListviewBagRow" .. index, holder, "ContainerFrameItemButtonTemplate")
+  row.holder = holder
+  row:SetFrameLevel(holder:GetFrameLevel() + 1)
+  row:ClearAllPoints()
+  row:SetAllPoints(holder)
   row:SetHeight(ROW_HEIGHT)
-  row:RegisterForClicks("LeftButtonUp", "RightButtonUp") -- default Button widgets ignore right-click
+
+  -- Only the template's behavior (mixin methods, click/drag scripts) is wanted -- its own built-in
+  -- visual regions (icon border, normal/highlight textures) would clash with our custom columns.
+  if row:GetNormalTexture() then row:SetNormalTexture(nil) end
+  if row:GetHighlightTexture() then row:SetHighlightTexture(nil) end
+  for _, region in ipairs({ row:GetRegions() }) do
+    if region.Hide and region ~= row then
+      region:Hide()
+    end
+  end
 
   -- Same row hover-highlight bar and alternating-row background strip the Guild/Community roster list
   -- uses (CommunitiesMemberListEntryTemplate), reused here instead of a custom highlight color.
@@ -483,53 +516,15 @@ local function createRow(index)
   row.bindIcon = row:CreateTexture(nil, "ARTWORK")
   row.bindIcon:SetSize(18, 18)
 
-  -- The item tooltip lives on the row itself (rather than a separate overlay frame covering the
-  -- icon/name) so the row's own native highlight -- driven by SetHighlightTexture based on mouse focus
-  -- -- keeps working while hovering the item instead of being stolen by a mouse-enabled child frame.
-  row:SetScript("OnEnter", function(self)
-    -- Mirrors ContainerFrameItemButton_OnEnter: SetBagItem (not SetHyperlink) so the tooltip reflects
-    -- the item's real in-bag state (e.g. actual Soulbound status) instead of a hypothetical "not yet
-    -- acquired" copy of the item.
-    if row.primaryEntry then
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetBagItem(row.primaryEntry.bagID, row.primaryEntry.slot)
-      GameTooltip:Show()
-    elseif row.hyperlink then
+  -- Dragging/OnEnter/OnLeave/OnUpdate are already wired up by the template's own OnLoad (which just
+  -- ran as part of CreateFrame above) -- only our own extra OnEnter/OnLeave for the custom tooltip
+  -- fallback (row.hyperlink for rows without a live entries yet) still needs adding, via HookScript so
+  -- the template's own OnEnter/OnLeave (tooltip/cursor reset) keeps running too.
+  row:HookScript("OnEnter", function(self)
+    if not row.primaryEntry and row.hyperlink then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetHyperlink(row.hyperlink)
       GameTooltip:Show()
-    end
-  end)
-  row:SetScript("OnLeave", GameTooltip_Hide)
-
-  -- Dragging/using/splitting the item reuses the exact unprotected Container APIs the default bags
-  -- use, called directly from a real hardware click/drag event -- this is what keeps right-click "use"
-  -- and drag-pickup reliable in combat (no macro/secure-frame indirection to fight with).
-  row:RegisterForDrag("LeftButton")
-  row:SetScript("OnDragStart", function()
-    if row.locked or not row.primaryEntry then return end
-    C_Container.PickupContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot)
-  end)
-  row:SetScript("OnReceiveDrag", function()
-    if row.locked or not row.primaryEntry then return end
-    C_Container.PickupContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot)
-  end)
-  row:SetScript("OnClick", function(_, button)
-    if not row.primaryEntry then return end
-    if button == "RightButton" then
-      if row.locked and MerchantFrame and MerchantFrame:IsShown() then return end
-      C_Container.UseContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot)
-    elseif IsModifiedClick("SPLITSTACK") and row.primaryEntry.count and row.primaryEntry.count > 1 then
-      row.SplitStack = function(_, split)
-        C_Container.SplitContainerItem(row.primaryEntry.bagID, row.primaryEntry.slot, split)
-        local bagID, slot = findEmptyBagSlot()
-        if bagID and slot then
-          C_Container.PickupContainerItem(bagID, slot)
-        end
-      end
-      StackSplitFrame:OpenStackSplitFrame(row.primaryEntry.count, row, "BOTTOMLEFT", "TOPLEFT")
-    elseif row.hyperlink and (IsModifiedClick("CHATLINK") or IsModifiedClick("DRESSUP")) then
-      HandleModifiedItemClick(row.hyperlink)
     end
   end)
   return row
@@ -623,10 +618,11 @@ renderRows = function()
 
   for i, data in ipairs(rows) do
     local row = acquireRow(i)
-    row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
-    row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
-    row:Show()
+    row.holder:ClearAllPoints()
+    row.holder:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
+    row.holder:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+    row.holder:Show()
+    row:Show() -- ContainerFrameItemButtonTemplate starts hidden (Blizzard's own Initialize() shows it)
     row.stripe:SetShown(i % 2 == 0) -- alternating-row banding, same look as the guild roster list
     row.itemID = data.itemID
     row.hyperlink = data.hyperlink
@@ -636,6 +632,17 @@ renderRows = function()
     row.statusInfo = data.statusInfo
     row.primaryEntry = data.entries and data.entries[1]
     row.locked = isProtectedItem(data.statusKey)
+    -- decodeRowID()/Blizzard's own OnClick read these back via row:GetBagID() (-> holder:GetID())
+    -- and row:GetID().
+    row.holder:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
+    row:SetID(row.primaryEntry and row.primaryEntry.slot or 0)
+    -- Blizzard's OnClick doesn't know about our "protected item" concept, so right-click is disabled
+    -- at the RegisterForClicks level instead of inside a (now nonexistent) custom OnClick handler.
+    if row.locked and MerchantFrame and MerchantFrame:IsShown() then
+      row:RegisterForClicks("LeftButtonUp")
+    else
+      row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    end
 
     if data.isGroupHeader then
       row.collapseBtn:Show()
@@ -698,7 +705,7 @@ renderRows = function()
   end
 
   for i = #rows + 1, #rowPool do
-    rowPool[i]:Hide()
+    rowPool[i].holder:Hide()
   end
 end
 
@@ -1179,6 +1186,7 @@ function module:MERCHANT_CLOSED()
   if footer and footer.sellTrashButton then
     footer.sellTrashButton:SetEnabled(false)
   end
+  renderRows() -- re-enables right-click on protected rows now that MerchantFrame:IsShown() is false
 end
 
 function module:OnNativeBagOpen()
