@@ -54,6 +54,7 @@ dbDefaults = {
     },
     movableWindows = {
       enabled = false,
+      moveNotableLootAlert = false, -- adds Blizzard's alert/toast popup (loot, mounts, achievements, etc.) as a draggable box in the real Edit Mode
       modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
       enableScaling = false, -- scaleModifierKey + mouse wheel over a title bar resizes a registered frame
       scaleModifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to scale a registered frame
@@ -1410,6 +1411,19 @@ options = {
           get = function() return db.profile.movableWindows.enabled end,
           set = function(_, value) Self.MovableWindows:SetEnabled(value) end,
           order = 0
+        },
+        moveNotableLootAlert = {
+          name = "Move Alert Toasts",
+          desc = "Adds a draggable box (labeled \"Alert Toasts\") for Blizzard's alert/toast popup -- loot, " ..
+            "mounts, toys, recipes, achievements, honor, garrison, etc. -- to the real Edit Mode " ..
+            "(Escape > Edit Mode) so you can reposition where those popups appear.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.movableWindows.moveNotableLootAlert end,
+          set = function(_, value) Self.MovableWindows:SetMoveNotableLootAlertEnabled(value) end,
+          disabled = function() return not db.profile.movableWindows.enabled end,
+          order = 0.05
         },
         keybindHint = {
           name = "Set a keybinding for \"Toggle Movable Windows\" under Key Bindings > SlackHacks to quickly " ..

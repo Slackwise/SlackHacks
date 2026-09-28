@@ -29,6 +29,9 @@ local DEFAULT_TITLE_BAR_HEIGHT = 20 -- matches most Blizzard windows' native tit
 -- handle needs to sit above all of that or those elements silently eat the mousedown before it ever arrives.
 local TITLE_BAR_HANDLE_LEVEL_OFFSET = 1000
 local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
+-- Blizzard's alert/toast stack -- achievements, notable loot (mounts/toys/recipes/BoE epics/etc.), honor,
+-- garrison, etc. -- all get anchored under this one global container frame.
+local NOTABLE_LOOT_ALERT_FRAME_NAME = "AlertFrame"
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
 -- since UIParent itself can be protected/tainted in ways that make re-anchoring to it directly unreliable.
@@ -46,9 +49,13 @@ local ignoreSetPointHook = false
 local mouseWheelCaptureFrame
 local queueProcessorFrame
 local awaitingGlobalMouseUp
+local notableLootAlertMover
+local notableLootAlertSelection
+local notableLootAlertHooked
 
 -- Forward declarations for functions referenced before their definition further down the file.
 local onMouseDown, onMouseUp, onMouseWheel, onShow, onSetPoint, onSizeUpdate, checkMouseWheelCapture
+local registerNotableLootAlertEditMode
 
 --=====================================================================
 -- Settings helpers
@@ -887,6 +894,9 @@ function module:ApplyAll()
       processFrame(frameName, frameData)
     end
   end
+  if settings().moveNotableLootAlert and not notableLootAlertSelection then
+    registerNotableLootAlertEditMode()
+  end
 end
 
 function module:ResetPositions()
@@ -896,6 +906,161 @@ end
 function module:ResetScales()
   wipe(settings().scales)
   wipe(sessionScales)
+end
+
+-- The alert/toast popup -- achievements, notable loot (mounts/toys/recipes/BoE epics/etc.), honor,
+-- garrison, money, etc. -- all funnel into one shared global container, "AlertFrame" (Blizzard calls the
+-- individual popups "toasts" internally, e.g. AlertFrame_ShowNewAlert/AlertFrameQueueMixin, and third-party
+-- addons that expose this same feature commonly call it "Toasts" too, so that's what we call it here).
+--
+-- This is opt-in via its own checkbox, separate from the curated defaults below, since most people don't
+-- want to reposition it. Unlike every other frame in this file, it's made movable through Blizzard's
+-- *real* Edit Mode (Escape -> Edit Mode) instead of our own custom drag-handle system, per the user's
+-- request. Edit Mode has no native entry for AlertFrame, and AlertFrame itself can't be the thing we
+-- attach a selection box to anyway: Blizzard hides/shows it dynamically (there's no toast to show most of
+-- the time), and a Blizzard frame's own Hide() forces every child -- including a selection box we parented
+-- to it -- invisible regardless of that child's own Show() call. So instead we do exactly what the
+-- (excellent) reference addon RefineUI's Toasts module does: create our own tiny, permanently-shown,
+-- invisible-by-default "mover" frame that we fully control, tell AlertFrame to anchor itself off of that
+-- mover via the real Blizzard API `AlertContainerMixin:SetBaseAnchorFrame()`/`:UpdateAnchors()` (reviewed
+-- directly against Blizzard_FrameXML/Mainline/AlertFrames.lua), and put the Edit Mode selection box --
+-- Blizzard's actual "EditModeSystemSelectionTemplate", the same draggable/highlightable box every native
+-- Edit Mode system (action bars, unit frames, etc.) uses -- on the mover instead of on AlertFrame. We
+-- deliberately don't inherit the full "EditModeSystemTemplate"/EditModeSystemMixin -- that's wired into
+-- Blizzard's own persisted per-layout settings system, which addons can't add a new entry to -- just the
+-- selection/overlay box itself, with our own drag scripts and our own (non-Edit-Mode-layout-specific)
+-- saved position, using the same getAbsoluteFramePosition()/setFramePoints() helpers as every other
+-- window in this file.
+
+-- Lazily creates the mover the first time AlertFrame is available. Its starting position is either the
+-- previously-saved spot, or (the very first time, before we've ever touched AlertFrame's anchor) a
+-- snapshot of wherever Blizzard's own code currently has AlertFrame anchored, so the box starts out
+-- exactly where toasts already appear instead of some arbitrary default.
+local function ensureNotableLootAlertMover()
+  if notableLootAlertMover then return notableLootAlertMover end
+
+  local alertFrame = _G[NOTABLE_LOOT_ALERT_FRAME_NAME]
+  if not alertFrame then return nil end
+
+  local mover = CreateFrame("Frame", nil, fakeUIParent)
+  mover:SetSize(240, 50)
+  mover:SetMovable(true)
+  mover:SetClampedToScreen(true)
+  mover:EnableMouse(false) -- purely an anchor point; the selection overlay (below) handles all input
+
+  local points = settings().notableLootAlertPoints or getAbsoluteFramePosition(alertFrame)
+  if points then setFramePoints(mover, points) end
+
+  notableLootAlertMover = mover
+  return mover
+end
+
+-- Points AlertFrame's real anchor at our mover. Safe/cheap to call repeatedly (e.g. after every drag) to
+-- make sure any toast currently on screen snaps to the new spot immediately instead of waiting for the
+-- next one.
+local function applyNotableLootAlertAnchor()
+  local alertFrame = _G[NOTABLE_LOOT_ALERT_FRAME_NAME]
+  local mover = notableLootAlertMover
+  if not alertFrame or not mover then return end
+  alertFrame:SetBaseAnchorFrame(mover)
+  alertFrame:UpdateAnchors()
+end
+
+-- Shows the selection box (highlighted, not selected) while Edit Mode is open and the feature is enabled;
+-- hides it otherwise. Also used to "deselect" our box whenever a native Blizzard Edit Mode system gets
+-- selected instead.
+local function resetNotableLootAlertSelection()
+  local selection = notableLootAlertSelection
+  if not selection then return end
+
+  if settings().moveNotableLootAlert and EditModeManagerFrame:IsShown() then
+    selection:ShowHighlighted()
+  else
+    selection:Hide()
+  end
+end
+
+local function onNotableLootAlertMouseDown(selection)
+  if InCombatLockdown() then return end
+  EditModeManagerFrame:ClearSelectedSystem() -- deselect any native system so they don't fight over input
+  selection:ShowSelected(true)
+end
+
+local function onNotableLootAlertDragStart(selection)
+  if InCombatLockdown() then return end
+  selection:RegisterEvent("PLAYER_REGEN_DISABLED") -- safety net: bail out of the drag if combat starts
+  selection.mover:StartMoving()
+end
+
+local function onNotableLootAlertDragStop(selection)
+  if InCombatLockdown() then return end
+  selection:UnregisterEvent("PLAYER_REGEN_DISABLED")
+
+  local mover = selection.mover
+  mover:StopMovingOrSizing()
+
+  local points = getAbsoluteFramePosition(mover)
+  if points then
+    settings().notableLootAlertPoints = points
+    setFramePoints(mover, points)
+  end
+
+  applyNotableLootAlertAnchor()
+end
+
+local function ensureNotableLootAlertSelection()
+  if notableLootAlertSelection then return notableLootAlertSelection end
+
+  local mover = ensureNotableLootAlertMover()
+  if not mover then return nil end -- AlertFrame not loaded yet; ApplyAll() retries
+
+  local selection = CreateFrame("Frame", nil, mover, "EditModeSystemSelectionTemplate")
+  selection.mover = mover
+  -- As of patch 11.2, EditModeSystemSelectionMixin requires a system name to work correctly.
+  selection.system = {
+    GetSystemName = function() return "Alert Toasts" end,
+  }
+  selection:SetAllPoints(mover)
+  selection:SetScript("OnMouseDown", onNotableLootAlertMouseDown)
+  selection:SetScript("OnDragStart", onNotableLootAlertDragStart)
+  selection:SetScript("OnDragStop", onNotableLootAlertDragStop)
+  selection:SetScript("OnEvent", onNotableLootAlertDragStop) -- PLAYER_REGEN_DISABLED mid-drag safety net
+  selection:Hide()
+
+  notableLootAlertSelection = selection
+  return selection
+end
+
+function registerNotableLootAlertEditMode()
+  if not _G.EditModeManagerFrame then return end -- Blizzard_EditMode not loaded yet; ApplyAll() retries
+
+  local selection = ensureNotableLootAlertSelection()
+  if not selection then return end -- AlertFrame not loaded yet either; ApplyAll() retries
+
+  applyNotableLootAlertAnchor()
+
+  if not notableLootAlertHooked then
+    notableLootAlertHooked = true
+    hookScript(EditModeManagerFrame, "OnShow", resetNotableLootAlertSelection)
+    hookScript(EditModeManagerFrame, "OnHide", resetNotableLootAlertSelection)
+    -- Deselect our box (fall back to just "highlighted") whenever a native system gets selected instead.
+    module:SecureHook(EditModeManagerFrame, "SelectSystem", resetNotableLootAlertSelection)
+  end
+
+  resetNotableLootAlertSelection()
+end
+
+--- Enable/disable moving Blizzard's alert/toast popup (see NOTABLE_LOOT_ALERT_FRAME_NAME) through the
+--- real Edit Mode UI. Disabling only hides the Edit Mode selection box -- it does not move the toast
+--- popup back, same as disabling this module entirely doesn't undo any other window's saved position.
+function module:SetMoveNotableLootAlertEnabled(enabled)
+  settings().moveNotableLootAlert = enabled
+  if not isModuleEnabled() then return end -- picked up on next Enable via registerDefaultFrames()
+  if enabled then
+    registerNotableLootAlertEditMode()
+  else
+    resetNotableLootAlertSelection()
+  end
 end
 
 -- Curated set of commonly-used windows, not an exhaustive database -- add more via module:RegisterFrame()
@@ -943,6 +1108,10 @@ local function registerDefaultFrames()
     for frameName, frameData in pairs(retailFrames) do
       module:RegisterFrame(frameName, frameData)
     end
+  end
+
+  if settings().moveNotableLootAlert then
+    registerNotableLootAlertEditMode()
   end
 end
 
@@ -1018,4 +1187,9 @@ function module:OnDisable()
   if mouseWheelCaptureFrame then
     mouseWheelCaptureFrame:Hide()
   end
+
+  if notableLootAlertSelection then
+    notableLootAlertSelection:Hide()
+  end
+  notableLootAlertHooked = nil -- UnhookAll() above already tore down the EditModeManagerFrame hooks
 end
