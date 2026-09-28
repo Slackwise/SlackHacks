@@ -48,7 +48,7 @@ ITEM_NAMES = {
   ["Enchant Ring - Zul'jin's Mastery"] = 243959,
   ["Enchant Shoulders - Flight of the Eagle"] = 243961,
   ["Enchant Chest - Mark of the Magister"] = 244003,
-  ["Vantus Rune: Tides"] = 272194,
+  ["Vantus Rune: Tides"] = 272195,
 }
 
 ITEM_NAMES_BY_ID = {}
@@ -343,7 +343,7 @@ SELF_VENDOR_TRIGGER_EMOTES = {
   SOOTHE = { slashCommands = "/soothe", example = "You soothe %s. There, there...things will be ok.", trigger = "you soothe %s. there, there...things will be ok." },
   SPIT = { slashCommands = "/spit", example = "You spit on %s.", trigger = "you spit on %s." },
   SQUEAL = { slashCommands = "/squeal", example = "You squeal at %s.", trigger = "you squeal at %s." },
-  STARE = { slashCommands = "/stare", example = "You stare %s down.", trigger = "you stare %s down." },
+  STARE = { slashCommands = "/stare", example = "You stare %s down.", trigger = "stares you down" },
   STINK = { slashCommands = "/stink /smell", example = "You smell %s. Wow, someone stinks!", trigger = "you smell %s. wow, someone stinks!" },
   SURPRISED = { slashCommands = "/surprised", example = "You are surprised by %s's actions.", trigger = "you are surprised by %s's actions." },
   SURRENDER = { slashCommands = "/surrender", example = "You surrender before %s. Such is the agony of defeat...", trigger = "you surrender before %s. such is the agony of defeat..." },
