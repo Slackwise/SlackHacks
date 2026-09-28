@@ -39,6 +39,11 @@ local TOAST_FRAME_NAME = "AlertFrame"
 -- oldest ones just clip off-screen), so this only reserves enough room for about 3 stacked toasts rather
 -- than trying to cover every possible stack size.
 local TOAST_STACK_HEADROOM = 150
+-- Safety cap, as a fraction of the screen height: on a high UI Scale (small effective GetScreenHeight()),
+-- a fixed pixel headroom above can eat up a much bigger share of the usable drag range than intended,
+-- making the box feel like it can't go much above the middle of the screen. Never reserve more than this
+-- fraction so the box can always be dragged well into the upper half regardless of UI Scale.
+local TOAST_STACK_HEADROOM_MAX_FRACTION = 0.15
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
 -- since UIParent itself can be protected/tainted in ways that make re-anchoring to it directly unreliable.
@@ -958,11 +963,16 @@ local function ensureToastMover()
   local alertFrame = _G[TOAST_FRAME_NAME]
   if not alertFrame then return nil end
 
-  local mover = CreateFrame("Frame", nil, fakeUIParent)
+  -- Parented to the real UIParent, not fakeUIParent: SetClampedToScreen() clamps to the frame's own
+  -- parent hierarchy, and fakeUIParent's rendered rect isn't guaranteed to span the actual full screen
+  -- (e.g. some UI-scaling setups size UIParent itself differently than GetScreenHeight()). fakeUIParent
+  -- is still used everywhere else for saved-position anchoring, just not as this frame's real parent.
+  local mover = CreateFrame("Frame", nil, UIParent)
   mover:SetSize(240, 50)
   mover:SetMovable(true)
   mover:SetClampedToScreen(true)
-  mover:SetClampRectInsets(0, 0, TOAST_STACK_HEADROOM, 0)
+  local headroom = min(TOAST_STACK_HEADROOM, (GetScreenHeight() or 0) * TOAST_STACK_HEADROOM_MAX_FRACTION)
+  mover:SetClampRectInsets(0, 0, headroom, 0)
   mover:EnableMouse(false) -- purely an anchor point; the selection overlay (below) handles all input
 
   local points = settings().toastPoints or getAbsoluteFramePosition(alertFrame)
