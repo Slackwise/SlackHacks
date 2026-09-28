@@ -29,9 +29,16 @@ local DEFAULT_TITLE_BAR_HEIGHT = 20 -- matches most Blizzard windows' native tit
 -- handle needs to sit above all of that or those elements silently eat the mousedown before it ever arrives.
 local TITLE_BAR_HANDLE_LEVEL_OFFSET = 1000
 local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
--- Blizzard's alert/toast stack -- achievements, notable loot (mounts/toys/recipes/BoE epics/etc.), honor,
+-- Blizzard's alert/toast popups -- achievements, notable items (mounts/toys/recipes/BoE epics/etc.), honor,
 -- garrison, etc. -- all get anchored under this one global container frame.
-local NOTABLE_LOOT_ALERT_FRAME_NAME = "AlertFrame"
+local TOAST_FRAME_NAME = "AlertFrame"
+-- Reserve a little vertical headroom above wherever the toast box is placed: toasts stack upward from
+-- that anchor, and anything stacked above the top of the screen renders off-screen (invisible) -- see the
+-- comment above ensureToastMover() for the full explanation. Toasts aren't important enough to be worth
+-- fully guaranteeing against that (it's rare to get more than a few at once anyway, and if it happens the
+-- oldest ones just clip off-screen), so this only reserves enough room for about 3 stacked toasts rather
+-- than trying to cover every possible stack size.
+local TOAST_STACK_HEADROOM = 150
 
 -- A stand-in for UIParent: dragged frames get anchored relative to this instead of the real UIParent,
 -- since UIParent itself can be protected/tainted in ways that make re-anchoring to it directly unreliable.
@@ -49,13 +56,13 @@ local ignoreSetPointHook = false
 local mouseWheelCaptureFrame
 local queueProcessorFrame
 local awaitingGlobalMouseUp
-local notableLootAlertMover
-local notableLootAlertSelection
-local notableLootAlertHooked
+local toastMover
+local toastSelection
+local toastHooked
 
 -- Forward declarations for functions referenced before their definition further down the file.
 local onMouseDown, onMouseUp, onMouseWheel, onShow, onSetPoint, onSizeUpdate, checkMouseWheelCapture
-local registerNotableLootAlertEditMode
+local registerToastEditMode
 
 --=====================================================================
 -- Settings helpers
@@ -894,8 +901,8 @@ function module:ApplyAll()
       processFrame(frameName, frameData)
     end
   end
-  if settings().moveNotableLootAlert and not notableLootAlertSelection then
-    registerNotableLootAlertEditMode()
+  if settings().moveToasts and not toastSelection then
+    registerToastEditMode()
   end
 end
 
@@ -908,10 +915,10 @@ function module:ResetScales()
   wipe(sessionScales)
 end
 
--- The alert/toast popup -- achievements, notable loot (mounts/toys/recipes/BoE epics/etc.), honor,
--- garrison, money, etc. -- all funnel into one shared global container, "AlertFrame" (Blizzard calls the
--- individual popups "toasts" internally, e.g. AlertFrame_ShowNewAlert/AlertFrameQueueMixin, and third-party
--- addons that expose this same feature commonly call it "Toasts" too, so that's what we call it here).
+-- Toasts -- achievements, notable items (mounts/toys/recipes/BoE epics/etc.), honor, garrison, money,
+-- etc. -- all funnel into one shared global container, "AlertFrame" (Blizzard calls the individual popups
+-- "toasts" internally, e.g. AlertFrame_ShowNewAlert/AlertFrameQueueMixin, and third-party addons that
+-- expose this same feature commonly call it "Toasts" too, so that's what we call it here).
 --
 -- This is opt-in via its own checkbox, separate from the curated defaults below, since most people don't
 -- want to reposition it. Unlike every other frame in this file, it's made movable through Blizzard's
@@ -936,31 +943,41 @@ end
 -- previously-saved spot, or (the very first time, before we've ever touched AlertFrame's anchor) a
 -- snapshot of wherever Blizzard's own code currently has AlertFrame anchored, so the box starts out
 -- exactly where toasts already appear instead of some arbitrary default.
-local function ensureNotableLootAlertMover()
-  if notableLootAlertMover then return notableLootAlertMover end
+--
+-- Toasts stack UPWARD from this anchor's top edge (see AlertFrameQueueMixin:AdjustAnchors), and WoW
+-- doesn't clip a frame just because it's rendered above the top of the screen -- it just becomes
+-- invisible past that edge. So the box is given a small reserved strip of headroom (TOAST_STACK_HEADROOM,
+-- enough for a few stacked toasts) via SetClampRectInsets: the native drag-clamping (SetClampedToScreen)
+-- then transparently keeps the box from being dropped closer to the top of the screen than that, snapping
+-- it back down live during the drag itself if the mouse goes further than that. Toasts aren't important
+-- enough to bother guaranteeing every possible stack size never clips -- this is just a reasonable
+-- default so the common case doesn't get cut off.
+local function ensureToastMover()
+  if toastMover then return toastMover end
 
-  local alertFrame = _G[NOTABLE_LOOT_ALERT_FRAME_NAME]
+  local alertFrame = _G[TOAST_FRAME_NAME]
   if not alertFrame then return nil end
 
   local mover = CreateFrame("Frame", nil, fakeUIParent)
   mover:SetSize(240, 50)
   mover:SetMovable(true)
   mover:SetClampedToScreen(true)
+  mover:SetClampRectInsets(0, 0, TOAST_STACK_HEADROOM, 0)
   mover:EnableMouse(false) -- purely an anchor point; the selection overlay (below) handles all input
 
-  local points = settings().notableLootAlertPoints or getAbsoluteFramePosition(alertFrame)
+  local points = settings().toastPoints or getAbsoluteFramePosition(alertFrame)
   if points then setFramePoints(mover, points) end
 
-  notableLootAlertMover = mover
+  toastMover = mover
   return mover
 end
 
 -- Points AlertFrame's real anchor at our mover. Safe/cheap to call repeatedly (e.g. after every drag) to
 -- make sure any toast currently on screen snaps to the new spot immediately instead of waiting for the
 -- next one.
-local function applyNotableLootAlertAnchor()
-  local alertFrame = _G[NOTABLE_LOOT_ALERT_FRAME_NAME]
-  local mover = notableLootAlertMover
+local function applyToastAnchor()
+  local alertFrame = _G[TOAST_FRAME_NAME]
+  local mover = toastMover
   if not alertFrame or not mover then return end
   alertFrame:SetBaseAnchorFrame(mover)
   alertFrame:UpdateAnchors()
@@ -969,30 +986,30 @@ end
 -- Shows the selection box (highlighted, not selected) while Edit Mode is open and the feature is enabled;
 -- hides it otherwise. Also used to "deselect" our box whenever a native Blizzard Edit Mode system gets
 -- selected instead.
-local function resetNotableLootAlertSelection()
-  local selection = notableLootAlertSelection
+local function resetToastSelection()
+  local selection = toastSelection
   if not selection then return end
 
-  if settings().moveNotableLootAlert and EditModeManagerFrame:IsShown() then
+  if settings().moveToasts and EditModeManagerFrame:IsShown() then
     selection:ShowHighlighted()
   else
     selection:Hide()
   end
 end
 
-local function onNotableLootAlertMouseDown(selection)
+local function onToastMouseDown(selection)
   if InCombatLockdown() then return end
   EditModeManagerFrame:ClearSelectedSystem() -- deselect any native system so they don't fight over input
   selection:ShowSelected(true)
 end
 
-local function onNotableLootAlertDragStart(selection)
+local function onToastDragStart(selection)
   if InCombatLockdown() then return end
   selection:RegisterEvent("PLAYER_REGEN_DISABLED") -- safety net: bail out of the drag if combat starts
   selection.mover:StartMoving()
 end
 
-local function onNotableLootAlertDragStop(selection)
+local function onToastDragStop(selection)
   if InCombatLockdown() then return end
   selection:UnregisterEvent("PLAYER_REGEN_DISABLED")
 
@@ -1001,65 +1018,65 @@ local function onNotableLootAlertDragStop(selection)
 
   local points = getAbsoluteFramePosition(mover)
   if points then
-    settings().notableLootAlertPoints = points
+    settings().toastPoints = points
     setFramePoints(mover, points)
   end
 
-  applyNotableLootAlertAnchor()
+  applyToastAnchor()
 end
 
-local function ensureNotableLootAlertSelection()
-  if notableLootAlertSelection then return notableLootAlertSelection end
+local function ensureToastSelection()
+  if toastSelection then return toastSelection end
 
-  local mover = ensureNotableLootAlertMover()
+  local mover = ensureToastMover()
   if not mover then return nil end -- AlertFrame not loaded yet; ApplyAll() retries
 
   local selection = CreateFrame("Frame", nil, mover, "EditModeSystemSelectionTemplate")
   selection.mover = mover
   -- As of patch 11.2, EditModeSystemSelectionMixin requires a system name to work correctly.
   selection.system = {
-    GetSystemName = function() return "Alert Toasts" end,
+    GetSystemName = function() return "Toasts" end,
   }
   selection:SetAllPoints(mover)
-  selection:SetScript("OnMouseDown", onNotableLootAlertMouseDown)
-  selection:SetScript("OnDragStart", onNotableLootAlertDragStart)
-  selection:SetScript("OnDragStop", onNotableLootAlertDragStop)
-  selection:SetScript("OnEvent", onNotableLootAlertDragStop) -- PLAYER_REGEN_DISABLED mid-drag safety net
+  selection:SetScript("OnMouseDown", onToastMouseDown)
+  selection:SetScript("OnDragStart", onToastDragStart)
+  selection:SetScript("OnDragStop", onToastDragStop)
+  selection:SetScript("OnEvent", onToastDragStop) -- PLAYER_REGEN_DISABLED mid-drag safety net
   selection:Hide()
 
-  notableLootAlertSelection = selection
+  toastSelection = selection
   return selection
 end
 
-function registerNotableLootAlertEditMode()
+function registerToastEditMode()
   if not _G.EditModeManagerFrame then return end -- Blizzard_EditMode not loaded yet; ApplyAll() retries
 
-  local selection = ensureNotableLootAlertSelection()
+  local selection = ensureToastSelection()
   if not selection then return end -- AlertFrame not loaded yet either; ApplyAll() retries
 
-  applyNotableLootAlertAnchor()
+  applyToastAnchor()
 
-  if not notableLootAlertHooked then
-    notableLootAlertHooked = true
-    hookScript(EditModeManagerFrame, "OnShow", resetNotableLootAlertSelection)
-    hookScript(EditModeManagerFrame, "OnHide", resetNotableLootAlertSelection)
+  if not toastHooked then
+    toastHooked = true
+    hookScript(EditModeManagerFrame, "OnShow", resetToastSelection)
+    hookScript(EditModeManagerFrame, "OnHide", resetToastSelection)
     -- Deselect our box (fall back to just "highlighted") whenever a native system gets selected instead.
-    module:SecureHook(EditModeManagerFrame, "SelectSystem", resetNotableLootAlertSelection)
+    module:SecureHook(EditModeManagerFrame, "SelectSystem", resetToastSelection)
   end
 
-  resetNotableLootAlertSelection()
+  resetToastSelection()
 end
 
---- Enable/disable moving Blizzard's alert/toast popup (see NOTABLE_LOOT_ALERT_FRAME_NAME) through the
---- real Edit Mode UI. Disabling only hides the Edit Mode selection box -- it does not move the toast
---- popup back, same as disabling this module entirely doesn't undo any other window's saved position.
-function module:SetMoveNotableLootAlertEnabled(enabled)
-  settings().moveNotableLootAlert = enabled
+--- Enable/disable moving Blizzard's toasts (see TOAST_FRAME_NAME) through the real Edit Mode UI.
+--- Disabling only hides the Edit Mode selection box -- it does not move the toasts back, same as
+--- disabling this module entirely doesn't undo any other window's saved position.
+function module:SetMoveToastsEnabled(enabled)
+  settings().moveToasts = enabled
   if not isModuleEnabled() then return end -- picked up on next Enable via registerDefaultFrames()
   if enabled then
-    registerNotableLootAlertEditMode()
+    registerToastEditMode()
   else
-    resetNotableLootAlertSelection()
+    resetToastSelection()
   end
 end
 
@@ -1110,8 +1127,8 @@ local function registerDefaultFrames()
     end
   end
 
-  if settings().moveNotableLootAlert then
-    registerNotableLootAlertEditMode()
+  if settings().moveToasts then
+    registerToastEditMode()
   end
 end
 
@@ -1188,8 +1205,8 @@ function module:OnDisable()
     mouseWheelCaptureFrame:Hide()
   end
 
-  if notableLootAlertSelection then
-    notableLootAlertSelection:Hide()
+  if toastSelection then
+    toastSelection:Hide()
   end
-  notableLootAlertHooked = nil -- UnhookAll() above already tore down the EditModeManagerFrame hooks
+  toastHooked = nil -- UnhookAll() above already tore down the EditModeManagerFrame hooks
 end
