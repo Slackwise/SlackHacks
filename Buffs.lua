@@ -893,6 +893,10 @@ local function layoutIcons(active, allowCombatDisplay)
     closeContextMenu()
     cancelDurationUpdates()
     for _, button in pairs(iconButtons) do
+      -- Clear the secure "showInCombat" attribute too, not just Hide(): otherwise the combat state
+      -- driver (which only reacts to attributes, since it runs inside combat lockdown) can still
+      -- show a stale oil/rune icon on the next pull, even in content this reminder shouldn't appear in.
+      configureDefaultItem(button, button.category, nil)
       button:Hide()
     end
     return
@@ -930,6 +934,7 @@ local function layoutIcons(active, allowCombatDisplay)
 
   for categoryKey, button in pairs(iconButtons) do
     if not visibleButtons[categoryKey] then
+      configureDefaultItem(button, button.category, nil)
       button:Hide()
     end
   end
