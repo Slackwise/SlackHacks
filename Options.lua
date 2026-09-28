@@ -38,6 +38,13 @@ dbDefaults = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
     },
+    mouseRing = {
+      enabled = false,
+      showOutOfCombat = false,
+      scale = 50,
+      opacity = 100,
+      color = { r = 1, g = 1, b = 1 }
+    },
     combat = {
       raiseCastingNameplates = false,
       paladin = {
@@ -611,6 +618,87 @@ options = {
             Self.Controls:ApplyAll()
           end,
           order = 2
+        }
+      }
+    },
+    mouseRing = {
+      type = "group",
+      name = "Mouse Ring",
+      desc = "Shows a ring around your mouse cursor.",
+      order = 6.5,
+      args = {
+        enabled = {
+          name = "Enable",
+          desc = "Show a ring around your mouse cursor.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.mouseRing.enabled end,
+          set = function(_, value) Self.MouseRing:SetEnabled(value) end,
+          order = 0
+        },
+        showOutOfCombat = {
+          name = "Show Out of Combat",
+          desc = "Also show the ring while out of combat. When disabled, the ring only appears while you're " ..
+            "in combat.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.mouseRing.enabled end,
+          get = function() return db.profile.mouseRing.showOutOfCombat end,
+          set = function(_, value)
+            db.profile.mouseRing.showOutOfCombat = value
+            Self.MouseRing:Refresh()
+          end,
+          order = 1
+        },
+        scale = {
+          name = "Scale",
+          desc = "Size of the ring as a percentage of its default size.",
+          type = "range",
+          min = 25,
+          max = 100,
+          step = 5,
+          disabled = function() return not db.profile.mouseRing.enabled end,
+          get = function() return db.profile.mouseRing.scale end,
+          set = function(_, value)
+            db.profile.mouseRing.scale = value
+            Self.MouseRing:Refresh()
+          end,
+          order = 2
+        },
+        opacity = {
+          name = "Opacity",
+          desc = "Opacity of the ring.",
+          type = "range",
+          min = 0,
+          max = 100,
+          step = 1,
+          disabled = function() return not db.profile.mouseRing.enabled end,
+          get = function() return db.profile.mouseRing.opacity end,
+          set = function(_, value)
+            db.profile.mouseRing.opacity = value
+            Self.MouseRing:Refresh()
+          end,
+          order = 3
+        },
+        color = {
+          name = "Color",
+          desc = "Color of the ring.",
+          type = "color",
+          hasAlpha = false,
+          disabled = function() return not db.profile.mouseRing.enabled end,
+          get = function()
+            local color = db.profile.mouseRing.color
+            return color.r, color.g, color.b
+          end,
+          set = function(_, r, g, b)
+            db.profile.mouseRing.color.r = r
+            db.profile.mouseRing.color.g = g
+            db.profile.mouseRing.color.b = b
+            Self.MouseRing:Refresh()
+          end,
+          order = 4
         }
       }
     },

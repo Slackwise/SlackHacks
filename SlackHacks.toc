@@ -22,6 +22,7 @@ ListviewBag.lua
 Minimap.lua
 MovableWindows.lua
 Controls.lua
+MouseRing.lua
 Options.lua
 Mount.lua
 CustomConfigs.lua
