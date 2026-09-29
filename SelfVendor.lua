@@ -1247,15 +1247,37 @@ end
 -- Queue window ("Self Vendor Queue")
 --=====================================================================
 -- A standard Blizzard bordered window (BasicFrameTemplateWithInset) listing who's waiting, in
--- order, and what they requested. Each row has its own close-style button to drop just that
--- person; closing the window itself (its own CloseButton) clears the whole queue, matching the
--- "X" semantics used everywhere else in this addon (see ClearQueue).
+-- order, and what they requested. There is no slash command for it: it shows itself automatically
+-- whenever the queue is non-empty and hides itself once it's empty. Each row has its own
+-- close-style button to drop just that person; closing the window itself (its own CloseButton)
+-- clears the whole queue, matching the "X" semantics used everywhere else in this addon.
 -- The frame itself lives on `self.queueFrame` (not a file-local) so OnDisable, defined earlier in
 -- this file, can still reach it to hide it when the module is turned off.
 
 local MAX_QUEUE_ROWS = 10
 local ROW_HEIGHT = 22
 local queueRows
+
+local function ensureQueueFrame(module)
+  local queueFrame = module.queueFrame
+  if queueFrame then return queueFrame end
+  queueFrame = CreateFrame("Frame", "SlackHacksSelfVendorQueueFrame", UIParent, "BasicFrameTemplateWithInset")
+  module.queueFrame = queueFrame
+  queueFrame:SetSize(300, 40 + MAX_QUEUE_ROWS * ROW_HEIGHT)
+  queueFrame:SetPoint("CENTER")
+  queueFrame:SetFrameStrata("DIALOG")
+  queueFrame:SetMovable(true)
+  queueFrame:EnableMouse(true)
+  queueFrame:RegisterForDrag("LeftButton")
+  queueFrame:SetScript("OnDragStart", queueFrame.StartMoving)
+  queueFrame:SetScript("OnDragStop", queueFrame.StopMovingOrSizing)
+  queueFrame.TitleText:SetText("Self Vendor Queue")
+  queueFrame.overflowText = queueFrame.Inset:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  queueFrame.overflowText:SetPoint("BOTTOMLEFT", queueFrame.Inset, "BOTTOMLEFT", 6, 6)
+  -- Closing the window is the only way to clear the whole queue; there's no slash command for it.
+  queueFrame.CloseButton:HookScript("OnClick", function() module:ClearQueue() end)
+  return queueFrame
+end
 
 local function ensureQueueRow(module, index)
   local queueFrame = module.queueFrame
@@ -1278,11 +1300,17 @@ local function ensureQueueRow(module, index)
   return row
 end
 
---- Redraw the queue window's rows from the current tradeQueue; a no-op while the window is hidden.
+--- Show/hide the queue window to match whether anyone is waiting, and redraw its rows.
+-- Called after every queue mutation (enqueue, dequeue, manual removal, clear) so the window is
+-- always in sync without any slash command driving it.
 function module:RefreshQueueWindow()
-  local queueFrame = self.queueFrame
-  if not queueFrame or not queueFrame:IsShown() then return end
   local queue = self.tradeQueue or {}
+  if #queue == 0 then
+    if self.queueFrame then self.queueFrame:Hide() end
+    return
+  end
+  local queueFrame = ensureQueueFrame(self)
+  if not queueFrame:IsShown() then queueFrame:Show() end
   local shown = math.min(#queue, MAX_QUEUE_ROWS)
   for index = 1, shown do
     local entry = queue[index]
@@ -1294,7 +1322,6 @@ function module:RefreshQueueWindow()
   for index = shown + 1, (queueRows and #queueRows or 0) do
     queueRows[index]:Hide()
   end
-  queueFrame.emptyText:SetShown(#queue == 0)
   queueFrame.overflowText:SetText(#queue > MAX_QUEUE_ROWS and ("+" .. (#queue - MAX_QUEUE_ROWS) .. " more waiting") or "")
 end
 
@@ -1307,37 +1334,6 @@ function module:RemoveFromQueue(name)
   print("SlackHacks: removed " .. name .. " from the Self Vendor queue.")
   log("Manually removed " .. name .. " from the Self Vendor queue via the queue window")
   self:RefreshQueueWindow()
-end
-
---- Show/hide the "Self Vendor Queue" window, creating it (and its Blizzard chrome) on first use.
-function module:ToggleQueueWindow()
-  local queueFrame = self.queueFrame
-  if not queueFrame then
-    queueFrame = CreateFrame("Frame", "SlackHacksSelfVendorQueueFrame", UIParent, "BasicFrameTemplateWithInset")
-    self.queueFrame = queueFrame
-    queueFrame:SetSize(300, 40 + MAX_QUEUE_ROWS * ROW_HEIGHT)
-    queueFrame:SetPoint("CENTER")
-    queueFrame:SetFrameStrata("DIALOG")
-    queueFrame:SetMovable(true)
-    queueFrame:EnableMouse(true)
-    queueFrame:RegisterForDrag("LeftButton")
-    queueFrame:SetScript("OnDragStart", queueFrame.StartMoving)
-    queueFrame:SetScript("OnDragStop", queueFrame.StopMovingOrSizing)
-    queueFrame.TitleText:SetText("Self Vendor Queue")
-    queueFrame.emptyText = queueFrame.Inset:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    queueFrame.emptyText:SetPoint("TOPLEFT", queueFrame.Inset, "TOPLEFT", 6, -6)
-    queueFrame.emptyText:SetText("Nobody is waiting.")
-    queueFrame.overflowText = queueFrame.Inset:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    queueFrame.overflowText:SetPoint("BOTTOMLEFT", queueFrame.Inset, "BOTTOMLEFT", 6, 6)
-    -- Closing the window is treated the same as /slack clearqueue, not just "hide and forget".
-    queueFrame.CloseButton:HookScript("OnClick", function() self:ClearQueue() end)
-  end
-  if queueFrame:IsShown() then
-    queueFrame:Hide()
-  else
-    queueFrame:Show()
-    self:RefreshQueueWindow()
-  end
 end
 
 
