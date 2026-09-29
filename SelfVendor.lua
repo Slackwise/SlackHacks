@@ -636,6 +636,7 @@ end
 function module:ClearQueue()
   local count = self.tradeQueue and #self.tradeQueue or 0
   self.tradeQueue = {}
+  self:RefreshQueueWindow()
   log("Self Vendor queue manually cleared; removed " .. count .. " entries")
   print("SlackHacks: cleared " .. count .. " player(s) from the Self Vendor queue.")
 end
@@ -697,6 +698,7 @@ end
 
 function module:OnDisable()
   log("Self Vendor disabled; unregistering events")
+  if self.queueFrame then self.queueFrame:Hide() end
   self.pendingBagUpdate = nil
   self.pendingMode = nil
   self.pendingEmote = nil
@@ -817,6 +819,7 @@ function module:BeginEmoteTrade(sender, mode, emoteToken)
     return
   end
   table.insert(self.tradeQueue, { name = sender, mode = mode, emote = emoteToken })
+  self:RefreshQueueWindow()
   if self.pendingName or self.activeTradeName then
     local currentName = self.activeTradeName or self.pendingName
     local position = #self.tradeQueue
@@ -915,6 +918,7 @@ function module:StartNextQueuedTrade()
   if not self.tradeQueue or #self.tradeQueue == 0 then return end
   local queuedTrade = table.remove(self.tradeQueue, 1)
   removeQueueEntries(self.tradeQueue, queuedTrade.name)
+  self:RefreshQueueWindow()
   self.activeTradeName = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
@@ -1237,6 +1241,103 @@ function module:OpenPendingTrade()
     C_Timer.After(0.5, addNextItem)
   end
   addNextItem()
+end
+
+--=====================================================================
+-- Queue window ("Self Vendor Queue")
+--=====================================================================
+-- A standard Blizzard bordered window (BasicFrameTemplateWithInset) listing who's waiting, in
+-- order, and what they requested. Each row has its own close-style button to drop just that
+-- person; closing the window itself (its own CloseButton) clears the whole queue, matching the
+-- "X" semantics used everywhere else in this addon (see ClearQueue).
+-- The frame itself lives on `self.queueFrame` (not a file-local) so OnDisable, defined earlier in
+-- this file, can still reach it to hide it when the module is turned off.
+
+local MAX_QUEUE_ROWS = 10
+local ROW_HEIGHT = 22
+local queueRows
+
+local function ensureQueueRow(module, index)
+  local queueFrame = module.queueFrame
+  queueRows = queueRows or {}
+  local row = queueRows[index]
+  if row then return row end
+  row = CreateFrame("Frame", nil, queueFrame.Inset)
+  row:SetHeight(ROW_HEIGHT)
+  row:SetPoint("TOPLEFT", queueFrame.Inset, "TOPLEFT", 6, -6 - (index - 1) * ROW_HEIGHT)
+  row:SetPoint("RIGHT", queueFrame.Inset, "RIGHT", -6, 0)
+  row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
+  row.text:SetPoint("RIGHT", row, "RIGHT", -20, 0)
+  row.text:SetJustifyH("LEFT")
+  row.removeButton = CreateFrame("Button", nil, row, "UIPanelCloseButton")
+  row.removeButton:SetSize(18, 18)
+  row.removeButton:SetPoint("RIGHT", row, "RIGHT", 4, 0)
+  row.removeButton:SetScript("OnClick", function() module:RemoveFromQueue(row.name) end)
+  queueRows[index] = row
+  return row
+end
+
+--- Redraw the queue window's rows from the current tradeQueue; a no-op while the window is hidden.
+function module:RefreshQueueWindow()
+  local queueFrame = self.queueFrame
+  if not queueFrame or not queueFrame:IsShown() then return end
+  local queue = self.tradeQueue or {}
+  local shown = math.min(#queue, MAX_QUEUE_ROWS)
+  for index = 1, shown do
+    local entry = queue[index]
+    local row = ensureQueueRow(self, index)
+    row.name = entry.name
+    row.text:SetText("#" .. index .. "  " .. entry.name .. " - " .. requestLabel(entry.mode, entry.emote))
+    row:Show()
+  end
+  for index = shown + 1, (queueRows and #queueRows or 0) do
+    queueRows[index]:Hide()
+  end
+  queueFrame.emptyText:SetShown(#queue == 0)
+  queueFrame.overflowText:SetText(#queue > MAX_QUEUE_ROWS and ("+" .. (#queue - MAX_QUEUE_ROWS) .. " more waiting") or "")
+end
+
+--- Drop a single named entry from the queue (used by each row's own close button).
+-- @param name string player name as stored in the tradeQueue entry.
+function module:RemoveFromQueue(name)
+  if not self.tradeQueue or not queuePositionFor(self.tradeQueue, name) then return end
+  removeQueueEntries(self.tradeQueue, name)
+  SendChatMessage("You've been removed from the Self Vendor queue.", "WHISPER", nil, name)
+  print("SlackHacks: removed " .. name .. " from the Self Vendor queue.")
+  log("Manually removed " .. name .. " from the Self Vendor queue via the queue window")
+  self:RefreshQueueWindow()
+end
+
+--- Show/hide the "Self Vendor Queue" window, creating it (and its Blizzard chrome) on first use.
+function module:ToggleQueueWindow()
+  local queueFrame = self.queueFrame
+  if not queueFrame then
+    queueFrame = CreateFrame("Frame", "SlackHacksSelfVendorQueueFrame", UIParent, "BasicFrameTemplateWithInset")
+    self.queueFrame = queueFrame
+    queueFrame:SetSize(300, 40 + MAX_QUEUE_ROWS * ROW_HEIGHT)
+    queueFrame:SetPoint("CENTER")
+    queueFrame:SetFrameStrata("DIALOG")
+    queueFrame:SetMovable(true)
+    queueFrame:EnableMouse(true)
+    queueFrame:RegisterForDrag("LeftButton")
+    queueFrame:SetScript("OnDragStart", queueFrame.StartMoving)
+    queueFrame:SetScript("OnDragStop", queueFrame.StopMovingOrSizing)
+    queueFrame.TitleText:SetText("Self Vendor Queue")
+    queueFrame.emptyText = queueFrame.Inset:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    queueFrame.emptyText:SetPoint("TOPLEFT", queueFrame.Inset, "TOPLEFT", 6, -6)
+    queueFrame.emptyText:SetText("Nobody is waiting.")
+    queueFrame.overflowText = queueFrame.Inset:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    queueFrame.overflowText:SetPoint("BOTTOMLEFT", queueFrame.Inset, "BOTTOMLEFT", 6, 6)
+    -- Closing the window is treated the same as /slack clearqueue, not just "hide and forget".
+    queueFrame.CloseButton:HookScript("OnClick", function() self:ClearQueue() end)
+  end
+  if queueFrame:IsShown() then
+    queueFrame:Hide()
+  else
+    queueFrame:Show()
+    self:RefreshQueueWindow()
+  end
 end
 
 

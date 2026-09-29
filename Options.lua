@@ -296,6 +296,7 @@ local function printSlashHelp()
   print("  " .. color("FFFFFF")("/slack bugs") .. " - View and report error logs")
   print("  " .. color("FFFFFF")("/slack reset") .. " - Reset profile and addon state to defaults")
   print("  " .. color("FFFFFF")("/slack clearqueue") .. " - Clear the Self Vendor trade queue")
+  print("  " .. color("FFFFFF")("/slack queue") .. " - Show the Self Vendor Queue window")
   print("  " .. color("FFFFFF")("/slack wipoff") .. " - Disable work-in-progress modules (" .. getWIPModuleNames() .. ")")
 end
 
@@ -337,6 +338,8 @@ function handleSlashCommand(input)
     disableWIPModules()
   elseif command == "clearqueue" then
     Self.SelfVendor:ClearQueue()
+  elseif command == "queue" then
+    Self.SelfVendor:ToggleQueueWindow()
   elseif command == "induce-error" then
     Self.Debug:InduceError()
   else
