@@ -633,6 +633,13 @@ function module:SetSource(sourceKey)
   return true
 end
 
+function module:ClearQueue()
+  local count = self.tradeQueue and #self.tradeQueue or 0
+  self.tradeQueue = {}
+  log("Self Vendor queue manually cleared; removed " .. count .. " entries")
+  print("SlackHacks: cleared " .. count .. " player(s) from the Self Vendor queue.")
+end
+
 function module:HandleSlash(input)
   local command = strlower(strtrim(input or ""))
   local requestedSource = command:match("%s+(%S+)$")
@@ -663,10 +670,7 @@ function module:HandleSlash(input)
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   elseif command == "clearqueue" then
-    local count = self.tradeQueue and #self.tradeQueue or 0
-    self.tradeQueue = {}
-    log("Self Vendor queue manually cleared; removed " .. count .. " entries")
-    print("SlackHacks: cleared " .. count .. " player(s) from the Self Vendor queue.")
+    self:ClearQueue()
   else
     print("Usage: /slack vendor [toggle|clearqueue|consumablesmissing|consumables|flaskandoil|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins|murlok]")
   end
