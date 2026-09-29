@@ -10,6 +10,12 @@ local GILDED_STASH_WIDGET_ID = 7591
 local GILDED_STASH_REQUIRED = 4
 local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
 local TROVEHUNTERS_BOUNTY_ICON_ID = 1064187
+local TROVEHUNTERS_BOUNTY_ITEM_ID = 274374
+local TROVEHUNTERS_BOUNTY_ENGAGED_SPELL_ID = 1254631
+local BOUNTY_STATUS_AVAILABLE = "Available"
+local BOUNTY_STATUS_ACQUIRED = "Acquired"
+local BOUNTY_STATUS_ENGAGED = "Engaged"
+local BOUNTY_STATUS_COMPLETED = "Completed"
 local DELVE_RENOWN_ICON_ID = 6025441
 local VALEERA_ICON_ID = 236439
 -- Midnight currency IDs let us query live amounts and caps even when a currency is not currently tracked.
@@ -89,6 +95,23 @@ end
 ---@return boolean completed True when the weekly quest is flagged complete.
 local function trovehuntersBountyCompleted()
   return C_QuestLog.IsQuestFlaggedCompleted(TROVEHUNTERS_BOUNTY_QUEST_ID)
+end
+
+--- Determines this week's Trovehunter's Bounty progress.
+--- Checked in priority order: a finished weekly quest always wins; the Engaged buff is looked up by
+--- spell ID directly (a single hash-map read via GetPlayerAuraBySpellID, not a full aura-list scan),
+--- so this stays cheap even though it can run every time the tracker refreshes; bag possession is the
+--- cheapest remaining fallback.
+---@return string status One of `BOUNTY_STATUS_AVAILABLE`, `BOUNTY_STATUS_ACQUIRED`, `BOUNTY_STATUS_ENGAGED`, or `BOUNTY_STATUS_COMPLETED`.
+local function trovehuntersBountyStatus()
+  if trovehuntersBountyCompleted() then return BOUNTY_STATUS_COMPLETED end
+  if C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID and C_UnitAuras.GetPlayerAuraBySpellID(TROVEHUNTERS_BOUNTY_ENGAGED_SPELL_ID) then
+    return BOUNTY_STATUS_ENGAGED
+  end
+  if C_Item and C_Item.GetItemCount and C_Item.GetItemCount(TROVEHUNTERS_BOUNTY_ITEM_ID) > 0 then
+    return BOUNTY_STATUS_ACQUIRED
+  end
+  return BOUNTY_STATUS_AVAILABLE
 end
 
 --- Looks up a currency by ID, falling back to the visible currency list for currencies without an ID.
@@ -440,7 +463,7 @@ function module.ShowTooltip(self)
     GameTooltip:AddDoubleLine(tooltipIconLabel("Gilded Stashes Remaining", GILDED_STASH_ICON_ID), COLUMN_GAP .. "unavailable", 1, 0.82, 0, 0.6, 0.6, 0.6)
   end
 
-  GameTooltip:AddDoubleLine(tooltipIconLabel("Trovehunter's Bounty", TROVEHUNTERS_BOUNTY_ICON_ID), COLUMN_GAP .. (trovehuntersBountyCompleted() and "Claimed" or "Available"), 1, 0.82, 0, 1, 0.82, 0)
+  GameTooltip:AddDoubleLine(tooltipIconLabel("Trovehunter's Bounty", TROVEHUNTERS_BOUNTY_ICON_ID), COLUMN_GAP .. trovehuntersBountyStatus(), 1, 0.82, 0, 1, 0.82, 0)
 
   for _, currency in ipairs(DELVE_CURRENCIES) do
     local amount, icon, info = currencyAmount(currency.name, currency.id)
@@ -490,7 +513,8 @@ function module.ShowTooltip(self)
 end
 
 --- Creates/updates the tracker button and hides it when weekly tracking is disabled.
---- The door atlas reflects Gilded Stash completion; the map marker independently reflects bounty availability.
+--- The door atlas only goes dark (the plain, non-bountiful world-map door) once BOTH weekly Delve
+--- tasks are done; the map marker independently reflects Trovehunter's Bounty status.
 function module:Refresh()
   createButton()
   if not button then return end
@@ -502,8 +526,10 @@ function module:Refresh()
   end
 
   local stash = gildedStashInfo()
-  button.icon:SetAtlas(stash and stash.completed and DELVES_ICON_ATLAS_DONE or DELVES_ICON_ATLAS_PENDING, false)
-  if trovehuntersBountyCompleted() then button.bounty:Hide() else button.bounty:Show() end
+  local bountyStatus = trovehuntersBountyStatus()
+  local allTasksDone = stash and stash.completed and bountyStatus == BOUNTY_STATUS_COMPLETED
+  button.icon:SetAtlas(allTasksDone and DELVES_ICON_ATLAS_DONE or DELVES_ICON_ATLAS_PENDING, false)
+  if bountyStatus == BOUNTY_STATUS_COMPLETED then button.bounty:Hide() else button.bounty:Show() end
 
   if stash and stash.completed then
     button.count:Hide()
@@ -539,11 +565,14 @@ function module:OnInitialize()
   if not db.profile.weeklies.enabled then self:Disable() end
 end
 
---- Registers events that can change stash progress or bounty completion, then performs an initial refresh.
+--- Registers events that can change stash progress or bounty status, then performs an initial refresh.
+--- BAG_UPDATE_DELAYED (fired once per batch of bag changes, not per slot) catches the Acquired status
+--- picking up/losing the Trovehunter's Bounty item without registering a noisier per-slot bag event.
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("UPDATE_UI_WIDGET", "Refresh")
   self:RegisterEvent("QUEST_LOG_UPDATE", "Refresh")
+  self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:Refresh()
 end
 
