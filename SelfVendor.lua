@@ -271,6 +271,7 @@ local function finishTradePopulation(module, added)
   module.pendingRequired = nil
   module.pendingTradeItems = nil
   module.pendingTradeIndex = nil
+  module.pendingTradeInitiated = nil
   module.activeTradeMode = module.pendingMode
   module.activeTradeEmote = module.pendingEmote
   module.pendingMode = nil
@@ -695,6 +696,7 @@ function module:OnDisable()
   self.pendingBagUpdate = nil
   self.pendingMode = nil
   self.pendingEmote = nil
+  self.pendingTradeInitiated = nil
   self.activeTradeName = nil
   self.activeTradeMode = nil
   self.activeTradeEmote = nil
@@ -750,6 +752,7 @@ function module:FailPendingTrade(message)
   self.pendingRequired = nil
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
+  self.pendingTradeInitiated = nil
   self.inspectGUID = nil
   self.pendingMode = nil
   self.pendingEmote = nil
@@ -770,6 +773,7 @@ function module:ReportMissingItems(shortages)
   self.pendingRequired = nil
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
+  self.pendingTradeInitiated = nil
   self.inspectGUID = nil
   self.pendingMode = nil
   self.pendingEmote = nil
@@ -873,13 +877,19 @@ function module:UI_INFO_MESSAGE(_, _, message)
   self.pendingRequired = nil
   self.pendingTradeItems = nil
   self.pendingTradeIndex = nil
+  self.pendingTradeInitiated = nil
   self.pendingMode = nil
   self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
 function module:TRADE_ACCEPT_UPDATE(_, playerAccepted, targetAccepted)
-  self.tradeAccepted = playerAccepted and targetAccepted or nil
+  -- playerAccepted/targetAccepted are 0/1 numbers, not booleans: 0 is truthy in Lua, so a raw
+  -- `playerAccepted and targetAccepted` treats an all-zero (nobody has accepted yet) update as
+  -- "both accepted" and marks the trade succeeded before anything actually happened.
+  local playerReady = playerAccepted == 1
+  local targetReady = targetAccepted == 1
+  self.tradeAccepted = (playerReady and targetReady) or nil
   -- TRADE_SUCCEEDED is not a real client event; both parties accepting means the trade completed
   if self.tradeAccepted then
     self.tradeSucceeded = true
@@ -888,7 +898,13 @@ end
 
 function module:TRADE_REQUEST_CANCEL()
   self.tradeCanceled = true
-  self.tradeQueue = {}
+  -- If InitiateTrade was already sent but the window never populated (target declined, timed
+  -- out, out of range, etc.), TRADE_CLOSED never gets an activeTradeName to key off of, so this
+  -- is the only reliable signal to fail the pending trade and move on to the next queued player.
+  if self.pendingTradeInitiated and self.pendingName and not self.activeTradeName then
+    self.pendingTradeInitiated = nil
+    self:FailPendingTrade(self.pendingName .. "'s trade request was declined or timed out")
+  end
 end
 
 function module:StartNextQueuedTrade()
@@ -899,6 +915,7 @@ function module:StartNextQueuedTrade()
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
+  self.pendingTradeInitiated = nil
   self.pendingName = queuedTrade.name
   self.pendingMode = queuedTrade.mode
   self.pendingEmote = queuedTrade.emote
@@ -913,9 +930,13 @@ function module:StartNextQueuedTrade()
 end
 
 function module:TRADE_CLOSED()
+  -- Blizzard fires TRADE_CLOSED twice when a trade is canceled from an open window. The first
+  -- call below clears activeTradeName, so the ghost duplicate has nothing left to close; ignore
+  -- it instead of re-running cleanup against whichever trade we've already moved on to.
+  if not self.activeTradeName then return end
   local servicedName = self.activeTradeName
   local servicedLabel = requestLabel(self.activeTradeMode, self.activeTradeEmote)
-  local successful = self.activeTradeName and self.tradeSucceeded and not self.tradeCanceled
+  local successful = self.tradeSucceeded and not self.tradeCanceled
   self.activeTradeName = nil
   self.activeTradeMode = nil
   self.activeTradeEmote = nil
@@ -925,18 +946,18 @@ function module:TRADE_CLOSED()
   if successful then
     print("SlackHacks: finished servicing " .. servicedName .. " (" .. servicedLabel .. ").")
     log("Finished servicing " .. servicedName .. " (" .. servicedLabel .. ")")
-    self:StartNextQueuedTrade()
-    local remaining = self.tradeQueue and #self.tradeQueue or 0
-    if remaining > 0 then
-      print("SlackHacks: " .. remaining .. " still in the Self Vendor queue.")
-      log("Self Vendor queue has " .. remaining .. " remaining")
-    else
-      print("SlackHacks: Self Vendor queue is cleared.")
-      log("Self Vendor queue cleared")
-    end
   else
     self:NotifyTradeUnavailable(servicedName)
-    self.tradeQueue = {}
+    print("SlackHacks: trade with " .. servicedName .. " (" .. servicedLabel .. ") did not complete.")
+    log("Trade with " .. servicedName .. " did not complete; moving to next queued player")
+  end
+  -- Whether the trade succeeded or not, the rest of the queue is unaffected and should keep moving.
+  self:StartNextQueuedTrade()
+  local remaining = self.tradeQueue and #self.tradeQueue or 0
+  if remaining > 0 then
+    print("SlackHacks: " .. remaining .. " still in the Self Vendor queue.")
+    log("Self Vendor queue has " .. remaining .. " remaining")
+  else
     print("SlackHacks: Self Vendor queue is cleared.")
     log("Self Vendor queue cleared")
   end
@@ -1101,6 +1122,7 @@ function module:PrepareTradeItems(required)
         return
       end
       log("Exact trade stacks prepared; initiating trade with " .. self.pendingName)
+      self.pendingTradeInitiated = true
       InitiateTrade(self.pendingName)
       return
     end
