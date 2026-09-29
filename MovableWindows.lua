@@ -60,14 +60,25 @@ local registerToastEditMode
 --=====================================================================
 -- Settings helpers
 --=====================================================================
+--- Shorthand for this module's slice of the saved-variables DB. Centralized in one place (rather than
+--- inlining `db.profile.movableWindows` everywhere) so the DB layout only has to be known here.
+---@return table settings - The module's profile settings table.
 local function settings()
   return db.profile.movableWindows
 end
 
+--- Whether the module's own on/off switch is enabled. Checked before doing any work so a disabled module
+--- costs nothing at runtime (no hooks fire, no frames get processed).
+---@return boolean enabled
 local function isModuleEnabled()
   return settings() and settings().enabled or false
 end
 
+--- Resolves a user-configured modifier-key setting (one of "SHIFT"/"CTRL"/"ALT"/"NONE") to whether that
+--- key is currently held. Shared by both the move-modifier and scale-modifier checks below so the two
+--- independently configurable modifiers (e.g. move with no modifier, scale with Shift) use identical logic.
+---@param key string - "SHIFT", "CTRL", "ALT", or "NONE".
+---@return boolean isDown
 local function isModifierKeyDown(key)
   if key == "SHIFT" then return IsShiftKeyDown() end
   if key == "CTRL" then return IsControlKeyDown() end
@@ -75,10 +86,14 @@ local function isModifierKeyDown(key)
   return true -- "NONE": no modifier required
 end
 
+--- Whether the user's configured "move" modifier key is currently held.
+---@return boolean isDown
 local function isMoveModifierDown()
   return isModifierKeyDown(settings().modifierKey)
 end
 
+--- Whether the user's configured "scale" (mouse-wheel-resize) modifier key is currently held.
+---@return boolean isDown
 local function isScaleModifierDown()
   return isModifierKeyDown(settings().scaleModifierKey)
 end
@@ -86,11 +101,20 @@ end
 --=====================================================================
 -- Frame name / registry helpers
 --=====================================================================
+--- Looks up the global name a registered frame was registered under. Used when saving a position/anchor
+--- so the anchor can be serialized as a stable string (survives reload) instead of a live frame reference.
+---@param frame Frame? - A frame previously registered via module:RegisterFrame() (directly or as a SubFrame).
+---@return string? frameName
 local function getFrameName(frame)
   local frameData = frame and frameRegistry[frame]
   return frameData and frameData.storage and frameData.storage.frameName
 end
 
+--- Resolves a global frame name back to the live frame object, following dotted paths (e.g.
+--- "Parent.ChildFrame") one segment at a time through the `_G` table. Used to re-resolve a saved anchor's
+--- `relativeFrame` name back into a real frame reference when reapplying a saved position.
+---@param frameName string - Global name, optionally dotted (e.g. "CharacterFrame" or "Parent.ChildFrame").
+---@return Frame? frame - nil if any segment of the path doesn't currently exist.
 local function getFrameFromName(frameName)
   local object = _G
   for key in frameName:gmatch("([^.]+)") do
@@ -103,8 +127,11 @@ end
 --=====================================================================
 -- Combat lockdown queue
 --=====================================================================
--- Protected frames can't be reparented/repositioned/hooked while in combat; anything that needs to touch
--- one is deferred here and flushed as soon as combat ends.
+--- Runs `func(...)` immediately if not in combat, or defers it until combat ends. Protected frames can't
+--- be reparented/repositioned/hooked while in combat lockdown, so anything that needs to touch one has to
+--- funnel through here instead of just failing/erroring mid-fight.
+---@param func function - Function to call (immediately or once combat ends).
+---@param ... any - Arguments to pass to func.
 local function addToCombatLockdownQueue(func, ...)
   if not InCombatLockdown() then
     func(...)
@@ -116,6 +143,9 @@ local function addToCombatLockdownQueue(func, ...)
   tinsert(combatLockdownQueue, { func = func, args = { ... } })
 end
 
+--- AceEvent handler for PLAYER_REGEN_ENABLED (combat ends): flushes and runs every queued deferred call
+--- from addToCombatLockdownQueue(), in the order they were queued, then unregisters itself again since
+--- there's nothing to listen for until the queue has something in it again.
 function module:PLAYER_REGEN_ENABLED()
   self:UnregisterEvent("PLAYER_REGEN_ENABLED")
   if #combatLockdownQueue == 0 then return end
@@ -129,8 +159,13 @@ end
 --=====================================================================
 -- Frame position helpers
 --=====================================================================
--- Captures a frame's CURRENT anchor(s) as-is (used to remember a detachable subframe's original anchor so
--- it can be re-attached later).
+--- Captures a frame's CURRENT anchor point(s) exactly as SetPoint currently has them, resolving any
+--- registered relative frame to its stable name (so it survives a reload) rather than a live reference.
+--- Used only to remember a detachable subframe's original (parent-relative) anchor before we detach it,
+--- so RightButton+Alt can put it back exactly where Blizzard originally anchored it.
+---@param frame Frame - The frame whose current anchor points should be captured.
+---@return table? points - Array of {anchorPoint, relativeFrame, relativePoint, offX, offY}, or nil if the
+---  frame currently has no points at all.
 local function capturePoints(frame)
   local numPoints = frame:GetNumPoints()
   if not numPoints or numPoints == 0 then return nil end
@@ -153,9 +188,16 @@ local function capturePoints(frame)
   return points
 end
 
--- Converts a frame's current position into a single, resolution/scale-independent anchor relative to the
--- nearest screen edge (or center) -- inspired by LibWindow-1.1 -- so a saved position still looks right
--- after a UI reload or resolution change.
+--- Converts a frame's current on-screen position into a single anchor point relative to whichever screen
+--- edge (or center) it's actually closest to -- e.g. a frame near the bottom-left becomes
+--- `{anchorPoint = "BOTTOMLEFT", relativeFrame = FAKE_UI_PARENT_NAME, ...}` with small offsets, instead of
+--- an arbitrary absolute pixel position. This is what makes a saved drag position still look right after
+--- a UI reload or resolution/aspect-ratio change: an edge-relative anchor scales naturally with the
+--- screen, while a raw absolute coordinate would not. Always anchors relative to our own `fakeUIParent`
+--- stand-in (see its declaration above) rather than the real UIParent, for the same taint-safety reason
+--- setFramePoint() below routes through it.
+---@param frame Frame - The frame whose current screen position should be captured.
+---@return table? points - A single-entry array (same shape as capturePoints()) usable with setFramePoints().
 local function getAbsoluteFramePosition(frame)
   local scale = frame:GetScale()
   if not scale or not frame:GetLeft() then return nil end
@@ -200,14 +242,32 @@ end
 
 local secureAnchorFrame = CreateFrame("Frame", nil, nil, "SecureHandlerBaseTemplate")
 
+--- Calls the frame's real, un-hooked SetPoint (bypassing our own onSetPoint watchdog hook further below),
+--- so we can reposition a frame ourselves without that same call re-triggering our own "something moved
+--- this frame, reassert the dragged position" anti-rubberband logic.
+---@param frame Frame
+---@param anchorPoint string
+---@param relativeFrame Frame?
+---@param relativePoint string
+---@param offX number
+---@param offY number
 local function realSetPoint(frame, anchorPoint, relativeFrame, relativePoint, offX, offY)
   local setPoint = frame.SetPointBase or frame.SetPoint
   setPoint(frame, anchorPoint, relativeFrame, relativePoint, offX, offY)
 end
 
--- Applying a saved point directly to a protected frame outside of combat is usually fine, but can be
--- risky when the anchor target is itself protected/forbidden; route those through a secure snippet so it
--- can never be blamed for tainting Blizzard's own code.
+--- Applies one saved anchor point to a frame. Resolves a string relativeFrame name back to a live frame
+--- (via _G), and redirects any saved reference to the real UIParent onto our own `fakeUIParent` stand-in
+--- (see its declaration above) since re-anchoring directly to UIParent can be unreliable/tainted for some
+--- protected frames. Setting a point directly is fine in the overwhelming majority of cases, but if the
+--- anchor target itself turns out to be protected/forbidden outside of combat, that's routed through a
+--- `SecureHandlerBaseTemplate` snippet instead (Execute() runs with Blizzard's own execution context) so
+--- our own insecure code can never be blamed for tainting anything downstream of that protected frame.
+---@param frame Frame - The frame to reposition.
+---@param point table - One entry from capturePoints()/getAbsoluteFramePosition(): {anchorPoint,
+---  relativeFrame, relativePoint, offX, offY}.
+---@param scale number - Divides offX/offY by this (the frame's own GetScale()) so saved pixel offsets,
+---  which were captured in that same scale, still land in the same visual spot regardless of scale changes.
 local function setFramePoint(frame, point, scale)
   ignoreSetPointHook = true
 
@@ -244,6 +304,15 @@ local function setFramePoint(frame, point, scale)
   ignoreSetPointHook = false
 end
 
+--- Applies a full saved point list (as produced by capturePoints()/getAbsoluteFramePosition()) to a
+--- frame, clearing any existing points first. This is the one function actually responsible for moving a
+--- frame to a saved/dragged position -- everything else (drag handlers, the onSetPoint watchdog, Edit Mode
+--- toast dragging) eventually funnels through this.
+---@param frame Frame - The frame to reposition. No-op (returns false) if it's protected and we're in combat.
+---@param points table? - Point list to apply; no-op (returns false) if nil/empty.
+---@param raw boolean? - If true, skip dividing offsets by the frame's scale (points are already in that
+---  frame's own local units, e.g. for the toast mover which isn't scale-adjusted).
+---@return boolean applied
 local function setFramePoints(frame, points, raw)
   if InCombatLockdown() and frame:IsProtected() then return false end
   if not points or not points[1] then return false end
@@ -256,8 +325,13 @@ local function setFramePoints(frame, points, raw)
   return true
 end
 
--- Reapplying SetPoint from directly inside a SetPoint hook can be unreliable; queue it for the very next
--- frame update instead (only used by the "permanent" position watchdog).
+--- Queues a frame to have setFramePoints() re-applied on the very next frame update, instead of calling
+--- it immediately. Calling SetPoint again from directly inside our own SetPoint hook (onSetPoint below)
+--- can be unreliable/re-entrant, so the "permanent" strategy's rubberband watchdog defers to here instead
+--- of reapplying synchronously. Multiple queue requests for the same frame within one frame just overwrite
+--- each other (last write wins) since only the final target position before the next update matters.
+---@param frame Frame
+---@param points table - Point list to apply on the next frame update.
 local function addToSetFramePointsQueue(frame, points)
   if setFramePointsQueue[frame] then return end
   setFramePointsQueue[frame] = points
@@ -274,9 +348,17 @@ local function addToSetFramePointsQueue(frame, points)
   end)
 end
 
--- When the strategy is "permanent", alias storage.points directly to the saved-variable sub-table so any
--- mutation (drag/detach) is automatically persisted -- no separate save step, and it naturally survives
--- a UI reload since the same (now pre-populated) table gets re-aliased next time.
+--- Wires up frameData.storage.points, the in-memory table that tracks a frame's drag/detach state. Under
+--- the "session" save strategy this is just a plain scratch table (cleared on reload). Under "permanent"
+--- it's instead aliased *by reference* to settings().points[frameName], so any later mutation (a drag, a
+--- detach) is automatically persisted with no separate save step, and is naturally restored next login
+--- since the same (already-populated) saved-variable table gets re-aliased here again. Also validates any
+--- previously-saved detachPoints on load: if the frame it was detached-anchored to no longer exists (e.g.
+--- from a different addon/version), the detached state is discarded rather than silently re-attaching to
+--- a Frame that doesn't exist.
+---@param frame Frame
+---@param frameData table - The registered frameData for this frame; must already have `.storage.frameName` set.
+---@return boolean ok - false only if frameData.storage.frameName is unset (shouldn't normally happen).
 local function setupPointStorage(frame, frameData)
   local frameName = frameData.storage.frameName
   if not frameName then return false end
@@ -307,12 +389,32 @@ end
 --=====================================================================
 -- Frame scale helpers
 --=====================================================================
+--- The frame's EFFECTIVE scale relative to the whole registry tree, i.e. its own GetScale() compounded
+--- with its registered parent's effective scale (recursively) -- unless ManuallyScaleWithParent is set,
+--- in which case the parent relationship is skipped since that subframe already scales itself in lockstep
+--- with the parent via other means (see setFrameScaleSubs below) and shouldn't be double-counted.
+---@param frame Frame - Must already be registered (a key in frameRegistry).
+---@return number effectiveScale
 local function getFrameScale(frame)
   local frameData = frameRegistry[frame]
   local parentScale = (frameData.storage.frameParent and not frameData.ManuallyScaleWithParent and getFrameScale(frameData.storage.frameParent)) or 1
   return frame:GetScale() * parentScale
 end
 
+--- Propagates a parent frame's scale change down to its registered SubFrames, keeping each subframe's
+--- EFFECTIVE (on-screen) size constant across the parent's rescale, with one exception per subframe:
+--- - ManuallyScaleWithParent subframes that are still attached: their own GetScale() is nudged so their
+---   effective size tracks the parent's new scale (rather than staying visually the same size the parent
+---   just changed).
+--- - Detached subframes that do NOT want to scale with the parent: since a detached subframe is no longer
+---   visually parented under it, its own GetScale() is compensated in the opposite direction so its actual
+---   effective size doesn't silently change just because some *other*, no-longer-related frame rescaled.
+--- - Everything else (still-attached, non-ManuallyScaleWithParent subframes): scale simply follows the
+---   parent naturally through Blizzard's own frame hierarchy, so just recurse to handle any of ITS own
+---   subframes the same way.
+---@param frame Frame - The parent frame whose scale just changed.
+---@param oldScale number - Its effective scale before the change.
+---@param newScale number - Its effective scale after the change.
 local function setFrameScaleSubs(frame, oldScale, newScale)
   local frameData = frameRegistry[frame]
   if not frameData.SubFrames then return end
@@ -331,6 +433,14 @@ local function setFrameScaleSubs(frame, oldScale, newScale)
   end
 end
 
+--- Sets a registered frame's scale to (as close as possible to) the requested EFFECTIVE scale, persisting
+--- it (both to the saved-variable table and the session-only cache) and cascading the change to any
+--- registered SubFrames via setFrameScaleSubs() so they don't visually shrink/grow just because their
+--- parent did. No-ops (but returns true, i.e. "handled") if the frame is currently protected mid-combat,
+--- since scale changes on protected frames are combat-restricted the same way position changes are.
+---@param frame Frame - Must already be registered.
+---@param requestedScale number - Desired effective (compounded) scale.
+---@return boolean handled - false only if the frame isn't registered at all.
 local function setFrameScale(frame, requestedScale)
   local frameData = frameRegistry[frame]
   if not frameData then return false end
@@ -359,6 +469,15 @@ end
 --=====================================================================
 -- Movement start/stop (shared between direct EnableMouse frames and secure move handles)
 --=====================================================================
+--- Begins dragging `frame`. For a plain (non-protected) frame this is just its own real StartMoving(),
+--- called from our own insecure OnMouseDown handler. For a PanelDragBarTemplate move handle wrapping a
+--- protected frame, we can't call StartMoving() ourselves from an insecure OnMouseDown/OnDragStart --
+--- Blizzard's PanelDragBarMixin already has its own native OnDragStart wired up via
+--- `RegisterForDrag("LeftButton")`, which is what's actually allowed to call the protected frame's
+--- StartMoving(). `onDragStartCallback` returning falsy (its default, set on creation) is what makes that
+--- native handler bail out immediately -- so "arming" the drag here means just clearing that callback so
+--- the *next* native OnDragStart (from the real drag gesture already in progress) is allowed to proceed.
+---@param frame Frame - Either the frame itself, or (for protected frames) its move-handle overlay.
 local function startMoving(frame)
   if moveHandles[frame] then
     -- Arm the handle's own native OnDragStart (already listening via PanelDragBarTemplate's RegisterForDrag)
@@ -369,6 +488,10 @@ local function startMoving(frame)
   frame:StartMoving()
 end
 
+--- Ends dragging `frame`, mirroring startMoving()'s move-handle special case: rearms the handle's
+--- `onDragStartCallback` back to its default "block" state so the NEXT drag gesture also has to originate
+--- from a real native OnDragStart before StartMoving() can fire again.
+---@param frame Frame - Either the frame itself, or (for protected frames) its move-handle overlay.
 local function stopMoving(frame)
   if moveHandles[frame] then
     frame.onDragStartCallback = function() return false end
@@ -380,6 +503,22 @@ end
 --=====================================================================
 -- Mouse handlers
 --=====================================================================
+--- Core mousedown handler shared by every registered frame's move handle. Recurses up through
+--- frameData.storage.frameParent first (so, e.g., mousedown on a still-attached subframe's handle is
+--- treated as if it happened on the root window, unless that subframe has since been Detached), then
+--- handles three distinct gestures at whichever level in the chain actually owns the interaction:
+--- - Left-click + Alt (only if Detachable and not already detached): detaches the subframe from its
+---   parent, remembering its original anchor (via capturePoints()) so it can be reattached later.
+--- - Left-click (any other case, or if already detached): begins a native Blizzard drag via startMoving().
+--- - Right-click + Alt (only if currently detached): reattaches the subframe to its original saved anchor.
+--- - Right-click + the scale modifier: resets scale to 1.
+--- - Right-click + Shift: clears any dragged position, snapping back to whatever anchor Blizzard's own
+---   code (or our own detach-restore) currently has it pointed at.
+---@param frame Frame - The (possibly non-root) registered frame the mousedown conceptually applies to.
+---@param button string - "LeftButton" or "RightButton".
+---@param moveHandle Frame? - The PanelDragBarTemplate overlay actually receiving input, if any (nil for
+---  frames that are directly EnableMouse()'d instead of using a handle).
+---@return boolean handled - Whether this call (or a parent in the chain) did something with the click.
 local function doOnMouseDown(frame, button, moveHandle)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return false end
@@ -415,12 +554,26 @@ local function doOnMouseDown(frame, button, moveHandle)
   return returnValue or parentReturnValue
 end
 
+--- Public entry point wired to every move handle's (and any directly-EnableMouse'd frame's) OnMouseDown.
+--- Resolves a move-handle overlay back to the real frame it belongs to (handles are children reparented
+--- under the frame they control -- see makeMoveHandle) before delegating to doOnMouseDown().
+---@param frame Frame - The frame that actually received the mousedown (may be a move handle).
+---@param button string
 function onMouseDown(frame, button)
   local moveHandle = moveHandles[frame] and frame or nil
   if moveHandle then frame = moveHandle:GetParent() end
   return doOnMouseDown(frame, button, moveHandle)
 end
 
+--- Mouse-up counterpart to doOnMouseDown(): ends any in-progress drag, snapshots and persists the frame's
+--- new position via getAbsoluteFramePosition(), and marks it "dragged" so the onSetPoint watchdog knows
+--- to defend this position against being overwritten later. Also handles finishing the RightButton+Alt
+--- reattach / scale-reset / Shift-reset gestures doOnMouseDown() started evaluating. Recurses up the
+--- parent chain the same way doOnMouseDown() does, for the same reason (attached subframes defer to root).
+---@param frame Frame
+---@param button string
+---@param moveHandle Frame?
+---@return boolean handled
 local function doOnMouseUp(frame, button, moveHandle)
   if moveHandle then stopMoving(moveHandle) end
 
@@ -480,12 +633,24 @@ local function doOnMouseUp(frame, button, moveHandle)
   return returnValue or parentReturnValue
 end
 
+--- Public entry point wired to every move handle's OnMouseUp/OnDragStop (and the global-mouse-up safety
+--- net below). Resolves handle -> real frame the same way onMouseDown() does, then delegates to
+--- doOnMouseUp().
+---@param frame Frame
+---@param button string
 function onMouseUp(frame, button)
   local moveHandle = moveHandles[frame] and frame or nil
   if moveHandle then frame = moveHandle:GetParent() end
   return doOnMouseUp(frame, button, moveHandle)
 end
 
+--- Core mouse-wheel-to-scale handler shared by every registered frame, recursing up the parent chain the
+--- same way doOnMouseDown()/doOnMouseUp() do (an attached subframe's wheel input scales the root window
+--- unless it's Detached). Scale changes in increments of 0.1 per wheel notch, clamped to
+--- [MIN_SCALE, MAX_SCALE].
+---@param frame Frame
+---@param delta number - Wheel delta from OnMouseWheel (positive = scroll up/scale in, negative = down/out).
+---@return boolean handled
 local function doOnMouseWheel(frame, delta)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return false end
@@ -505,11 +670,20 @@ local function doOnMouseWheel(frame, delta)
   return returnValue or parentReturnValue
 end
 
+--- Public entry point for mouse-wheel scaling. Gates on both the feature's own on/off setting and the
+--- scale modifier currently being held (this module's whole point is that mouse wheel keeps its normal
+--- behavior -- e.g. scrolling a list -- unless the modifier is held), then delegates to doOnMouseWheel().
+---@param frame Frame
+---@param delta number
 function onMouseWheel(frame, delta)
   if not settings().enableScaling or not isScaleModifierDown() then return false end
   return doOnMouseWheel(frame, delta)
 end
 
+--- Marks a registered frame as moused-over for the mouse-wheel-capture arbitration frame (see
+--- checkMouseWheelCapture() below), and re-evaluates capture immediately so wheel scaling can engage the
+--- instant the modifier is already held when the mouse enters.
+---@param frame Frame
 local function onEnter(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
@@ -517,12 +691,22 @@ local function onEnter(frame)
   checkMouseWheelCapture()
 end
 
+--- Un-marks a frame as moused-over and re-evaluates wheel capture (see onEnter() above).
+---@param frame Frame
 local function onLeave(frame)
   if not mouseoverFrames[frame] then return end
   mouseoverFrames[frame] = nil
   checkMouseWheelCapture()
 end
 
+--- Hooked to every registered frame's OnShow. Doesn't restore POSITION here (that's entirely the
+--- onSetPoint watchdog's job, see below, since Blizzard's own code re-anchoring the frame on Show is
+--- exactly the case that watchdog exists to catch) -- this only reapplies a previously-saved/session SCALE,
+--- since SetScale (unlike SetPoint) isn't something we hook/watchdog the same way. Reruns itself once via
+--- RunNextFrame() (skipRerun guards against infinite recursion) because some frames' own OnShow logic
+--- resets scale-affecting state a frame later than their own Show fires.
+---@param frame Frame
+---@param skipRerun boolean? - Internal guard; omit when calling externally.
 function onShow(frame, skipRerun)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
@@ -549,11 +733,23 @@ function onShow(frame, skipRerun)
   end
 end
 
+--- Starts listening for the next GLOBAL_MOUSE_UP event so a drag that's still "in progress" from the
+--- registry's point of view (frameData.storage.isMoving) can be properly finalized even if the actual
+--- mouse-up happened somewhere our own OnMouseUp handler never received it (see onSubFrameHide() below
+--- for why that can happen).
+---@param frame Frame - The (root) frame whose drag should be finalized on the next mouse-up anywhere.
 local function waitForGlobalMouseUp(frame)
   awaitingGlobalMouseUp = frame
   module:RegisterEvent("GLOBAL_MOUSE_UP")
 end
 
+--- Hooked to a registered SUBFRAME's OnHide (never the root window's). If a subframe is hidden mid-drag --
+--- e.g. Blizzard swaps tabs/pages and hides the very panel you're dragging -- its own OnMouseUp will never
+--- fire (a hidden frame stops receiving mouse events), which would otherwise leave frameData.storage
+--- permanently stuck thinking a drag is still in progress. Recurses to the ROOT frame's storage (drags are
+--- always tracked/finalized at the root, see doOnMouseDown/doOnMouseUp) and, if that root thinks it's still
+--- mid-drag, falls back to waitForGlobalMouseUp() to catch the mouse-up wherever it actually lands.
+---@param frame Frame - The subframe that was just hidden.
 local function onSubFrameHide(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
@@ -566,6 +762,11 @@ local function onSubFrameHide(frame)
   end
 end
 
+--- AceEvent handler for the one-shot GLOBAL_MOUSE_UP registration from waitForGlobalMouseUp(): finalizes
+--- the stranded drag by calling the normal onMouseUp() path, then unregisters itself again (this event
+--- fires on every mouse-up game-wide, so we only ever want to listen for exactly one before going quiet).
+---@param event string - Always "GLOBAL_MOUSE_UP".
+---@param button string
 function module:GLOBAL_MOUSE_UP(event, button)
   self:UnregisterEvent(event)
   if not awaitingGlobalMouseUp then return end
@@ -573,8 +774,17 @@ function module:GLOBAL_MOUSE_UP(event, button)
   awaitingGlobalMouseUp = nil
 end
 
--- Anti-rubberband watchdog: if something else (Blizzard's own code, another addon) calls SetPoint on a
--- frame we've dragged, immediately reassert the dragged position instead of silently losing it.
+--- Anti-rubberband watchdog, secure-hooked to every registered frame's real SetPoint. If Blizzard's own
+--- code (or another addon) re-anchors a frame we've previously dragged -- e.g. simply reopening the
+--- window, or some other frame's layout logic repositioning it -- this immediately reasserts the dragged
+--- position instead of silently losing it to whatever SetPoint call just happened. Only applies to a
+--- frame that's either the root of its chain or has been Detached (an attached, non-root subframe's
+--- position is governed entirely by its parent, so it has nothing of its own to defend). Skipped entirely
+--- while `ignoreSetPointHook` is true, which setFramePoint() sets around its OWN SetPoint calls so this
+--- watchdog doesn't treat US moving the frame as something to fight back against. Under the "permanent"
+--- strategy, defers via addToSetFramePointsQueue() instead of reapplying synchronously (safer from
+--- directly inside a SetPoint hook -- see that function's own docs).
+---@param frame Frame - The frame whose SetPoint was just (really) called.
 function onSetPoint(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
@@ -594,7 +804,12 @@ function onSetPoint(frame)
   end
 end
 
--- Keeps a dragged/scaled frame from being able to get clamped/dragged off-screen entirely.
+--- Secure-hooked to every registered frame's SetWidth/SetHeight. Recomputes SetClampRectInsets so a frame
+--- can never be dragged/scaled so far off-screen that none of it remains visible/grabbable -- specifically,
+--- at least `clampDistance` pixels of the frame must always stay on-screen on every edge, regardless of
+--- how big the frame currently is (hence recomputing on every size change, not just once). Skipped for
+--- IgnoreClamping frames (frameData opt-out) since those manage their own clamping.
+---@param frame Frame
 function onSizeUpdate(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled or frameData.IgnoreClamping then return end
@@ -610,6 +825,11 @@ function onSizeUpdate(frame)
   frame:SetClampRectInsets(clampWidth, -clampWidth, -clampHeight, clampHeight)
 end
 
+--- Secure-hooked to Blizzard's own UIPanelUpdateScaleForFit/UpdateScaleForFit (whichever exists on this
+--- client version) -- the function Blizzard uses to auto-shrink certain panels to fit smaller screen
+--- resolutions. That auto-shrink otherwise fights directly with a user's own saved/session scale, so this
+--- reapplies our own scale immediately afterward to win that fight, the same way onShow() does.
+---@param frame Frame
 local function onUpdateScaleForFit(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
@@ -631,10 +851,17 @@ end
 --=====================================================================
 -- Mouse wheel capture
 --=====================================================================
--- A full-screen, top-strata frame arbitrates the scale-modifier+MouseWheel combo: it only actually
--- captures the wheel when the configured scale modifier is held over a registered frame that isn't
--- already fielding wheel/click input on its own (so we never steal scrolling from a spellbook list, quest
--- log, scrollable dialog, etc).
+--- Decides whether the full-screen arbitration frame (mouseWheelCaptureFrame, see
+--- initMouseWheelCaptureFrame() below) should currently be intercepting the mouse wheel at all. Called on
+--- every MODIFIER_STATE_CHANGED and every onEnter/onLeave. Only actually enables capture when: scaling is
+--- turned on, the scale modifier is currently held, the mouse is over at least one registered frame, AND
+--- (walking every frame currently under the cursor, topmost-first via GetMouseFoci) nothing ELSE under the
+--- cursor already wants the wheel for itself (a scrollable list, edit box, etc.) or is forbidden/secret --
+--- we bail out (defer) the instant we hit one of those, before ever reaching a frame we'd otherwise handle,
+--- since GetMouseFoci returns frames in top-to-bottom (visual stacking) order. Plain clickable widgets
+--- (buttons, tabs, item slots) are deliberately NOT treated as wheel-consumers here even though they can
+--- receive mouse focus, since otherwise densely-buttoned windows (CharacterFrame, MerchantFrame, BankFrame)
+--- would never be scalable except over their few genuinely blank spots.
 function checkMouseWheelCapture()
   if not mouseWheelCaptureFrame then return end
   mouseWheelCaptureFrame:EnableMouseWheel(false)
@@ -674,6 +901,12 @@ function checkMouseWheelCapture()
   end
 end
 
+--- One-time setup of the full-screen, TOOLTIP-strata (i.e. above virtually everything) arbitration frame
+--- used to implement scroll-to-scale: since a normal registered frame's own EnableMouseWheel would
+--- unconditionally steal the wheel from whatever's under the cursor, we instead leave every window's own
+--- wheel handling untouched and only turn ON this separate full-screen frame's own wheel handling for the
+--- brief moments checkMouseWheelCapture() decides scaling should actually happen -- otherwise it stays
+--- disabled and every wheel event passes through to whatever's normally below it, completely unaffected.
 local function initMouseWheelCaptureFrame()
   mouseWheelCaptureFrame = CreateFrame("Frame", "SlackHacksMovableWindowsMouseWheelCapture")
   mouseWheelCaptureFrame:SetPoint("TOPLEFT")
@@ -699,20 +932,39 @@ end
 --=====================================================================
 -- Move handles (for protected frames) & frame processing
 --=====================================================================
+--- Hooks `script` on `frame` via SecureHookScript, but only if the frame's template actually supports that
+--- script at all (HasScript) -- some Blizzard frames don't define e.g. OnHide, and hooking a nonexistent
+--- script errors instead of silently no-oping.
+---@param frame Frame
+---@param script string - Script name, e.g. "OnShow".
+---@param handler function
 local function hookScript(frame, script, handler)
   if frame:HasScript(script) then
     module:SecureHookScript(frame, script, handler)
   end
 end
 
--- A plain (unprotected) overlay button inheriting Blizzard's own PanelDragBarTemplate, so dragging a
--- protected frame still goes through Blizzard's native StartMoving()/StopMovingOrSizing(), just triggered
--- by our own OnMouseDown/OnMouseUp instead of the template's built-in unconditional left-click-drag.
--- Sized to only the top title-bar strip of the frame, not the whole window, so drags only start there --
--- optionally raised by titleBarRaise pixels above the frame's own top edge, for windows whose visible
--- title/banner art bleeds upward past their technical top-left corner (e.g. AchievementFrame).
--- Also owns the mouse-wheel-scaling hover region for the same reason: scroll-to-scale should only engage
--- over the title bar, not anywhere on the window (unless ignoreMouseWheel opts the frame out entirely).
+--- Creates the small, unprotected drag-bar overlay used to make a (possibly protected) frame movable and
+--- wheel-scalable without ever calling a protected method ourselves. It inherits Blizzard's own
+--- "PanelDragBarTemplate" so the actual StartMoving()/StopMovingOrSizing() calls always originate from
+--- Blizzard's own template code reacting to a real native drag gesture (see startMoving()/stopMoving()
+--- above for how we arm/disarm that), never from our own insecure OnMouseDown/OnDragStart -- this is what
+--- lets protected frames (CharacterFrame, BankFrame, etc.) be dragged at all outside of combat lockdown,
+--- since a plain insecure StartMoving() call on a protected frame would be blocked.
+--- Deliberately sized to only the frame's TOP title-bar strip (not the whole window), and reparented from
+--- its creation parent (rootFrame -- needed so its frame level is computed relative to the actual root
+--- window, not a possibly-detached subframe) onto the real target frame, positioned via SetPoint so it
+--- tracks the frame's own top edge. `titleBarRaise` extends that hit region upward past the frame's
+--- technical top-left corner for windows whose visible title/banner artwork bleeds above it (e.g.
+--- AchievementFrame). Also owns the scroll-to-scale hover region (onEnter/onLeave) for the same reason:
+--- scaling should only engage from the title bar, not anywhere on the window body -- unless
+--- `ignoreMouseWheel` opts the frame out of wheel scaling entirely.
+---@param frame Frame - The frame this handle should visually track and control.
+---@param rootFrame Frame - The root registered frame in this frame's chain (used only to compute frame level).
+---@param titleBarHeight number - Height of the drag-bar hit region.
+---@param titleBarRaise number - Extra pixels to extend the hit region upward past the frame's own top edge.
+---@param ignoreMouseWheel boolean? - If true, skip wiring up scroll-to-scale hover tracking for this handle.
+---@return Frame handle
 local function makeMoveHandle(frame, rootFrame, titleBarHeight, titleBarRaise, ignoreMouseWheel)
   local handle = CreateFrame("Frame", nil, rootFrame, "PanelDragBarTemplate")
   handle:SetParent(frame)
@@ -747,6 +999,12 @@ local function makeMoveHandle(frame, rootFrame, titleBarHeight, titleBarRaise, i
   return handle
 end
 
+--- Replaces (if one already exists, e.g. re-registration) and (re)creates the move handle for a registered
+--- frame, walking up frameData.parentData to find the true root of the registration chain first, since
+--- the handle's frame LEVEL (not its visual parent) needs to be computed relative to the root window so it
+--- reliably sits above the whole window's own layered decorations regardless of which subframe it's on.
+---@param frame Frame
+---@param frameData table - Must already have `.storage` set (via makeFrameMovable).
 local function makeMoveHandles(frame, frameData)
   if frameData.moveHandle then
     frameData.moveHandle:SetScript("OnEvent", nil)
@@ -771,6 +1029,18 @@ local function makeMoveHandles(frame, frameData)
   moveHandles[handle] = true
 end
 
+--- Does the actual one-time setup that turns a live Blizzard frame into a "registered" movable/scalable
+--- window: builds its storage table, aliases/loads its saved position (setupPointStorage), enables
+--- movability/clamping, creates its move handle (unless NonDraggable), wires up the OnShow/OnHide/SetPoint/
+--- SetWidth/SetHeight hooks that make dragging, scaling, and anti-rubberband persistence all work, then
+--- immediately re-applies any already-saved show/size/position state so the frame doesn't have to wait for
+--- its next natural Show to look right. No-ops (returns false) if the frame is currently protected mid-
+--- combat, since none of this setup is safe to do under combat lockdown.
+---@param frame Frame - The live frame to make movable.
+---@param frameName string - Its registered global name.
+---@param frameData table - Registration flags/config passed to module:RegisterFrame().
+---@param frameParent Frame? - The parent registered frame, if this is being processed as one of its SubFrames.
+---@return boolean ok
 local function makeFrameMovable(frame, frameName, frameData, frameParent)
   if not frame then return false end
   if InCombatLockdown() and (frameData.ForceUseSecureMoveHandle or frame:IsProtected()) then return false end
@@ -820,6 +1090,15 @@ local function makeFrameMovable(frame, frameName, frameData, frameParent)
   return true
 end
 
+--- Resolves a registered frame NAME to its live frame object (may not exist yet, e.g. a Blizzard
+--- sub-addon like Blizzard_AuctionHouseUI that hasn't loaded) and, if found and not already processed,
+--- runs makeFrameMovable() on it, then recurses into any configured SubFrames (passing the just-processed
+--- frame as their parent). Safe to call repeatedly/redundantly -- ApplyAll() calls this for every
+--- registered frame on every ADDON_LOADED, relying on the early-outs here to skip anything already done.
+---@param frameName string
+---@param frameData table
+---@param frameParent Frame? - Passed down when this call is itself processing a SubFrame entry.
+---@return boolean ok
 local function processFrame(frameName, frameData, frameParent)
   local frame = getFrameFromName(frameName)
   if not frame then return false end -- retried later via ApplyAll()/ADDON_LOADED
@@ -844,6 +1123,15 @@ local function processFrame(frameName, frameData, frameParent)
   return true
 end
 
+--- Reverses makeFrameMovable(): restores the frame's native movability/clamping/mouse state, hides and
+--- forgets its move handle, and marks it `disabled` so every hook installed on it (onShow, onSetPoint,
+--- etc.) becomes a no-op from here on rather than trying (and failing) to fully unhook everything --
+--- Blizzard's secure hooks can't be selectively removed, only ignored via this disabled flag. Recurses
+--- into SubFrames so disabling the module cleans up the whole registered tree, not just root windows.
+--- No-ops entirely if the frame is protected mid-combat, since none of this is safe to touch there either
+--- (this is only ever called from module:OnDisable(), so simply skipping is acceptable -- disabling mid-
+--- combat leaves the frame movable until the player is next out of combat and reloads/toggles again).
+---@param frame Frame
 local function unprocessFrame(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or not frameData.storage.hooked then return end
@@ -887,6 +1175,12 @@ function module:RegisterFrame(frameName, frameData)
   end
 end
 
+--- Retries processFrame() for every registered frame that isn't hooked yet (frames that didn't exist the
+--- first time, e.g. Blizzard sub-addons loaded after this module's own OnEnable), and re-registers the
+--- toast Edit Mode integration if it's enabled but hasn't been set up yet (AlertFrame or
+--- Blizzard_EditMode themselves may not have loaded the first time either). Wired to ADDON_LOADED so this
+--- naturally happens every time something new finishes loading, and also called once directly from
+--- OnEnable() to cover anything already loaded at that point.
 function module:ApplyAll()
   if not isModuleEnabled() then return end
   for frameName, frameData in pairs(registeredFrames) do
@@ -899,10 +1193,14 @@ function module:ApplyAll()
   end
 end
 
+--- Slash-command/options-panel action: forgets every saved drag position for every registered frame
+--- (including detach anchors), reverting everything back to Blizzard's own default anchors on next Show.
 function module:ResetPositions()
   wipe(settings().points)
 end
 
+--- Slash-command/options-panel action: forgets every saved AND session scale for every registered frame,
+--- reverting everything back to its native scale (1.0, or whatever Blizzard's own code sets) on next Show.
 function module:ResetScales()
   wipe(settings().scales)
   wipe(sessionScales)
@@ -919,32 +1217,56 @@ end
 -- request. Edit Mode has no native entry for AlertFrame, and AlertFrame itself can't be the thing we
 -- attach a selection box to anyway: Blizzard hides/shows it dynamically (there's no toast to show most of
 -- the time), and a Blizzard frame's own Hide() forces every child -- including a selection box we parented
--- to it -- invisible regardless of that child's own Show() call. So instead we do exactly what the
--- (excellent) reference addon RefineUI's Toasts module does: create our own tiny, permanently-shown,
--- invisible-by-default "mover" frame that we fully control, tell AlertFrame to anchor itself off of that
--- mover via the real Blizzard API `AlertContainerMixin:SetBaseAnchorFrame()`/`:UpdateAnchors()` (reviewed
--- directly against Blizzard_FrameXML/Mainline/AlertFrames.lua), and put the Edit Mode selection box --
--- Blizzard's actual "EditModeSystemSelectionTemplate", the same draggable/highlightable box every native
--- Edit Mode system (action bars, unit frames, etc.) uses -- on the mover instead of on AlertFrame. We
--- deliberately don't inherit the full "EditModeSystemTemplate"/EditModeSystemMixin -- that's wired into
--- Blizzard's own persisted per-layout settings system, which addons can't add a new entry to -- just the
--- selection/overlay box itself, with our own drag scripts and our own (non-Edit-Mode-layout-specific)
--- saved position, using the same getAbsoluteFramePosition()/setFramePoints() helpers as every other
--- window in this file.
+-- to it -- invisible regardless of that child's own Show() call. So instead we create our own tiny,
+-- permanently-shown, invisible-by-default "mover" frame that we fully control, tell AlertFrame to anchor
+-- itself off of that mover via the real Blizzard API
+-- `AlertContainerMixin:SetBaseAnchorFrame()`/`:UpdateAnchors()` (reviewed directly against
+-- Blizzard_FrameXML/Mainline/AlertFrames.lua), and put the Edit Mode selection box -- Blizzard's actual
+-- "EditModeSystemSelectionTemplate", the same draggable/highlightable box every native Edit Mode system
+-- (action bars, unit frames, etc.) uses -- on the mover instead of on AlertFrame. We deliberately don't
+-- inherit the full "EditModeSystemTemplate"/EditModeSystemMixin -- that's wired into Blizzard's own
+-- persisted per-layout settings system, which addons can't add a new entry to -- just the selection/
+-- overlay box itself, with our own drag scripts and our own (non-Edit-Mode-layout-specific) saved
+-- position, using the same getAbsoluteFramePosition()/setFramePoints() helpers as every other window in
+-- this file.
 
--- Lazily creates the mover the first time AlertFrame is available. Its starting position is either the
--- previously-saved spot, or (the very first time, before we've ever touched AlertFrame's anchor) a
--- snapshot of wherever Blizzard's own code currently has AlertFrame anchored, so the box starts out
--- exactly where toasts already appear instead of some arbitrary default.
---
--- No clamping/headroom reservation here: the user can drag this wherever they want, including off the
--- edges of the screen -- toasts aren't important enough to be worth restricting placement over.
+--- Lazily creates the toast mover the first time AlertFrame is available (it may not have loaded yet at
+--- OnEnable/ApplyAll time -- ApplyAll() retries this on every subsequent ADDON_LOADED). Its starting
+--- position is either the previously-saved spot, or (the very first time, before we've ever touched
+--- AlertFrame's anchor) a snapshot of wherever Blizzard's own code currently has AlertFrame anchored, so
+--- the box starts out exactly where toasts already appear instead of some arbitrary default. No clamping
+--- is applied -- the user can drag this anywhere, including off the edges of the screen -- toasts aren't
+--- important enough to be worth restricting placement over.
+---@return Frame? mover - nil if AlertFrame hasn't loaded yet.
 local function ensureToastMover()
   if toastMover then return toastMover end
 
   local alertFrame = _G[TOAST_FRAME_NAME]
   if not alertFrame then return nil end
 
+  -- Parented directly to the real UIParent -- NOT `fakeUIParent` (our own stand-in used everywhere else
+  -- in this file for saved-anchor purposes). This was the site of a real bug: an earlier version of this
+  -- function parented `mover` to `fakeUIParent` instead, on the assumption that `fakeUIParent` (being
+  -- `SetAllPoints(UIParent)`) was an interchangeable stand-in for the whole screen. In practice, one
+  -- user's box could not be dragged higher than roughly screen-vertical-center, even though the intended
+  -- clamp (a small ~150px headroom reserved for toasts stacking upward, see the removed
+  -- TOAST_STACK_HEADROOM below) should have permitted dragging almost to the actual top of the screen.
+  -- Debug prints of mover:GetTop()/GetBottom()/GetEffectiveScale() at the drag boundary ruled out a scale
+  -- mismatch (effective scale was a normal 1.0), and the user confirmed other movable windows (e.g.
+  -- CharacterFrame, which stays parented to the real UIParent) could reach the true top of the screen
+  -- fine. Printing fakeUIParent's OWN measured GetTop()/GetBottom() alongside the mover's was what
+  -- revealed the actual cause: fakeUIParent's rendered rect only spanned roughly 0-768 instead of the
+  -- true 0-1200 screen height in that user's setup, despite the SetAllPoints(UIParent) call -- meaning
+  -- `SetClampedToScreen()`/`SetClampRectInsets()` on a frame parented to fakeUIParent clamp relative to
+  -- fakeUIParent's own (potentially undersized) rect, not the true screen. Every OTHER window in this
+  -- file was unaffected by this because they keep their real native parent (typically UIParent itself)
+  -- and only ever use fakeUIParent as a SetPoint anchor TARGET, never as their actual CreateFrame parent
+  -- -- the toast mover was the one exception. The fix was simply to parent `mover` to the real UIParent.
+  -- Per a later request, the clamp itself (a small headroom reserved for toasts stacking upward off the
+  -- top of the screen, applied via SetClampedToScreen/SetClampRectInsets) was removed entirely afterward
+  -- -- toasts aren't important enough to be worth restricting placement over, so the box can now be
+  -- dropped anywhere, including off-screen -- but the UIParent-vs-fakeUIParent parenting lesson from
+  -- that bug still applies to any other floating "mover"-style frame added to this file in the future.
   local mover = CreateFrame("Frame", nil, UIParent)
   mover:SetSize(240, 50)
   mover:SetMovable(true)
@@ -957,9 +1279,9 @@ local function ensureToastMover()
   return mover
 end
 
--- Points AlertFrame's real anchor at our mover. Safe/cheap to call repeatedly (e.g. after every drag) to
--- make sure any toast currently on screen snaps to the new spot immediately instead of waiting for the
--- next one.
+--- Points AlertFrame's real anchor at our mover via Blizzard's own AlertContainerMixin API. Safe/cheap to
+--- call repeatedly (e.g. after every drag) to make sure any toast currently on screen snaps to the new
+--- spot immediately instead of waiting for the next one to queue up.
 local function applyToastAnchor()
   local alertFrame = _G[TOAST_FRAME_NAME]
   local mover = toastMover
@@ -968,9 +1290,11 @@ local function applyToastAnchor()
   alertFrame:UpdateAnchors()
 end
 
--- Shows the selection box (highlighted, not selected) while Edit Mode is open and the feature is enabled;
--- hides it otherwise. Also used to "deselect" our box whenever a native Blizzard Edit Mode system gets
--- selected instead.
+--- Shows the selection box in its "highlighted" (hovered-looking, but not actively selected) state
+--- whenever Edit Mode is open and the feature is enabled; hides it otherwise (feature disabled, or Edit
+--- Mode closed). Also doubles as the "deselect our box" handler whenever a native Blizzard Edit Mode
+--- system gets selected instead (see registerToastEditMode()'s SelectSystem hook below) -- since
+--- ShowHighlighted() with no argument reverts a previously ShowSelected(true) box back to just highlighted.
 local function resetToastSelection()
   local selection = toastSelection
   if not selection then return end
@@ -982,18 +1306,35 @@ local function resetToastSelection()
   end
 end
 
+--- OnMouseDown handler for the toast selection box: clears whatever native Edit Mode system (action bars,
+--- unit frames, etc.) is currently selected first, so our box and a native one never both claim to be
+--- "selected" at once and fight over subsequent drag input, then marks our own box selected.
+---@param selection Frame - The EditModeSystemSelectionTemplate-based selection frame (self).
 local function onToastMouseDown(selection)
   if InCombatLockdown() then return end
   EditModeManagerFrame:ClearSelectedSystem() -- deselect any native system so they don't fight over input
   selection:ShowSelected(true)
 end
 
+--- OnDragStart handler for the toast selection box: begins dragging the underlying mover frame directly
+--- (mover:StartMoving() -- not the selection box itself, which merely visually overlays it 1:1 via
+--- SetAllPoints). Registers PLAYER_REGEN_DISABLED as a safety net so entering combat mid-drag reliably
+--- ends the drag via onToastDragStop (wired as this frame's OnEvent, see ensureToastSelection() below)
+--- instead of leaving the mover stuck mid-move.
+---@param selection Frame - The selection frame (self); selection.mover is set in ensureToastSelection().
 local function onToastDragStart(selection)
   if InCombatLockdown() then return end
   selection:RegisterEvent("PLAYER_REGEN_DISABLED") -- safety net: bail out of the drag if combat starts
   selection.mover:StartMoving()
 end
 
+--- OnDragStop handler for the toast selection box (also reused directly as the PLAYER_REGEN_DISABLED
+--- OnEvent handler, see the safety net in onToastDragStart() above): stops the mover's drag, captures its
+--- new position via getAbsoluteFramePosition(), persists it to settings().toastPoints, reapplies it (for
+--- symmetry with every other window's drag-stop handling, though the position shouldn't have visibly
+--- changed), and finally re-anchors AlertFrame onto the mover's new spot so any currently-visible toast
+--- snaps there immediately.
+---@param selection Frame
 local function onToastDragStop(selection)
   if InCombatLockdown() then return end
   selection:UnregisterEvent("PLAYER_REGEN_DISABLED")
@@ -1010,6 +1351,12 @@ local function onToastDragStop(selection)
   applyToastAnchor()
 end
 
+--- Lazily creates the Edit Mode selection/overlay box the first time the mover is available (which itself
+--- requires AlertFrame to exist -- see ensureToastMover()). Inherits Blizzard's real
+--- "EditModeSystemSelectionTemplate" (not the full "EditModeSystemTemplate", see the file-level comment
+--- above for why) so it looks and drags exactly like every native Edit Mode system's own selection box,
+--- fully sized to and parented under the mover so it visually tracks it at all times.
+---@return Frame? selection - nil if the mover isn't available yet (AlertFrame not loaded); ApplyAll() retries.
 local function ensureToastSelection()
   if toastSelection then return toastSelection end
 
@@ -1033,6 +1380,13 @@ local function ensureToastSelection()
   return selection
 end
 
+--- Sets up (or, if already set up, just refreshes) the toast Edit Mode integration: ensures the selection
+--- box exists (which in turn ensures the mover exists), applies AlertFrame's anchor to the mover, and --
+--- only once, the very first time -- hooks EditModeManagerFrame's own OnShow/OnHide (to show/hide our box
+--- in sync with Edit Mode opening/closing) and its SelectSystem method (so selecting any native system,
+--- e.g. clicking the action bars, properly deselects our box instead of showing two "selected" boxes at
+--- once). Called from ApplyAll() (on load/ADDON_LOADED, if the feature is enabled), and from
+--- SetMoveToastsEnabled() when the user turns the feature on live.
 function registerToastEditMode()
   if not _G.EditModeManagerFrame then return end -- Blizzard_EditMode not loaded yet; ApplyAll() retries
 
@@ -1055,6 +1409,7 @@ end
 --- Enable/disable moving Blizzard's toasts (see TOAST_FRAME_NAME) through the real Edit Mode UI.
 --- Disabling only hides the Edit Mode selection box -- it does not move the toasts back, same as
 --- disabling this module entirely doesn't undo any other window's saved position.
+---@param enabled boolean
 function module:SetMoveToastsEnabled(enabled)
   settings().moveToasts = enabled
   if not isModuleEnabled() then return end -- picked up on next Enable via registerDefaultFrames()
@@ -1065,8 +1420,10 @@ function module:SetMoveToastsEnabled(enabled)
   end
 end
 
--- Curated set of commonly-used windows, not an exhaustive database -- add more via module:RegisterFrame()
--- as needed.
+--- Registers the curated, built-in set of commonly-movable Blizzard windows this addon ships with (not an
+--- exhaustive database of every frame across every WoW expansion/version -- callers can add more via
+--- module:RegisterFrame()). Also kicks off the toast Edit Mode integration if that setting is already
+--- enabled from a previous session. Called once from OnInitialize().
 local function registerDefaultFrames()
   -- Modern retail replaced the old SpellBookFrame with PlayerSpellsFrame (Blizzard_PlayerSpells).
   local spellBookFrameName = isRetail() and "PlayerSpellsFrame" or "SpellBookFrame"
@@ -1120,20 +1477,32 @@ end
 --=====================================================================
 -- Lifecycle
 --=====================================================================
+--- Turns the whole module on/off (the top-level "Enable Movable Windows" checkbox), via Ace3's standard
+--- Enable()/Disable() (which in turn call OnEnable()/OnDisable() below).
+---@param enabled boolean
 function module:SetEnabled(enabled)
   settings().enabled = enabled
   if enabled then self:Enable() else self:Disable() end
 end
 
+--- Slash-command toggle for the whole module's on/off state, with a chat confirmation printed since this
+--- (unlike the options-panel checkbox, which is already visible feedback) is typically invoked "blind".
 function module:Toggle()
   self:SetEnabled(not settings().enabled)
   print("SlackHacks: Movable Windows " .. (settings().enabled and "enabled" or "disabled"))
 end
 
+--- Global slash-command entry point (bound in Bindings.xml/Core.lua) for toggling the module.
 function toggleMovableWindows()
   Self.MovableWindows:Toggle()
 end
 
+--- AceAddon lifecycle: runs once, at addon load. Disables the whole module outright on any client that's
+--- neither current retail nor WoW Forever (Classic Era) -- this file is deliberately not maintained
+--- against every historical WoW version. Also does one-time migration cleanup of a legacy bug (an earlier
+--- version of this module persisted ContainerFrame1..13 positions, which could fight Blizzard's own
+--- dynamic bag-stacking layout -- see the comment on registerDefaultFrames() for why those are no longer
+--- registered at all), then registers the built-in frame list.
 function module:OnInitialize()
   if not (isRetail() or isForever()) then
     self:SetEnabledState(false)
@@ -1152,6 +1521,11 @@ function module:OnInitialize()
   end
 end
 
+--- AceAddon lifecycle: runs whenever the module transitions to enabled (initial login with the setting
+--- on, or the user flipping the checkbox/slash-toggling it on). Sets up the shared mouse-wheel-capture
+--- arbitration frame and the UpdateScaleForFit hook exactly once (idempotent across repeated enables), and
+--- (re)applies every registered frame's movability/position/scale via ApplyAll(), also registering it to
+--- rerun on every future ADDON_LOADED so anything not yet loaded gets picked up as soon as it is.
 function module:OnEnable()
   if not (isRetail() or isForever()) then
     self:SetEnabledState(false)
@@ -1176,6 +1550,12 @@ function module:OnEnable()
   self:ApplyAll()
 end
 
+--- AceAddon lifecycle: runs whenever the module transitions to disabled. Unregisters every event/hook this
+--- module installed (Ace3's UnregisterAllEvents/UnhookAll), then unprocesses every registered frame
+--- (restoring native movability/clamping/mouse state -- see unprocessFrame()) and hides the shared
+--- mouse-wheel-capture frame and the toast selection box. `toastHooked` is reset to nil (rather than left
+--- stale) since UnhookAll() above already tore down the EditModeManagerFrame hooks it guards -- if the
+--- module is re-enabled later, registerToastEditMode() needs to know to re-install them.
 function module:OnDisable()
   self:UnregisterAllEvents()
   self:UnhookAll()

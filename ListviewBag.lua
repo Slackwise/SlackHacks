@@ -4,9 +4,9 @@ setfenv(1, _G.SlackHacks)
   ListviewBag: a simplified, sortable list-view alternative to the default grid-style bag window.
   Reuses Blizzard's own bag data APIs (C_Container) and as many native widgets/templates as possible
   (NineSlicePanelTemplate border, UIPanelCloseButton, UICheckButtonTemplate, UIPanelScrollFrameTemplate,
-  StackSplitFrame) so the window looks/feels like a first-party Blizzard panel and behaves correctly
-  in combat (no custom secure wrappers -- every click/drag script calls the same unprotected Container
-  APIs the default UI itself uses, straight from a real hardware OnClick/OnDrag event).
+  StackSplitFrame) so the window looks/feels like a first-party Blizzard panel. Row buttons use
+  Blizzard's ContainerFrameItemButtonTemplate for native item click/use behavior; custom row visuals
+  sit around that button while its Blizzard click handler remains intact.
 ]]--
 
 local module = Self:NewModule("ListviewBag", "AceEvent-3.0")
@@ -68,27 +68,6 @@ local function bagIDs()
     ids[#ids + 1] = Enum.BagIndex.ReagentBag
   end
   return ids
-end
-
-local function findEmptyBagSlot()
-  for _, bagID in ipairs(bagIDs()) do
-    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
-      if not C_Container.GetContainerItemInfo(bagID, slot) then
-        return bagID, slot
-      end
-    end
-  end
-end
-
--- Every previous fix here focused on how bagID/slot are *stored*, or on reusing Blizzard's mixin
--- *functions* on a plain anonymous Button, and neither mattered. Per Sorted's own source, the row must
--- actually be built from the real "ContainerFrameItemButtonTemplate" with an explicit name (see
--- createRow()) for Blizzard's own click handling to run untainted. row:GetBagID() (template-provided)
--- falls back to row:GetParent():GetID() since SetBagID/self.bagID is never set -- see createRow().
-local function decodeRowID(row)
-  local slot = row:GetID()
-  if slot == 0 then return nil end
-  return row:GetBagID(), slot
 end
 
 local function settings()
@@ -425,31 +404,20 @@ local function cycleStatus(key, statusInfo)
 end
 
 local function createRow(index)
-  -- Layout wrapper only now (bagID no longer lives on holder -- see row.SetBagID/GetBagID below).
-  local holder = CreateFrame("Frame", nil, scrollChild)
-  holder:SetHeight(ROW_HEIGHT)
-
-  -- Sorted's own source has a comment explaining this exact structure: "For item entry buttons to
-  -- function with Blizzard's code untainted, there must be a parent frame to hold the bag ID" -- and
-  -- critically, the button needs an explicit unique name (not nil), since the template's XML uses
-  -- $parent-relative child names that can't resolve on an anonymous frame. Sorted itself creates this
-  -- as a plain "BUTTON" (not "ItemButton") widget type with this template, so mirror that exactly.
-  local row = CreateFrame("Button", "SlackHacksListviewBagRow" .. index, holder, "ContainerFrameItemButtonTemplate")
-  row.holder = holder
-  row:SetFrameLevel(holder:GetFrameLevel() + 1)
-  row:ClearAllPoints()
-  row:SetAllPoints(holder)
+  local row = CreateFrame("Button", nil, scrollChild)
   row:SetHeight(ROW_HEIGHT)
 
-  -- Only the template's behavior (mixin methods, click/drag scripts) is wanted -- its own built-in
-  -- visual regions (icon border, normal/highlight textures) would clash with our custom columns.
-  if row:GetNormalTexture() then row:SetNormalTexture(nil) end
-  if row:GetHighlightTexture() then row:SetHighlightTexture(nil) end
-  for _, region in ipairs({ row:GetRegions() }) do
-    if region.Hide and region ~= row then
+  row.itemButton = CreateFrame("Button", nil, row, "ContainerFrameItemButtonTemplate")
+  row.itemButton:SetAllPoints(row)
+  for _, region in pairs(row.itemButton) do
+    if type(region) == "table" and region.Hide then
       region:Hide()
+      region:ClearAllPoints()
     end
   end
+  if row.itemButton:GetNormalTexture() then row.itemButton:SetNormalTexture("") end
+  if row.itemButton:GetHighlightTexture() then row.itemButton:SetHighlightTexture("") end
+  row.itemButton:Show()
 
   -- Same row hover-highlight bar and alternating-row background strip the Guild/Community roster list
   -- uses (CommunitiesMemberListEntryTemplate), reused here instead of a custom highlight color.
@@ -516,16 +484,13 @@ local function createRow(index)
   row.bindIcon = row:CreateTexture(nil, "ARTWORK")
   row.bindIcon:SetSize(18, 18)
 
-  -- Dragging/OnEnter/OnLeave/OnUpdate are already wired up by the template's own OnLoad (which just
-  -- ran as part of CreateFrame above) -- only our own extra OnEnter/OnLeave for the custom tooltip
-  -- fallback (row.hyperlink for rows without a live entries yet) still needs adding, via HookScript so
-  -- the template's own OnEnter/OnLeave (tooltip/cursor reset) keeps running too.
-  row:HookScript("OnEnter", function(self)
-    if not row.primaryEntry and row.hyperlink then
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:SetHyperlink(row.hyperlink)
-      GameTooltip:Show()
-    end
+  row.itemButton:HookScript("OnEnter", function()
+    local highlight = row:GetHighlightTexture()
+    if highlight then highlight:Show() end
+  end)
+  row.itemButton:HookScript("OnLeave", function()
+    local highlight = row:GetHighlightTexture()
+    if highlight then highlight:Hide() end
   end)
   return row
 end
@@ -618,11 +583,10 @@ renderRows = function()
 
   for i, data in ipairs(rows) do
     local row = acquireRow(i)
-    row.holder:ClearAllPoints()
-    row.holder:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
-    row.holder:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
-    row.holder:Show()
-    row:Show() -- ContainerFrameItemButtonTemplate starts hidden (Blizzard's own Initialize() shows it)
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
+    row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+    row:Show()
     row.stripe:SetShown(i % 2 == 0) -- alternating-row banding, same look as the guild roster list
     row.itemID = data.itemID
     row.hyperlink = data.hyperlink
@@ -632,17 +596,10 @@ renderRows = function()
     row.statusInfo = data.statusInfo
     row.primaryEntry = data.entries and data.entries[1]
     row.locked = isProtectedItem(data.statusKey)
-    -- decodeRowID()/Blizzard's own OnClick read these back via row:GetBagID() (-> holder:GetID())
-    -- and row:GetID().
-    row.holder:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
-    row:SetID(row.primaryEntry and row.primaryEntry.slot or 0)
-    -- Blizzard's OnClick doesn't know about our "protected item" concept, so right-click is disabled
-    -- at the RegisterForClicks level instead of inside a (now nonexistent) custom OnClick handler.
-    if row.locked and MerchantFrame and MerchantFrame:IsShown() then
-      row:RegisterForClicks("LeftButtonUp")
-    else
-      row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    end
+    row:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
+    row.itemButton:SetID(row.primaryEntry and row.primaryEntry.slot or 0)
+    local canUseItem = row.primaryEntry and not (row.locked and MerchantFrame and MerchantFrame:IsShown())
+    row.itemButton:SetEnabled(not not canUseItem)
 
     if data.isGroupHeader then
       row.collapseBtn:Show()
@@ -705,7 +662,7 @@ renderRows = function()
   end
 
   for i = #rows + 1, #rowPool do
-    rowPool[i].holder:Hide()
+    rowPool[i]:Hide()
   end
 end
 
@@ -1016,11 +973,6 @@ local function buildFrame()
       if frame:IsShown() then frame:Hide() else frame:Show() end
     end
   end)
-  -- Registered directly on the frame (not via AceEvent/module lifecycle) so a stale override binding
-  -- left behind by a combat-lockdown-blocked updateListViewBindings() still gets cleared once combat
-  -- ends, even if the module was disabled (and its AceEvent registrations torn down) mid-combat.
-  bagKeyBindingButton:RegisterEvent("PLAYER_REGEN_ENABLED")
-  bagKeyBindingButton:SetScript("OnEvent", function() updateListViewBindings() end)
 
   -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
   searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
@@ -1180,13 +1132,14 @@ function module:MERCHANT_SHOW()
   if footer and footer.sellTrashButton then
     footer.sellTrashButton:SetEnabled(true)
   end
+  renderRows()
 end
 
 function module:MERCHANT_CLOSED()
   if footer and footer.sellTrashButton then
     footer.sellTrashButton:SetEnabled(false)
   end
-  renderRows() -- re-enables right-click on protected rows now that MerchantFrame:IsShown() is false
+  renderRows()
 end
 
 function module:OnNativeBagOpen()

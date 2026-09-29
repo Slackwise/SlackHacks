@@ -5,12 +5,14 @@ Self.Weeklies = module
 
 -- Widget backing the "Gilded Stash" counter shown on the Delver's Journey (rank 4 reward). Widget ID and
 -- required count confirmed against MidnightRoutine's Delves.lua, which reads the same live tooltip text.
+-- Widget 7591 is the in-game Delver's Journey counter; its tooltip is the authoritative weekly progress source.
 local GILDED_STASH_WIDGET_ID = 7591
 local GILDED_STASH_REQUIRED = 4
 local TROVEHUNTERS_BOUNTY_QUEST_ID = 86371
 local TROVEHUNTERS_BOUNTY_ICON_ID = 1064187
 local DELVE_RENOWN_ICON_ID = 6025441
 local VALEERA_ICON_ID = 236439
+-- Midnight currency IDs let us query live amounts and caps even when a currency is not currently tracked.
 local DELVE_CURRENCIES = {
   { name = "Restored Coffer Keys", id = 3028 },
   { name = "Coffer Key Shards", id = 3310 },
@@ -35,10 +37,15 @@ local button
 local contextMenu
 local contextMenuRows = {}
 
+--- Returns the Delver's Journey faction ID for the current season, if available.
+---@return number|nil factionID Seasonal major-faction ID, or nil when Delves data is unavailable.
 local function delvesSeasonFactionID()
   return C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason and C_DelvesUI.GetDelvesFactionForSeason()
 end
 
+--- Reads weekly Gilded Stash progress from the Delver's Journey widget.
+--- Caches remaining stashes because Blizzard blanks the widget while the player is inside a Delve.
+---@return table|nil info Contains `current`, `max`, and `completed`; nil when progress cannot be determined.
 local function gildedStashInfo()
   if C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve() then
     -- The widget goes blank while inside a delve, so fall back to the last value we saw outside one.
@@ -78,10 +85,19 @@ local function gildedStashInfo()
   }
 end
 
+--- Checks whether this week's Trovehunter's Bounty quest reward has been claimed.
+---@return boolean completed True when the weekly quest is flagged complete.
 local function trovehuntersBountyCompleted()
   return C_QuestLog.IsQuestFlaggedCompleted(TROVEHUNTERS_BOUNTY_QUEST_ID)
 end
 
+--- Looks up a currency by ID, falling back to the visible currency list for currencies without an ID.
+--- Returns the full record as well as amount and icon so callers can display weekly and total caps.
+---@param currencyName string Localized display name used by the currency-list fallback.
+---@param currencyID number|nil Stable currency ID when known.
+---@return number|nil quantity Current balance, if the currency is known.
+---@return number|nil iconFileID Currency icon texture ID.
+---@return table|nil info Full `CurrencyInfo` record, including cap fields.
 local function currencyAmount(currencyName, currencyID)
   if currencyID and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
     local currency = C_CurrencyInfo.GetCurrencyInfo(currencyID)
@@ -96,15 +112,19 @@ local function currencyAmount(currencyName, currencyID)
   end
 end
 
+--- Adds a fixed-size inline texture before a tooltip label.
+---@param label string Text displayed after the icon.
+---@param icon number|string|nil Texture ID, atlas, or nil for a plain label.
+---@return string text WoW tooltip markup and label text.
 local function tooltipIconLabel(label, icon)
   if not icon then return label end
   return ("|T%s:14:14:0:0|t %s"):format(icon, label)
 end
 
--- Valeera/Brann's own companion level; a Friendship-style reputation, distinct from the seasonal
--- Delver's Journey renown below (its rank/max come from GetFriendshipReputationRanks, not renown levels).
--- Calling GetFactionForCompanion with no argument defaults to the player's active companion, same as
--- Blizzard's own DelvesCompanionConfigurationFrameMixin:Refresh (avoids relying on playerCompanionID).
+--- Reads the active Delve companion's Friendship-style reputation rank.
+--- This is Valeera/Brann's personal level, distinct from seasonal Delver's Journey renown. Passing no
+--- companion ID follows Blizzard's own configuration-frame behavior and resolves the active companion.
+---@return table|nil info Contains `name`, `level`, and `maxLevel`; nil when reputation data is unavailable.
 local function companionReputation()
   if not C_DelvesUI or not C_DelvesUI.GetFactionForCompanion then return nil end
   local ok, companionFactionID = pcall(C_DelvesUI.GetFactionForCompanion)
@@ -123,6 +143,8 @@ local function companionReputation()
   return { name = name or "Valeera", level = rankInfo.currentLevel, maxLevel = rankInfo.maxLevel }
 end
 
+--- Reads the current season's Delver's Journey renown level and, when available, its cap.
+---@return table|nil info Contains `level` and optional `maxLevel`; nil when seasonal renown is unavailable.
 local function delveRenownLevel()
   local seasonFactionID = delvesSeasonFactionID()
   if not seasonFactionID or not C_MajorFactions then return nil end
@@ -140,6 +162,9 @@ local function delveRenownLevel()
   return { level = info.renownLevel, maxLevel = maxLevel }
 end
 
+--- Creates one circular Gilded Stash texture used by the tooltip progress row.
+---@param parent Frame Parent frame for the icon.
+---@return Frame frame Icon frame exposing its masked texture as `frame.icon`.
 local function createStashIcon(parent)
   local frame = CreateFrame("Frame", nil, parent)
   frame:SetSize(STASH_ICON_SIZE, STASH_ICON_SIZE)
@@ -157,6 +182,7 @@ local function createStashIcon(parent)
   return frame
 end
 
+--- Opens the Delver's Journey page in the Encounter Journal for the current seasonal faction.
 local function openDelveRenownJourney()
   local factionID = delvesSeasonFactionID()
   if not factionID then return end
@@ -164,11 +190,14 @@ local function openDelveRenownJourney()
   if EncounterJournal_OpenToJourney then EncounterJournal_OpenToJourney(factionID) end
 end
 
+--- Loads and displays Blizzard's companion configuration panel for the active companion.
 local function openDelveCompanionPanel()
   if C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_DelvesCompanionConfiguration") end
   if DelvesCompanionConfigurationFrame then ShowUIPanel(DelvesCompanionConfigurationFrame) end
 end
 
+-- Toy actions use collection item IDs and the secure `toy` action type; direct Lua casts are protected.
+-- L00T RAID-R Mini is a consumable item, so it uses the secure `item` action type instead.
 local CONTEXT_MENU_OPTIONS = {
   { name = "Open Delve Renown Journey", icon = DELVE_RENOWN_ICON_ID, action = openDelveRenownJourney },
   { name = "See Valeera Sanguinar's Loadout", icon = VALEERA_ICON_ID, action = openDelveCompanionPanel },
@@ -177,6 +206,9 @@ local CONTEXT_MENU_OPTIONS = {
   { name = "Use L00T RAID-R Mini", itemID = 244193 },
 }
 
+--- Resolves a menu option's texture from its explicit icon, Toy Box entry, spell, or item.
+---@param option table Context-menu option containing an icon or toy/spell/item ID.
+---@return number|string|nil icon Texture ID or atlas, if available.
 local function contextMenuIcon(option)
   if option.icon then return option.icon end
   if option.toyID and C_ToyBox and C_ToyBox.GetToyInfo then
@@ -187,10 +219,47 @@ local function contextMenuIcon(option)
   if option.itemID and C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(option.itemID) end
 end
 
+--- Hides the custom context menu if it has been created.
 local function closeContextMenu()
   if contextMenu then contextMenu:Hide() end
 end
 
+--- Displays the matching item, toy, or spell tooltip for a hovered action row.
+---@param row Button Context-menu row carrying itemID, toyID, or spellID.
+local function onContextMenuRowEnter(row)
+  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  if row.toyID then
+    GameTooltip:SetToyByItemID(row.toyID)
+  elseif row.itemID then
+    GameTooltip:SetItemByID(row.itemID)
+  elseif row.spellID then
+    GameTooltip:SetSpellByID(row.spellID)
+  else
+    GameTooltip_Hide()
+    return
+  end
+  GameTooltip:Show()
+end
+
+--- Closes the action menu after a secure row completes its click action.
+---@param row Button Clicked row; `action` is an optional non-secure menu action.
+local function onContextMenuRowPostClick(row)
+  closeContextMenu()
+  if row.action then row.action() end
+end
+
+--- Handles Blizzard's global mouse-down event by dismissing clicks outside the menu and its owner.
+local function onGlobalMouseDown()
+  if contextMenu:IsShown() and not contextMenu:IsMouseOver() and not (contextMenu.anchor and contextMenu.anchor:IsMouseOver()) then
+    closeContextMenu()
+  end
+end
+
+--- Creates one reusable secure menu row that can activate a toy or item on hardware click.
+--- Unlike a Blizzard Menu compositor row, this row itself owns the secure action attributes, matching
+--- the working secure-button pattern used by Buffs.lua.
+---@param index number Stable row index used to name the frame.
+---@return Button row Secure action button with icon, label, and tooltip handlers.
 local function createContextMenuRow(index)
   local row = CreateFrame("Button", "SlackHacksDelvesContextMenuRow" .. index, contextMenu, "BackdropTemplate, SecureActionButtonTemplate")
   row:SetHeight(24)
@@ -215,29 +284,17 @@ local function createContextMenuRow(index)
   name:SetJustifyH("LEFT")
   row.name = name
 
-  row:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    if self.toyID then
-      GameTooltip:SetToyByItemID(self.toyID)
-    elseif self.itemID then
-      GameTooltip:SetItemByID(self.itemID)
-    elseif self.spellID then
-      GameTooltip:SetSpellByID(self.spellID)
-    else
-      GameTooltip_Hide()
-      return
-    end
-    GameTooltip:Show()
-  end)
+  -- The secure row itself receives the click; tooltip callbacks never execute protected actions.
+  row:SetScript("OnEnter", onContextMenuRowEnter)
   row:SetScript("OnLeave", GameTooltip_Hide)
-  row:SetScript("PostClick", function(self)
-    closeContextMenu()
-    if self.action then self.action() end
-  end)
+  row:SetScript("PostClick", onContextMenuRowPostClick)
 
   return row
 end
 
+--- Toggles the Delves action menu below the tracker icon.
+--- Uses reusable secure rows because protected toy/item actions must receive the actual hardware click.
+---@param anchor Button Tracker button used to position the menu and exempt it from outside-click dismissal.
 local function openContextMenu(anchor)
   if InCombatLockdown() then return end
   GameTooltip_Hide()
@@ -251,11 +308,8 @@ local function openContextMenu(anchor)
     background:SetAtlas("common-dropdown-c-bg")
     background:SetPoint("TOPLEFT", -17, 12)
     background:SetPoint("BOTTOMRIGHT", 17, -22)
-    EventRegistry:RegisterFrameEventAndCallback("GLOBAL_MOUSE_DOWN", function()
-      if contextMenu:IsShown() and not contextMenu:IsMouseOver() and not (contextMenu.anchor and contextMenu.anchor:IsMouseOver()) then
-        closeContextMenu()
-      end
-    end)
+    -- Blizzard's global mouse event restores normal outside-click dismissal without polling mouse position.
+    EventRegistry:RegisterFrameEventAndCallback("GLOBAL_MOUSE_DOWN", onGlobalMouseDown)
   end
 
   if contextMenu:IsShown() then
@@ -293,6 +347,7 @@ local function openContextMenu(anchor)
   contextMenu:Show()
 end
 
+--- Lazily creates the Objective Tracker button and wires its tooltip and context-menu interactions.
 local function createButton()
   if button then return end
   local header = ObjectiveTrackerFrame and ObjectiveTrackerFrame.Header
@@ -321,7 +376,7 @@ local function createButton()
 
   button:SetScript("OnEnter", module.ShowTooltip)
   button:SetScript("OnLeave", GameTooltip_Hide)
-  button:SetScript("OnClick", function(self) openContextMenu(self) end)
+  button:SetScript("OnClick", openContextMenu)
 
   button:Hide()
 end
@@ -331,6 +386,9 @@ end
 -- custom textures within a line.
 local tooltipStashIcons
 
+--- Lazily creates the four stash-slot icons over the tooltip's right-aligned progress value.
+--- The tooltip-cleared hook prevents these custom textures leaking onto unrelated GameTooltip content.
+---@return Frame container Container with four child stash-icon frames.
 local function getTooltipStashIcons()
   if tooltipStashIcons then return tooltipStashIcons end
   local container = CreateFrame("Frame", nil, GameTooltip)
@@ -352,12 +410,19 @@ local function getTooltipStashIcons()
 
   -- GameTooltip is shared by every tooltip in the game; without this the icons would keep showing
   -- (still parented/anchored from our last use) whenever the tooltip is reused for something else.
-  GameTooltip:HookScript("OnTooltipCleared", function() container:Hide() end)
+  --- Hides the stash-slot overlay when the shared tooltip is cleared or reused.
+  local function onTooltipCleared()
+    container:Hide()
+  end
+  GameTooltip:HookScript("OnTooltipCleared", onTooltipCleared)
 
   tooltipStashIcons = container
   return container
 end
 
+--- Populates the tracker tooltip with weekly objectives, currencies, companion rank, and seasonal renown.
+--- Stash icons are positioned after `GameTooltip:Show()` because custom textures cannot be inserted into a line.
+---@param self Button Tracker button owning the tooltip.
 function module.ShowTooltip(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:SetText("Delves", 1, 1, 1)
@@ -380,6 +445,7 @@ function module.ShowTooltip(self)
   for _, currency in ipairs(DELVE_CURRENCIES) do
     local amount, icon, info = currencyAmount(currency.name, currency.id)
     local displayAmount = amount or "Unknown"
+    -- These currencies expose explicit weekly and total caps in CurrencyInfo; other currencies show balance only.
     if currency.id == 3356 and info then
       displayAmount = info.quantity .. " / " .. info.maxWeeklyQuantity .. " (" .. info.maxQuantity .. ")"
     elseif currency.id == 3310 and info then
@@ -423,6 +489,8 @@ function module.ShowTooltip(self)
   end
 end
 
+--- Creates/updates the tracker button and hides it when weekly tracking is disabled.
+--- The door atlas reflects Gilded Stash completion; the map marker independently reflects bounty availability.
 function module:Refresh()
   createButton()
   if not button then return end
@@ -451,21 +519,27 @@ function module:Refresh()
   button:Show()
 end
 
+--- Updates the global Weeklies module setting and enables or disables its event handlers.
+---@param enabled boolean Whether weekly tracking is enabled.
 function module:SetEnabled(enabled)
   db.profile.weeklies.enabled = enabled
   if enabled then self:Enable() else self:Disable() end
 end
 
+--- Updates the Delves tracker preference and immediately refreshes its button.
+---@param enabled boolean Whether the Delves tracker should be shown.
 function module:SetTrackDelves(enabled)
   db.profile.weeklies.trackDelves = enabled
   self:Refresh()
 end
 
+--- AceAddon initialization hook; creates the button when its Objective Tracker anchor exists.
 function module:OnInitialize()
   createButton()
   if not db.profile.weeklies.enabled then self:Disable() end
 end
 
+--- Registers events that can change stash progress or bounty completion, then performs an initial refresh.
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("UPDATE_UI_WIDGET", "Refresh")
@@ -473,6 +547,7 @@ function module:OnEnable()
   self:Refresh()
 end
 
+--- Unregisters module events and hides the tracker button when the module is disabled.
 function module:OnDisable()
   self:UnregisterAllEvents()
   if button then button:Hide() end
