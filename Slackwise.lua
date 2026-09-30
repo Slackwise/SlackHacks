@@ -944,6 +944,11 @@ BINDINGS = {
       {"CTRL-H",        "Teleport: Moonglade"},
     },
     HUNTER = {
+      {"E",             {"!ENGAGE", "inv_misc_questionmark", "#showtooltip 18\n/startattack\n/cast !Auto Shot"}},
+      {"R",             "Raptor Strike"},
+      {"CTRL-G",        "Elune's Light"},
+      {"SHIFT-Z",       "Shadowmeld"},
+      {"ALT-CTRL-Z",    "Shadowmeld"},
     },
     MAGE = {
       {"E",             {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"}},
