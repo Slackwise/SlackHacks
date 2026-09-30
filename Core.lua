@@ -773,22 +773,3 @@ function isTimeWithin(originUnixTimestamp, secondsToBeWithin, currentUnixTimesta
   return currentUnixTimestamp >= (originUnixTimestamp + (secondsToBeWithin * 1000))
 end
 
---[[ -- TODO: Update broken fishing pole right-click handler
-function events:PLAYER_EQUIPMENT_CHANGED(slot, hasItem)
-  if InCombat() then return
-  if select(6, GetItemInfo(GetInventoryItemID("player", slot))) == "Fishing Poles" then
-    --Right-click to cast.
-    if not frame:IsHooked(WorldFrame, "OnMouseDown") then
-      frame:HookScript(WorldFrame, "OnMouseDown",
-        function()
-        end
-      )
-    end
-  else
-    --Undo right-click casting.
-    if frame:IsHooked(WorldFrame, "OnMouseDown") then
-      frame:Unhook(WorldFrame, "OnMouseDown")
-    end
-  end
-end
-]]
