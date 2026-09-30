@@ -1,5 +1,7 @@
 setfenv(1, _G.SlackHacks)
 
+if not isRetail() then return end
+
 --[[
   Reminds the player to keep up raid/dungeon consumables (food, flask, oil, augment rune) by showing
   clickable icons, similar in spirit to the "ClickableRaidBuffs" addon -- but event-driven instead of
@@ -183,17 +185,24 @@ local function lastUsedItemID(category)
   return lastUsedItems()[category.dbKey]
 end
 
---- Returns false if a secret aura (e.g. right as a Mythic+ key or encounter starts) aborted the scan
---- partway through, so the caller knows not to trust it as a complete picture of the player's auras.
+--- The remembered default item, or nil if the player has none of it left in their bags.
+local function availableDefaultItemID(category)
+  local itemID = lastUsedItemID(category)
+  if itemID and C_Item.GetItemCount(itemID) > 0 then return itemID end
+  return nil
+end
+
+--- Iterates the player's buffs, skipping any secret (tainted) auras instead of aborting the whole scan,
+--- since a secret aura elsewhere (e.g. a Mythic+/encounter mechanic) doesn't affect readability of others.
 local function forEachPlayerBuff(callback)
   for i = 1, 40 do
-    -- A secret aura throws instead of returning nil while tainted; stop rather than keep hitting it.
+    -- A secret aura throws instead of returning nil while tainted; skip it and keep scanning.
     local ok, aura = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
-    if not ok then return false end
-    if not aura then break end
-    callback(aura)
+    if ok then
+      if not aura then break end
+      callback(aura)
+    end
   end
-  return true
 end
 
 local function recalculateAuraExpirations()
@@ -247,15 +256,10 @@ end
 local function rebuildAuraCache()
   local previousTrackedAuras = trackedAuras
   trackedAuras = {}
-  if forEachPlayerBuff(trackAura) then
-    recalculateAuraExpirations()
-    auraCacheInitialized = true
-    return auraCachesDiffer(previousTrackedAuras, trackedAuras)
-  else
-    -- Auras are secret for now; keep the last known-good state instead of showing every buff as missing.
-    trackedAuras = previousTrackedAuras
-    return false
-  end
+  forEachPlayerBuff(trackAura)
+  recalculateAuraExpirations()
+  auraCacheInitialized = true
+  return auraCachesDiffer(previousTrackedAuras, trackedAuras)
 end
 
 local function updateAuraCache(updateInfo)
@@ -357,10 +361,9 @@ end
 
 local function shouldTrackAuras()
   if not db.profile.buffs.enabled then return false end
-  local inInstance = IsInInstance()
-  if not inInstance then return false end
   local debugging = isDebugging()
   if debugging then return true end
+  if not IsInInstance() then return false end
 
   local context = currentContentContext()
   if not context or not (IsInGroup() or IsInRaid()) then return false end
@@ -418,7 +421,9 @@ local function activeCategories()
 end
 
 local function updateAuraEventRegistration()
-  local shouldRegister = not InCombatLockdown() and shouldTrackAuras()
+  -- Registering/unregistering an event isn't a protected action, so keep tracking through combat too
+  -- (otherwise reminders go stale for the whole fight instead of reacting to buffs used/falling off).
+  local shouldRegister = shouldTrackAuras()
   if shouldRegister and not auraEventRegistered then
     rebuildAuraCache()
     module:RegisterEvent("UNIT_AURA")
@@ -432,9 +437,57 @@ local function updateAuraEventRegistration()
   end
 end
 
+--- Combat-safe visual sync for one button: only Hide()/Show()/glow, never touches secure attributes.
+local function applyCombatSafeVisual(category)
+  local button = iconButtons[category.dbKey]
+  if not button or not button:IsShown() then return end
+  local expiration = categoryBuffExpiration(category)
+  button.expirationTime = expiration
+  if expiration then
+    button:Hide()
+  else
+    setNativeOverlayGlow(button, db.profile.buffs.showGlow)
+  end
+end
+
+-- Coalesces rapid-fire UNIT_AURA/WEAPON_ENCHANT_CHANGED events (HoT/DoT ticks, procs, etc. can fire
+-- many times a second mid-raid) into a single visual sync instead of redrawing on every single one.
+local AURA_VISUAL_SYNC_THROTTLE = 0.2
+local auraVisualSyncTimer
+
+local function cancelAuraVisualSync()
+  if auraVisualSyncTimer then
+    auraVisualSyncTimer:Cancel()
+    auraVisualSyncTimer = nil
+  end
+end
+
+local function flushAuraVisualSync()
+  auraVisualSyncTimer = nil
+  if InCombatLockdown() then
+    for _, category in ipairs(BUFF_CATEGORIES) do
+      applyCombatSafeVisual(category)
+    end
+  else
+    module:Refresh()
+  end
+end
+
+local function scheduleAuraVisualSync()
+  if auraVisualSyncTimer then return end
+  auraVisualSyncTimer = C_Timer.NewTimer(AURA_VISUAL_SYNC_THROTTLE, flushAuraVisualSync)
+end
+
 function module:UNIT_AURA(_, unit, updateInfo)
-  if unit ~= "player" or InCombatLockdown() then return end
-  if updateAuraCache(updateInfo) then self:Refresh() end
+  if unit ~= "player" then return end
+  if not updateAuraCache(updateInfo) then return end
+  scheduleAuraVisualSync()
+end
+
+-- Weapon enchants (oils/stones) aren't auras, so UNIT_AURA never fires for them; this is the actual
+-- event Blizzard fires when one is applied/reapplied/falls off.
+function module:WEAPON_ENCHANT_CHANGED()
+  scheduleAuraVisualSync()
 end
 
 local function hideBuffs()
@@ -741,7 +794,6 @@ local function openContextMenu(anchorButton, category, items)
   menuFrame:Show()
 end
 
---- Anchors a button's duration label above or below its icon per the "durationPosition" setting.
 local function setDurationPosition(duration)
   duration:ClearAllPoints()
   if db.profile.buffs.durationPosition == "above" then
@@ -751,8 +803,6 @@ local function setDurationPosition(duration)
   end
 end
 
---- Builds one reminder icon button for a category, once. Uses AuraButtonTemplate (for the standard
---- aura look) combined with SecureActionButtonTemplate (so left-click can use an item even in combat).
 local function createIconButton(category)
   local button = CreateFrame("Button", "SlackHacksBuffReminder" .. category.dbKey, container, "AuraButtonTemplate, SecureActionButtonTemplate")
   button:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
@@ -770,15 +820,17 @@ local function createIconButton(category)
   button.category = category
   button:SetAttribute("showInCombat", false)
   container:SetFrameRef(category.dbKey, button)
-  container:WrapScript(button, "PostClick", [[
-    if button == "LeftButton" then return nil, "hide" end
-  ]], [[
-    if message == "hide" then self:Hide() end
-  ]])
 
   button:SetScript("OnHide", function(self)
     setNativeOverlayGlow(self, false)
     self.duration:Hide()
+  end)
+
+  -- Fires even when the secure combat state driver Show()s this button, so combat glow stays correct
+  -- without us having to touch secure attributes while InCombatLockdown() is true.
+  button:SetScript("OnShow", function(self)
+    self.expirationTime = categoryBuffExpiration(self.category)
+    setNativeOverlayGlow(self, db.profile.buffs.showGlow and self.expirationTime == nil)
   end)
 
   button:SetScript("OnEnter", function(self)
@@ -806,8 +858,16 @@ local function createIconButton(category)
     end
   end)
 
-  button:SetScript("PreClick", function(self, mouseButton)
-    if mouseButton ~= "RightButton" or InCombatLockdown() then return end
+  button:SetScript("PreClick", function(self, mouseButton, down)
+    if InCombatLockdown() then return end
+    if mouseButton == "LeftButton" then
+      if not down and not self.hasDefaultItem then
+        print("SlackHacks: No " .. self.category.label .. " item selected; right-click to pick one.")
+      end
+      return
+    end
+    -- Both up/down are registered so the secure macro fires reliably; only act on one of them here.
+    if mouseButton ~= "RightButton" or down then return end
     local items = categoryBagItems(self.category)
     if #items == 0 then
       print("SlackHacks: No " .. self.category.label .. " items in inventory.")
@@ -820,16 +880,11 @@ local function createIconButton(category)
   return button
 end
 
---- Gets (creating on first use) the reminder icon button for a category.
 local function iconButton(category)
   iconButtons[category.dbKey] = iconButtons[category.dbKey] or createIconButton(category)
   return iconButtons[category.dbKey]
 end
 
---- Rebuilds the container's size/position and every icon button's texture/attributes/anchor from a list
---- of active categories (from `activeCategories()`, or all of BUFF_CATEGORIES while edit-mode
---- previewing). Never runs in combat unless `allowCombatDisplay` (edit mode can't start in combat
---- anyway) -- see file header for why layout changes are unsafe mid-combat.
 local function layoutIcons(active, allowCombatDisplay)
   if InCombatLockdown() and not allowCombatDisplay then return end
 
@@ -838,6 +893,10 @@ local function layoutIcons(active, allowCombatDisplay)
     closeContextMenu()
     cancelDurationUpdates()
     for _, button in pairs(iconButtons) do
+      -- Clear the secure "showInCombat" attribute too, not just Hide(): otherwise the combat state
+      -- driver (which only reacts to attributes, since it runs inside combat lockdown) can still
+      -- show a stale oil/rune icon on the next pull, even in content this reminder shouldn't appear in.
+      configureDefaultItem(button, button.category, nil)
       button:Hide()
     end
     return
@@ -860,7 +919,7 @@ local function layoutIcons(active, allowCombatDisplay)
     else
       button.duration:Hide()
     end
-    local defaultItemID = lastUsedItemID(category)
+    local defaultItemID = availableDefaultItemID(category)
     configureDefaultItem(button, category, defaultItemID)
     button.icon:SetTexture(defaultItemID and C_Item.GetItemIconByID(defaultItemID) or categoryIcon(category))
     button:Show()
@@ -875,6 +934,7 @@ local function layoutIcons(active, allowCombatDisplay)
 
   for categoryKey, button in pairs(iconButtons) do
     if not visibleButtons[categoryKey] then
+      configureDefaultItem(button, button.category, nil)
       button:Hide()
     end
   end
@@ -883,8 +943,6 @@ local function layoutIcons(active, allowCombatDisplay)
   scheduleDurationUpdates()
 end
 
---- Begins dragging the (unlocked, edit-mode) container. Blocked in combat since moving a secure frame
---- is itself restricted while InCombatLockdown().
 local function onDragStart()
   if InCombatLockdown() then return end
   if container then
@@ -892,7 +950,6 @@ local function onDragStart()
   end
 end
 
---- Ends the drag and persists the container's new anchor point/offset to the profile.
 local function onDragStop()
   if InCombatLockdown() then return end
   if not container then return end
@@ -908,9 +965,6 @@ local function onDragStop()
   updatePosition()
 end
 
---- Builds (once) the Edit Mode settings dialog: a plain frame with checkboxes/sliders/dropdowns bound
---- directly to `db.profile.buffs`. Each control's callback re-runs `layoutIcons`/`module:Refresh()`
---- immediately so changes preview live while still in edit mode.
 local function createEditModeDialog()
   if editModeDialog then return editModeDialog end
 
@@ -1180,7 +1234,6 @@ local function createEditModeDialog()
   return dialog
 end
 
---- Shows or hides the Edit Mode settings dialog, refreshing its controls from the db first when shown.
 local function showEditModeDialog(show)
   local dlg = createEditModeDialog()
   if show then
@@ -1191,10 +1244,6 @@ local function showEditModeDialog(show)
   end
 end
 
---- Builds (once) the draggable selection outline shown around the container while in Edit Mode. Prefers
---- Blizzard's own "EditModeSystemSelectionTemplate" (matches native Edit Mode elements visually) and
---- falls back to a hand-rolled bordered frame via pcall, since that template isn't guaranteed to exist
---- on every client build.
 local function createSelection()
   if selection then return selection end
   if not container then createContainer() end
@@ -1266,8 +1315,6 @@ local function createSelection()
   return selection
 end
 
---- Enters Edit Mode preview: shows every category's icon (regardless of content/aura state) plus the
---- draggable selection outline, so the player can position/configure reminders outside real content.
 local function enterEditMode()
   if isEditing or InCombatLockdown() then return end
   isEditing = true
@@ -1282,7 +1329,6 @@ local function enterEditMode()
   end
 end
 
---- Leaves Edit Mode preview and immediately re-runs a normal Refresh() so real content gating resumes.
 local function exitEditMode()
   if not isEditing then return end
   isEditing = false
@@ -1293,10 +1339,6 @@ local function exitEditMode()
   module:Refresh()
 end
 
---- Main entry point: re-syncs aura tracking registration, then re-lays-out icons for whatever's
---- currently active (or the edit-mode preview set, if editing). Safe to call as often as needed --
---- everything it touches is itself idempotent/cheap. Bails out of the layout step in combat (aura
---- tracking still gets updated) since secure layout changes aren't allowed then; see file header.
 function module:Refresh()
   if isEditing then
     createContainer()
@@ -1309,8 +1351,6 @@ function module:Refresh()
   layoutIcons(activeCategories())
 end
 
---- AceDB "OnDatabaseReset" callback (profile reset/wiped): clears all in-memory aura-tracking state
---- and Edit Mode status before refreshing, so nothing stale survives the reset.
 function module:OnDatabaseReset()
   wipe(trackedAuras)
   wipe(cachedAuraExpirations)
@@ -1320,9 +1360,6 @@ function module:OnDatabaseReset()
   self:Refresh()
 end
 
---- Fires on (re)spawn (e.g. after a release/res). Only matters out of combat: a Refresh() here mainly
---- exists to catch the rune category, which the combat-safe visual sync never accounts for (rune has no
---- "in combat, still show it" behavior -- see the combat state driver in createContainer()).
 function module:PLAYER_ALIVE()
   if not shouldTrackAuras() then return end
   if not InCombatLockdown() then
@@ -1332,9 +1369,6 @@ function module:PLAYER_ALIVE()
   end
 end
 
---- AceAddon lifecycle: creates the container/icon buttons up front (so `container:SetFrameRef` calls in
---- createIconButton always have a valid target) and wires up Blizzard's Edit Mode system so this module
---- participates in the native Edit Mode UI like a first-party HUD element.
 function module:OnInitialize()
   createContainer()
   for _, category in ipairs(BUFF_CATEGORIES) do
@@ -1370,15 +1404,17 @@ function module:OnInitialize()
   end
 end
 
---- AceAddon lifecycle: registers every event this module reacts to and does an initial Refresh() (or
---- re-enters Edit Mode, if the player was already in it, e.g. across a /reload).
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("GROUP_ROSTER_UPDATE", "Refresh")
   self:RegisterEvent("CHALLENGE_MODE_START", "Refresh")
+  -- GetInstanceInfo()/IsInInstance() can be stale for a moment right after PLAYER_ENTERING_WORLD
+  -- (e.g. on /reload); this fires once the client actually has fresh instance/difficulty data.
+  self:RegisterEvent("UPDATE_INSTANCE_INFO", "Refresh")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("PLAYER_ALIVE")
+  self:RegisterEvent("WEAPON_ENCHANT_CHANGED")
   if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive and EditModeManagerFrame:IsEditModeActive() then
     enterEditMode()
   else
@@ -1386,9 +1422,6 @@ function module:OnEnable()
   end
 end
 
---- Entering combat: force-exits Edit Mode (it can't be used in combat) and re-syncs aura-tracking
---- registration. Deliberately does NOT touch icon layout -- see file header point 2/3 for why that has
---- to be left entirely to the secure combat state driver from this point until combat ends.
 function module:PLAYER_REGEN_DISABLED()
   if isEditing then
     exitEditMode()
@@ -1397,18 +1430,15 @@ function module:PLAYER_REGEN_DISABLED()
   updateAuraEventRegistration()
 end
 
---- Leaving combat: a full Refresh() re-establishes real (non-stale) icon layout/attributes now that
---- secure-frame changes are allowed again.
 function module:PLAYER_REGEN_ENABLED()
   self:Refresh()
 end
 
---- AceAddon lifecycle: tears down everything owned by this module when disabled (e.g. by another addon
---- or `/reload` while this module is off).
 function module:OnDisable()
   self:UnregisterAllEvents()
   auraEventRegistered = false
   cancelDurationUpdates()
+  cancelAuraVisualSync()
   closeContextMenu()
   if isEditing then
     exitEditMode()

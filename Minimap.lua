@@ -43,14 +43,10 @@ local DEFAULT_VISUALS = {
 
 local isSquareMaskApplied = false
 
---- Returns whether the profile has enabled the module and Ace3 has it active.
----@return boolean - True when minimap mutations are allowed.
 local function isModuleEnabled()
   return (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) and module:IsEnabled()
 end
 
---- Returns the active profile settings, or native-looking defaults during early startup.
----@return table - Minimap settings safe to read before the database exists.
 local function settings()
   if db and db.profile and db.profile.minimap then
     return db.profile.minimap
@@ -58,8 +54,6 @@ local function settings()
   return DEFAULT_VISUALS
 end
 
---- Provides the Blizzard-facing shape query used by minimap button addons.
----@return string - `SQUARE` while square mode is active, otherwise `ROUND`.
 function _G.GetMinimapShape()
   if isModuleEnabled() and settings().shape == "square" then
     return "SQUARE"
@@ -103,9 +97,6 @@ local origShouldShowSetting
 local origSetEditModeScale
 local layoutPending = false
 
---- Forces square minimaps to remain unrotated while remembering the user's preference.
--- Blizzard's square mask cannot represent a rotating world map cleanly, so the CVar is temporarily
--- overridden. The saved preference is restored when returning to round mode or disabling the module.
 local function applyMinimapRotation()
   if not isModuleEnabled() then return end
   local isSquare = (settings().shape == "square")
@@ -139,7 +130,6 @@ local function applyMinimapRotation()
   end
 end
 
---- Restores `rotateMinimap` from Blizzard Edit Mode or the preference saved by square mode.
 local function restoreMinimapRotation()
   if MinimapCluster and MinimapCluster.GetSettingValueBool and Enum and Enum.EditModeMinimapSetting and MinimapCluster.HasSetting and MinimapCluster:HasSetting(Enum.EditModeMinimapSetting.RotateMinimap) then
     local wantRotate = MinimapCluster:GetSettingValueBool(Enum.EditModeMinimapSetting.RotateMinimap)
@@ -157,8 +147,6 @@ local function restoreMinimapRotation()
   end
 end
 
---- Resolves the mail indicator across Retail and older client frame layouts.
----@return Frame|nil - Native mail button, if this client exposes one.
 local function getMailButton()
   if MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.MailFrame then
     return MinimapCluster.IndicatorFrame.MailFrame
@@ -169,8 +157,6 @@ local function getMailButton()
   return nil
 end
 
---- Resolves the Retail crafting-order indicator without touching non-Retail clients.
----@return Frame|nil - Native crafting-order button, if available.
 local function getCraftingOrderButton()
   if not isRetail() then return nil end
   if MinimapCluster and MinimapCluster.IndicatorFrame and MinimapCluster.IndicatorFrame.CraftingOrderFrame then
@@ -182,8 +168,6 @@ local function getCraftingOrderButton()
   return nil
 end
 
---- Resolves the instance-difficulty indicator across current and legacy frame names.
----@return Frame|nil - Native difficulty button, if available.
 local function getInstanceDifficultyButton()
   if MinimapCluster and MinimapCluster.InstanceDifficulty then
     return MinimapCluster.InstanceDifficulty
@@ -194,17 +178,10 @@ local function getInstanceDifficultyButton()
   return nil
 end
 
---- Resolves the current expansion landing-page button.
----@return Frame|nil - Retail or legacy garrison button.
 local function getGarrisonButton()
   return ExpansionLandingPageMinimapButton or GarrisonLandingPageMinimapButton
 end
 
---- Checks Blizzard's own landing-page visibility gate before exposing the button.
--- This avoids the legacy API's stale garrison type, which can provide a title even when its backing
--- covenant/expansion data is nil; making that button clickable then crashes Blizzard tooltip/toggle
--- code. `pcall` also makes this probe harmless across API versions.
----@return boolean - True only when the button is valid and should be shown.
 local function isGarrisonLandingPageAvailable()
   if not isRetail() then return false end
   local btn = getGarrisonButton()
@@ -243,8 +220,6 @@ local function isGarrisonLandingPageAvailable()
   return false
 end
 
---- Returns standard Blizzard-owned indicators managed by the title bar.
----@return table - Ordered list of currently available native buttons.
 local function getStandardMinimapIcons()
   local list = {}
   if GameTimeFrame then table.insert(list, GameTimeFrame) end
@@ -263,8 +238,6 @@ local function getStandardMinimapIcons()
   return list
 end
 
---- Returns extra native indicators that may need hiding in square mode.
----@return table - Buttons including legacy frames that are absent on newer clients.
 local function extraButtons()
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
@@ -284,14 +257,11 @@ local function extraButtons()
 end
 
 --- Show/hide is deferred (skipped, not queued) while in combat; PLAYER_REGEN_ENABLED re-applies everything.
----@param frame Frame|nil - Frame whose visibility should change.
----@param shown boolean - Desired visibility.
 local function setShownSafely(frame, shown)
   if not frame or InCombatLockdown() then return end
   frame:SetShown(shown)
 end
 
---- Applies the selected minimap mask, reverting only a mask installed by this module.
 local function applyShape()
   if not isModuleEnabled() then return end
   if not _G.Minimap.SetMaskTexture then return end -- not available on this client build; shape stays default
@@ -305,7 +275,6 @@ local function applyShape()
   end
 end
 
---- Applies configured alpha, including combat/movement fades and the indoor full-alpha safeguard.
 local function applyAlpha()
   if not isModuleEnabled() then return end
   local mm = settings()
@@ -346,8 +315,6 @@ local function applyAlpha()
   end
 end
 
---- Resolves Blizzard's player-coordinate widget across client layouts.
----@return Frame|nil - Coordinate overlay frame, if present.
 local function getBlizzardPlayerCoords()
   if MinimapCluster and MinimapCluster.MinimapContainer and MinimapCluster.MinimapContainer.PlayerCoords then
     return MinimapCluster.MinimapContainer.PlayerCoords
@@ -364,7 +331,6 @@ local function getBlizzardPlayerCoords()
   return nil
 end
 
---- Restores the coordinate widget's parent, anchors, level, strata, and overridden methods.
 local function restoreCoordinates()
   local coords = getBlizzardPlayerCoords()
   if not coords then return end
@@ -390,9 +356,6 @@ local function restoreCoordinates()
   end
 end
 
---- Pins Blizzard's coordinate widget inside the square minimap without letting later layout calls move it.
--- Its methods are temporarily no-ops because Blizzard can re-anchor this protected overlay during its
--- own refresh. The original methods and every anchor are restored when leaving square mode.
 local function applyCoordinates()
   if not isModuleEnabled() then return end
   local coords = getBlizzardPlayerCoords()
@@ -435,13 +398,10 @@ local function applyCoordinates()
   end
 end
 
---- Resolves the native zone-text button, including the legacy global fallback.
----@return Button|nil - Blizzard zone-text button.
 local function getZoneTextButton()
   return (MinimapCluster and MinimapCluster.ZoneTextButton) or _G.MinimapZoneTextButton
 end
 
---- Applies the zone-text visibility setting without mutating the native button's behavior.
 local function applyZoneText()
   if not isModuleEnabled() then return end
   local mm = settings()
@@ -449,8 +409,6 @@ local function applyZoneText()
   setShownSafely(zoneButton, mm.showZoneText)
 end
 
---- Returns all native icon frames whose borders may need to be hidden or restored.
----@return table - Native indicator frames and tracking sub-button.
 local function getAllBlizzardIcons()
   local list = getStandardMinimapIcons()
   if AddonCompartmentFrame then table.insert(list, AddonCompartmentFrame) end
@@ -460,8 +418,6 @@ local function getAllBlizzardIcons()
   return list
 end
 
---- Hides or restores Blizzard border textures without replacing their click behavior.
----@param removeBorders boolean - True to hide border art while retaining the frames.
 local function applyBlizzardIconBorders(removeBorders)
   for _, btn in ipairs(getAllBlizzardIcons()) do
     if btn.slackHacksCreatedBorder then
@@ -498,14 +454,12 @@ local function applyBlizzardIconBorders(removeBorders)
   end
 end
 
---- Applies the clock visibility setting.
 local function applyClock()
   if not isModuleEnabled() then return end
   local mm = settings()
   setShownSafely(TimeManagerClockButton, mm.showClock)
 end
 
---- Applies the calendar visibility setting.
 local function applyCalendar()
   if not isModuleEnabled() then return end
   setShownSafely(GameTimeFrame, settings().showCalendar)
@@ -525,13 +479,11 @@ local function applyDielFrame()
   setShownSafely(MinimapCluster and MinimapCluster.DielFrame, shown)
 end
 
---- Applies the tracking-button visibility setting.
 local function applyTracking()
   if not isModuleEnabled() then return end
   setShownSafely(MinimapCluster and MinimapCluster.Tracking, settings().showTracking)
 end
 
---- Applies the optional `minimapTrackingShowAll` CVar setting.
 local function applyTrackingCVar()
   if not isModuleEnabled() then return end
   if settings().showAllMinimapTracking then
@@ -541,8 +493,6 @@ local function applyTrackingCVar()
   end
 end
 
---- Places or hides secondary minimap buttons in square mode.
--- The actual show/hide calls are combat-gated because several Blizzard minimap frames are protected.
 local function applyExtraButtons()
   if not isModuleEnabled() then return end
   local isSquare = (settings().shape == "square")
@@ -565,7 +515,6 @@ end
 --- texture without clipping or inner seams, matching how Blizzard's SpellBook and DefaultPanelTemplate work.
 --- Also hosts a 2D backing frame behind _G.Minimap using Blizzard's FlatPanelBackgroundTemplate so
 --- curved bottom corners (uiframebackground-nineslice-cornerbottom...) fill the perimeter inset without bleeding.
----@return Frame - The cached square border frame.
 local function createSquareBorder()
   if squareBorderFrame then return squareBorderFrame end
   local frame = CreateFrame("Frame", "SlackHacksMinimapSquareBorder", MinimapCluster or _G.Minimap)
@@ -608,9 +557,6 @@ local function createSquareBorder()
   return frame
 end
 
---- Snapshots native cluster geometry before square mode takes ownership of it.
--- The snapshot is refreshed whenever we genuinely re-enter from round mode so Edit Mode resizes made
--- while square mode is active are reflected when the native round layout is restored.
 local function cacheMinimapClusterDefaults()
   if not MinimapCluster then return end
   -- Re-snapshot every time we're coming from genuine round state (not just once ever) --
@@ -648,8 +594,6 @@ local function cacheMinimapClusterDefaults()
   end
 end
 
---- Converts the native minimap size and container scale into visible square dimensions.
----@return number, number, number - Visual width, visual height, and container scale.
 local function getSquareMinimapDimensions()
   local container = MinimapCluster and MinimapCluster.MinimapContainer
   local scale = (container and container:GetScale()) or 1
@@ -661,10 +605,6 @@ local function getSquareMinimapDimensions()
   return visualW, visualH, scale
 end
 
---- Replaces Blizzard's round cluster layout with the square border/title-bar geometry.
--- This is skipped in combat because cluster sizing and anchoring are protected; the regen event calls
--- `ApplyAll` to catch up. Blizzard's layout method is temporarily neutralized so it cannot immediately
--- undo the custom points.
 local function applySquareMinimapCluster()
   if not MinimapCluster then return end
   if InCombatLockdown() then return end -- MinimapCluster:SetSize() is protected in combat; PLAYER_REGEN_ENABLED re-applies
@@ -733,9 +673,6 @@ local function applySquareMinimapCluster()
   isSquareClusterApplied = true
 end
 
---- Restores native cluster geometry, anchors, Edit Mode settings, and layout behavior.
--- Native indicators are detached before the indicator frame is shown; otherwise Blizzard can evaluate
--- a stale custom anchor and report a circular-anchor error during its own layout cascade.
 local function restoreRoundMinimapCluster()
   if not MinimapCluster or not isSquareClusterApplied then return end
   if InCombatLockdown() then return end -- MinimapCluster:SetSize() is protected in combat; PLAYER_REGEN_ENABLED re-applies
@@ -839,7 +776,6 @@ local function restoreRoundMinimapCluster()
   isSquareClusterApplied = false
 end
 
---- Chooses square or native Edit Mode selection bounds based on current settings.
 local function updateEditModeSelectionBounds()
   if not (MinimapCluster and MinimapCluster.Selection) then return end
   if not isModuleEnabled() then
@@ -854,7 +790,6 @@ local function updateEditModeSelectionBounds()
   end
 end
 
---- Applies the border presentation and keeps Edit Mode's selection rectangle aligned with it.
 local function applyBorder()
   if not isModuleEnabled() then return end
   local mm = settings()
@@ -896,7 +831,6 @@ local TITLE_BAR_CLOCK_WIDTH_DELTA = -10 -- shorten clock width by 10 pixels
 --- the readable part of the banner sits, not further above it).
 --- Frame level 510 matches Blizzard's own PortraitFrameTemplate TitleContainer convention: the
 --- NineSlicePanelTemplate border art is hardcoded to level 500, so 510 is what actually draws above it.
----@return Frame - Cached title-bar frame.
 local function createTitleBar()
   if titleBarFrame then return titleBarFrame end
   local border = createSquareBorder()
@@ -925,7 +859,6 @@ end
 --- native ancestry (MinimapCluster) and get silently tainted/broken if reparented to a plain addon-created
 --- frame, even though tooltips still work fine since those are insecure.) Always shown so `isMinimapHovered()`
 --- can treat its rect as "still hovering the icon group", independent of any individual button's visibility.
----@return Frame - Transparent hit-test container; it is not a button parent.
 local function createAddonIconsContainer()
   if addonIconsContainer then return addonIconsContainer end
   local container = CreateFrame("Frame", "SlackHacksMinimapAddonIconsContainer", titleBarFrame or MinimapCluster or UIParent)
@@ -936,9 +869,6 @@ local function createAddonIconsContainer()
   return container
 end
 
---- Safely tests pointer state across frame API generations.
----@param region Frame|nil - Candidate region.
----@return boolean - True when the pointer is currently over the shown region.
 local function isRegionMouseOver(region)
   if not region or not region.IsShown or not region:IsShown() then return false end
   local ok, result = pcall(function()
@@ -952,8 +882,6 @@ local function isRegionMouseOver(region)
   return ok and (result == true)
 end
 
---- Returns true while the pointer is over the map, title bar, border, or any managed icon.
----@return boolean - Whether hover-only controls should be visible.
 local function isMinimapHovered()
   if isRegionMouseOver(_G.Minimap)
      or isRegionMouseOver(titleBarFrame)
@@ -980,7 +908,6 @@ local function isMinimapHovered()
   return false
 end
 
---- Cancels a pending delayed hover-leave check.
 local function cancelHoverLeaveCheck()
   if hoverLeaveTimer then
     hoverLeaveTimer:Cancel()
@@ -988,7 +915,6 @@ local function cancelHoverLeaveCheck()
   end
 end
 
---- Delays the hover-leave decision so moving between adjacent icon frames does not flicker them.
 local function scheduleHoverLeaveCheck()
   cancelHoverLeaveCheck()
   hoverLeaveTimer = C_Timer.NewTimer(0.05, function()
@@ -999,10 +925,6 @@ local function scheduleHoverLeaveCheck()
   end)
 end
 
---- Shows or fades hover-managed buttons while leaving their native scripts alive.
--- Alpha is intentional here: hiding/re-showing Blizzard buttons races their protected/native layout
--- code and previously broke Calendar, Addon Compartment, and landing-page clicks.
----@param hovered boolean|nil - Explicit hover state, or nil to calculate it.
 updateHoverVisibility = function(hovered)
   if not isModuleEnabled() then return end
   if hovered == nil then
@@ -1065,8 +987,6 @@ updateHoverVisibility = function(hovered)
 
 end
 
---- Installs additive hover enter/leave hooks once per frame.
----@param frame Frame|nil - Frame participating in minimap hover detection.
 local function hookHoverFrame(frame)
   if not frame or frame.slackHacksHoverHooked then return end
   frame.slackHacksHoverHooked = true
@@ -1081,9 +1001,6 @@ local function hookHoverFrame(frame)
   end
 end
 
---- Returns Blizzard's zone button or creates a functional fallback for clients without one.
----@param parent Frame - Parent for the fallback button.
----@return Button|nil - Native or fallback world-map button.
 local function getOrCreateZoneButton(parent)
   local btn = getZoneTextButton()
   if btn then return btn end
@@ -1122,7 +1039,6 @@ local function getOrCreateZoneButton(parent)
   return titleBarZoneFallbackButton
 end
 
---- Refreshes zone text and asks Blizzard to recalculate related minimap state.
 local function updateZoneText()
   local fs = _G.MinimapZoneText or (titleBarZoneFallbackButton and titleBarZoneFallbackButton.Text)
   if fs and GetMinimapZoneText then
@@ -1133,9 +1049,6 @@ local function updateZoneText()
   end
 end
 
---- Finds a button's existing border texture across template and client-version layouts.
----@param button Button|nil - Button to inspect.
----@return Texture|nil - Existing border texture, if found.
 local function findButtonBorder(button)
   if not button then return nil end
   if button.border and button.border.SetAtlas then
@@ -1163,7 +1076,6 @@ local function findButtonBorder(button)
 end
 
 --- Mappy-style button manipulation: save initial anchors, parent, scale, strata, and level.
----@param button Frame - Native or addon button being temporarily managed.
 local function saveButtonState(button)
   if button.slackHacksSaved then return end
   local saved = {
@@ -1235,8 +1147,6 @@ local function saveButtonState(button)
   button.slackHacksSaved = saved
 end
 
---- Restores a button and its font/border regions to the exact saved native state.
----@param button Frame - Button previously passed to `saveButtonState`.
 local function restoreButtonState(button)
   local saved = button.slackHacksSaved
   if not saved then return end
@@ -1327,9 +1237,6 @@ end
 
 local DIEL_BORDER_ATLAS = "ui-hud-minimap-frame-cycle"
 
---- Returns an existing border or creates an overlay border for an addon button.
----@param button Button - Addon button to inspect.
----@return Texture|nil - Border texture.
 local function getOrCreateButtonBorder(button)
   local border = findButtonBorder(button)
   if border then return border end
@@ -1338,8 +1245,6 @@ local function getOrCreateButtonBorder(button)
   return created
 end
 
---- Applies Forever's native cycle border art to one addon button.
----@param button Button|nil - Addon button to reskin.
 local function applyCycleBorderToAddonButton(button)
   if not button or not isForever() then return end
   saveButtonState(button)
@@ -1360,7 +1265,6 @@ local function applyCycleBorderToAddonButton(button)
   border:Show()
 end
 
---- Applies the Forever cycle border to all discovered non-Blizzard buttons.
 local function applyAllAddonButtonBorders()
   if not isForever() then return end
   for _, btn in ipairs(addonButtons) do
@@ -1370,7 +1274,6 @@ local function applyAllAddonButtonBorders()
   end
 end
 
---- Restores all discovered addon buttons after temporary border reskinning.
 local function restoreAllAddonButtonBorders()
   for _, btn in ipairs(addonButtons) do
     if btn and not isBlizzardFrame(btn) then
@@ -1379,8 +1282,6 @@ local function restoreAllAddonButtonBorders()
   end
 end
 
---- Chooses the frame that represents the visible square border.
----@return Frame - Border, cluster, or minimap fallback.
 local function getSquareBorderTargetFrame()
   if squareBorderFrame and squareBorderFrame:IsShown() and squareBorderFrame:GetWidth() > 0 then
     return squareBorderFrame
@@ -1391,8 +1292,6 @@ local function getSquareBorderTargetFrame()
   return _G.Minimap
 end
 
---- Returns the target frame and half-extents used for square-edge positioning.
----@return Frame, number, number - Target, horizontal radius, vertical radius.
 local function getSquareBorderDimensions()
   local target = getSquareBorderTargetFrame()
   local tw = target:GetWidth() or 200
@@ -1402,11 +1301,6 @@ local function getSquareBorderDimensions()
   return target, radiusX, radiusY
 end
 
---- Intersects a ray at an angle with a rectangle's edge.
----@param angleDeg number - Angle in degrees.
----@param radiusX number - Horizontal half-extent.
----@param radiusY number - Vertical half-extent.
----@return number, number - Edge-relative x and y offsets.
 local function getSquarePositionForAngle(angleDeg, radiusX, radiusY)
   local angleRad = math.rad(angleDeg)
   local cosA = math.cos(angleRad)
@@ -1422,8 +1316,6 @@ local function getSquarePositionForAngle(angleDeg, radiusX, radiusY)
   return cosA * dist, sinA * dist
 end
 
---- Builds the exclusion set used to distinguish native minimap frames from addon buttons.
----@return table - Set keyed by known frames and names.
 local function getIgnoreFramesMap()
   local ignore = {
     Minimap = true,
@@ -1491,9 +1383,6 @@ local function getIgnoreFramesMap()
   return ignore
 end
 
---- Classifies a frame as Blizzard-owned or one of this module's infrastructure frames.
----@param frame Frame|nil - Candidate frame.
----@return boolean - True when the frame must not be repositioned as an addon button.
 isBlizzardFrame = function(frame)
   if not frame then return true end
   local ignore = getIgnoreFramesMap()
@@ -1508,12 +1397,6 @@ end
 --- Mappy-style hooks: when Blizzard or third-party addons call SetPoint, ClearAllPoints,
 --- SetFrameStrata, or SetFrameLevel while stacked, record their intent into saved state
 --- rather than letting them fight or displace the title bar layout.
----@param self Frame - Hooked button.
----@param point string - Anchor point being assigned.
----@param relativeTo Frame|nil - Relative frame.
----@param relativePoint string|nil - Relative anchor point.
----@param x number|nil - Horizontal offset.
----@param y number|nil - Vertical offset.
 local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
   if not self.slackHacksSaved then return end
   self.slackHacksSaved.anchors[point] = {
@@ -1538,32 +1421,21 @@ local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
   end
 end
 
---- Records that a stacked button has no anchors after ClearAllPoints.
----@param self Frame - Hooked button.
 local function buttonSaveClearAllPoints(self)
   if not self.slackHacksSaved then return end
   wipe(self.slackHacksSaved.anchors)
 end
 
---- Records a requested frame strata while a button is temporarily stacked.
----@param self Frame - Hooked button.
----@param strata string - Requested strata.
 local function buttonSaveSetFrameStrata(self, strata)
   if not self.slackHacksSaved then return end
   self.slackHacksSaved.strata = strata
 end
 
---- Records a requested frame level while a button is temporarily stacked.
----@param self Frame - Hooked button.
----@param level number - Requested level.
 local function buttonSaveSetFrameLevel(self, level)
   if not self.slackHacksSaved then return end
   self.slackHacksSaved.level = level
 end
 
---- Coalesces repeated layout requests into one next-tick title-bar rebuild.
--- Deferral avoids rebuilding while Blizzard is still processing a show/hide cascade and gives pooled
--- minimap buttons time to settle their native visibility first.
 local function scheduleTitleBarLayout()
   if layoutPending then return end
   layoutPending = true
@@ -1573,16 +1445,12 @@ local function scheduleTitleBarLayout()
   end)
 end
 
---- Requests a title-bar rebuild when a managed button changes visibility.
 local function onButtonVisibilityChanged()
   if settings().shape == "square" then
     scheduleTitleBarLayout()
   end
 end
 
---- Installs or removes the temporary SetPoint/level hooks used by Mappy-style stacking.
----@param button Frame - Button whose native layout must be preserved.
----@param enable boolean - Whether custom stacking is active.
 local function enableButtonStacking(button, enable)
   if enable then
     if not button.slackHacksRealSetPoint then
@@ -1623,8 +1491,6 @@ local function enableButtonStacking(button, enable)
   end
 end
 
---- Registers a native or fallback button once and hooks its hover lifecycle.
----@param button Frame|nil - Button to register.
 local function registerButton(button)
   if not button or registeredButtonsByFrame[button] then return end
   registeredButtonsByFrame[button] = true
@@ -1637,8 +1503,6 @@ local function registerButton(button)
   hookHoverFrame(button)
 end
 
---- Registers an addon-owned button in the discovered-button collections.
----@param button Frame|nil - Addon minimap button.
 local function registerAddonButton(button)
   if not button or addonButtonsByFrame[button] then return end
   addonButtonsByFrame[button] = true
@@ -1646,9 +1510,6 @@ local function registerAddonButton(button)
   registerButton(button)
 end
 
---- Derives a readable label from a data object, global name, or fallback.
----@param button Frame - Addon button.
----@return string - Display label.
 local function getAddonButtonDisplayName(button)
   if button.dataObject and type(button.dataObject.label) == "string" and button.dataObject.label ~= "" then
     return button.dataObject.label
@@ -1667,9 +1528,6 @@ local function getAddonButtonDisplayName(button)
   return "Addon"
 end
 
---- Resolves an addon button's icon texture across LibDBIcon and legacy frame shapes.
----@param button Frame - Addon button.
----@return any - Texture path, file ID, or fallback icon ID.
 local function getAddonButtonIcon(button)
   if button.icon and button.icon.GetTexture and button.icon:GetTexture() then
     return button.icon:GetTexture()
@@ -1694,7 +1552,6 @@ local function getAddonButtonIcon(button)
   return 134400
 end
 
---- Removes synthetic SlackHacks entries from Blizzard's Addon Compartment.
 local function clearAddonCompartmentEntries()
   if not (AddonCompartmentFrame and AddonCompartmentFrame.registeredAddons) then return end
   local changed = false
@@ -1710,8 +1567,6 @@ local function clearAddonCompartmentEntries()
   end
 end
 
---- Makes Addon Compartment text match the neighboring clock or restores its original font.
----@param matchClock boolean|nil - Match clock proportions when true; restore when false/nil.
 local function applyAddonCompartmentFontSize(matchClock)
   if not AddonCompartmentFrame then return end
   local fs = AddonCompartmentFrame.Text
@@ -1778,9 +1633,6 @@ local function applyAddonCompartmentFontSize(matchClock)
   end
 end
 
---- Mirrors discovered addon buttons into Addon Compartment when configured.
--- Entries invoke the original button scripts rather than reparenting the buttons, preserving native
--- ancestry and avoiding taint in Blizzard's click handlers.
 local function syncAddonCompartmentEntries()
   if not (AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon and AddonCompartmentFrame.registeredAddons) then return end
   clearAddonCompartmentEntries()
@@ -1832,9 +1684,6 @@ local function syncAddonCompartmentEntries()
   end
 end
 
---- Determines an addon button's saved radial position or calculates one from its current center.
----@param button Frame - Addon button.
----@return number - Position angle in degrees.
 local function getButtonAngle(button)
   if button.slackHacksAngle then
     return button.slackHacksAngle
@@ -1854,8 +1703,6 @@ local function getButtonAngle(button)
   return 225
 end
 
---- Updates a dragged addon button's angle and clamps it to the square border edge.
----@param self Frame - Dragged addon button.
 local function onAddonButtonDragUpdate(self)
   local target, radiusX, radiusY = getSquareBorderDimensions()
   local mx, my = target:GetCenter()
@@ -1880,8 +1727,6 @@ local function onAddonButtonDragUpdate(self)
   end
 end
 
---- Begins square-border dragging without replacing the button's click behavior.
----@param self Frame - Dragged addon button.
 local function onAddonButtonDragStart(self)
   if settings().shape ~= "square" or settings().addonsInCompartment then return end
   self.isDraggingOnSquareBorder = true
@@ -1893,16 +1738,12 @@ local function onAddonButtonDragStart(self)
   if GameTooltip then GameTooltip:Hide() end
 end
 
---- Ends square-border dragging and removes the per-frame cursor update.
----@param self Frame - Dragged addon button.
 local function onAddonButtonDragStop(self)
   self.isDraggingOnSquareBorder = nil
   self:SetScript("OnUpdate", nil)
   if self.UnlockHighlight then self:UnlockHighlight() end
 end
 
---- Adds drag hooks to an addon button once.
----@param button Frame - Addon button to make draggable.
 local function enableAddonButtonDragging(button)
   if not button.slackHacksDragHooked then
     button.slackHacksDragHooked = true
@@ -1912,9 +1753,6 @@ local function enableAddonButtonDragging(button)
   end
 end
 
---- Calls the saved native SetFrameStrata when stacking hooks are active.
----@param frame Frame - Frame being adjusted.
----@param strata string - Desired frame strata.
 setFrameStrataSafe = function(frame, strata)
   if frame.slackHacksRealSetFrameStrata then
     frame.slackHacksRealSetFrameStrata(frame, strata)
@@ -1925,8 +1763,6 @@ end
 
 --- Mappy's recursive frame level setter: ensures child icons/textures shift frame level
 --- along with the button so no child elements draw behind the nine-slice border (level 500).
----@param frame Frame - Frame and descendants to raise.
----@param level number - Target frame level.
 setFrameLevelRecursive = function(frame, level)
   local oldLevel = frame:GetFrameLevel()
   local offset = level - oldLevel
@@ -1948,7 +1784,6 @@ setFrameLevelRecursive = function(frame, level)
   end
 end
 
---- Lays out visible addon buttons around the square edge, or folds them into Addon Compartment.
 local function layoutAddonButtonsOnBorder()
   if settings().shape ~= "square" then return end
 
@@ -1999,7 +1834,6 @@ end
 --- Round-mode counterpart to `layoutAddonButtonsOnBorder`'s addonsInCompartment fold -- round mode never
 --- repositions addon buttons (they stay in their native/library-driven spot), so folding is just a plain
 --- Hide/Show, tracked per-button so we only ever restore a button that we ourselves hid.
----@return nil
 local function applyRoundAddonCompartment()
   if not isModuleEnabled() then return end
   syncAddonCompartmentEntries()
@@ -2021,9 +1855,6 @@ local function applyRoundAddonCompartment()
   end
 end
 
---- Removes all temporary stacking, hover, border, and compartment state before native layout resumes.
--- The discovered addon list intentionally survives this cleanup: round mode still uses it for hover
--- fading and compartment mirroring.
 disableAllStacking = function()
   -- These were only ever faded via SetAlpha while hidden-until-hover in square mode (never SetShown),
   -- so just restore full opacity before handing them back to Blizzard's own show/hide logic.
@@ -2059,8 +1890,6 @@ disableAllStacking = function()
   cancelHoverLeaveCheck()
 end
 
---- Discovers visible addon minimap buttons from LibDBIcon, direct children, and known legacy names.
----@return table - Unique addon button frames.
 local function getExistingAddonButtons()
   local buttons = {}
   local seen = {}
@@ -2119,7 +1948,6 @@ local function getExistingAddonButtons()
   return buttons
 end
 
---- Refreshes the discovered addon-button registry and applies Forever border art when relevant.
 local function discoverAddonButtons()
   wipe(addonButtons)
   wipe(addonButtonsByFrame)
@@ -2132,9 +1960,6 @@ local function discoverAddonButtons()
   end
 end
 
---- Computes whether a managed button should be visible under current settings and client state.
----@param button Frame - Candidate minimap button.
----@return boolean - Desired visibility.
 isButtonShown = function(button)
   if not button then return false end
   local mail = getMailButton()
@@ -2177,7 +2002,6 @@ isButtonShown = function(button)
   return button:IsShown()
 end
 
---- Positions the instance-difficulty button below the square title bar.
 local function layoutCornerIcons()
   local mm = settings()
   local isSquare = (mm.shape == "square")
@@ -2207,9 +2031,6 @@ local function layoutCornerIcons()
   end
 end
 
---- Returns the scaled width and scale used for a title-bar button.
----@param button Frame - Button to size.
----@return number, number - Rendered width and scale.
 local function getButtonScaledWidth(button)
   local scale = TITLE_BAR_ICON_SCALE
   if button == TimeManagerClockButton then
@@ -2226,9 +2047,6 @@ local function getButtonScaledWidth(button)
   return (btnW and btnW > 0 and btnW or 32) * scale, scale
 end
 
---- Returns the small vertical adjustment needed for a title-bar button.
----@param button Frame - Button to position.
----@return number - Y offset in title-bar coordinates.
 local function getButtonYOffset(button)
   if button == GameTimeFrame then
     return TITLE_BAR_CALENDAR_Y_OFFSET
@@ -2245,7 +2063,6 @@ end
 --- Builds the list of buttons for the permanent title bar flow.
 --- Right-to-left layout order: Clock, Mail, Crafting Orders, standard icons (if not hover-only),
 --- and Addon Compartment / Garrison (if not hover-only).
----@return table - Buttons in right-to-left flow order.
 local function getTitleBarFlowButtons()
   local mm = settings()
   local list = {}
@@ -2282,8 +2099,6 @@ local function getTitleBarFlowButtons()
   return list
 end
 
---- Builds the hover-only flow, keeping the expansion button at the far-left edge.
----@return table - Buttons in right-to-left hover order.
 local function getHoverButtons()
   local mm = settings()
   local list = {}
@@ -2314,7 +2129,6 @@ end
 
 --- Positions the unified zone text button on the left side of the title bar, stretching
 --- from the left edge up to the right-side icons, preserving world map click and tooltip details.
----@param previous Frame|nil - Last right-side icon, used as the zone-text right anchor.
 local function layoutTitleBarZoneButton(previous)
   if not titleBarFrame then return end
   local mm = settings()
@@ -2365,7 +2179,6 @@ end
 --- Lays out icons hidden without hover in a separate container frame with a HIGH frame strata.
 --- Taken out of the title bar flow so it never clips or constrains the zone text button.
 --- Only visible when hovering over the minimap.
----@param anchorRightTo Frame|nil - Permanent-flow icon to place the container beside.
 local function layoutAddonIconsContainer(anchorRightTo)
   if not titleBarFrame then return end
   local container = createAddonIconsContainer()
@@ -2426,7 +2239,6 @@ end
 
 --- Shrinks and lines up the minimap buttons along the right side of the title bar,
 --- ordered right-to-left: Clock, standard icons, addon compartment.
----@return nil
 local function layoutTitleBarIcons()
   local row = titleBarIconRow
   if not row then return end
@@ -2470,9 +2282,6 @@ local function layoutTitleBarIcons()
   layoutAddonButtonsOnBorder()
 end
 
---- Rebuilds square or round layout after discovery and native visibility changes.
--- Round mode restores every native object; square mode installs the border, title bar, hover hooks,
--- and icon flow while preserving native button ancestry for clicks.
 applyTitleBarLayout = function()
   if not isModuleEnabled() then return end
   local mm = settings()
@@ -2515,8 +2324,6 @@ applyTitleBarLayout = function()
   updateEditModeSelectionBounds()
 end
 
---- Applies every minimap setting in dependency order.
--- Shape/rotation and protected geometry run before child layout; cleanup is centralized in `OnDisable`.
 function module:ApplyAll()
   if not (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) then
     if self:IsEnabled() then
@@ -2556,8 +2363,6 @@ module.Refresh = module.ApplyAll
 -- "SlackHacks Minimap Options" window, opened via Blizzard's Edit Mode
 --=====================================================================
 
---- Creates the custom options dialog and its setting-bound controls.
----@return Frame - Options dialog with a `RefreshValues` method.
 local function createOptionsDialog()
   local dialog = CreateFrame("Frame", "SlackHacksMinimapOptionsDialog", UIParent, "BackdropTemplate")
   dialog:SetSize(320, 100) -- height is recalculated below once all controls are laid out
@@ -2585,10 +2390,6 @@ local function createOptionsDialog()
 
   local controls = {}
 
-  --- Adds a non-interactive section heading and returns the next vertical position.
-  ---@param text string - Heading text.
-  ---@param yOffset number - Current top offset.
-  ---@return number - Next top offset.
   local function addHeader(text, yOffset)
     local header = dialog:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     header:SetPoint("TOPLEFT", dialog, "TOPLEFT", 20, yOffset)
@@ -2596,9 +2397,6 @@ local function createOptionsDialog()
     return yOffset - 22
   end
 
-  --- Adds a visual divider and returns the next vertical position.
-  ---@param yOffset number - Current top offset.
-  ---@return number - Next top offset.
   local function addDivider(yOffset)
     local divider = dialog:CreateTexture(nil, "ARTWORK")
     divider:SetSize(280, 8)
@@ -2607,20 +2405,11 @@ local function createOptionsDialog()
     return yOffset - 12
   end
 
-  --- Adds a checkbox bound to profile getters/setters and optional dependent controls.
-  ---@param label string - Checkbox label.
-  ---@param getFunc fun():boolean - Reads the current value.
-  ---@param setFunc fun(value:boolean) - Persists a new value.
-  ---@param yOffset number - Current top offset.
-  ---@param dependents table|nil - Controls enabled by this checkbox.
-  ---@return CheckButton, number - Checkbox and next top offset.
   local function addCheckbox(label, getFunc, setFunc, yOffset, dependents)
     local cb = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
     cb:SetPoint("TOPLEFT", dialog, "TOPLEFT", 18, yOffset)
     cb.text:SetText(label)
     cb.text:SetFontObject("GameFontHighlight")
-    --- Enables or disables controls dependent on this checkbox.
-    ---@param checked boolean - Whether the parent option is enabled.
     local function updateDependents(checked)
       if dependents then
         for _, dep in ipairs(dependents) do dep:SetEnabled(checked) end
@@ -2640,16 +2429,6 @@ local function createOptionsDialog()
     return cb, yOffset - 24
   end
 
-  --- Adds a numeric slider bound to profile getters/setters.
-  ---@param label string - Slider label.
-  ---@param minVal number - Minimum value.
-  ---@param maxVal number - Maximum value.
-  ---@param step number - Slider step.
-  ---@param getFunc fun():number - Reads the current value.
-  ---@param setFunc fun(value:number) - Persists a new value.
-  ---@param yOffset number - Current top offset.
-  ---@param formatFunc fun(value:number):string|nil - Optional display formatter.
-  ---@return Frame, number - Slider wrapper and next top offset.
   local function addSlider(label, minVal, maxVal, step, getFunc, setFunc, yOffset, formatFunc)
     local frame = CreateFrame("Frame", nil, dialog)
     frame:SetSize(280, 36)
@@ -2672,8 +2451,6 @@ local function createOptionsDialog()
     slider.High:SetText("")
     slider.Text:SetText("")
 
-    --- Updates the visible slider value without changing the setting.
-    ---@param val number - Value to display.
     local function updateValue(val)
       valText:SetText(formatFunc and formatFunc(val) or tostring(math.floor(val + 0.5)))
     end
@@ -2802,7 +2579,6 @@ local function createOptionsDialog()
 
   dialog:SetHeight(math.abs(curY) + 24)
 
-  --- Refreshes every control from the current profile and reapplies square-only dependencies.
   function dialog:RefreshValues()
     for _, fn in ipairs(controls) do fn() end
     local isSquare = (db.profile.minimap.shape == "square")
@@ -2814,8 +2590,6 @@ local function createOptionsDialog()
   return dialog
 end
 
---- Shows, hides, and positions the options dialog beside Blizzard's Edit Mode panel.
----@param show boolean - Whether the dialog should be visible.
 local function showOptionsDialog(show)
   if not optionsDialog then
     if not show then return end
@@ -2837,8 +2611,6 @@ end
 
 --- Attaches our options window to Blizzard's own Edit Mode settings dialog whenever the Minimap
 --- system (a native Edit Mode system, unlike our custom Buffs container) is the one selected.
--- Several hooks are compatibility shims: square mode owns the visual header and rotation, so Blizzard
--- is told those settings are unavailable and its setters are intercepted while square mode is active.
 local function registerEditModeHooks()
   if MinimapCluster and not origSetHeaderUnderneath and MinimapCluster.SetHeaderUnderneath then
     origSetHeaderUnderneath = MinimapCluster.SetHeaderUnderneath
@@ -2939,7 +2711,6 @@ end
 -- Lifecycle
 --=====================================================================
 
---- Ace3 initialization: installs Edit Mode hooks and database reset refresh behavior.
 function module:OnInitialize()
   registerEditModeHooks()
   db:RegisterCallback("OnDatabaseReset", module.ApplyAll, module)
@@ -2948,7 +2719,6 @@ function module:OnInitialize()
   end
 end
 
---- Ace3 enable hook: registers events and applies the configured minimap presentation.
 function module:OnEnable()
   if not (db and db.profile and db.profile.minimap and db.profile.minimap.enabled) then
     self:SetEnabledState(false)
@@ -2974,14 +2744,10 @@ function module:OnEnable()
   self:ApplyAll()
 end
 
---- Rebuilds deferred layout after another addon finishes loading.
 function module:ADDON_LOADED()
   scheduleTitleBarLayout()
 end
 
---- Prevents external CVar changes from rotating a square minimap.
----@param event string - AceEvent event name.
----@param cvarName string - CVar that changed.
 function module:CVAR_UPDATE(event, cvarName)
   if cvarName == "rotateMinimap" then
     if isModuleEnabled() and settings().shape == "square" then
@@ -2996,37 +2762,30 @@ function module:CVAR_UPDATE(event, cvarName)
   end
 end
 
---- Records combat state and applies the appropriate alpha immediately.
 function module:PLAYER_REGEN_DISABLED()
   if not isModuleEnabled() then return end
   isInCombat = true
   applyAlpha()
 end
 
---- Leaves combat and reapplies skipped protected-frame changes.
 function module:PLAYER_REGEN_ENABLED()
   if not isModuleEnabled() then return end
   isInCombat = false
   self:ApplyAll() -- catch up any show/hide changes that were skipped while in combat
 end
 
---- Records movement state and applies the configured moving alpha.
 function module:PLAYER_STARTED_MOVING()
   if not isModuleEnabled() then return end
   isMoving = true
   applyAlpha()
 end
 
---- Clears movement state and returns to the normal/combat alpha.
 function module:PLAYER_STOPPED_MOVING()
   if not isModuleEnabled() then return end
   isMoving = false
   applyAlpha()
 end
 
---- Restores every native minimap visual, layout hook, CVar, and discovered addon button.
--- Restoration is skipped for protected Show calls during combat; normal Blizzard events will reconcile
--- those frames after combat. This makes disabling the module reversible instead of leaving a hybrid UI.
 function module:OnDisable()
   self:UnregisterAllEvents()
   cancelHoverLeaveCheck()

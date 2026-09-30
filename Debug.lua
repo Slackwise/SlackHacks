@@ -38,8 +38,6 @@ LOG_PURGE_MAX_HOURS = 24 * 30 -- 30 days
 -- Debug mode & general logging
 -----------------------------------------------------------------------
 
---- Returns whether verbose debug logging is enabled.
----@return boolean - The persisted setting after initialization, or true for Slack during startup.
 function isDebugging()
   if isInitialized() then
     return Self.db.global.logs and Self.db.global.logs.isDebugging
@@ -51,8 +49,6 @@ function isDebugging()
   end
 end
 
---- Toggles verbose debug logging and refreshes UI consumers of that setting.
----@return boolean - The new enabled state, or false before addon initialization.
 function toggleDebugging()
   if not isInitialized() then return false end
   if not Self.db.global.logs then
@@ -74,9 +70,6 @@ function toggleDebugging()
   return Self.db.global.logs.isDebugging
 end
 
---- Prints a timestamped debug message and optionally persists it with its varargs.
----@param message string - The message to print and store.
----@param ... any - Values written as separate argument records while debugging.
 function log(message, ...)
   if isDebugging() then
     local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form
@@ -97,14 +90,10 @@ end
 -- Storage & Purging
 -----------------------------------------------------------------------
 
---- Reports whether persistent error capture is currently enabled.
----@return boolean - True only after initialization and when the saved option is enabled.
 local function isErrorLoggingEnabled()
   return isInitialized() and db.global.logs and db.global.logs.errorLoggingEnabled
 end
 
---- Returns the persistent error-log array, creating its containers when necessary.
----@return table|nil - The error entries, or nil before addon initialization.
 local function errorLogTable()
   if not isInitialized() then return nil end
   if not db.global.logs then
@@ -134,7 +123,6 @@ function purgeLogTable(logTable, cutoff)
   return kept
 end
 
---- Removes debug and error entries older than the configured retention period.
 function purgeOldLogs()
   if not Self.db.global.logs or not Self.db.global.logs.logPurgeEnabled then
     return
@@ -149,9 +137,6 @@ function purgeOldLogs()
   end
 end
 
---- Schedules log purging and an automatic report attempt after a short delay.
----@param shouldProcess boolean|nil - False suppresses processing for this call.
----@param delay number|nil - Delay in seconds; defaults to ten seconds.
 function processLogs(shouldProcess, delay)
   if shouldProcess == false or not isErrorLoggingEnabled() then
     return
@@ -169,12 +154,8 @@ function processLogs(shouldProcess, delay)
     end)
   end)
 end
---- Ace3 method adapter for `processLogs`.
----@param self table - The Debug module; accepted for Ace3 method compatibility.
----@param ... any - Forwarded to `processLogs`.
 module.ProcessLogs = function(self, ...) processLogs(...) end
 
---- Deletes all persisted verbose debug entries.
 function clearDebugLogs()
   if Self.db.global.logs and Self.db.global.logs.debug then
     wipe(Self.db.global.logs.debug)
@@ -182,7 +163,6 @@ function clearDebugLogs()
 end
 clearLogs = clearDebugLogs
 
---- Deletes all persisted captured-error entries.
 function clearErrorLogs()
   if Self.db.global.logs and Self.db.global.logs.error then
     wipe(Self.db.global.logs.error)
@@ -193,10 +173,6 @@ end
 -- Error recording
 -----------------------------------------------------------------------
 
---- Tests whether an error message or stack trace points into SlackHacks.
----@param message string|nil - Error text.
----@param stack string|nil - Captured stack trace.
----@return boolean - True when either value contains a known addon path marker.
 local function isOurAddonError(message, stack)
   for _, marker in ipairs(ERROR_LOG_ADDON_PATH_MARKERS) do
     if (message and message:find(marker, 1, true)) or (stack and stack:find(marker, 1, true)) then
@@ -206,9 +182,6 @@ local function isOurAddonError(message, stack)
   return false
 end
 
---- Records one local SlackHacks error, coalescing repeated message/character pairs.
----@param message string - Error text.
----@param stack string|nil - Stack trace, when available.
 local function recordError(message, stack)
   if not isErrorLoggingEnabled() then return end
   if not isOurAddonError(message, stack) then return end
@@ -241,8 +214,6 @@ local function recordError(message, stack)
 end
 
 --- Merges an error entry received from another player, de-duplicated the same way as `recordError`.
----@param entry table - Serialized remote error entry.
----@param senderName string - Character name used as the de-duplication owner.
 ---@return boolean - True if this was a new entry (not just a counter bump on an existing one).
 local function recordReceivedEntry(entry, senderName)
   local list = errorLogTable()
@@ -269,19 +240,10 @@ end
 -- Error capture (additive -- never disables BugSack/BugGrabber/Blizzard's own error handling)
 -----------------------------------------------------------------------
 
--- Error capture is deliberately installed in one of two mutually exclusive ways. BugGrabber owns
--- the global handler when present, so listening to its public event avoids fighting it. Without
--- BugGrabber, our wrapper chains to the handler that was already installed and always calls it after
--- recording. This keeps the debugger observational: it adds an error log but does not become the
--- error-reporting system for the rest of the client.
-
 local chainedErrorHandler
 local errorCaptureInstalled = false
 local listeningToBugGrabber = false
 
---- Captures an error for SlackHacks, then forwards it to the previously installed handler.
----@param message any - Error value supplied by the WoW error handler.
----@return any - Whatever the chained handler returns.
 local function ourErrorHandler(message)
   if isErrorLoggingEnabled() then
     local ok, stack = pcall(debugstack, 2)
@@ -292,8 +254,6 @@ local function ourErrorHandler(message)
   end
 end
 
---- Installs additive error capture through BugGrabber's event or a chained global handler.
--- The BugGrabber branch is a workaround for its intentional `seterrorhandler` no-op.
 local function installErrorCapture()
   if errorCaptureInstalled or not isErrorLoggingEnabled() then return end
 
@@ -312,7 +272,6 @@ local function installErrorCapture()
   errorCaptureInstalled = true
 end
 
---- Removes our event or chained-handler hook and restores the prior capture state.
 local function uninstallErrorCapture()
   if not errorCaptureInstalled then return end
 
@@ -333,8 +292,6 @@ end
 -- Who's eligible to report their error log to Slack, and how to reach him
 -----------------------------------------------------------------------
 
---- Returns whether the current client flavor may send error reports.
----@return boolean - True for Retail or Forever clients.
 local function isEligibleToReportErrorLogs()
   return isRetail() or isForever()
 end
@@ -342,7 +299,7 @@ end
 --- Looks for Slack currently online, either as a Battle.net (real-ID) friend playing WoW, or as a
 --- character named "Slack" online in our shared guild. Battle.net is checked for both retail and Forever;
 --- the guild check only ever matches if the local player is also in "Pulling Aggro IRL".
----@return string|nil, string|number|nil - "bnet" plus game account ID, or "guild" plus character name.
+---@return string|nil, string|number|nil - "bnet"+gameAccountID, or "guild"+full character name, or nil.
 local function resolveSlackTarget()
   if BNGetNumFriends and BNGetFriendInfo and C_BattleNet and C_BattleNet.GetAccountInfoByID then
     for index = 1, BNGetNumFriends() do
@@ -375,10 +332,6 @@ end
 -- Reporting (chunked over a hidden addon channel, queued after combat)
 -----------------------------------------------------------------------
 
---- Sends a serialized payload in Battle.net-sized chunks with start/middle/end markers.
----@param gameAccountID number - WoW game account receiving the data.
----@param text string - Serialized report payload.
----@param doneCallback fun(success:boolean) - Called after all chunks have been attempted.
 local function sendBattleNetChunked(gameAccountID, text, doneCallback)
   if not (C_BattleNet and C_BattleNet.SendGameData) then
     doneCallback(false)
@@ -398,10 +351,6 @@ local function sendBattleNetChunked(gameAccountID, text, doneCallback)
   doneCallback(allOk)
 end
 
---- Sends the local error log to a selected Battle.net or guild target.
----@param kind string - `bnet` or `guild`.
----@param target string|number - Battle.net game account ID or guild character name.
----@param onComplete fun(success:boolean, reason:string|nil)|nil - Completion callback.
 function module:ReportErrorLogs(kind, target, onComplete)
   local callback = type(onComplete) == "function" and onComplete or nil
   if not isErrorLoggingEnabled() then
@@ -442,8 +391,6 @@ function module:ReportErrorLogs(kind, target, onComplete)
 end
 module.SendErrorLogs = module.ReportErrorLogs
 
---- Finds an eligible target and reports local errors when one is online.
----@param onComplete fun(success:boolean, reason:string|nil)|nil - Completion callback.
 function module:AttemptReport(onComplete)
   local callback = type(onComplete) == "function" and onComplete or nil
   if not isErrorLoggingEnabled() then
@@ -480,9 +427,6 @@ module.AttemptSend = module.AttemptReport
 
 local toastFrame
 
---- Creates or updates the clickable notification shown for newly received errors.
----@param title string - Toast heading.
----@param body string - Toast detail text.
 local function showToast(title, body)
   if not toastFrame then
     toastFrame = CreateFrame("Frame", "SlackHacksErrorToast", UIParent, "BackdropTemplate")
@@ -530,9 +474,6 @@ local function showToast(title, body)
   end)
 end
 
---- Deserializes and merges a received report, then notifies the player about new entries.
----@param text string - Serialized report payload.
----@param via string - Human-readable transport description.
 function module:ProcessReceivedPayload(text, via)
   if not isErrorLoggingEnabled() then return end
 
@@ -560,12 +501,6 @@ end
 
 local bnetSpool = {}
 
---- Reassembles a marked Battle.net payload, keeping partial data isolated per sender.
----@param eventName string - AceEvent event name.
----@param prefix string - Addon-message prefix.
----@param text string - Marker-prefixed chunk.
----@param channel string - Transport channel supplied by WoW.
----@param senderID string|number - Sender key for the chunk spool.
 function module:BN_CHAT_MSG_ADDON(eventName, prefix, text, channel, senderID)
   if not isErrorLoggingEnabled() then return end
   if prefix ~= ERROR_LOG_COMM_PREFIX then return end
@@ -581,11 +516,6 @@ function module:BN_CHAT_MSG_ADDON(eventName, prefix, text, channel, senderID)
   end
 end
 
---- Receives a guild-whisper report through AceComm and passes it to the merger.
----@param prefix string - Communication prefix.
----@param message string - Serialized report.
----@param distribution string - AceComm distribution.
----@param sender string - Sender name.
 function Self:OnErrorLogCommReceived(prefix, message, distribution, sender)
   module:ProcessReceivedPayload(message, shortName(sender) or sender)
 end
@@ -594,7 +524,6 @@ end
 -- Lifecycle
 -----------------------------------------------------------------------
 
---- Synchronizes error-capture hooks, report events, and the AceComm receiver with settings.
 function module:RefreshErrorLogging()
   if isErrorLoggingEnabled() then
     installErrorCapture()
@@ -610,20 +539,16 @@ function module:RefreshErrorLogging()
   end
 end
 
---- Persists the error-logging setting and immediately applies its hooks.
----@param enabled boolean - Whether local capture and reporting should be active.
 function module:SetErrorLoggingEnabled(enabled)
   if not db.global.logs then db.global.logs = { debug = {}, error = {} } end
   db.global.logs.errorLoggingEnabled = enabled and true or false
   self:RefreshErrorLogging()
 end
 
---- Ace3 lifecycle entry point that enables configured error logging.
 function module:OnEnable()
   self:RefreshErrorLogging()
 end
 
---- Ace3 lifecycle entry point that removes all error hooks and communication handlers.
 function module:OnDisable()
   uninstallErrorCapture()
   self:UnregisterAllEvents()
@@ -635,8 +560,6 @@ end
 -- everything that's been relayed to him)
 -----------------------------------------------------------------------
 
---- Builds a GitHub-ready Markdown report from all persisted error entries.
----@return string - Markdown document containing client metadata and stack traces.
 function module:BuildMarkdown()
   local list = errorLogTable() or {}
   local lines = {}
@@ -675,7 +598,6 @@ function module:BuildMarkdown()
   return table.concat(lines, "\n")
 end
 
---- Displays or refreshes the AceGUI error-log window.
 function module:ShowWindow()
   local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
   if not AceGUI then
@@ -723,7 +645,6 @@ function module:ShowWindow()
   markdownBox:SetText(self:BuildMarkdown())
 end
 
---- Reports captured errors when possible, otherwise opens the local report window.
 function module:ReportErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
@@ -748,7 +669,6 @@ end
 module.HandleBugCommand = module.ReportErrors
 
 -- Secret, undocumented /slack induce-error command for verifying BugGrabber/BugSack capture our errors.
---- Intentionally raises a nil-index error for testing the capture integrations.
 function module:InduceError()
   local induceErrorNilValue = nil
   induceErrorNilValue.slackHacksInducedError = true
