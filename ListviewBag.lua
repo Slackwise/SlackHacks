@@ -4,9 +4,9 @@ setfenv(1, _G.SlackHacks)
   ListviewBag: a simplified, sortable list-view alternative to the default grid-style bag window.
   Reuses Blizzard's own bag data APIs (C_Container) and as many native widgets/templates as possible
   (NineSlicePanelTemplate border, UIPanelCloseButton, UICheckButtonTemplate, UIPanelScrollFrameTemplate,
-  StackSplitFrame) so the window looks/feels like a first-party Blizzard panel and behaves correctly
-  in combat (no custom secure wrappers -- every click/drag script calls the same unprotected Container
-  APIs the default UI itself uses, straight from a real hardware OnClick/OnDrag event).
+  StackSplitFrame) so the window looks/feels like a first-party Blizzard panel. Row buttons use
+  Blizzard's ContainerFrameItemButtonTemplate for native item click/use behavior; custom row visuals
+  sit around that button while its Blizzard click handler remains intact.
 ]]--
 
 local module = Self:NewModule("ListviewBag", "AceEvent-3.0")
@@ -68,27 +68,6 @@ local function bagIDs()
     ids[#ids + 1] = Enum.BagIndex.ReagentBag
   end
   return ids
-end
-
-local function findEmptyBagSlot()
-  for _, bagID in ipairs(bagIDs()) do
-    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
-      if not C_Container.GetContainerItemInfo(bagID, slot) then
-        return bagID, slot
-      end
-    end
-  end
-end
-
--- Every previous fix here focused on how bagID/slot are *stored*, or on reusing Blizzard's mixin
--- *functions* on a plain anonymous Button, and neither mattered. Per Sorted's own source, the row must
--- actually be built from the real "ContainerFrameItemButtonTemplate" with an explicit name (see
--- createRow()) for Blizzard's own click handling to run untainted. row:GetBagID() (template-provided)
--- falls back to row:GetParent():GetID() since SetBagID/self.bagID is never set -- see createRow().
-local function decodeRowID(row)
-  local slot = row:GetID()
-  if slot == 0 then return nil end
-  return row:GetBagID(), slot
 end
 
 local function settings()
@@ -994,11 +973,6 @@ local function buildFrame()
       if frame:IsShown() then frame:Hide() else frame:Show() end
     end
   end)
-  -- Registered directly on the frame (not via AceEvent/module lifecycle) so a stale override binding
-  -- left behind by a combat-lockdown-blocked updateListViewBindings() still gets cleared once combat
-  -- ends, even if the module was disabled (and its AceEvent registrations torn down) mid-combat.
-  bagKeyBindingButton:RegisterEvent("PLAYER_REGEN_ENABLED")
-  bagKeyBindingButton:SetScript("OnEvent", function() updateListViewBindings() end)
 
   -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
   searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
@@ -1158,13 +1132,14 @@ function module:MERCHANT_SHOW()
   if footer and footer.sellTrashButton then
     footer.sellTrashButton:SetEnabled(true)
   end
+  renderRows()
 end
 
 function module:MERCHANT_CLOSED()
   if footer and footer.sellTrashButton then
     footer.sellTrashButton:SetEnabled(false)
   end
-  renderRows() -- re-enables right-click on protected rows now that MerchantFrame:IsShown() is false
+  renderRows()
 end
 
 function module:OnNativeBagOpen()

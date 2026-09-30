@@ -1,3 +1,29 @@
+--[[
+  SelfVendor.lua
+
+  Lets an eligible player (group/raid/guild member) request a scripted trade from you by
+  emoting at you or by you targeting them and running a slash command. Each "mode" (e.g.
+  Consumables, Augment Runes, Vantus Rune, Augments) maps to a bundle of items, and a single
+  configurable emote can act as that mode's trigger so the sender never needs an addon of
+  their own.
+
+  Design decisions worth remembering:
+  - Everything funnels through a FIFO queue (`self.tradeQueue`) so only one trade is ever
+    prepared/opened at a time. WoW's trade window, bag manipulation, and item-splitting APIs
+    are single-actor and asynchronous, so servicing multiple people concurrently would corrupt
+    state (wrong items ending up in the wrong trade window).
+  - We enqueue a requester *before* doing any async work (inspecting, bag polling) so their
+    queue position is stable and can be reported back immediately, even though the inspect/bag
+    checks that follow are asynchronous.
+  - Item quantities are handled via C_Container.SplitContainerItem + polling rather than trusting
+    an immediate stack read, because the client updates container info asynchronously after a
+    split; polling with backoff (see PollPreparedStack) avoids racing the game's own item move.
+  - Vantus Runes are intentionally excluded from the "Consumables" bundles (CONSUMABLES_MISSING /
+    CONSUMABLES_ALL) because they are per-raid-instance items you may not want handed out by
+    default, unlike flasks/oils/augment runes which are always useful. They get their own mode
+    and trigger emote instead.
+]]
+
 setfenv(1, _G.SlackHacks)
 
 local module = Self:NewModule("SelfVendor", "AceEvent-3.0")
@@ -5,22 +31,47 @@ Self.SelfVendor = module
 local maxTradeSlots = MAX_TRADABLE_ITEMS or 6
 local VendorMode = Enum.SelfVendorMode
 
+--- Look up the saved-variable configuration table for a given vendor mode.
+-- Centralized so every read/write of a mode's `enabled`/`triggerEmote`/`runeQuantity`
+-- goes through one place instead of repeating the `db.profile.selfVendor.modes[mode]` path.
+-- @param mode number Enum.SelfVendorMode value.
+-- @return table|nil the mode's profile configuration table, or nil if unknown.
 local function modeConfiguration(mode)
   return db.profile.selfVendor.modes[mode]
 end
 
+--- Resolve which vendor mode a typed slash command corresponds to.
+-- SELF_VENDOR_MODES stores a stable `command` string per mode (e.g. "vantusrune") so slash
+-- commands stay human-typeable and decoupled from the Enum's numeric values.
+-- @param command string lower-cased command word (already stripped of "/slack vendor ").
+-- @return number|nil matching Enum.SelfVendorMode value, or nil if no mode uses that command.
 local function modeForCommand(command)
   for mode, details in pairs(SELF_VENDOR_MODES) do
     if details.command == command then return mode end
   end
 end
 
+--- Determine which configured emote (if any) a raw CHAT_MSG_TEXT_EMOTE message matches.
+-- We use a plain substring match (`find(..., 1, true)`) rather than a pattern match because
+-- emote text contains punctuation/parentheses that would need escaping, and because the
+-- observer-facing emote text ("<Name> glares angrily at you") only ever needs to *contain*
+-- the configured fragment, not match it exactly (the player name prefix varies).
+-- NOTE: SELF_VENDOR_TRIGGER_EMOTES.trigger values must be written from the *target's*
+-- point of view (what the recipient of the emote sees), not the actor's own message.
+-- @param message string lower-cased chat text of the emote as seen by the local player.
+-- @return string|nil the SELF_VENDOR_TRIGGER_EMOTES token (e.g. "STARE") that matched, or nil.
 local function emoteForTargetedMessage(message)
   for token, emote in pairs(SELF_VENDOR_TRIGGER_EMOTES) do
     if message:find(emote.trigger, 1, true) then return token end
   end
 end
 
+--- Build a human-readable label describing what was requested, for chat/log output.
+-- Falls back to "(manual command)" when the request came from a targeted slash command
+-- instead of an emote, so queue/status messages always read naturally either way.
+-- @param mode number Enum.SelfVendorMode value.
+-- @param emoteToken string|nil SELF_VENDOR_TRIGGER_EMOTES token if the request came from an emote.
+-- @return string e.g. "Vantus Rune (via /stare)" or "Augments (manual command)".
 local function requestLabel(mode, emoteToken)
   local modeName = SELF_VENDOR_MODES[mode] and SELF_VENDOR_MODES[mode].name or "unknown request"
   local emoteInfo = emoteToken and SELF_VENDOR_TRIGGER_EMOTES[emoteToken]
@@ -30,20 +81,43 @@ local function requestLabel(mode, emoteToken)
   return modeName .. " (manual command)"
 end
 
+--- Look up an item's numeric ID by its display name.
+-- Thin wrapper over the global ITEM_NAMES lookup table (built in StaticData.lua) that
+-- tolerates ITEM_NAMES being unavailable during early load order.
+-- @param itemName string exact in-game item name.
+-- @return number|nil item ID, or nil if unknown.
 local function itemID(itemName)
   return ITEM_NAMES and ITEM_NAMES[itemName]
 end
 
+--- Normalize and validate a requested BIS data source key ("wowhead"/"icyveins"/"murlok").
+-- Falls back to DEFAULT_ENHANCEMENT_SOURCE when no source is given, and returns nil (rather
+-- than an invalid string) when the source doesn't actually exist in ENHANCEMENTS_BIS, so
+-- callers can safely use the result as a definite "is this valid" check.
+-- @param rawSource string|nil user-provided source name, any case.
+-- @return string|nil canonical lower-case source key if valid, else nil.
 local function enhancementSourceKey(rawSource)
   local sourceKey = strlower(rawSource or DEFAULT_ENHANCEMENT_SOURCE or "")
   return ENHANCEMENTS_BIS and ENHANCEMENTS_BIS[sourceKey] and sourceKey
 end
 
+--- Convert an internal source key into the display name shown to users in chat output.
+-- @param sourceKey string one of "wowhead", "icyveins", "murlok".
+-- @return string display name (e.g. "Icy Veins"), or the raw key if unrecognized.
 local function displayEnhancementSource(sourceKey)
   local names = { wowhead = "Wowhead", icyveins = "Icy Veins", murlok = "Murlok M+" }
   return names[sourceKey] or sourceKey
 end
 
+--- Resolve which flask a class/spec should use, for the "murlok" data source only.
+-- Murlok M+ guides don't publish their own flask recommendation, so we deliberately borrow
+-- the flask choice from the Icy Veins raid data for the same class/spec rather than leaving
+-- it blank. Other sources (wowhead/icyveins) carry their own `Flask` field directly in their
+-- spec data and don't need this fallback.
+-- @param sourceKey string enhancement data source key.
+-- @param classKey string class file name (e.g. "DEATHKNIGHT").
+-- @param specKey string spec key as used in ENHANCEMENTS_BIS.
+-- @return string|nil flask item name, or nil if source isn't "murlok" or no match found.
 local function enhancementFlaskName(sourceKey, classKey, specKey)
   if sourceKey ~= "murlok" then return nil end
   local classData = ENHANCEMENTS_BIS.icyveins and ENHANCEMENTS_BIS.icyveins[classKey]
@@ -51,6 +125,11 @@ local function enhancementFlaskName(sourceKey, classKey, specKey)
   return specData and specData.Flask
 end
 
+--- Case-insensitively look up a personal BIS override by "Character-Realm" key.
+-- Case-insensitive because character/realm names typed in slash commands or read from
+-- UnitFullName may not match the exact casing stored in ENHANCEMENTS_BIS_OVERRIDES.
+-- @param key string|nil "Character-Realm" identifier to look up.
+-- @return table|nil override spec data, string|nil the exact key it was stored under.
 local function enhancementOverrideForKey(key)
   if not key or not ENHANCEMENTS_BIS_OVERRIDES then return nil end
   for overrideKey, override in pairs(ENHANCEMENTS_BIS_OVERRIDES) do
@@ -58,6 +137,13 @@ local function enhancementOverrideForKey(key)
   end
 end
 
+--- Look up a personal BIS override for a specific unit or a fallback "Name-Realm" string.
+-- Overrides are gated behind isSlackwise() because they encode one person's (Slackwise's)
+-- personal gear preferences that diverge from the generic class/spec guides, and shouldn't
+-- silently apply to other players running this addon.
+-- @param unit string|nil unit token (e.g. "target") to resolve a full name from.
+-- @param fallbackName string|nil "Name-Realm" string to use if `unit` doesn't resolve.
+-- @return table|nil override spec data if one exists for this character.
 local function enhancementOverride(unit, fallbackName)
   if not isSlackwise() or not ENHANCEMENTS_BIS_OVERRIDES then return nil end
   local characterName, realmName = unit and UnitFullName(unit)
@@ -69,6 +155,13 @@ local function enhancementOverride(unit, fallbackName)
   return enhancementOverrideForKey(key)
 end
 
+--- Find which spec key within a class's BIS data matches a raw (possibly abbreviated) spec name.
+-- Searches across every enhancement data source (not just one) because a player's requested
+-- source may not have a spec entry that another source does, and we only need to confirm the
+-- spec name itself is valid for the class somewhere before doing per-source lookups later.
+-- @param classKey string class file name.
+-- @param rawSpec string user-typed spec name/abbreviation.
+-- @return string|nil canonical spec key if the class/spec combination is known.
 local function specNameForClass(classKey, rawSpec)
   local specKey = specKeyForName(rawSpec)
   for _, sourceData in pairs(ENHANCEMENTS_BIS or {}) do
@@ -77,6 +170,14 @@ local function specNameForClass(classKey, rawSpec)
   end
 end
 
+--- Translate a raw BIS spec-data table (enchants/gems/flask) into a normalized recommendation
+-- structure used throughout this module for both gear-check and consumable-check logic.
+-- Consumables are always the same four items (flask, Thalassian Phoenix Oil, an augment rune,
+-- and the current Vantus Rune) regardless of data source, since only enchants/gems/flask vary
+-- by class/spec/source; hard-coding them here keeps that list in exactly one place.
+-- @param data table raw spec data (Enchants/Gems/Flask) from ENHANCEMENTS_BIS or an override.
+-- @param flaskName string|nil resolved flask name (see enhancementFlaskName); falls back to data.Flask.
+-- @return table recommendation with slotKeys/slots/enchantNames/enchantIDs/gemNames/gemEntries/gemIDs/consumables.
 local function buildBISEnhancementRecommendation(data, flaskName)
   flaskName = flaskName or data.Flask
   local slotKeys = { "HEAD", "SHOULDER", "CHEST", "WAIST", "LEGS", "FEET", "WRIST", "HANDS", "FINGER1", "FINGER2", "TRINKET1", "TRINKET2", "BACK", "MAINHAND", "OFFHAND" }
@@ -108,10 +209,25 @@ local function buildBISEnhancementRecommendation(data, flaskName)
   }
 end
 
+--- Determine whether a named player is allowed to request a Self Vendor trade.
+-- Eligibility is intentionally limited to people in your current group/raid or your guild
+-- (not, say, "anyone who whispers you") so random players can't emote at you to drain your
+-- consumables/enchant mats.
+-- @param name string player name (with or without realm).
+-- @return boolean|string truthy if eligible: a unit token from groupUnitFor, or true-ish guild match.
 local function senderIsEligible(name)
   return groupUnitFor(name) or guildMember(name)
 end
 
+--- Compute the full BIS recommendation (gear + consumables) for a unit, given a data source.
+-- Falls back through: requested spec -> first available spec for that class (`fallbackSpecKey`)
+-- so that a source missing data for a hybrid spec doesn't hard-fail; then applies a personal
+-- override (Slackwise-only) if one exists for that exact character, since a maintained personal
+-- loadout should always win over generic guide data.
+-- @param unit string|nil unit token to inspect (defaults to "player").
+-- @param sourceKey string|nil requested/validated enhancement data source.
+-- @param characterName string|nil "Name-Realm" fallback used for override lookups.
+-- @return table|nil recommendation (see buildBISEnhancementRecommendation), string|nil resolved sourceKey.
 local function currentRecommendation(unit, sourceKey, characterName)
   local _, classFile = UnitClass(unit or "player")
   local specName = getSpecName()
@@ -131,6 +247,16 @@ local function currentRecommendation(unit, sourceKey, characterName)
   return specData and buildBISEnhancementRecommendation(specData, enhancementFlaskName(sourceKey, classFile, specKey)), sourceKey
 end
 
+--- Transition module state from "pending" to "active" once the trade window has been populated.
+-- This is the hand-off point between preparation (finding/splitting items, opening the trade
+-- window) and the "trade in progress" phase tracked by TRADE_ACCEPT_UPDATE/TRADE_CLOSED. We
+-- snapshot pendingName/pendingMode/pendingEmote into activeTradeName/activeTradeMode/
+-- activeTradeEmote here (rather than leaving them in the pending* fields) so TRADE_CLOSED can
+-- still report who/what was serviced even though the pending fields get cleared for the next
+-- queued trade.
+-- @param module table the SelfVendor module (passed explicitly since this is a local function,
+--   not a method, so it can be called from contexts without `self`).
+-- @param added number total item quantity actually placed into the trade window.
 local function finishTradePopulation(module, added)
   if added == 0 then
     log("Trade population found no items to add")
@@ -152,10 +278,23 @@ local function finishTradePopulation(module, added)
   module.pendingEmote = nil
 end
 
+--- Convert an item ID back into a display name for chat/log output.
+-- Falls back to a generic "Item <id>" placeholder rather than erroring or returning nil,
+-- so shortage/status messages remain readable even for an item missing from ITEM_NAMES_BY_ID.
+-- @param itemID number item ID.
+-- @return string display name.
 local function itemName(itemID)
   return ITEM_NAMES_BY_ID[itemID] or ("Item " .. itemID)
 end
 
+--- Parse a free-form "<class> <spec>" command tail into canonical class/spec keys.
+-- Class names can be multiple words ("Death Knight"), so we try progressively shorter
+-- prefixes of the token list as the candidate class name (longest first) and treat
+-- whatever's left as the spec text. This greedy longest-match approach correctly handles
+-- both single-word classes ("Druid Balance") and multi-word ones ("Death Knight Blood")
+-- without needing a fixed class-name word count.
+-- @param rawCommand string remaining command text after "sendaugs", e.g. "death knight blood".
+-- @return string|nil classKey, string|nil specName; both nil if no valid combination is found.
 local function parseClassAndSpec(rawCommand)
   local tokens = {}
   for token in (rawCommand or ""):gmatch("%S+") do
@@ -176,6 +315,11 @@ local function parseClassAndSpec(rawCommand)
   return nil, nil
 end
 
+--- Flatten a recommendation's enchants + gems into a single "itemID -> total quantity needed" map.
+-- Used only for the gear-focused `/slack sendaugs` mail flow (not the emote-trade flow, which
+-- has its own GetRequiredItems that also accounts for consumables and what's already equipped).
+-- @param recommendationData table from buildBISEnhancementRecommendation.
+-- @return table map of itemID -> required quantity.
 local function buildRequiredForRecommendation(recommendationData)
   local required = {}
   local function add(itemID, quantity)
@@ -192,6 +336,9 @@ local function buildRequiredForRecommendation(recommendationData)
   return required
 end
 
+--- Compare a required-items map against current bag contents and report what's missing.
+-- @param required table map of itemID -> required quantity.
+-- @return table map of itemID -> missing quantity, containing only items that are short.
 local function missingListForRequired(required)
   local shortages = {}
   for itemID, quantity in pairs(required) do
@@ -201,6 +348,12 @@ local function missingListForRequired(required)
   return shortages
 end
 
+--- Produce a deterministic, alphabetically-sorted list of item IDs from a required-items map.
+-- Sorting matters because mail attachment slots and trade slots are filled in list order;
+-- without a stable sort, repeated runs (e.g. after a partial mail send) could attach items
+-- in a different order and confuse the "which slot has what" mental model for the user.
+-- @param required table map of itemID -> quantity.
+-- @return table array of item IDs sorted by display name.
 local function sortedItemIDs(required)
   local itemIDs = {}
   for itemID in pairs(required) do
@@ -212,15 +365,33 @@ local function sortedItemIDs(required)
   return itemIDs
 end
 
+--- Format a single required/missing item line for shopping-list style chat output.
+-- @param itemID number item ID.
+-- @param quantity number quantity needed; only shown when greater than 1 to avoid noisy "1x" prefixes.
+-- @return string e.g. "- 5x Void-Touched Augment Rune" or "- Flask of the Magisters".
 local function shoppingListItem(itemID, quantity)
   local prefix = quantity > 1 and quantity .. "x " or ""
   return "- " .. prefix .. itemName(itemID)
 end
 
+--- Check whether the mail compose window is currently open.
+-- The `/slack sendaugs` flow attaches items to mail rather than trading directly, so every
+-- attach attempt needs to confirm the frame is actually up before touching cursor/mail APIs.
+-- @return boolean true if SendMailFrame exists and is shown.
 local function mailFrameOpen()
   return SendMailFrame and SendMailFrame:IsShown()
 end
 
+--- Move exactly `quantity` of an item from bags into a specific mail attachment slot.
+-- Splits the stack first when the bag stack is larger than needed (so we don't over-mail),
+-- otherwise picks up the whole matching stack directly. Every cursor operation is checked
+-- with GetCursorInfo() because the pickup/split calls are fire-and-forget client requests;
+-- if the cursor didn't pick anything up (e.g. bag changed, item moved), we bail out with
+-- `false` rather than blindly clicking a mail slot with an empty cursor.
+-- @param itemID number item to attach.
+-- @param quantity number exact stack size to attach.
+-- @param mailIndex number 1-based SendMailItem button index (mail supports up to 12).
+-- @return boolean true if the item was successfully attached to that mail slot.
 local function attachItemToMail(itemID, quantity, mailIndex)
   local bag, slot = findBagItem(itemID, quantity)
   if not bag or not slot then return false end
@@ -242,10 +413,28 @@ local function attachItemToMail(itemID, quantity, mailIndex)
   return false
 end
 
+--- Add to (or initialize) an itemID's entry in a required-items accumulator map.
+-- Small helper to avoid repeating the `required[id] = (required[id] or 0) + qty` idiom
+-- across GetRequiredItems' several accumulation sites.
+-- @param required table map of itemID -> quantity, mutated in place.
+-- @param itemID number|nil item to add; a no-op if nil (keeps call sites branch-free).
+-- @param quantity number|nil amount to add; defaults to 1.
 local function addRequiredItem(required, itemID, quantity)
   if itemID then required[itemID] = (required[itemID] or 0) + (quantity or 1) end
 end
 
+--- Check whether a unit currently has a matching buff active, by name substring or spell ID.
+-- Iterates the HELPFUL aura list manually (up to 40 slots) rather than using a named-lookup
+-- API because we need to match on a partial/lower-cased name (buff tooltip text can vary
+-- slightly, e.g. rank suffixes) and, for oils, an exact spell ID is more reliable than name
+-- matching since temporary weapon enchants don't always surface a clean aura name.
+-- Used only for the CONSUMABLES_MISSING mode, to decide whether an already-buffed target
+-- still needs that particular consumable traded to them.
+-- @param unit string|nil unit token to inspect; returns false immediately if nil (can't inspect,
+--   e.g. no unit token available for the target of an emote-only request).
+-- @param buffName string|table exact/partial buff name(s) to match against, case-insensitive.
+-- @param auraSpellID number|nil optional exact spell ID to match (used for the Phoenix Oil check).
+-- @return boolean true if a matching aura was found.
 local function hasConsumableBuff(unit, buffName, auraSpellID)
   if not unit then return false end
   local buffNames = type(buffName) == "table" and buffName or { buffName }
@@ -262,6 +451,14 @@ local function hasConsumableBuff(unit, buffName, auraSpellID)
   return false
 end
 
+--- Handler for `/slack sendaugs <class> <spec> [source]` (and the Slackwise-only
+-- `/slack sendaugs <character> <realm> [source]` override form). Mails BIS enchants/gems
+-- for a class/spec (or a saved personal override) rather than trading them directly, since
+-- this command is meant for prepping mail to alts/other players who aren't online/nearby to
+-- trade with — unlike the emote-trade flow, which requires the recipient to be in range.
+-- Gated to isSlackwise() because this is a personal bulk-mailing tool, not a general feature.
+-- @param input string command text after "sendaugs", e.g. "shaman enhancement wowhead" or
+--   "Charname Realmname" for a personal override lookup.
 function module:SendAugsForClassSpec(input)
   if not isSlackwise() then
     print("SlackHacks: unknown command.")
@@ -370,18 +567,35 @@ function module:SendAugsForClassSpec(input)
   print("SlackHacks: BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
 end
 
+--- Toggle the entire Self Vendor module on/off (persisted setting + Ace3 Enable/Disable).
+-- Delegates to AceAddon's Enable/Disable so OnEnable/OnDisable run their event
+-- (un)registration side effects consistently, rather than duplicating that logic here.
+-- @param enabled boolean whether Self Vendor should be active.
 function module:SetEnabled(enabled)
   db.profile.selfVendor.enabled = enabled
   log("Self Vendor enabled state changed to " .. tostring(enabled))
   if enabled then self:Enable() else self:Disable() end
 end
 
+--- Enable or disable a single vendor mode (e.g. turn off Vantus Rune requests without
+-- disabling Consumables). No-ops silently for an unknown mode so callers (options UI)
+-- don't need to guard against invalid Enum values themselves.
+-- @param mode number Enum.SelfVendorMode value.
+-- @param enabled boolean whether this specific mode should respond to its trigger/command.
 function module:SetModeEnabled(mode, enabled)
   local configuration = modeConfiguration(mode)
   if not configuration then return end
   configuration.enabled = enabled
 end
 
+--- Assign a trigger emote to a vendor mode, enforcing that each emote token is used by at
+-- most one mode at a time. Without this uniqueness check, two modes could silently share an
+-- emote and only one (whichever `pairs()` iteration order hits first in CHAT_MSG_TEXT_EMOTE)
+-- would ever actually fire, which is a confusing, hard-to-debug state for the user to end up in.
+-- @param mode number Enum.SelfVendorMode value to assign the emote to.
+-- @param emote string SELF_VENDOR_TRIGGER_EMOTES token (e.g. "STARE").
+-- @return boolean|nil true on success; false if the emote is already claimed by another mode;
+--   nil if the mode or emote token itself is invalid.
 function module:SetModeTriggerEmote(mode, emote)
   local configuration = modeConfiguration(mode)
   if not configuration or not SELF_VENDOR_TRIGGER_EMOTES[emote] then return end
@@ -395,11 +609,22 @@ function module:SetModeTriggerEmote(mode, emote)
   return true
 end
 
+--- Set how many Augment Runes are traded as a single stack for the AUGMENT_RUNES mode.
+-- Clamped to [1, 100] to keep the value sane for the options UI slider/input and to avoid
+-- someone accidentally configuring an absurd or non-positive quantity that would then fail
+-- every stack-preparation attempt.
+-- @param value number|string requested rune quantity (string tolerated since options widgets
+--   sometimes hand back text-box input).
 function module:SetRuneQuantity(value)
   local configuration = modeConfiguration(VendorMode.AUGMENT_RUNES)
   if configuration then configuration.runeQuantity = math.max(1, math.min(100, tonumber(value) or 1)) end
 end
 
+--- Change which BIS data source (Wowhead/Icy Veins/Murlok M+) is used for gear/consumable
+-- recommendations. Validates the key first so a bad/typo'd source never gets persisted,
+-- which would otherwise silently break every subsequent recommendation lookup.
+-- @param sourceKey string requested source key, any case.
+-- @return boolean true if the source was valid and applied.
 function module:SetSource(sourceKey)
   sourceKey = enhancementSourceKey(sourceKey)
   if not sourceKey then return false end
