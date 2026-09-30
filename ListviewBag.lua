@@ -135,7 +135,7 @@ end
 -- reuses the exact strings the tooltip itself would show, and is automatically correct for any locale.
 local function getBindInfo(bagID, slot, itemLink)
   local itemInfo = C_Container.GetContainerItemInfo(bagID, slot)
-  local bindType = select(14, GetItemInfo(itemLink))
+  local bindType = select(14, C_Item.GetItemInfo(itemLink))
   local accountBound = false
   for _, text in ipairs(scanBagItemLines(bagID, slot)) do
     if text == ITEM_SOULBOUND then
@@ -212,7 +212,7 @@ local function collectGroups()
   -- Decorate each group with the details that need a slower lookup (GetItemInfo/tooltip), using the
   -- group's first entry as the representative bag slot for bind/track text.
   for _, group in ipairs(order) do
-    local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = GetItemInfo(group.hyperlink)
+    local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = C_Item.GetItemInfo(group.hyperlink)
     group.itemName = itemName or group.itemName
     if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
       local ok, craftedQuality = pcall(C_TradeSkillUI.GetItemCraftedQualityByItemInfo, group.hyperlink)
@@ -404,20 +404,23 @@ local function cycleStatus(key, statusInfo)
 end
 
 local function createRow(index)
-  local row = CreateFrame("Button", nil, scrollChild)
+  local holder = CreateFrame("Frame", nil, scrollChild)
+  holder:SetHeight(ROW_HEIGHT)
+
+  local row = CreateFrame("Button", "SlackHacksListviewBagRow" .. index, holder, "ContainerFrameItemButtonTemplate")
+  row.holder = holder
+  row:SetFrameLevel(holder:GetFrameLevel() + 1)
+  row:ClearAllPoints()
+  row:SetAllPoints(holder)
   row:SetHeight(ROW_HEIGHT)
 
-  row.itemButton = CreateFrame("Button", nil, row, "ContainerFrameItemButtonTemplate")
-  row.itemButton:SetAllPoints(row)
-  for _, region in pairs(row.itemButton) do
-    if type(region) == "table" and region.Hide then
+  if row:GetNormalTexture() then row:SetNormalTexture(nil) end
+  if row:GetHighlightTexture() then row:SetHighlightTexture(nil) end
+  for _, region in ipairs({ row:GetRegions() }) do
+    if region.Hide and region ~= row then
       region:Hide()
-      region:ClearAllPoints()
     end
   end
-  if row.itemButton:GetNormalTexture() then row.itemButton:SetNormalTexture("") end
-  if row.itemButton:GetHighlightTexture() then row.itemButton:SetHighlightTexture("") end
-  row.itemButton:Show()
 
   -- Same row hover-highlight bar and alternating-row background strip the Guild/Community roster list
   -- uses (CommunitiesMemberListEntryTemplate), reused here instead of a custom highlight color.
@@ -484,13 +487,12 @@ local function createRow(index)
   row.bindIcon = row:CreateTexture(nil, "ARTWORK")
   row.bindIcon:SetSize(18, 18)
 
-  row.itemButton:HookScript("OnEnter", function()
-    local highlight = row:GetHighlightTexture()
-    if highlight then highlight:Show() end
-  end)
-  row.itemButton:HookScript("OnLeave", function()
-    local highlight = row:GetHighlightTexture()
-    if highlight then highlight:Hide() end
+  row:HookScript("OnEnter", function(self)
+    if not row.primaryEntry and row.hyperlink then
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetHyperlink(row.hyperlink)
+      GameTooltip:Show()
+    end
   end)
   return row
 end
@@ -583,9 +585,10 @@ renderRows = function()
 
   for i, data in ipairs(rows) do
     local row = acquireRow(i)
-    row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
-    row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+    row.holder:ClearAllPoints()
+    row.holder:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
+    row.holder:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+    row.holder:Show()
     row:Show()
     row.stripe:SetShown(i % 2 == 0) -- alternating-row banding, same look as the guild roster list
     row.itemID = data.itemID
@@ -596,10 +599,13 @@ renderRows = function()
     row.statusInfo = data.statusInfo
     row.primaryEntry = data.entries and data.entries[1]
     row.locked = isProtectedItem(data.statusKey)
-    row:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
-    row.itemButton:SetID(row.primaryEntry and row.primaryEntry.slot or 0)
-    local canUseItem = row.primaryEntry and not (row.locked and MerchantFrame and MerchantFrame:IsShown())
-    row.itemButton:SetEnabled(not not canUseItem)
+    row.holder:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
+    row:SetID(row.primaryEntry and row.primaryEntry.slot or 0)
+    if row.locked and MerchantFrame and MerchantFrame:IsShown() then
+      row:RegisterForClicks("LeftButtonUp")
+    else
+      row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    end
 
     if data.isGroupHeader then
       row.collapseBtn:Show()
@@ -662,7 +668,7 @@ renderRows = function()
   end
 
   for i = #rows + 1, #rowPool do
-    rowPool[i]:Hide()
+    rowPool[i].holder:Hide()
   end
 end
 
@@ -1052,7 +1058,7 @@ sellMarkedTrashItems = function()
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID then
-        local itemName, itemLink, _, itemLevel = GetItemInfo(info.hyperlink)
+        local itemName, itemLink, _, itemLevel = C_Item.GetItemInfo(info.hyperlink)
         local upgradeTrack = getUpgradeTrack(bagID, slot)
         local key = itemStatusKey(itemName or info.itemName, info.quality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
         if isTrashItem(key) and not isProtectedItem(key) then
