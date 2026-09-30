@@ -944,8 +944,10 @@ BINDINGS = {
       {"CTRL-H",        "Teleport: Moonglade"},
     },
     HUNTER = {
-      {"E",             {"!ENGAGE", "inv_misc_questionmark", "#showtooltip 18\n/startattack\n/cast !Auto Shot"}},
-      {"R",             "Raptor Strike"},
+      {"1",             "Serpent Sting"},
+      {"E",             "Raptor Strike"},
+      {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
+      {"T",             "Aspect of the Monkey"},
       {"CTRL-G",        "Elune's Light"},
       {"SHIFT-Z",       "Shadowmeld"},
       {"ALT-CTRL-Z",    "Shadowmeld"},
