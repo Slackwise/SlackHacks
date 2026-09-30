@@ -135,7 +135,7 @@ end
 -- reuses the exact strings the tooltip itself would show, and is automatically correct for any locale.
 local function getBindInfo(bagID, slot, itemLink)
   local itemInfo = C_Container.GetContainerItemInfo(bagID, slot)
-  local bindType = select(14, C_Item.GetItemInfo(itemLink)) -- global GetItemInfo is absent on WoW Forever
+  local bindType = select(14, GetItemInfo(itemLink))
   local accountBound = false
   for _, text in ipairs(scanBagItemLines(bagID, slot)) do
     if text == ITEM_SOULBOUND then
@@ -212,7 +212,7 @@ local function collectGroups()
   -- Decorate each group with the details that need a slower lookup (GetItemInfo/tooltip), using the
   -- group's first entry as the representative bag slot for bind/track text.
   for _, group in ipairs(order) do
-    local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = C_Item.GetItemInfo(group.hyperlink)
+    local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = GetItemInfo(group.hyperlink)
     group.itemName = itemName or group.itemName
     if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
       local ok, craftedQuality = pcall(C_TradeSkillUI.GetItemCraftedQualityByItemInfo, group.hyperlink)
@@ -1052,7 +1052,7 @@ sellMarkedTrashItems = function()
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID then
-        local itemName, itemLink, _, itemLevel = C_Item.GetItemInfo(info.hyperlink)
+        local itemName, itemLink, _, itemLevel = GetItemInfo(info.hyperlink)
         local upgradeTrack = getUpgradeTrack(bagID, slot)
         local key = itemStatusKey(itemName or info.itemName, info.quality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
         if isTrashItem(key) and not isProtectedItem(key) then
