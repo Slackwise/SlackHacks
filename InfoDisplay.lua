@@ -351,6 +351,130 @@ local function formatStatString(amount, suffix, pct)
   return string.format("%d%s %s", amount, suffix, pctStr)
 end
 
+--- Formats an enchantment string to show its stat values (e.g. "+29 Haste", "+50 Primary")
+--- or effect name if it's a non-stat proc/effect.
+---@param itemLink string Full item link
+---@param rawEnchantText string Text extracted from tooltip enchant line
+---@param enchantAtlas string|nil Optional quality tier atlas icon
+---@param slotId number Equipment slot ID
+---@return string
+local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slotId)
+  if not rawEnchantText or rawEnchantText == "" then return "" end
+
+  -- Clean out any quality atlas embedded in rawEnchantText if not already separated
+  local cleanText = rawEnchantText
+  local atlas = enchantAtlas
+  if not atlas or atlas == "" then
+    local matchedText, matchedAtlas = rawEnchantText:match("(.*)|A:(.-):%d+:%d+|a")
+    if matchedText and matchedAtlas then
+      cleanText = matchedText
+      atlas = matchedAtlas
+    end
+  end
+
+  -- Strip leading "+" or whitespace
+  cleanText = cleanText:gsub("^%s*[%+]*%s*", ""):gsub("%s*$", "")
+
+  -- If raw text is already a short stat like "29 Haste" or "+29 Haste"
+  local num, stat = cleanText:match("^(%d+)%s+([%a%s]+)$")
+  if num and stat then
+    local formatted = "+" .. num .. " " .. stat
+    if atlas and atlas ~= "" then
+      return "|A:" .. atlas .. ":12:12|a " .. formatted
+    end
+    return formatted
+  end
+
+  local statText = nil
+
+  -- Compute stat delta between itemLink with and without enchantID
+  local itemPayload = itemLink and itemLink:match("item:([%-?%d:]+)")
+  if itemPayload then
+    local parts = { strsplit(":", itemPayload) }
+    local enchantID = tonumber(parts[2])
+    if enchantID and enchantID > 0 then
+      parts[2] = "0"
+      local linkWithoutEnchant = "item:" .. table.concat(parts, ":")
+
+      local statsWith = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(itemLink)) or {}
+      local statsWithout = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkWithoutEnchant)) or {}
+
+      local diffs = {}
+      for k, v in pairs(statsWith) do
+        local d = v - (statsWithout[k] or 0)
+        if d > 0 then
+          diffs[k] = d
+        end
+      end
+
+      -- Check primary stats (Chest enchants like Mark of the Worldsoul, Crystalline Radiance, etc.)
+      local str = diffs["ITEM_MOD_STRENGTH_SHORT"] or diffs["ITEM_MOD_STRENGTH"]
+      local agi = diffs["ITEM_MOD_AGILITY_SHORT"] or diffs["ITEM_MOD_AGILITY"]
+      local int = diffs["ITEM_MOD_INTELLECT_SHORT"] or diffs["ITEM_MOD_INTELLECT"]
+      local primaryVal = str or agi or int
+
+      local haste = diffs["ITEM_MOD_HASTE_RATING_SHORT"] or diffs["ITEM_MOD_HASTE_RATING"]
+      local crit = diffs["ITEM_MOD_CRIT_RATING_SHORT"] or diffs["ITEM_MOD_CRIT_RATING"]
+      local mastery = diffs["ITEM_MOD_MASTERY_RATING_SHORT"] or diffs["ITEM_MOD_MASTERY_RATING"]
+      local vers = diffs["ITEM_MOD_VERSATILITY"] or diffs["ITEM_MOD_VERSATILITY_RATING_SHORT"]
+      local stam = diffs["ITEM_MOD_STAMINA_SHORT"] or diffs["ITEM_MOD_STAMINA"]
+      local speed = diffs["ITEM_MOD_CR_SPEED_SHORT"] or diffs["ITEM_MOD_CR_SPEED"]
+      local leech = diffs["ITEM_MOD_CR_LIFESTEAL_SHORT"] or diffs["ITEM_MOD_CR_LIFESTEAL"]
+      local avoid = diffs["ITEM_MOD_CR_AVOIDANCE_SHORT"] or diffs["ITEM_MOD_CR_AVOIDANCE"]
+
+      if primaryVal and (slotId == 5 or (str and agi and int) or cleanText:find("Worldsoul", 1, true) or cleanText:find("Radiance", 1, true)) then
+        statText = string.format("+%d Primary", primaryVal)
+      elseif haste then
+        statText = string.format("+%d Haste", haste)
+      elseif crit then
+        statText = string.format("+%d Crit", crit)
+      elseif mastery then
+        statText = string.format("+%d Mastery", mastery)
+      elseif vers then
+        statText = string.format("+%d Vers", vers)
+      elseif speed then
+        statText = string.format("+%d Speed", speed)
+      elseif leech then
+        statText = string.format("+%d Leech", leech)
+      elseif avoid then
+        statText = string.format("+%d Avoid", avoid)
+      elseif primaryVal then
+        statText = string.format("+%d Primary", primaryVal)
+      elseif stam then
+        statText = string.format("+%d Stam", stam)
+      end
+    end
+  end
+
+  if not statText then
+    -- Strip verbose "Enchant <Slot> - " prefixes to leave effect or stat name
+    local cleaned = cleanText:gsub("^Enchant%s+[%a%s]+%s*-%s*", "")
+    cleaned = cleaned:gsub("^Enchant%s*-%s*", "")
+
+    -- Match known stat keywords in the remaining name
+    local lower = cleaned:lower()
+    if lower:find("worldsoul") or lower:find("radiance") then
+      statText = "+50 Primary"
+    elseif lower:find("alacrity") or (lower:find("haste") and not lower:find("cursed")) then
+      statText = "+29 Haste"
+    elseif lower:find("tenacity") or (lower:find("versatility") and not lower:find("cursed")) then
+      statText = "+29 Vers"
+    elseif lower:find("fury") or (lower:find("crit") and not lower:find("cursed")) then
+      statText = "+29 Crit"
+    elseif lower:find("mastery") and not lower:find("cursed") then
+      statText = "+29 Mastery"
+    else
+      -- If it's a named effect, display the effect name
+      statText = cleaned
+    end
+  end
+
+  if atlas and atlas ~= "" then
+    return "|A:" .. atlas .. ":12:12|a " .. statText
+  end
+  return statText
+end
+
 -- ============================================================================
 -- Slot Overlay Creation & UI Management
 -- ============================================================================
@@ -408,7 +532,7 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
 
   local enchant = slotOverlay:CreateFontString(frameName .. "Enchant", "OVERLAY", "GameTooltipText")
   enchant:SetPoint(slot.side, slotOverlay, relativePoint, offsetX, offsetEnchantY)
-  enchant:SetWidth(80)
+  enchant:SetWidth(120)
   enchant:SetWordWrap(false)
   enchant:SetFont(DEFAULT_FONT, FONT_SIZE_ENCHANT, FONT_OUTLINE)
   enchant:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
@@ -419,6 +543,8 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   for socketIndex = 1, 3 do
     local socketFrame = CreateFrame("Button", frameName .. "Socket" .. socketIndex, slotOverlay, "UIPanelButtonTemplate")
     socketFrame:SetSize(14, 14)
+    socketFrame:EnableMouse(true)
+    socketFrame:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
     local socketOffsetX = offsetX - 3 - (15 * (socketIndex - 1))
     if slot.side == "LEFT" then
       socketOffsetX = offsetX + 3 + (15 * (socketIndex - 1))
@@ -473,6 +599,7 @@ local function updateSlot(unitId, slotId)
   local itemEnchantAtlas = nil
   local itemSocketCount = 0
   local itemSockets = {}
+  local itemSocketTypes = {}
 
   local enchantPattern = ENCHANTED_TOOLTIP_LINE and ENCHANTED_TOOLTIP_LINE:gsub("%%s", "(.*)") or "Enchanted: (.*)"
   local enchantAtlasPattern = "(.*)|A:(.*):20:20|a"
@@ -534,6 +661,7 @@ local function updateSlot(unitId, slotId)
           itemSockets[itemSocketCount] = line.gemIcon
         elseif line.socketType then
           itemSockets[itemSocketCount] = string.format("Interface\\ItemSocketingFrame\\UI-EmptySocket-%s", line.socketType)
+          itemSocketTypes[itemSocketCount] = line.socketType
         end
       end
     end
@@ -698,12 +826,7 @@ local function updateSlot(unitId, slotId)
       slotOverlay.Enchant:Hide()
     end
   else
-    itemEnchant = itemEnchant:gsub("+", "")
-    if itemEnchantAtlas and itemEnchantAtlas ~= "" then
-      enchantText = "|A:" .. itemEnchantAtlas .. ":12:12|a" .. itemEnchant
-    else
-      enchantText = itemEnchant
-    end
+    enchantText = getEnchantDisplayText(itemLink, itemEnchant, itemEnchantAtlas, slot.id)
     if settings.enchants then
       slotOverlay.Enchant:Show()
     else
@@ -726,35 +849,53 @@ local function updateSlot(unitId, slotId)
   -- --------------------------------------------------------------------------
   -- 6. Gem Sockets (Style & Position from Liq)
   -- --------------------------------------------------------------------------
+  local itemPayload = itemLink:match("item:([%-?%d:]+)")
+  local payloadParts = itemPayload and { strsplit(":", itemPayload) } or {}
+
   for socketIndex = 1, 3 do
+    local gemID = tonumber(payloadParts[2 + socketIndex])
     local _, gemLink = C_Item.GetItemGem and C_Item.GetItemGem(itemLink, socketIndex)
+    if (not gemLink or gemLink == "") and gemID and gemID > 0 then
+      gemLink = select(2, C_Item.GetItemInfo(gemID)) or ("item:" .. gemID)
+    end
+
+    if gemID and gemID > 0 and not itemSockets[socketIndex] and C_Item.GetItemIconByID then
+      itemSockets[socketIndex] = C_Item.GetItemIconByID(gemID)
+      itemSocketCount = math.max(itemSocketCount, socketIndex)
+    end
+
     local socketFrame = slotOverlay.Sockets[socketIndex]
     local point, relativeTo, relPoint, offX = socketFrame:GetPoint()
 
-    if gemLink == nil then
-      if socketIndex <= itemSocketCount and settings.gemSockets and itemSockets[socketIndex] then
-        socketFrame:SetNormalTexture(itemSockets[socketIndex])
-        socketFrame:SetScript("OnEnter", nil)
-        socketFrame:SetScript("OnLeave", nil)
-        socketFrame:Show()
-      else
-        socketFrame:Hide()
-      end
-    else
-      socketFrame:SetScript("OnEnter", function()
-        GameTooltip:SetOwner(socketFrame, "ANCHOR_CURSOR")
-        GameTooltip:SetHyperlink(gemLink)
+    socketFrame.gemLink = gemLink
+    socketFrame.gemID = gemID
+    socketFrame.socketType = itemSocketTypes and itemSocketTypes[socketIndex]
+
+    local shouldShowSocket = settings.gemSockets and (socketIndex <= itemSocketCount or (gemID and gemID > 0)) and itemSockets[socketIndex]
+
+    if shouldShowSocket then
+      socketFrame:SetNormalTexture(itemSockets[socketIndex])
+      socketFrame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if self.gemLink then
+          GameTooltip:SetHyperlink(self.gemLink)
+        elseif self.gemID and self.gemID > 0 then
+          GameTooltip:SetItemByID(self.gemID)
+        elseif self.socketType then
+          GameTooltip:SetText(self.socketType)
+        else
+          GameTooltip:SetText(EMPTY_SOCKET_PRISMATIC or "Prismatic Socket")
+        end
         GameTooltip:Show()
       end)
       socketFrame:SetScript("OnLeave", function()
         GameTooltip:Hide()
       end)
-      if settings.gemSockets and itemSockets[socketIndex] then
-        socketFrame:SetNormalTexture(itemSockets[socketIndex])
-        socketFrame:Show()
-      else
-        socketFrame:Hide()
-      end
+      socketFrame:Show()
+    else
+      socketFrame:SetScript("OnEnter", nil)
+      socketFrame:SetScript("OnLeave", nil)
+      socketFrame:Hide()
     end
 
     if enchantText ~= "" or (slot.id == 9 or slot.id == 14) then
