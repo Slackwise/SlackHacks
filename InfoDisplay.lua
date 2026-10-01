@@ -2,8 +2,8 @@ setfenv(1, _G.SlackHacks)
 
 --[[
   InfoDisplay - Character Sheet Equipment Information Overlay.
-  Displays item levels, upgrade tracks, secondary and tertiary stats (with diminishing returns),
-  high watermark quality coloring, enchants, and gem sockets on character sheet equipment icons.
+  Displays centered item levels and upgrade tracks on equipment icons, with a side-anchored
+  summary of total secondary/tertiary stats, missing enchant/gem alerts, and a hover breakdown tooltip.
 ]]--
 
 local module = Self:NewModule("InfoDisplay", "AceEvent-3.0")
@@ -11,10 +11,9 @@ Self.InfoDisplay = module
 
 local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
 local STATS_FONT = "Fonts\\ARIALN.TTF"
-local FONT_SIZE_LEVEL = 11
+local FONT_SIZE_LEVEL = 13
 local FONT_SIZE_TRACK = 8
-local FONT_SIZE_STATS = 7
-local FONT_SIZE_ENCHANT = 10
+local FONT_SIZE_STATS = 9
 local FONT_OUTLINE = "OUTLINE"
 
 local function getStatsFont()
@@ -27,8 +26,6 @@ end
 
 local COLOR_WHITE = { r = 1, g = 1, b = 1, a = 1 }
 local COLOR_GREY = { r = 0.7, g = 0.7, b = 0.7, a = 1 }
-local COLOR_ENCHANT_HAVE = { r = 0, g = 1, b = 0, a = 1 }
-local COLOR_ENCHANT_MISSING = { r = 1, g = 0, b = 0, a = 1 }
 local COLOR_TINT = { r = 0, g = 0, b = 0, a = 0.33 }
 
 local OVERLAY_NAME_SUFFIX = "SHInfoDisplayOverlay"
@@ -58,26 +55,38 @@ local CR_CRIT = CR_CRIT_MELEE or 9
 local CR_HASTE = CR_HASTE_MELEE or 18
 local CR_MASTERY = CR_MASTERY or 26
 local CR_VERS = CR_VERSATILITY_DAMAGE_DONE or 29
+local CR_SPEED = CR_SPEED or 14
+local CR_LEECH = CR_LIFESTEAL or 17
+local CR_AVOID = CR_AVOIDANCE or 21
 
 -- Map item stat tokens from C_Item.GetItemStats to our internal identifiers
 local SECONDARY_STAT_KEYS = {
-  ["ITEM_MOD_CRIT_RATING_SHORT"]        = { type = "CRIT", cr = CR_CRIT, suffix = "C", order = 1 },
-  ["ITEM_MOD_CRIT_RATING"]              = { type = "CRIT", cr = CR_CRIT, suffix = "C", order = 1 },
-  ["ITEM_MOD_CRIT_MELEE_RATING_SHORT"]  = { type = "CRIT", cr = CR_CRIT, suffix = "C", order = 1 },
-  ["ITEM_MOD_CRIT_RANGED_RATING_SHORT"] = { type = "CRIT", cr = CR_CRIT, suffix = "C", order = 1 },
-  ["ITEM_MOD_CRIT_SPELL_RATING_SHORT"]  = { type = "CRIT", cr = CR_CRIT, suffix = "C", order = 1 },
+  ["ITEM_MOD_CRIT_RATING_SHORT"]        = { type = "CRIT", cr = CR_CRIT, name = "Critical Strike", suffix = "Crit", order = 1 },
+  ["ITEM_MOD_CRIT_RATING"]              = { type = "CRIT", cr = CR_CRIT, name = "Critical Strike", suffix = "Crit", order = 1 },
+  ["ITEM_MOD_CRIT_MELEE_RATING_SHORT"]  = { type = "CRIT", cr = CR_CRIT, name = "Critical Strike", suffix = "Crit", order = 1 },
+  ["ITEM_MOD_CRIT_RANGED_RATING_SHORT"] = { type = "CRIT", cr = CR_CRIT, name = "Critical Strike", suffix = "Crit", order = 1 },
+  ["ITEM_MOD_CRIT_SPELL_RATING_SHORT"]  = { type = "CRIT", cr = CR_CRIT, name = "Critical Strike", suffix = "Crit", order = 1 },
 
-  ["ITEM_MOD_HASTE_RATING_SHORT"]       = { type = "HASTE", cr = CR_HASTE, suffix = "H", order = 2 },
-  ["ITEM_MOD_HASTE_RATING"]             = { type = "HASTE", cr = CR_HASTE, suffix = "H", order = 2 },
-  ["ITEM_MOD_HASTE_MELEE_RATING_SHORT"] = { type = "HASTE", cr = CR_HASTE, suffix = "H", order = 2 },
-  ["ITEM_MOD_HASTE_RANGED_RATING_SHORT"]= { type = "HASTE", cr = CR_HASTE, suffix = "H", order = 2 },
-  ["ITEM_MOD_HASTE_SPELL_RATING_SHORT"] = { type = "HASTE", cr = CR_HASTE, suffix = "H", order = 2 },
+  ["ITEM_MOD_HASTE_RATING_SHORT"]       = { type = "HASTE", cr = CR_HASTE, name = "Haste", suffix = "Haste", order = 2 },
+  ["ITEM_MOD_HASTE_RATING"]             = { type = "HASTE", cr = CR_HASTE, name = "Haste", suffix = "Haste", order = 2 },
+  ["ITEM_MOD_HASTE_MELEE_RATING_SHORT"] = { type = "HASTE", cr = CR_HASTE, name = "Haste", suffix = "Haste", order = 2 },
+  ["ITEM_MOD_HASTE_RANGED_RATING_SHORT"]= { type = "HASTE", cr = CR_HASTE, name = "Haste", suffix = "Haste", order = 2 },
+  ["ITEM_MOD_HASTE_SPELL_RATING_SHORT"] = { type = "HASTE", cr = CR_HASTE, name = "Haste", suffix = "Haste", order = 2 },
 
-  ["ITEM_MOD_MASTERY_RATING_SHORT"]     = { type = "MASTERY", cr = CR_MASTERY, suffix = "M", order = 3 },
-  ["ITEM_MOD_MASTERY_RATING"]           = { type = "MASTERY", cr = CR_MASTERY, suffix = "M", order = 3 },
+  ["ITEM_MOD_MASTERY_RATING_SHORT"]     = { type = "MASTERY", cr = CR_MASTERY, name = "Mastery", suffix = "Mastery", order = 3 },
+  ["ITEM_MOD_MASTERY_RATING"]           = { type = "MASTERY", cr = CR_MASTERY, name = "Mastery", suffix = "Mastery", order = 3 },
 
-  ["ITEM_MOD_VERSATILITY"]              = { type = "VERSATILITY", cr = CR_VERS, suffix = "V", order = 4 },
-  ["ITEM_MOD_VERSATILITY_RATING_SHORT"] = { type = "VERSATILITY", cr = CR_VERS, suffix = "V", order = 4 },
+  ["ITEM_MOD_VERSATILITY"]              = { type = "VERSATILITY", cr = CR_VERS, name = "Versatility", suffix = "Vers", order = 4 },
+  ["ITEM_MOD_VERSATILITY_RATING_SHORT"] = { type = "VERSATILITY", cr = CR_VERS, name = "Versatility", suffix = "Vers", order = 4 },
+}
+
+local TERTIARY_STAT_KEYS = {
+  ["ITEM_MOD_CR_SPEED_SHORT"]     = { type = "SPEED", cr = CR_SPEED, name = "Speed", suffix = "Speed", order = 1 },
+  ["ITEM_MOD_CR_SPEED"]           = { type = "SPEED", cr = CR_SPEED, name = "Speed", suffix = "Speed", order = 1 },
+  ["ITEM_MOD_CR_LIFESTEAL_SHORT"] = { type = "LEECH", cr = CR_LEECH, name = "Leech", suffix = "Leech", order = 2 },
+  ["ITEM_MOD_CR_LIFESTEAL"]       = { type = "LEECH", cr = CR_LEECH, name = "Leech", suffix = "Leech", order = 2 },
+  ["ITEM_MOD_CR_AVOIDANCE_SHORT"] = { type = "AVOIDANCE", cr = CR_AVOID, name = "Avoidance", suffix = "Avoid", order = 3 },
+  ["ITEM_MOD_CR_AVOIDANCE"]       = { type = "AVOIDANCE", cr = CR_AVOID, name = "Avoidance", suffix = "Avoid", order = 3 },
 }
 
 -- Known upgrade track name abbreviations
@@ -153,6 +162,7 @@ local function charSheetSettings()
     itemLevel = true,
     upgradeTrack = true,
     secondaryStats = true,
+    tertiaryStats = true,
     highWatermarkColoring = true,
     enchants = true,
     gemSockets = true,
@@ -296,6 +306,9 @@ local function getRatingPerPercent(crId)
   elseif crId == CR_HASTE then return 660 * levelScale
   elseif crId == CR_MASTERY then return 700 * levelScale
   elseif crId == CR_VERS then return 780 * levelScale
+  elseif crId == CR_SPEED then return 500 * levelScale
+  elseif crId == CR_LEECH then return 450 * levelScale
+  elseif crId == CR_AVOID then return 450 * levelScale
   end
   return 700 * levelScale
 end
@@ -333,22 +346,55 @@ local function calculateSecondaryStatIncrease(crId, itemStatRating)
   return pctIncrease
 end
 
---- Format stat amount and percentage increase cleanly.
---- E.g. "112M (+0.5%)"
----@param amount number
----@param suffix string
----@param pct number
----@return string
-local function formatStatString(amount, suffix, pct)
-  local pctStr
-  if pct >= 0.05 then
-    pctStr = string.format("(+%.1f%%)", pct)
-  elseif pct > 0 then
-    pctStr = string.format("(+%.2f%%)", pct)
+--- Calculates tertiary stat percentage with diminishing returns penalties.
+--- Leech: 0-10% no penalty, >10% 50% penalty
+--- Avoidance: 0-8% no penalty, >8% 50% penalty
+--- Speed: 100% effectiveness
+---@param statType string
+---@param B number
+---@return number D
+local function calculateTertiaryDiminishedPercent(statType, B)
+  if B <= 0 then return 0 end
+  if statType == "LEECH" then
+    if B <= 10 then return B else return 10 + (B - 10) * 0.5 end
+  elseif statType == "AVOIDANCE" then
+    if B <= 8 then return B else return 8 + (B - 8) * 0.5 end
   else
-    pctStr = "(+0.0%)"
+    return B
   end
-  return string.format("%d%s %s", amount, suffix, pctStr)
+end
+
+--- Calculates the marginal percentage increase for a tertiary stat.
+---@param statType string "SPEED" | "LEECH" | "AVOIDANCE"
+---@param crId number
+---@param itemStatRating number
+---@return number pctIncrease
+local function calculateTertiaryStatIncrease(statType, crId, itemStatRating)
+  if not itemStatRating or itemStatRating <= 0 then return 0 end
+
+  local currentRating = (GetCombatRating and GetCombatRating(crId)) or 0
+  local currentBonus = (GetCombatRatingBonus and GetCombatRatingBonus(crId)) or 0
+
+  local k
+  if currentRating > 0 and currentBonus > 0 then
+    k = currentRating / currentBonus
+  else
+    local playerLevel = (UnitLevel and UnitLevel("player")) or 80
+    local levelScale = playerLevel / 80
+    if statType == "SPEED" then k = 500 * levelScale
+    elseif statType == "LEECH" then k = 450 * levelScale
+    elseif statType == "AVOIDANCE" then k = 450 * levelScale
+    else k = 500 * levelScale end
+  end
+
+  local ratingWithoutItem = math.max(0, currentRating - itemStatRating)
+  local B_total = currentRating / k
+  local B_base = ratingWithoutItem / k
+
+  local D_total = calculateTertiaryDiminishedPercent(statType, B_total)
+  local D_base = calculateTertiaryDiminishedPercent(statType, B_base)
+
+  return math.max(0, D_total - D_base)
 end
 
 --- Formats an enchantment string to show its stat values (e.g. "+29 Haste", "+50 Primary")
@@ -361,7 +407,6 @@ end
 local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slotId)
   if not rawEnchantText or rawEnchantText == "" then return "" end
 
-  -- Clean out any quality atlas embedded in rawEnchantText if not already separated
   local cleanText = rawEnchantText
   local atlas = enchantAtlas
   if not atlas or atlas == "" then
@@ -372,10 +417,8 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
     end
   end
 
-  -- Strip leading "+" or whitespace
   cleanText = cleanText:gsub("^%s*[%+]*%s*", ""):gsub("%s*$", "")
 
-  -- If raw text is already a short stat like "29 Haste" or "+29 Haste"
   local num, stat = cleanText:match("^(%d+)%s+([%a%s]+)$")
   if num and stat then
     local formatted = "+" .. num .. " " .. stat
@@ -386,8 +429,6 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
   end
 
   local statText = nil
-
-  -- Compute stat delta between itemLink with and without enchantID
   local itemPayload = itemLink and itemLink:match("item:([%-?%d:]+)")
   if itemPayload then
     local parts = { strsplit(":", itemPayload) }
@@ -407,7 +448,6 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
         end
       end
 
-      -- Check primary stats (Chest enchants like Mark of the Worldsoul, Crystalline Radiance, etc.)
       local str = diffs["ITEM_MOD_STRENGTH_SHORT"] or diffs["ITEM_MOD_STRENGTH"]
       local agi = diffs["ITEM_MOD_AGILITY_SHORT"] or diffs["ITEM_MOD_AGILITY"]
       local int = diffs["ITEM_MOD_INTELLECT_SHORT"] or diffs["ITEM_MOD_INTELLECT"]
@@ -447,11 +487,9 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
   end
 
   if not statText then
-    -- Strip verbose "Enchant <Slot> - " prefixes to leave effect or stat name
     local cleaned = cleanText:gsub("^Enchant%s+[%a%s]+%s*-%s*", "")
     cleaned = cleaned:gsub("^Enchant%s*-%s*", "")
 
-    -- Match known stat keywords in the remaining name
     local lower = cleaned:lower()
     if lower:find("worldsoul") or lower:find("radiance") then
       statText = "+50 Primary"
@@ -464,7 +502,6 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
     elseif lower:find("mastery") and not lower:find("cursed") then
       statText = "+29 Mastery"
     else
-      -- If it's a named effect, display the effect name
       statText = cleaned
     end
   end
@@ -502,55 +539,137 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   tint:SetAllPoints(slotOverlay)
   slotOverlay.Tint = tint
 
-  -- Item Level: center top anchor of icon
+  -- Item Level: center of icon
   local level = slotOverlay:CreateFontString(frameName .. "Level", "OVERLAY", "GameTooltipText")
-  level:SetPoint("TOP", slotOverlay, "TOP", 0, -2)
+  level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 4)
   level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
   level:SetJustifyH("CENTER")
   slotOverlay.Level = level
 
-  -- Upgrade Track: anchored under center of item level, small text in white
+  -- Upgrade Track: anchored underneath centered to item level
   local track = slotOverlay:CreateFontString(frameName .. "Track", "OVERLAY", "GameTooltipText")
-  track:SetPoint("TOP", level, "BOTTOM", 0, 0)
+  track:SetPoint("TOP", level, "BOTTOM", 0, -1)
   track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
   track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
   track:SetJustifyH("CENTER")
   slotOverlay.Track = track
 
-  -- Secondary Stats: bottom left corner of icon
-  local secondary = slotOverlay:CreateFontString(frameName .. "Secondary", "OVERLAY", "GameTooltipText")
-  secondary:SetPoint("BOTTOMLEFT", slotOverlay, "BOTTOMLEFT", 1, 1)
-  secondary:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
-  secondary:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
-  secondary:SetJustifyH("LEFT")
-  slotOverlay.Secondary = secondary
-
-  -- Enchant text (matches Liq style and position)
+  -- Side Summary Frame: sits off to the side where enchants and gems display
   local relativePoint = slot.side == "LEFT" and "RIGHT" or "LEFT"
-  local offsetX = slot.side == "LEFT" and 9 or -10
-  local offsetEnchantY = (slot.id == 16 or slot.id == 17) and -12 or 8
+  local offsetX = slot.side == "LEFT" and 8 or -8
 
-  local enchant = slotOverlay:CreateFontString(frameName .. "Enchant", "OVERLAY", "GameTooltipText")
-  enchant:SetPoint(slot.side, slotOverlay, relativePoint, offsetX, offsetEnchantY)
-  enchant:SetWidth(120)
-  enchant:SetWordWrap(false)
-  enchant:SetFont(DEFAULT_FONT, FONT_SIZE_ENCHANT, FONT_OUTLINE)
-  enchant:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
-  slotOverlay.Enchant = enchant
+  local sideSummary = CreateFrame("Frame", frameName .. "SideSummary", slotOverlay)
+  sideSummary:SetSize(130, 37)
+  sideSummary:SetPoint(slot.side, slotOverlay, relativePoint, offsetX, 0)
+  sideSummary:EnableMouse(true)
+  sideSummary:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
+  slotOverlay.SideSummary = sideSummary
 
-  -- Gem sockets buttons (matches Liq style and position)
-  slotOverlay.Sockets = {}
-  for socketIndex = 1, 3 do
-    local socketFrame = CreateFrame("Button", frameName .. "Socket" .. socketIndex, slotOverlay, "UIPanelButtonTemplate")
-    socketFrame:SetSize(14, 14)
-    socketFrame:EnableMouse(true)
-    socketFrame:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
-    local socketOffsetX = offsetX - 3 - (15 * (socketIndex - 1))
-    if slot.side == "LEFT" then
-      socketOffsetX = offsetX + 3 + (15 * (socketIndex - 1))
+  -- Stats summary font string (multi-line)
+  local statsText = sideSummary:CreateFontString(frameName .. "SideStats", "OVERLAY", "GameTooltipText")
+  statsText:SetAllPoints(sideSummary)
+  statsText:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
+  statsText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+  statsText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
+  statsText:SetJustifyV("MIDDLE")
+  sideSummary.StatsText = statsText
+
+  -- Missing Enchant alert icon
+  local missingEnchant = CreateFrame("Button", frameName .. "MissingEnchant", sideSummary)
+  missingEnchant:SetSize(14, 14)
+  missingEnchant:EnableMouse(true)
+  missingEnchant:SetFrameLevel(sideSummary:GetFrameLevel() + 2)
+  local meIcon = missingEnchant:CreateTexture(nil, "ARTWORK")
+  meIcon:SetAllPoints()
+  meIcon:SetTexture("Interface\\Icons\\inv_misc_enchantedscroll")
+  meIcon:SetVertexColor(1, 0.25, 0.25)
+  missingEnchant.Icon = meIcon
+  sideSummary.MissingEnchant = missingEnchant
+
+  -- Missing Gem alert icon
+  local missingGem = CreateFrame("Button", frameName .. "MissingGem", sideSummary)
+  missingGem:SetSize(14, 14)
+  missingGem:EnableMouse(true)
+  missingGem:SetFrameLevel(sideSummary:GetFrameLevel() + 2)
+  local mgIcon = missingGem:CreateTexture(nil, "ARTWORK")
+  mgIcon:SetAllPoints()
+  mgIcon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
+  missingGem.Icon = mgIcon
+  sideSummary.MissingGem = missingGem
+
+  -- Hover tooltip on the side summary showing the stat and enhancement breakdown
+  local function showBreakdownTooltip(anchorFrame)
+    if not sideSummary.breakdownData then return end
+    GameTooltip:SetOwner(anchorFrame, slot.side == "LEFT" and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
+    GameTooltip:ClearLines()
+
+    local data = sideSummary.breakdownData
+    GameTooltip:AddLine(data.itemName or "Equipment Details", 1, 1, 1)
+    GameTooltip:AddLine("Stat & Enhancement Breakdown", 1, 0.82, 0)
+
+    if data.statsList and #data.statsList > 0 then
+      for _, stat in ipairs(data.statsList) do
+        GameTooltip:AddLine(" ")
+        local rightText = string.format("+%d  (+%.1f%%)", stat.total, stat.pct)
+        GameTooltip:AddDoubleLine(stat.name, rightText, 1, 1, 1, 0, 1, 0)
+
+        if stat.base > 0 then
+          GameTooltip:AddDoubleLine("  Item Base:", string.format("+%d", stat.base), 0.75, 0.75, 0.75, 1, 1, 1)
+        end
+        if stat.enchant > 0 then
+          local desc = stat.enchantDesc and ("  Enchant (" .. stat.enchantDesc .. "):") or "  Enchant:"
+          GameTooltip:AddDoubleLine(desc, string.format("+%d", stat.enchant), 0.75, 0.75, 0.75, 0.2, 1, 0.4)
+        end
+        if stat.gems then
+          for _, g in ipairs(stat.gems) do
+            local desc = g.name and ("  Gem (" .. g.name .. "):") or "  Gem:"
+            GameTooltip:AddDoubleLine(desc, string.format("+%d", g.amount), 0.75, 0.75, 0.75, 0.4, 0.8, 1)
+          end
+        end
+      end
     end
-    socketFrame:SetPoint(slot.side, slotOverlay, relativePoint, socketOffsetX, 0)
-    slotOverlay.Sockets[socketIndex] = socketFrame
+
+    if data.enchantEffect and data.enchantEffect ~= "" then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddDoubleLine("Enchant:", data.enchantEffect, 1, 0.82, 0, 0.2, 1, 0.4)
+    end
+
+    if data.gemsList and #data.gemsList > 0 then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine("Slotted Gems:", 1, 0.82, 0)
+      for _, g in ipairs(data.gemsList) do
+        GameTooltip:AddDoubleLine("  " .. g.name, g.statSummary or "", 1, 1, 1, 0.4, 0.8, 1)
+      end
+    end
+
+    if data.isMissingEnchant then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine("|cffff2020Warning: Missing Enchant!|r")
+    end
+
+    if data.missingGemCount and data.missingGemCount > 0 then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(string.format("|cffff2020Warning: %d Empty Gem Socket%s!|r", data.missingGemCount, data.missingGemCount > 1 and "s" or ""))
+    end
+
+    GameTooltip:Show()
+  end
+
+  sideSummary:SetScript("OnEnter", showBreakdownTooltip)
+  sideSummary:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  missingEnchant:SetScript("OnEnter", showBreakdownTooltip)
+  missingEnchant:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  missingGem:SetScript("OnEnter", showBreakdownTooltip)
+  missingGem:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+  -- Hide any legacy overlay elements from earlier builds
+  if slotOverlay.Secondary then slotOverlay.Secondary:Hide() end
+  if slotOverlay.Tertiary then slotOverlay.Tertiary:Hide() end
+  if slotOverlay.Enchant then slotOverlay.Enchant:Hide() end
+  if slotOverlay.Sockets then
+    for i = 1, #slotOverlay.Sockets do
+      slotOverlay.Sockets[i]:Hide()
+    end
   end
 
   slotOverlay.slot = slot
@@ -711,10 +830,10 @@ local function updateSlot(unitId, slotId)
   end
 
   -- --------------------------------------------------------------------------
-  -- 2. Item Level Display & Watermark Coloring (Center Top Anchor)
+  -- 2. Item Level Display & Watermark Coloring (Center Anchor)
   -- --------------------------------------------------------------------------
   slotOverlay.Level:ClearAllPoints()
-  slotOverlay.Level:SetPoint("TOP", slotOverlay, "TOP", 0, -2)
+  slotOverlay.Level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 4)
   slotOverlay.Level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
   slotOverlay.Level:SetJustifyH("CENTER")
 
@@ -734,10 +853,10 @@ local function updateSlot(unitId, slotId)
   end
 
   -- --------------------------------------------------------------------------
-  -- 3. Upgrade Track Display (Anchored Below Item Level)
+  -- 3. Upgrade Track Display (Centered Underneath Item Level)
   -- --------------------------------------------------------------------------
   slotOverlay.Track:ClearAllPoints()
-  slotOverlay.Track:SetPoint("TOP", slotOverlay.Level, "BOTTOM", 0, 0)
+  slotOverlay.Track:SetPoint("TOP", slotOverlay.Level, "BOTTOM", 0, -1)
   slotOverlay.Track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
   slotOverlay.Track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
   slotOverlay.Track:SetJustifyH("CENTER")
@@ -751,106 +870,47 @@ local function updateSlot(unitId, slotId)
   end
 
   -- --------------------------------------------------------------------------
-  -- 4. Secondary & Tertiary Stats Display
+  -- 4. Side Summary & Breakdown Calculation
   -- --------------------------------------------------------------------------
-  local secondaryFormattedLines = {}
-  local tertiaryFormattedLines = {}
-
-  local itemStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(itemLink)) or {}
-
-  -- Collect secondary stats
-  local foundSecondary = {}
-  for statKey, statInfo in pairs(SECONDARY_STAT_KEYS) do
-    local amount = itemStats[statKey]
-    if amount and amount > 0 and not foundSecondary[statInfo.type] then
-      foundSecondary[statInfo.type] = true
-      local pct = calculateSecondaryStatIncrease(statInfo.cr, amount)
-      table.insert(secondaryFormattedLines, {
-        order = statInfo.order,
-        amount = amount,
-        text = formatStatString(amount, statInfo.suffix, pct),
-      })
-    end
-  end
-  table.sort(secondaryFormattedLines, function(a, b)
-    if a.amount ~= b.amount then return a.amount > b.amount end
-    return a.order < b.order
-  end)
-
-  -- Convert tables to display strings
-  local secondaryText = ""
-  if settings.secondaryStats and #secondaryFormattedLines > 0 then
-    local lines = {}
-    for _, item in ipairs(secondaryFormattedLines) do
-      table.insert(lines, item.text)
-    end
-    secondaryText = table.concat(lines, "\n")
-  end
-
-  -- Position Secondary stats at bottom left of icon
-  slotOverlay.Secondary:ClearAllPoints()
-  slotOverlay.Secondary:SetPoint("BOTTOMLEFT", slotOverlay, "BOTTOMLEFT", 1, 1)
-  slotOverlay.Secondary:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
-  slotOverlay.Secondary:SetJustifyH("LEFT")
-
-  if secondaryText ~= "" then
-    slotOverlay.Secondary:SetText(secondaryText)
-    slotOverlay.Secondary:Show()
-  else
-    slotOverlay.Secondary:SetText("")
-    slotOverlay.Secondary:Hide()
-  end
-
-  if slotOverlay.Tertiary then
-    slotOverlay.Tertiary:SetText("")
-    slotOverlay.Tertiary:Hide()
-  end
-
-  -- --------------------------------------------------------------------------
-  -- 5. Enchants (Style & Position from Liq)
-  -- --------------------------------------------------------------------------
-  local _, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
-  local enchantText = ""
-  local colorEnchant = COLOR_ENCHANT_HAVE
-
-  if itemEnchant == nil then
-    if slot.canEnchant then
-      enchantText = "No enchant"
-      colorEnchant = COLOR_ENCHANT_MISSING
-      if settings.enchants and (itemEquipLoc ~= "INVTYPE_HOLDABLE" and itemEquipLoc ~= "INVTYPE_SHIELD") then
-        slotOverlay.Enchant:Show()
-      else
-        slotOverlay.Enchant:Hide()
-      end
-    else
-      slotOverlay.Enchant:Hide()
-    end
-  else
-    enchantText = getEnchantDisplayText(itemLink, itemEnchant, itemEnchantAtlas, slot.id)
-    if settings.enchants then
-      slotOverlay.Enchant:Show()
-    else
-      slotOverlay.Enchant:Hide()
-    end
-  end
-
-  slotOverlay.Enchant:SetText(enchantText)
-  slotOverlay.Enchant:SetTextColor(colorEnchant.r, colorEnchant.g, colorEnchant.b, colorEnchant.a)
-
-  if slot.id ~= 16 and slot.id ~= 17 then
-    local point, relativeTo, relPoint, offX = slotOverlay.Enchant:GetPoint()
-    if itemSocketCount > 0 or (slot.id == 9 or slot.id == 14) then
-      slotOverlay.Enchant:SetPoint(point, relativeTo, relPoint, offX, 8)
-    else
-      slotOverlay.Enchant:SetPoint(point, relativeTo, relPoint, offX, 0)
-    end
-  end
-
-  -- --------------------------------------------------------------------------
-  -- 6. Gem Sockets (Style & Position from Liq)
-  -- --------------------------------------------------------------------------
+  local itemName = C_Item.GetItemInfo(itemLink) or "Item"
   local itemPayload = itemLink:match("item:([%-?%d:]+)")
   local payloadParts = itemPayload and { strsplit(":", itemPayload) } or {}
+  local enchantID = tonumber(payloadParts[2])
+
+  local totalStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(itemLink)) or {}
+
+  -- Calculate enchant stat contribution
+  local enchantStats = {}
+  local enchantEffectText = nil
+  local isMissingEnchant = false
+
+  if itemEnchant ~= nil then
+    enchantEffectText = getEnchantDisplayText(itemLink, itemEnchant, itemEnchantAtlas, slot.id)
+  end
+
+  if enchantID and enchantID > 0 then
+    local partsWithoutEnchant = { unpack(payloadParts) }
+    partsWithoutEnchant[2] = "0"
+    local linkWithoutEnchant = "item:" .. table.concat(partsWithoutEnchant, ":")
+    local statsWithout = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkWithoutEnchant)) or {}
+
+    for k, v in pairs(totalStats) do
+      local d = v - (statsWithout[k] or 0)
+      if d > 0 then
+        enchantStats[k] = d
+      end
+    end
+  elseif slot.canEnchant then
+    local _, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
+    if itemEquipLoc ~= "INVTYPE_HOLDABLE" and itemEquipLoc ~= "INVTYPE_SHIELD" then
+      isMissingEnchant = true
+    end
+  end
+
+  -- Calculate gem contributions and identify slotted gems vs empty sockets
+  local gemList = {}
+  local totalGemStats = {}
+  local missingGemCount = 0
 
   for socketIndex = 1, 3 do
     local gemID = tonumber(payloadParts[2 + socketIndex])
@@ -859,49 +919,213 @@ local function updateSlot(unitId, slotId)
       gemLink = select(2, C_Item.GetItemInfo(gemID)) or ("item:" .. gemID)
     end
 
-    if gemID and gemID > 0 and not itemSockets[socketIndex] and C_Item.GetItemIconByID then
-      itemSockets[socketIndex] = C_Item.GetItemIconByID(gemID)
-      itemSocketCount = math.max(itemSocketCount, socketIndex)
-    end
+    if gemID and gemID > 0 then
+      local gStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats("item:" .. gemID)) or {}
+      local gName = C_Item.GetItemInfo(gemID) or ("Gem " .. socketIndex)
 
-    local socketFrame = slotOverlay.Sockets[socketIndex]
-    local point, relativeTo, relPoint, offX = socketFrame:GetPoint()
-
-    socketFrame.gemLink = gemLink
-    socketFrame.gemID = gemID
-    socketFrame.socketType = itemSocketTypes and itemSocketTypes[socketIndex]
-
-    local shouldShowSocket = settings.gemSockets and (socketIndex <= itemSocketCount or (gemID and gemID > 0)) and itemSockets[socketIndex]
-
-    if shouldShowSocket then
-      socketFrame:SetNormalTexture(itemSockets[socketIndex])
-      socketFrame:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if self.gemLink then
-          GameTooltip:SetHyperlink(self.gemLink)
-        elseif self.gemID and self.gemID > 0 then
-          GameTooltip:SetItemByID(self.gemID)
-        elseif self.socketType then
-          GameTooltip:SetText(self.socketType)
-        else
-          GameTooltip:SetText(EMPTY_SOCKET_PRISMATIC or "Prismatic Socket")
+      local statParts = {}
+      for k, v in pairs(gStats) do
+        totalGemStats[k] = (totalGemStats[k] or 0) + v
+        local sInfo = SECONDARY_STAT_KEYS[k] or TERTIARY_STAT_KEYS[k]
+        if sInfo then
+          table.insert(statParts, "+" .. v .. " " .. sInfo.suffix)
         end
-        GameTooltip:Show()
-      end)
-      socketFrame:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-      end)
-      socketFrame:Show()
-    else
-      socketFrame:SetScript("OnEnter", nil)
-      socketFrame:SetScript("OnLeave", nil)
-      socketFrame:Hide()
-    end
+      end
 
-    if enchantText ~= "" or (slot.id == 9 or slot.id == 14) then
-      socketFrame:SetPoint(point, relativeTo, relPoint, offX, -8)
+      table.insert(gemList, {
+        id = gemID,
+        name = gName,
+        link = gemLink,
+        stats = gStats,
+        statSummary = table.concat(statParts, ", "),
+      })
+    elseif socketIndex <= itemSocketCount then
+      missingGemCount = missingGemCount + 1
+    end
+  end
+
+  -- Collect active secondary and tertiary stats with breakdown data
+  local activeStats = {}
+  local sideSummaryLines = {}
+
+  -- Process Secondary stats
+  local foundSecondary = {}
+  for statKey, statInfo in pairs(SECONDARY_STAT_KEYS) do
+    local total = totalStats[statKey]
+    if total and total > 0 and not foundSecondary[statInfo.type] then
+      foundSecondary[statInfo.type] = true
+      local enchantVal = enchantStats[statKey] or 0
+      local gemVal = totalGemStats[statKey] or 0
+      local baseVal = math.max(0, total - enchantVal - gemVal)
+      local pct = calculateSecondaryStatIncrease(statInfo.cr, total)
+
+      local statGems = {}
+      for _, g in ipairs(gemList) do
+        local gAmt = g.stats[statKey]
+        if gAmt and gAmt > 0 then
+          table.insert(statGems, { name = g.name, amount = gAmt })
+        end
+      end
+
+      table.insert(activeStats, {
+        type = statInfo.type,
+        name = statInfo.name,
+        suffix = statInfo.suffix,
+        order = statInfo.order,
+        total = total,
+        base = baseVal,
+        enchant = enchantVal,
+        enchantDesc = enchantEffectText,
+        gems = statGems,
+        pct = pct,
+        isTertiary = false,
+      })
+
+      if settings.secondaryStats then
+        table.insert(sideSummaryLines, {
+          order = statInfo.order,
+          text = string.format("+%d %s (+%.1f%%)", total, statInfo.suffix, pct),
+        })
+      end
+    end
+  end
+
+  -- Process Tertiary stats
+  local foundTertiary = {}
+  for statKey, statInfo in pairs(TERTIARY_STAT_KEYS) do
+    local total = totalStats[statKey]
+    if total and total > 0 and not foundTertiary[statInfo.type] then
+      foundTertiary[statInfo.type] = true
+      local enchantVal = enchantStats[statKey] or 0
+      local gemVal = totalGemStats[statKey] or 0
+      local baseVal = math.max(0, total - enchantVal - gemVal)
+      local pct = calculateTertiaryStatIncrease(statInfo.type, statInfo.cr, total)
+
+      local statGems = {}
+      for _, g in ipairs(gemList) do
+        local gAmt = g.stats[statKey]
+        if gAmt and gAmt > 0 then
+          table.insert(statGems, { name = g.name, amount = gAmt })
+        end
+      end
+
+      table.insert(activeStats, {
+        type = statInfo.type,
+        name = statInfo.name,
+        suffix = statInfo.suffix,
+        order = 10 + statInfo.order,
+        total = total,
+        base = baseVal,
+        enchant = enchantVal,
+        enchantDesc = enchantEffectText,
+        gems = statGems,
+        pct = pct,
+        isTertiary = true,
+      })
+
+      if settings.tertiaryStats then
+        table.insert(sideSummaryLines, {
+          order = 10 + statInfo.order,
+          text = string.format("+%d %s (+%.1f%%)", total, statInfo.suffix, pct),
+        })
+      end
+    end
+  end
+
+  table.sort(activeStats, function(a, b) return a.order < b.order end)
+  table.sort(sideSummaryLines, function(a, b) return a.order < b.order end)
+
+  -- Save breakdown data onto the SideSummary frame for hover tooltip
+  slotOverlay.SideSummary.breakdownData = {
+    itemName = itemName,
+    statsList = activeStats,
+    enchantEffect = enchantEffectText,
+    gemsList = gemList,
+    isMissingEnchant = isMissingEnchant,
+    missingGemCount = missingGemCount,
+  }
+
+  -- Build side summary text
+  local summaryString = ""
+  if #sideSummaryLines > 0 then
+    local lineTexts = {}
+    for _, l in ipairs(sideSummaryLines) do
+      table.insert(lineTexts, l.text)
+    end
+    summaryString = table.concat(lineTexts, "\n")
+  end
+
+  local sideSummary = slotOverlay.SideSummary
+  sideSummary.StatsText:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
+  sideSummary.StatsText:SetText(summaryString)
+  sideSummary.StatsText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
+
+  -- Missing alert icons
+  local showMissingEnchant = settings.enchants and isMissingEnchant
+  local showMissingGem = settings.gemSockets and (missingGemCount > 0)
+
+  if showMissingEnchant then
+    sideSummary.MissingEnchant:ClearAllPoints()
+    if slot.side == "LEFT" then
+      sideSummary.MissingEnchant:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 0)
     else
-      socketFrame:SetPoint(point, relativeTo, relPoint, offX, 0)
+      sideSummary.MissingEnchant:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 0)
+    end
+    sideSummary.MissingEnchant:Show()
+  else
+    sideSummary.MissingEnchant:Hide()
+  end
+
+  if showMissingGem then
+    sideSummary.MissingGem:ClearAllPoints()
+    if slot.side == "LEFT" then
+      if showMissingEnchant then
+        sideSummary.MissingGem:SetPoint("LEFT", sideSummary.MissingEnchant, "RIGHT", 4, 0)
+      else
+        sideSummary.MissingGem:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 0)
+      end
+    else
+      if showMissingEnchant then
+        sideSummary.MissingGem:SetPoint("RIGHT", sideSummary.MissingEnchant, "LEFT", -4, 0)
+      else
+        sideSummary.MissingGem:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 0)
+      end
+    end
+    sideSummary.MissingGem:Show()
+  else
+    sideSummary.MissingGem:Hide()
+  end
+
+  -- Position stats text according to whether missing icons are present
+  sideSummary.StatsText:ClearAllPoints()
+  if showMissingEnchant or showMissingGem then
+    if slot.side == "LEFT" then
+      sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary, "TOPLEFT", 0, 0)
+      sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 16)
+    else
+      sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary, "TOPRIGHT", 0, 0)
+      sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 16)
+    end
+    sideSummary.StatsText:SetJustifyV("TOP")
+  else
+    sideSummary.StatsText:SetAllPoints(sideSummary)
+    sideSummary.StatsText:SetJustifyV("MIDDLE")
+  end
+
+  -- Hide side summary if everything is empty and no alerts
+  if summaryString == "" and not showMissingEnchant and not showMissingGem then
+    sideSummary:Hide()
+  else
+    sideSummary:Show()
+  end
+
+  -- Clean up any legacy overlay elements on the slot
+  if slotOverlay.Secondary then slotOverlay.Secondary:Hide() end
+  if slotOverlay.Tertiary then slotOverlay.Tertiary:Hide() end
+  if slotOverlay.Enchant then slotOverlay.Enchant:Hide() end
+  if slotOverlay.Sockets then
+    for i = 1, #slotOverlay.Sockets do
+      slotOverlay.Sockets[i]:Hide()
     end
   end
 
@@ -1008,3 +1232,4 @@ function module:OnDisable()
     overlay:Hide()
   end
 end
+

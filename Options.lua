@@ -129,6 +129,7 @@ dbDefaults = {
         itemLevel = true,
         upgradeTrack = true,
         secondaryStats = true,
+        tertiaryStats = true,
         highWatermarkColoring = true,
         enchants = true,
         gemSockets = true,
@@ -1465,7 +1466,7 @@ options = {
             },
             secondaryStats = {
               name = "Secondary Stats",
-              desc = "Show secondary stats (Critical Strike, Haste, Mastery, Versatility) at bottom left of icon.",
+              desc = "Show secondary stat totals (Crit, Haste, Mastery, Vers) and percentages in the side summary.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -1476,6 +1477,20 @@ options = {
                 Self.InfoDisplay:Refresh()
               end,
               order = 3
+            },
+            tertiaryStats = {
+              name = "Tertiary Stats",
+              desc = "Show tertiary stat totals (Speed, Leech, Avoidance) and percentages in the side summary.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.tertiaryStats end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.tertiaryStats = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 4
             },
             highWatermarkColoring = {
               name = "High Watermark Coloring",
@@ -1489,11 +1504,11 @@ options = {
                 db.profile.infoDisplay.charSheet.highWatermarkColoring = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 4
+              order = 5
             },
             enchants = {
               name = "Enchants",
-              desc = "Show enchants and missing enchant warnings.",
+              desc = "Show enchant info in the breakdown and missing enchant alert icons.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -1503,11 +1518,11 @@ options = {
                 db.profile.infoDisplay.charSheet.enchants = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 5
+              order = 6
             },
             gemSockets = {
               name = "Gem Sockets",
-              desc = "Show gem sockets and socketed gems.",
+              desc = "Show gem info in the breakdown and missing gem alert icons.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -1517,7 +1532,7 @@ options = {
                 db.profile.infoDisplay.charSheet.gemSockets = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 6
+              order = 7
             }
           }
         }
