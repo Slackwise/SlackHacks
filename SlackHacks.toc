@@ -23,6 +23,7 @@ Minimap.lua
 MovableWindows.lua
 Controls.lua
 MouseRing.lua
+InfoDisplay.lua
 Options.lua
 Mount.lua
 CustomConfigs.lua

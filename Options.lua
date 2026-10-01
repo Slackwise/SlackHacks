@@ -123,6 +123,17 @@ dbDefaults = {
       enabled = false,
       trackDelves = true
     },
+    infoDisplay = {
+      enabled = false,
+      charSheet = {
+        itemLevel = true,
+        upgradeTrack = true,
+        secondaryStats = true,
+        highWatermarkColoring = true,
+        enchants = true,
+        gemSockets = true,
+      }
+    },
     mounts = {
       ["ground"] = nil,
       ["ground-showoff"] = nil,
@@ -193,6 +204,7 @@ RETAIL_MODULES = {
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = "weeklies", name = "Weeklies" },
+  { key = "infoDisplay", name = "Info Display" },
 }
 
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
@@ -1392,6 +1404,122 @@ options = {
             Self.Buffs:Refresh()
           end,
           order = 6
+        }
+      }
+    },
+    infoDisplay = {
+      type = "group",
+      name = "Info Display",
+      desc = "Displays equipment information overlays on your character sheet.",
+      order = 8,
+      args = {
+        enabled = {
+          name = "Enable",
+          desc = "Enable Info Display overlays on equipment slots.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.infoDisplay.enabled end,
+          set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
+          order = 0
+        },
+        description = {
+          type = "description",
+          name = "Displays item levels, upgrade tracks, stats, enchants, and gems on equipment icons.",
+          order = 0.5
+        },
+        charSheet = {
+          type = "group",
+          name = "Char Sheet",
+          desc = "Character Sheet equipment overlay options.",
+          inline = true,
+          order = 1,
+          args = {
+            itemLevel = {
+              name = "Item Level",
+              desc = "Show item level on equipment icons.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.itemLevel end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.itemLevel = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 1
+            },
+            upgradeTrack = {
+              name = "Upgrade Track",
+              desc = "Show upgrade track progress (e.g. '6/6 C') below item level.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.upgradeTrack end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.upgradeTrack = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 2
+            },
+            secondaryStats = {
+              name = "Secondary Stats",
+              desc = "Show secondary stats (Critical Strike, Haste, Mastery, Versatility) at bottom left of icon.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.secondaryStats end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.secondaryStats = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 3
+            },
+            highWatermarkColoring = {
+              name = "High Watermark Coloring",
+              desc = "Color item level based on upgrade track watermark tiers (White, Green, Blue, Purple, Orange, Golden).",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.highWatermarkColoring end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.highWatermarkColoring = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 4
+            },
+            enchants = {
+              name = "Enchants",
+              desc = "Show enchants and missing enchant warnings.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.enchants end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.enchants = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 5
+            },
+            gemSockets = {
+              name = "Gem Sockets",
+              desc = "Show gem sockets and socketed gems.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.gemSockets end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.gemSockets = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 6
+            }
+          }
         }
       }
     },

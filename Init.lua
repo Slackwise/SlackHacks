@@ -12,6 +12,7 @@ Self.itemBindingFrame = CreateFrame("Frame", "SlackHacks Item Bindings")
 _G.SlackHacks = Self
 Self.Self = Self
 setmetatable(Self, {__index = _G}) -- The global environment is now checked if a key is not found in addon
+if _G.ColorMixin then Self.ColorMixin = _G.ColorMixin end
 setfenv(1, Self) -- Namespace local to addon
 
 addonName, addonTable = ...
