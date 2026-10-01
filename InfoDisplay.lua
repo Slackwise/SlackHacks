@@ -187,20 +187,19 @@ local function getQualityColor(quality)
   return COLOR_WHITE
 end
 
---- Returns high watermark color based on item level and track presence.
---- - White: No Track, below Adventurer ilevel 266
+--- Returns high watermark color based on item level ranges, regardless of upgrade track:
+--- - White: Below Adventurer ilevel 266 (< 266)
 --- - Green: 266 to 276
 --- - Blue: 279 to 289
 --- - Purple: 292 to 302
 --- - Orange: 305 to 315
 --- - Golden: 318+
 ---@param itemLevel number|nil
----@param hasTrack boolean
 ---@return table
-local function getWatermarkColor(itemLevel, hasTrack)
-  if not hasTrack or not itemLevel or itemLevel < 266 then
+local function getWatermarkColor(itemLevel)
+  if not itemLevel or itemLevel < 266 then
     return getQualityColor(1) -- White (Common)
-  elseif itemLevel <= 276 then
+  elseif itemLevel < 279 then
     return getQualityColor(2) -- Green (Uncommon)
   elseif itemLevel < 292 then
     return getQualityColor(3) -- Blue (Rare)
@@ -840,7 +839,7 @@ local function updateSlot(unitId, slotId)
   if settings.itemLevel and itemLevel then
     slotOverlay.Level:SetText(tostring(itemLevel))
     if settings.highWatermarkColoring then
-      local watermarkColor = getWatermarkColor(itemLevel, hasTrack)
+      local watermarkColor = getWatermarkColor(itemLevel)
       slotOverlay.Level:SetTextColor(watermarkColor.r, watermarkColor.g, watermarkColor.b, watermarkColor.a)
     else
       slotOverlay.Level:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
