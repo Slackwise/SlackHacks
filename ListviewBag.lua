@@ -61,6 +61,10 @@ local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-tex
 -- Small helpers
 --=====================================================================
 
+-- Tracks which SplitStack closures are already our own auto-place wrapper, so re-hooking
+-- OnModifiedClick on every click doesn't wrap an already-wrapped function again.
+local autoPlaceSplitStacks = setmetatable({}, { __mode = "k" })
+
 -- The bags this window displays: the backpack, the 4 equipped bags, and (retail only) the reagent bag.
 local function bagIDs()
   local ids = { 0, 1, 2, 3, 4 }
@@ -492,6 +496,27 @@ local function createRow(index)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetHyperlink(row.hyperlink)
       GameTooltip:Show()
+    end
+  end)
+
+  -- Blizzard's own split dialog (opened by its inherited OnModifiedClick) leaves the split stack on
+  -- the cursor, requiring the player to click a bag slot to place it. Hooking (not replacing)
+  -- OnModifiedClick lets us wrap the SplitStack closure it just set -- after Blizzard's own split
+  -- call -- so the split amount gets auto-placed into a free slot instead.
+  hooksecurefunc(row, "OnModifiedClick", function(self)
+    local splitStack = self.SplitStack
+    if type(splitStack) == "function" and not autoPlaceSplitStacks[splitStack] then
+      local wrapped = function(splitSelf, split)
+        splitStack(splitSelf, split)
+        if GetCursorInfo() then
+          local emptyBagID, emptySlot = findEmptyBagSlot()
+          if emptyBagID then
+            C_Container.PickupContainerItem(emptyBagID, emptySlot)
+          end
+        end
+      end
+      autoPlaceSplitStacks[wrapped] = true
+      self.SplitStack = wrapped
     end
   end)
   return row
