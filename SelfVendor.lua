@@ -1256,6 +1256,7 @@ end
 
 local MAX_QUEUE_ROWS = 10
 local ROW_HEIGHT = 22
+local TITLE_BAR_HEIGHT = 30
 local queueRows
 
 local function ensureQueueFrame(module)
@@ -1263,7 +1264,7 @@ local function ensureQueueFrame(module)
   if queueFrame then return queueFrame end
   queueFrame = CreateFrame("Frame", "SlackHacksSelfVendorQueueFrame", UIParent, "BasicFrameTemplateWithInset")
   module.queueFrame = queueFrame
-  queueFrame:SetSize(300, 40 + MAX_QUEUE_ROWS * ROW_HEIGHT)
+  queueFrame:SetSize(300, TITLE_BAR_HEIGHT + 10 + MAX_QUEUE_ROWS * ROW_HEIGHT)
   queueFrame:SetPoint("CENTER")
   queueFrame:SetFrameStrata("DIALOG")
   queueFrame:SetMovable(true)
@@ -1272,8 +1273,8 @@ local function ensureQueueFrame(module)
   queueFrame:SetScript("OnDragStart", queueFrame.StartMoving)
   queueFrame:SetScript("OnDragStop", queueFrame.StopMovingOrSizing)
   queueFrame.TitleText:SetText("Self Vendor Queue")
-  queueFrame.overflowText = queueFrame.Inset:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  queueFrame.overflowText:SetPoint("BOTTOMLEFT", queueFrame.Inset, "BOTTOMLEFT", 6, 6)
+  queueFrame.overflowText = queueFrame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  queueFrame.overflowText:SetPoint("BOTTOMLEFT", queueFrame, "BOTTOMLEFT", 10, 8)
   -- Closing the window is the only way to clear the whole queue; there's no slash command for it.
   queueFrame.CloseButton:HookScript("OnClick", function() module:ClearQueue() end)
   return queueFrame
@@ -1284,10 +1285,10 @@ local function ensureQueueRow(module, index)
   queueRows = queueRows or {}
   local row = queueRows[index]
   if row then return row end
-  row = CreateFrame("Frame", nil, queueFrame.Inset)
+  row = CreateFrame("Frame", nil, queueFrame)
   row:SetHeight(ROW_HEIGHT)
-  row:SetPoint("TOPLEFT", queueFrame.Inset, "TOPLEFT", 6, -6 - (index - 1) * ROW_HEIGHT)
-  row:SetPoint("RIGHT", queueFrame.Inset, "RIGHT", -6, 0)
+  row:SetPoint("TOPLEFT", queueFrame, "TOPLEFT", 10, -TITLE_BAR_HEIGHT - (index - 1) * ROW_HEIGHT)
+  row:SetPoint("RIGHT", queueFrame, "RIGHT", -10, 0)
   row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
   row.text:SetPoint("RIGHT", row, "RIGHT", -20, 0)
