@@ -130,6 +130,7 @@ dbDefaults = {
         upgradeTrack = true,
         secondaryStats = true,
         tertiaryStats = true,
+        itemStats = true,
         highWatermarkColoring = true,
         enchants = true,
         gemSockets = true,
@@ -205,7 +206,6 @@ RETAIL_MODULES = {
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = "weeklies", name = "Weeklies" },
-  { key = "infoDisplay", name = "Info Display" },
 }
 
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
@@ -1456,6 +1456,7 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              hidden = function() return not isRetail() end,
               disabled = function() return not db.profile.infoDisplay.enabled end,
               get = function() return db.profile.infoDisplay.charSheet.upgradeTrack end,
               set = function(_, value)
@@ -1464,37 +1465,13 @@ options = {
               end,
               order = 2
             },
-            secondaryStats = {
-              name = "Secondary Stats",
-              desc = "Show secondary stat totals (Crit, Haste, Mastery, Vers) and percentages in the side summary.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.infoDisplay.enabled end,
-              get = function() return db.profile.infoDisplay.charSheet.secondaryStats end,
-              set = function(_, value)
-                db.profile.infoDisplay.charSheet.secondaryStats = value
-                Self.InfoDisplay:Refresh()
-              end,
-              order = 3
-            },
-            tertiaryStats = {
-              name = "Tertiary Stats",
-              desc = "Show tertiary stat totals (Speed, Leech, Avoidance) and percentages in the side summary.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.infoDisplay.enabled end,
-              get = function() return db.profile.infoDisplay.charSheet.tertiaryStats end,
-              set = function(_, value)
-                db.profile.infoDisplay.charSheet.tertiaryStats = value
-                Self.InfoDisplay:Refresh()
-              end,
-              order = 4
-            },
             highWatermarkColoring = {
-              name = "High Watermark Coloring",
-              desc = "Color item level based on upgrade track watermark tiers (White, Green, Blue, Purple, Orange, Golden).",
+              name = function() return isRetail() and "High Watermark Coloring" or "Item Quality Coloring" end,
+              desc = function()
+                return isRetail()
+                  and "Color item level based on upgrade track watermark tiers (White, Green, Blue, Purple, Orange, Golden)."
+                  or "Color item level matching the item's quality color (Common, Uncommon, Rare, Epic, Legendary)."
+              end,
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -1504,7 +1481,52 @@ options = {
                 db.profile.infoDisplay.charSheet.highWatermarkColoring = value
                 Self.InfoDisplay:Refresh()
               end,
+              order = 3
+            },
+            secondaryStats = {
+              name = "Secondary Stats",
+              desc = "Show secondary stat totals (Crit, Haste, Mastery, Vers) and percentages in the side summary.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              hidden = function() return not isRetail() end,
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.secondaryStats end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.secondaryStats = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 4
+            },
+            tertiaryStats = {
+              name = "Tertiary Stats",
+              desc = "Show tertiary stat totals (Speed, Leech, Avoidance) and percentages in the side summary.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              hidden = function() return not isRetail() end,
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.tertiaryStats end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.tertiaryStats = value
+                Self.InfoDisplay:Refresh()
+              end,
               order = 5
+            },
+            itemStats = {
+              name = "Item Stats",
+              desc = "Show all item stats (Strength, Agility, Stamina, Intellect, Spirit, etc.) in the side summary.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              hidden = function() return isRetail() end,
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.itemStats end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.itemStats = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 5.5
             },
             enchants = {
               name = "Enchants",
@@ -1526,6 +1548,7 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              hidden = function() return not isRetail() end,
               disabled = function() return not db.profile.infoDisplay.enabled end,
               get = function() return db.profile.infoDisplay.charSheet.gemSockets end,
               set = function(_, value)

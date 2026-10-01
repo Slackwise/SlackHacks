@@ -89,6 +89,45 @@ local TERTIARY_STAT_KEYS = {
   ["ITEM_MOD_CR_AVOIDANCE"]       = { type = "AVOIDANCE", cr = CR_AVOID, name = "Avoidance", suffix = "Avoid", order = 3 },
 }
 
+-- Classic / Forever item stat definitions (Strength, Agility, Stamina, Intellect, Spirit, etc.)
+local FOREVER_STAT_DEFS = {
+  ["ITEM_MOD_STRENGTH_SHORT"]               = { name = "Strength", suffix = "Str", order = 1 },
+  ["ITEM_MOD_AGILITY_SHORT"]                = { name = "Agility", suffix = "Agi", order = 2 },
+  ["ITEM_MOD_STAMINA_SHORT"]                = { name = "Stamina", suffix = "Stam", order = 3 },
+  ["ITEM_MOD_INTELLECT_SHORT"]              = { name = "Intellect", suffix = "Int", order = 4 },
+  ["ITEM_MOD_SPIRIT_SHORT"]                 = { name = "Spirit", suffix = "Spi", order = 5 },
+
+  ["ITEM_MOD_SPELL_POWER_SHORT"]            = { name = "Spell Power", suffix = "SP", order = 6 },
+  ["ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"]      = { name = "Spell Damage", suffix = "Spell Dmg", order = 7 },
+  ["ITEM_MOD_SPELL_HEALING_DONE_SHORT"]     = { name = "Healing", suffix = "Healing", order = 8 },
+  ["ITEM_MOD_ATTACK_POWER_SHORT"]           = { name = "Attack Power", suffix = "AP", order = 9 },
+  ["ITEM_MOD_RANGED_ATTACK_POWER_SHORT"]    = { name = "Ranged AP", suffix = "RAP", order = 10 },
+  ["ITEM_MOD_MANA_REGENERATION_SHORT"]      = { name = "Mana per 5 sec", suffix = "MP5", order = 11 },
+  ["ITEM_MOD_HEALTH_REGEN_SHORT"]          = { name = "Health per 5 sec", suffix = "HP5", order = 12 },
+
+  ["ITEM_MOD_HIT_MELEE_RATING_SHORT"]       = { name = "Hit", suffix = "Hit", order = 13 },
+  ["ITEM_MOD_HIT_RATING_SHORT"]             = { name = "Hit", suffix = "Hit", order = 13 },
+  ["ITEM_MOD_HIT_SPELL_RATING_SHORT"]       = { name = "Spell Hit", suffix = "Spell Hit", order = 14 },
+  ["ITEM_MOD_CRIT_MELEE_RATING_SHORT"]      = { name = "Crit", suffix = "Crit", order = 15 },
+  ["ITEM_MOD_CRIT_RATING_SHORT"]            = { name = "Crit", suffix = "Crit", order = 15 },
+  ["ITEM_MOD_CRIT_SPELL_RATING_SHORT"]      = { name = "Spell Crit", suffix = "Spell Crit", order = 16 },
+
+  ["ITEM_MOD_DEFENSE_SKILL_RATING_SHORT"]   = { name = "Defense", suffix = "Def", order = 17 },
+  ["ITEM_MOD_DODGE_RATING_SHORT"]           = { name = "Dodge", suffix = "Dodge", order = 18 },
+  ["ITEM_MOD_PARRY_RATING_SHORT"]           = { name = "Parry", suffix = "Parry", order = 19 },
+  ["ITEM_MOD_BLOCK_RATING_SHORT"]           = { name = "Block", suffix = "Block", order = 20 },
+  ["ITEM_MOD_BLOCK_VALUE_SHORT"]            = { name = "Block Value", suffix = "Block Val", order = 21 },
+
+  ["ITEM_MOD_ARMOR_SHORT"]                  = { name = "Armor", suffix = "Armor", order = 22 },
+  ["ITEM_MOD_EXTRA_ARMOR_SHORT"]            = { name = "Bonus Armor", suffix = "Armor", order = 22 },
+
+  ["ITEM_MOD_FIRE_RESISTANCE_SHORT"]        = { name = "Fire Resistance", suffix = "Fire Res", order = 23 },
+  ["ITEM_MOD_NATURE_RESISTANCE_SHORT"]      = { name = "Nature Resistance", suffix = "Nature Res", order = 24 },
+  ["ITEM_MOD_FROST_RESISTANCE_SHORT"]       = { name = "Frost Resistance", suffix = "Frost Res", order = 25 },
+  ["ITEM_MOD_SHADOW_RESISTANCE_SHORT"]      = { name = "Shadow Resistance", suffix = "Shadow Res", order = 26 },
+  ["ITEM_MOD_ARCANE_RESISTANCE_SHORT"]      = { name = "Arcane Resistance", suffix = "Arcane Res", order = 27 },
+}
+
 -- Known upgrade track name abbreviations
 local TRACK_ABBREVIATIONS = {
   ["EXPLORER"]   = "E",
@@ -163,6 +202,7 @@ local function charSheetSettings()
     upgradeTrack = true,
     secondaryStats = true,
     tertiaryStats = true,
+    itemStats = true,
     highWatermarkColoring = true,
     enchants = true,
     gemSockets = true,
@@ -187,28 +227,29 @@ local function getQualityColor(quality)
   return COLOR_WHITE
 end
 
---- Returns high watermark color based on item level ranges, regardless of upgrade track:
---- - White: Below Adventurer ilevel 266 (< 266)
---- - Green: 266 to 276
---- - Blue: 279 to 289
---- - Purple: 292 to 302
---- - Orange: 305 to 315
---- - Golden: 318+
+--- Returns item level display color:
+--- - In Retail (isRetail): Uses high watermark brackets (White <266, Green 266-276, Blue 279-289, Purple 292-302, Orange 305-315, Golden 318+)
+--- - In Forever (isForever / Classic): Uses the item's native quality color (Common, Uncommon, Rare, Epic, Legendary).
 ---@param itemLevel number|nil
+---@param itemQuality number|nil
 ---@return table
-local function getWatermarkColor(itemLevel)
-  if not itemLevel or itemLevel < 266 then
-    return getQualityColor(1) -- White (Common)
-  elseif itemLevel < 279 then
-    return getQualityColor(2) -- Green (Uncommon)
-  elseif itemLevel < 292 then
-    return getQualityColor(3) -- Blue (Rare)
-  elseif itemLevel < 305 then
-    return getQualityColor(4) -- Purple (Epic)
-  elseif itemLevel < 318 then
-    return getQualityColor(5) -- Orange (Legendary)
+local function getWatermarkColor(itemLevel, itemQuality)
+  if isRetail() then
+    if not itemLevel or itemLevel < 266 then
+      return getQualityColor(1) -- White (Common)
+    elseif itemLevel < 279 then
+      return getQualityColor(2) -- Green (Uncommon)
+    elseif itemLevel < 292 then
+      return getQualityColor(3) -- Blue (Rare)
+    elseif itemLevel < 305 then
+      return getQualityColor(4) -- Purple (Epic)
+    elseif itemLevel < 318 then
+      return getQualityColor(5) -- Orange (Legendary)
+    else
+      return getQualityColor(6) -- Golden (Artifact)
+    end
   else
-    return getQualityColor(6) -- Golden (Artifact)
+    return getQualityColor(itemQuality or 1)
   end
 end
 
@@ -609,7 +650,12 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
     if data.statsList and #data.statsList > 0 then
       for _, stat in ipairs(data.statsList) do
         GameTooltip:AddLine(" ")
-        local rightText = string.format("+%d  (+%.1f%%)", stat.total, stat.pct)
+        local rightText
+        if stat.pct then
+          rightText = string.format("+%d  (+%.1f%%)", stat.total, stat.pct)
+        else
+          rightText = string.format("+%d", stat.total)
+        end
         GameTooltip:AddDoubleLine(stat.name, rightText, 1, 1, 1, 0, 1, 0)
 
         if stat.base > 0 then
@@ -831,15 +877,21 @@ local function updateSlot(unitId, slotId)
   -- --------------------------------------------------------------------------
   -- 2. Item Level Display & Watermark Coloring (Center Anchor)
   -- --------------------------------------------------------------------------
+  local itemName, _, itemQuality = C_Item.GetItemInfo(itemLink)
+  if not itemQuality and GetItemInfo then
+    itemName, _, itemQuality = GetItemInfo(itemLink)
+  end
+
+  local levelY = isRetail() and 4 or 0
   slotOverlay.Level:ClearAllPoints()
-  slotOverlay.Level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 4)
+  slotOverlay.Level:SetPoint("CENTER", slotOverlay, "CENTER", 0, levelY)
   slotOverlay.Level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
   slotOverlay.Level:SetJustifyH("CENTER")
 
   if settings.itemLevel and itemLevel then
     slotOverlay.Level:SetText(tostring(itemLevel))
     if settings.highWatermarkColoring then
-      local watermarkColor = getWatermarkColor(itemLevel)
+      local watermarkColor = getWatermarkColor(itemLevel, itemQuality)
       slotOverlay.Level:SetTextColor(watermarkColor.r, watermarkColor.g, watermarkColor.b, watermarkColor.a)
     else
       slotOverlay.Level:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
@@ -852,15 +904,14 @@ local function updateSlot(unitId, slotId)
   end
 
   -- --------------------------------------------------------------------------
-  -- 3. Upgrade Track Display (Centered Underneath Item Level)
+  -- 3. Upgrade Track Display (Centered Underneath Item Level, Retail Only)
   -- --------------------------------------------------------------------------
-  slotOverlay.Track:ClearAllPoints()
-  slotOverlay.Track:SetPoint("TOP", slotOverlay.Level, "BOTTOM", 0, -1)
-  slotOverlay.Track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
-  slotOverlay.Track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
-  slotOverlay.Track:SetJustifyH("CENTER")
-
-  if settings.upgradeTrack and hasTrack and trackText ~= "" then
+  if isRetail() and settings.upgradeTrack and hasTrack and trackText ~= "" then
+    slotOverlay.Track:ClearAllPoints()
+    slotOverlay.Track:SetPoint("TOP", slotOverlay.Level, "BOTTOM", 0, -1)
+    slotOverlay.Track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
+    slotOverlay.Track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+    slotOverlay.Track:SetJustifyH("CENTER")
     slotOverlay.Track:SetText(trackText)
     slotOverlay.Track:Show()
   else
@@ -871,12 +922,22 @@ local function updateSlot(unitId, slotId)
   -- --------------------------------------------------------------------------
   -- 4. Side Summary & Breakdown Calculation
   -- --------------------------------------------------------------------------
-  local itemName = C_Item.GetItemInfo(itemLink) or "Item"
+  itemName = itemName or "Item"
   local itemPayload = itemLink:match("item:([%-?%d:]+)")
   local payloadParts = itemPayload and { strsplit(":", itemPayload) } or {}
   local enchantID = tonumber(payloadParts[2])
 
   local totalStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(itemLink)) or {}
+
+  -- Build pure base item link (strip enchantID and all 4 gem IDs)
+  local partsBase = { unpack(payloadParts) }
+  partsBase[2] = "0"
+  partsBase[3] = "0"
+  partsBase[4] = "0"
+  partsBase[5] = "0"
+  partsBase[6] = "0"
+  local linkBase = "item:" .. table.concat(partsBase, ":")
+  local baseStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkBase)) or {}
 
   -- Calculate enchant stat contribution
   local enchantStats = {}
@@ -888,15 +949,30 @@ local function updateSlot(unitId, slotId)
   end
 
   if enchantID and enchantID > 0 then
-    local partsWithoutEnchant = { unpack(payloadParts) }
-    partsWithoutEnchant[2] = "0"
-    local linkWithoutEnchant = "item:" .. table.concat(partsWithoutEnchant, ":")
-    local statsWithout = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkWithoutEnchant)) or {}
+    local partsOnlyEnchant = { unpack(payloadParts) }
+    partsOnlyEnchant[3] = "0"
+    partsOnlyEnchant[4] = "0"
+    partsOnlyEnchant[5] = "0"
+    partsOnlyEnchant[6] = "0"
+    local linkOnlyEnchant = "item:" .. table.concat(partsOnlyEnchant, ":")
+    local statsWithEnchant = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkOnlyEnchant)) or {}
 
-    for k, v in pairs(totalStats) do
-      local d = v - (statsWithout[k] or 0)
+    for k, v in pairs(statsWithEnchant) do
+      local d = v - (baseStats[k] or 0)
       if d > 0 then
         enchantStats[k] = d
+      end
+    end
+    if not next(enchantStats) then
+      local partsNoEnchant = { unpack(payloadParts) }
+      partsNoEnchant[2] = "0"
+      local linkNoEnchant = "item:" .. table.concat(partsNoEnchant, ":")
+      local statsNoEnchant = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkNoEnchant)) or {}
+      for k, v in pairs(totalStats) do
+        local d = v - (statsNoEnchant[k] or 0)
+        if d > 0 then
+          enchantStats[k] = d
+        end
       end
     end
   elseif slot.canEnchant then
@@ -908,7 +984,6 @@ local function updateSlot(unitId, slotId)
 
   -- Calculate gem contributions and identify slotted gems vs empty sockets
   local gemList = {}
-  local totalGemStats = {}
   local missingGemCount = 0
 
   for socketIndex = 1, 3 do
@@ -922,111 +997,199 @@ local function updateSlot(unitId, slotId)
       local gStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats("item:" .. gemID)) or {}
       local gName = C_Item.GetItemInfo(gemID) or ("Gem " .. socketIndex)
 
-      local statParts = {}
-      for k, v in pairs(gStats) do
-        totalGemStats[k] = (totalGemStats[k] or 0) + v
-        local sInfo = SECONDARY_STAT_KEYS[k] or TERTIARY_STAT_KEYS[k]
-        if sInfo then
-          table.insert(statParts, "+" .. v .. " " .. sInfo.suffix)
-        end
-      end
-
       table.insert(gemList, {
         id = gemID,
         name = gName,
         link = gemLink,
         stats = gStats,
-        statSummary = table.concat(statParts, ", "),
       })
     elseif socketIndex <= itemSocketCount then
       missingGemCount = missingGemCount + 1
     end
   end
 
-  -- Collect active secondary and tertiary stats with breakdown data
-  local activeStats = {}
-  local sideSummaryLines = {}
+  -- Helper to group related stat keys into canonical types
+  local function getStatGroup(key)
+    if not key then return nil end
+    local upper = key:upper()
+    if upper:find("CRIT") then return "CRIT"
+    elseif upper:find("HASTE") then return "HASTE"
+    elseif upper:find("MASTERY") then return "MASTERY"
+    elseif upper:find("VERSATILITY") then return "VERSATILITY"
+    elseif upper:find("SPEED") then return "SPEED"
+    elseif upper:find("LIFESTEAL") or upper:find("LEECH") then return "LEECH"
+    elseif upper:find("AVOIDANCE") then return "AVOIDANCE"
+    elseif upper:find("STRENGTH") then return "STRENGTH"
+    elseif upper:find("AGILITY") then return "AGILITY"
+    elseif upper:find("INTELLECT") then return "INTELLECT"
+    elseif upper:find("STAMINA") then return "STAMINA"
+    elseif upper:find("SPIRIT") then return "SPIRIT"
+    end
+    return key
+  end
 
-  -- Process Secondary stats
-  local foundSecondary = {}
-  for statKey, statInfo in pairs(SECONDARY_STAT_KEYS) do
-    local total = totalStats[statKey]
-    if total and total > 0 and not foundSecondary[statInfo.type] then
-      foundSecondary[statInfo.type] = true
-      local enchantVal = enchantStats[statKey] or 0
-      local gemVal = totalGemStats[statKey] or 0
-      local baseVal = math.max(0, total - enchantVal - gemVal)
-      local pct = calculateSecondaryStatIncrease(statInfo.cr, total)
+  local baseBuckets = {}
+  for k, v in pairs(baseStats) do
+    if v and v > 0 then
+      local g = getStatGroup(k)
+      baseBuckets[g] = (baseBuckets[g] or 0) + v
+    end
+  end
 
-      local statGems = {}
-      for _, g in ipairs(gemList) do
-        local gAmt = g.stats[statKey]
-        if gAmt and gAmt > 0 then
-          table.insert(statGems, { name = g.name, amount = gAmt })
-        end
-      end
+  local enchantBuckets = {}
+  for k, v in pairs(enchantStats) do
+    if v and v > 0 then
+      local g = getStatGroup(k)
+      enchantBuckets[g] = (enchantBuckets[g] or 0) + v
+    end
+  end
 
-      table.insert(activeStats, {
-        type = statInfo.type,
-        name = statInfo.name,
-        suffix = statInfo.suffix,
-        order = statInfo.order,
-        total = total,
-        base = baseVal,
-        enchant = enchantVal,
-        enchantDesc = enchantEffectText,
-        gems = statGems,
-        pct = pct,
-        isTertiary = false,
-      })
-
-      if settings.secondaryStats then
-        table.insert(sideSummaryLines, {
-          order = statInfo.order,
-          text = string.format("+%d %s (+%.1f%%)", total, statInfo.suffix, pct),
-        })
+  for _, gem in ipairs(gemList) do
+    gem.buckets = {}
+    for k, v in pairs(gem.stats) do
+      if v and v > 0 then
+        local g = getStatGroup(k)
+        gem.buckets[g] = (gem.buckets[g] or 0) + v
       end
     end
   end
 
-  -- Process Tertiary stats
-  local foundTertiary = {}
-  for statKey, statInfo in pairs(TERTIARY_STAT_KEYS) do
-    local total = totalStats[statKey]
-    if total and total > 0 and not foundTertiary[statInfo.type] then
-      foundTertiary[statInfo.type] = true
-      local enchantVal = enchantStats[statKey] or 0
-      local gemVal = totalGemStats[statKey] or 0
-      local baseVal = math.max(0, total - enchantVal - gemVal)
-      local pct = calculateTertiaryStatIncrease(statInfo.type, statInfo.cr, total)
+  -- If baseStats didn't populate from baseLink, fall back to totalStats minus enchant and gems
+  for k, v in pairs(totalStats) do
+    if v and v > 0 then
+      local g = getStatGroup(k)
+      if not baseBuckets[g] then
+        local enchAmt = enchantBuckets[g] or 0
+        local gemAmt = 0
+        for _, gem in ipairs(gemList) do
+          gemAmt = gemAmt + (gem.buckets and gem.buckets[g] or 0)
+        end
+        baseBuckets[g] = math.max(0, v - enchAmt - gemAmt)
+      end
+    end
+  end
 
-      local statGems = {}
-      for _, g in ipairs(gemList) do
-        local gAmt = g.stats[statKey]
-        if gAmt and gAmt > 0 then
-          table.insert(statGems, { name = g.name, amount = gAmt })
+  -- Function to get the true SUM of stats across all sources (item base + enchant + gems)
+  local function getStatSumAndBreakdown(statKeyOrType)
+    local g = getStatGroup(statKeyOrType)
+    local bAmt = baseBuckets[g] or 0
+    local eAmt = enchantBuckets[g] or 0
+    local gAmt = 0
+    local gBreakdown = {}
+    for _, gem in ipairs(gemList) do
+      local a = gem.buckets and gem.buckets[g] or 0
+      if a > 0 then
+        gAmt = gAmt + a
+        table.insert(gBreakdown, { name = gem.name, amount = a })
+      end
+    end
+    local sum = bAmt + eAmt + gAmt
+    return sum, bAmt, eAmt, gBreakdown
+  end
+
+  -- Collect active stats with breakdown data
+  local activeStats = {}
+  local sideSummaryLines = {}
+
+  if isRetail() then
+    -- ------------------------------------------------------------------------
+    -- Retail Mode: Secondary & Tertiary Stats with Diminishing Returns
+    -- ------------------------------------------------------------------------
+    -- Process Secondary stats
+    local foundSecondary = {}
+    for statKey, statInfo in pairs(SECONDARY_STAT_KEYS) do
+      if not foundSecondary[statInfo.type] then
+        local sum, bAmt, eAmt, gBreakdown = getStatSumAndBreakdown(statInfo.type)
+        if sum > 0 then
+          foundSecondary[statInfo.type] = true
+          local pct = calculateSecondaryStatIncrease(statInfo.cr, sum)
+
+          table.insert(activeStats, {
+            type = statInfo.type,
+            name = statInfo.name,
+            suffix = statInfo.suffix,
+            order = statInfo.order,
+            total = sum,
+            base = bAmt,
+            enchant = eAmt,
+            enchantDesc = enchantEffectText,
+            gems = gBreakdown,
+            pct = pct,
+            isTertiary = false,
+          })
+
+          if settings.secondaryStats then
+            table.insert(sideSummaryLines, {
+              order = statInfo.order,
+              text = string.format("+%d %s (+%.1f%%)", sum, statInfo.suffix, pct),
+            })
+          end
         end
       end
+    end
 
-      table.insert(activeStats, {
-        type = statInfo.type,
-        name = statInfo.name,
-        suffix = statInfo.suffix,
-        order = 10 + statInfo.order,
-        total = total,
-        base = baseVal,
-        enchant = enchantVal,
-        enchantDesc = enchantEffectText,
-        gems = statGems,
-        pct = pct,
-        isTertiary = true,
-      })
+    -- Process Tertiary stats
+    local foundTertiary = {}
+    for statKey, statInfo in pairs(TERTIARY_STAT_KEYS) do
+      if not foundTertiary[statInfo.type] then
+        local sum, bAmt, eAmt, gBreakdown = getStatSumAndBreakdown(statInfo.type)
+        if sum > 0 then
+          foundTertiary[statInfo.type] = true
+          local pct = calculateTertiaryStatIncrease(statInfo.type, statInfo.cr, sum)
 
-      if settings.tertiaryStats then
-        table.insert(sideSummaryLines, {
-          order = 10 + statInfo.order,
-          text = string.format("+%d %s (+%.1f%%)", total, statInfo.suffix, pct),
-        })
+          table.insert(activeStats, {
+            type = statInfo.type,
+            name = statInfo.name,
+            suffix = statInfo.suffix,
+            order = 10 + statInfo.order,
+            total = sum,
+            base = bAmt,
+            enchant = eAmt,
+            enchantDesc = enchantEffectText,
+            gems = gBreakdown,
+            pct = pct,
+            isTertiary = true,
+          })
+
+          if settings.tertiaryStats then
+            table.insert(sideSummaryLines, {
+              order = 10 + statInfo.order,
+              text = string.format("+%d %s (+%.1f%%)", sum, statInfo.suffix, pct),
+            })
+          end
+        end
+      end
+    end
+  else
+    -- ------------------------------------------------------------------------
+    -- Forever / Classic Mode: Display All Item Stats (Strength, Agi, Stam, Int, Spi, etc.)
+    -- ------------------------------------------------------------------------
+    local processedStats = {}
+    for statKey, statInfo in pairs(FOREVER_STAT_DEFS) do
+      if not processedStats[statInfo.name] then
+        local sum, bAmt, eAmt, gBreakdown = getStatSumAndBreakdown(statKey)
+        if sum > 0 then
+          processedStats[statInfo.name] = true
+          table.insert(activeStats, {
+            type = statKey,
+            name = statInfo.name,
+            suffix = statInfo.suffix,
+            order = statInfo.order,
+            total = sum,
+            base = bAmt,
+            enchant = eAmt,
+            enchantDesc = enchantEffectText,
+            gems = gBreakdown,
+            isForever = true,
+          })
+
+          if settings.itemStats then
+            table.insert(sideSummaryLines, {
+              order = statInfo.order,
+              text = string.format("+%d %s", sum, statInfo.suffix),
+            })
+          end
+        end
       end
     end
   end
