@@ -903,7 +903,6 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
 
     local data = sideSummary.breakdownData
     GameTooltip:AddLine(data.itemName or "Equipment Details", 1, 1, 1)
-    GameTooltip:AddLine("Stat & Enhancement Breakdown", 1, 0.82, 0)
 
     if data.watermarkIlevel and data.watermarkIlevel > 0 then
       local wmColor = getWatermarkColor(data.watermarkIlevel, data.itemQuality)
