@@ -822,7 +822,7 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
 
   -- Item Level: center of icon
   local level = slotOverlay:CreateFontString(frameName .. "Level", "OVERLAY", "GameTooltipText")
-  level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 4)
+  level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 0)
   level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
   level:SetJustifyH("CENTER")
   slotOverlay.Level = level
@@ -833,15 +833,26 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
   track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
   track:SetJustifyH("CENTER")
+  track:Hide()
   slotOverlay.Track = track
 
   -- Side Summary Frame: sits off to the side where enchants and gems display
+  local isBottomSlot = (slot.id == 16 or slot.id == 17)
   local relativePoint = slot.side == "LEFT" and "RIGHT" or "LEFT"
   local offsetX = slot.side == "LEFT" and 8 or -8
 
+  local sideSummaryPoint, slotPoint
+  if isBottomSlot then
+    sideSummaryPoint = slot.side == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"
+    slotPoint = slot.side == "LEFT" and "BOTTOMRIGHT" or "BOTTOMLEFT"
+  else
+    sideSummaryPoint = slot.side
+    slotPoint = relativePoint
+  end
+
   local sideSummary = CreateFrame("Frame", frameName .. "SideSummary", slotOverlay)
   sideSummary:SetSize(130, 42)
-  sideSummary:SetPoint(slot.side, slotOverlay, relativePoint, offsetX, 0)
+  sideSummary:SetPoint(sideSummaryPoint, slotOverlay, slotPoint, offsetX, 0)
   sideSummary:EnableMouse(true)
   sideSummary:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
   slotOverlay.SideSummary = sideSummary
@@ -1136,14 +1147,15 @@ local function updateSlot(unitId, slotId)
   end
 
   -- --------------------------------------------------------------------------
-  -- 2. Item Level Display & Watermark Coloring (Center Anchor)
+  -- 2. Item Level & Upgrade Track Display (Centered on Icon)
   -- --------------------------------------------------------------------------
   local itemName, _, itemQuality = C_Item.GetItemInfo(itemLink)
   if not itemQuality and GetItemInfo then
     itemName, _, itemQuality = GetItemInfo(itemLink)
   end
 
-  local levelY = isRetail() and 4 or 0
+  local showTrack = isRetail() and settings.upgradeTrack and hasTrack and trackText ~= ""
+  local levelY = showTrack and 4 or 0
   slotOverlay.Level:ClearAllPoints()
   slotOverlay.Level:SetPoint("CENTER", slotOverlay, "CENTER", 0, levelY)
   slotOverlay.Level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
@@ -1167,7 +1179,7 @@ local function updateSlot(unitId, slotId)
   -- --------------------------------------------------------------------------
   -- 3. Upgrade Track Display (Centered Underneath Item Level, Retail Only)
   -- --------------------------------------------------------------------------
-  if isRetail() and settings.upgradeTrack and hasTrack and trackText ~= "" then
+  if showTrack then
     slotOverlay.Track:ClearAllPoints()
     slotOverlay.Track:SetPoint("TOP", slotOverlay.Level, "BOTTOM", 0, -1)
     slotOverlay.Track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
@@ -1176,6 +1188,7 @@ local function updateSlot(unitId, slotId)
     slotOverlay.Track:SetText(trackText)
     slotOverlay.Track:Show()
   else
+    slotOverlay.Track:ClearAllPoints()
     slotOverlay.Track:SetText("")
     slotOverlay.Track:Hide()
   end
@@ -1522,6 +1535,21 @@ local function updateSlot(unitId, slotId)
   sideSummary.StatsText:SetText(summaryString)
   sideSummary.StatsText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
 
+  -- Re-anchor sideSummary to ensure correct bottom vs center alignment
+  local isBottomSlot = (slot.id == 16 or slot.id == 17)
+  local relativePoint = slot.side == "LEFT" and "RIGHT" or "LEFT"
+  local offsetX = slot.side == "LEFT" and 8 or -8
+  local sideSummaryPoint, slotPoint
+  if isBottomSlot then
+    sideSummaryPoint = slot.side == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"
+    slotPoint = slot.side == "LEFT" and "BOTTOMRIGHT" or "BOTTOMLEFT"
+  else
+    sideSummaryPoint = slot.side
+    slotPoint = relativePoint
+  end
+  sideSummary:ClearAllPoints()
+  sideSummary:SetPoint(sideSummaryPoint, slotOverlay, slotPoint, offsetX, 0)
+
   -- Missing alert icons
   local showMissingEnchant = settings.enchants and isMissingEnchant
   local showMissingGem = settings.gemSockets and (missingGemCount > 0)
@@ -1558,61 +1586,132 @@ local function updateSlot(unitId, slotId)
     sideSummary.MissingGem:Hide()
   end
 
-  -- Position watermark and stats text according to whether watermark and missing icons are present
-  if watermarkIlevel and watermarkIlevel > 0 then
-    sideSummary.WatermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
-    sideSummary.WatermarkText:SetText(tostring(watermarkIlevel))
-    if settings.highWatermarkColoring then
-      local wmColor = getWatermarkColor(watermarkIlevel, itemQuality)
-      sideSummary.WatermarkText:SetTextColor(wmColor.r, wmColor.g, wmColor.b, wmColor.a)
-    else
-      sideSummary.WatermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
-    end
+  -- Position watermark and stats text: bottom-anchored for weapon slots, center-anchored for all other slots
+  local numLines = #sideSummaryLines
+  local hasWatermark = (watermarkIlevel and watermarkIlevel > 0)
+  local gap = (hasWatermark and numLines > 0) and 2 or 0
 
-    sideSummary.WatermarkText:ClearAllPoints()
-    if slot.side == "LEFT" then
-      sideSummary.WatermarkText:SetPoint("TOPLEFT", sideSummary, "TOPLEFT", 0, 0)
-      sideSummary.WatermarkText:SetJustifyH("LEFT")
-    else
-      sideSummary.WatermarkText:SetPoint("TOPRIGHT", sideSummary, "TOPRIGHT", 0, 0)
-      sideSummary.WatermarkText:SetJustifyH("RIGHT")
-    end
-    sideSummary.WatermarkText:Show()
+  sideSummary.WatermarkText:ClearAllPoints()
+  sideSummary.StatsText:ClearAllPoints()
 
-    sideSummary.StatsText:ClearAllPoints()
-    if slot.side == "LEFT" then
-      sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary.WatermarkText, "BOTTOMLEFT", 0, -1)
-      if showMissingEnchant or showMissingGem then
-        sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 16)
+  if isBottomSlot then
+    -- ------------------------------------------------------------------------
+    -- Main-Hand & Off-Hand: Anchor to Bottom
+    -- ------------------------------------------------------------------------
+    local bottomY = (showMissingEnchant or showMissingGem) and 16 or 0
+
+    if hasWatermark then
+      sideSummary.WatermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
+      sideSummary.WatermarkText:SetText(tostring(watermarkIlevel))
+      if settings.highWatermarkColoring then
+        local wmColor = getWatermarkColor(watermarkIlevel, itemQuality)
+        sideSummary.WatermarkText:SetTextColor(wmColor.r, wmColor.g, wmColor.b, wmColor.a)
       else
-        sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 0)
+        sideSummary.WatermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
       end
-    else
-      sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary.WatermarkText, "BOTTOMRIGHT", 0, -1)
-      if showMissingEnchant or showMissingGem then
-        sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 16)
+
+      if numLines > 0 then
+        if slot.side == "LEFT" then
+          sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, bottomY)
+          sideSummary.StatsText:SetJustifyH("LEFT")
+          sideSummary.WatermarkText:SetPoint("BOTTOMLEFT", sideSummary.StatsText, "TOPLEFT", 0, gap)
+          sideSummary.WatermarkText:SetJustifyH("LEFT")
+        else
+          sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, bottomY)
+          sideSummary.StatsText:SetJustifyH("RIGHT")
+          sideSummary.WatermarkText:SetPoint("BOTTOMRIGHT", sideSummary.StatsText, "TOPRIGHT", 0, gap)
+          sideSummary.WatermarkText:SetJustifyH("RIGHT")
+        end
+        sideSummary.StatsText:Show()
       else
-        sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 0)
+        if slot.side == "LEFT" then
+          sideSummary.WatermarkText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, bottomY)
+          sideSummary.WatermarkText:SetJustifyH("LEFT")
+        else
+          sideSummary.WatermarkText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, bottomY)
+          sideSummary.WatermarkText:SetJustifyH("RIGHT")
+        end
+        sideSummary.StatsText:Hide()
+      end
+      sideSummary.WatermarkText:Show()
+    else
+      sideSummary.WatermarkText:SetText("")
+      sideSummary.WatermarkText:Hide()
+
+      if numLines > 0 then
+        if slot.side == "LEFT" then
+          sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, bottomY)
+          sideSummary.StatsText:SetJustifyH("LEFT")
+        else
+          sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, bottomY)
+          sideSummary.StatsText:SetJustifyH("RIGHT")
+        end
+        sideSummary.StatsText:Show()
+      else
+        sideSummary.StatsText:Hide()
       end
     end
-    sideSummary.StatsText:SetJustifyV("TOP")
   else
-    sideSummary.WatermarkText:SetText("")
-    sideSummary.WatermarkText:Hide()
+    -- ------------------------------------------------------------------------
+    -- Other Equipment Slots: Center-Anchor Vertically
+    -- ------------------------------------------------------------------------
+    local hWatermark = 13
+    local hPerStatLine = 11
+    local totalContentH = (hasWatermark and hWatermark or 0) + gap + (numLines * hPerStatLine)
 
-    sideSummary.StatsText:ClearAllPoints()
-    if showMissingEnchant or showMissingGem then
-      if slot.side == "LEFT" then
-        sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary, "TOPLEFT", 0, 0)
-        sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 16)
+    local topY = math.floor(totalContentH / 2)
+    if (showMissingEnchant or showMissingGem) and totalContentH > 25 then
+      topY = topY + 6
+    end
+
+    if hasWatermark then
+      sideSummary.WatermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
+      sideSummary.WatermarkText:SetText(tostring(watermarkIlevel))
+      if settings.highWatermarkColoring then
+        local wmColor = getWatermarkColor(watermarkIlevel, itemQuality)
+        sideSummary.WatermarkText:SetTextColor(wmColor.r, wmColor.g, wmColor.b, wmColor.a)
       else
-        sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary, "TOPRIGHT", 0, 0)
-        sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 16)
+        sideSummary.WatermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
       end
-      sideSummary.StatsText:SetJustifyV("TOP")
+
+      if slot.side == "LEFT" then
+        sideSummary.WatermarkText:SetPoint("TOPLEFT", sideSummary, "LEFT", 0, topY)
+        sideSummary.WatermarkText:SetJustifyH("LEFT")
+        if numLines > 0 then
+          sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary.WatermarkText, "BOTTOMLEFT", 0, -gap)
+          sideSummary.StatsText:SetJustifyH("LEFT")
+          sideSummary.StatsText:Show()
+        else
+          sideSummary.StatsText:Hide()
+        end
+      else
+        sideSummary.WatermarkText:SetPoint("TOPRIGHT", sideSummary, "RIGHT", 0, topY)
+        sideSummary.WatermarkText:SetJustifyH("RIGHT")
+        if numLines > 0 then
+          sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary.WatermarkText, "BOTTOMRIGHT", 0, -gap)
+          sideSummary.StatsText:SetJustifyH("RIGHT")
+          sideSummary.StatsText:Show()
+        else
+          sideSummary.StatsText:Hide()
+        end
+      end
+      sideSummary.WatermarkText:Show()
     else
-      sideSummary.StatsText:SetAllPoints(sideSummary)
-      sideSummary.StatsText:SetJustifyV("MIDDLE")
+      sideSummary.WatermarkText:SetText("")
+      sideSummary.WatermarkText:Hide()
+
+      if numLines > 0 then
+        if slot.side == "LEFT" then
+          sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary, "LEFT", 0, topY)
+          sideSummary.StatsText:SetJustifyH("LEFT")
+        else
+          sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary, "RIGHT", 0, topY)
+          sideSummary.StatsText:SetJustifyH("RIGHT")
+        end
+        sideSummary.StatsText:Show()
+      else
+        sideSummary.StatsText:Hide()
+      end
     end
   end
 
