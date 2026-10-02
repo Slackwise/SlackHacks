@@ -847,17 +847,14 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
 end
 
 --- Returns whether a slot can be enchanted in the current client expansion.
---- In modern retail, wrist and cloak have enchants.
+--- In modern retail, bracers (slot 9) and cloak/back (slot 15) do not have enchants.
+--- In Forever / Classic, bracers and cloak can be enchanted.
 ---@param slot table
 ---@return boolean
 local function canSlotEnchant(slot)
   if not slot then return false end
-  -- Slots that never accept enchants across all modern expansions
-  if slot.id == 2 or slot.id == 6 or slot.id == 10 or slot.id == 13 or slot.id == 14 then
-    return false
-  end
   if slot.id == 9 or slot.id == 15 then
-    return true
+    return not isRetail()
   end
   return slot.canEnchant == true
 end
