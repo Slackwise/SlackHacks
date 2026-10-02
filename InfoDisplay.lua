@@ -238,7 +238,7 @@ local function charSheetSettings()
     upgradeTrack = true,
     slotWatermark = true,
     secondaryStats = true,
-    tertiaryStats = true,
+    tertiaryStats = false,
     itemStats = true,
     highWatermarkColoring = true,
     enchants = true,
@@ -1586,14 +1586,6 @@ local function updateSlot(unitId, slotId)
         gem = pGem,
         isPrimary = true,
       })
-
-      -- If an enchant or gem increases primary, show it at the top of the side summary
-      if pEnchant > 0 or pGem > 0 then
-        table.insert(sideSummaryLines, {
-          order = 0,
-          text = string.format("+%d %s", (pEnchant + pGem), pSuffix),
-        })
-      end
     end
 
     -- Process Secondary stats
@@ -1630,7 +1622,7 @@ local function updateSlot(unitId, slotId)
       end
     end
 
-    -- Process Tertiary stats
+    -- Process Tertiary stats (included in tooltip breakdown, not on side summary)
     for _, statInfo in ipairs(TERTIARY_STATS) do
       local sum, bAmt, eAmt, gAmt = getStatSumAndBreakdown(statInfo.type)
       if sum > 0 then
@@ -1654,13 +1646,6 @@ local function updateSlot(unitId, slotId)
           gemPct = gemPct,
           isTertiary = true,
         })
-
-        if settings.tertiaryStats then
-          table.insert(sideSummaryLines, {
-            order = 10 + statInfo.order,
-            text = string.format("+%d %s (+%.1f%%)", sum, statInfo.suffix, totalPct),
-          })
-        end
       end
     end
   else
