@@ -25,6 +25,14 @@ local function getStatsFont()
   return STATS_FONT
 end
 
+local function isSecret(value)
+  return _G.issecretvalue and _G.issecretvalue(value) or false
+end
+
+local function isCleanNumber(value)
+  return not isSecret(value) and type(value) == "number"
+end
+
 local COLOR_WHITE = { r = 1, g = 1, b = 1, a = 1 }
 local COLOR_GREY = { r = 0.7, g = 0.7, b = 0.7, a = 1 }
 local COLOR_TINT = { r = 0, g = 0, b = 0, a = 0.66 }
@@ -264,7 +272,7 @@ end
 ---@return table
 local function getWatermarkColor(itemLevel, itemQuality)
   if isRetail() then
-    if not itemLevel or itemLevel < 266 then
+    if not isCleanNumber(itemLevel) or itemLevel < 266 then
       return getQualityColor(1) -- White (Common)
     elseif itemLevel < 279 then
       return getQualityColor(2) -- Green (Uncommon)
@@ -278,7 +286,7 @@ local function getWatermarkColor(itemLevel, itemQuality)
       return getQualityColor(6) -- Golden (Artifact)
     end
   else
-    return getQualityColor(itemQuality or 1)
+    return getQualityColor(isCleanNumber(itemQuality) and itemQuality or 1)
   end
 end
 
@@ -317,7 +325,7 @@ local function getSlotHighWatermark(unitId, slotId, itemLink, equippedItemLevel)
     -- Method 1: C_ItemUpgrade.GetHighWatermarkForItem(itemLink)
     if itemLink and C_ItemUpgrade.GetHighWatermarkForItem then
       local ok, val = pcall(C_ItemUpgrade.GetHighWatermarkForItem, itemLink)
-      if ok and type(val) == "number" and val > 0 then
+      if ok and isCleanNumber(val) and val > 0 then
         watermark = val
       end
     end
@@ -325,34 +333,15 @@ local function getSlotHighWatermark(unitId, slotId, itemLink, equippedItemLevel)
     -- Method 2: C_ItemUpgrade.GetItemHyperlinkHighWatermark(itemLink)
     if not watermark and itemLink and C_ItemUpgrade.GetItemHyperlinkHighWatermark then
       local ok, val = pcall(C_ItemUpgrade.GetItemHyperlinkHighWatermark, itemLink)
-      if ok and type(val) == "number" and val > 0 then
+      if ok and isCleanNumber(val) and val > 0 then
         watermark = val
       end
     end
 
-    -- Method 3: ItemLocation-based watermark
-    if not watermark and ItemLocation and ItemLocation.CreateFromEquipmentSlot then
-      local loc = ItemLocation:CreateFromEquipmentSlot(slotId)
-      if loc and loc:IsValid() then
-        if C_ItemUpgrade.GetHighWatermarkForLocation then
-          local ok, val = pcall(C_ItemUpgrade.GetHighWatermarkForLocation, loc)
-          if ok and type(val) == "number" and val > 0 then
-            watermark = val
-          end
-        end
-        if not watermark and C_ItemUpgrade.GetItemLocationHighWatermark then
-          local ok, val = pcall(C_ItemUpgrade.GetItemLocationHighWatermark, loc)
-          if ok and type(val) == "number" and val > 0 then
-            watermark = val
-          end
-        end
-      end
-    end
-
-    -- Method 4: C_ItemUpgrade.GetHighWatermarkForSlot(slot)
+    -- Method 3: C_ItemUpgrade.GetHighWatermarkForSlot(slot)
     if not watermark and C_ItemUpgrade.GetHighWatermarkForSlot then
       local ok, val = pcall(C_ItemUpgrade.GetHighWatermarkForSlot, slotId)
-      if ok and type(val) == "number" and val > 0 then
+      if ok and isCleanNumber(val) and val > 0 then
         watermark = val
       end
 
@@ -371,7 +360,7 @@ local function getSlotHighWatermark(unitId, slotId, itemLink, equippedItemLevel)
           local okSlot, hwSlot = pcall(C_ItemUpgrade.GetHighWatermarkSlotForInventoryType, invType)
           if okSlot and hwSlot then
             local okVal, val2 = pcall(C_ItemUpgrade.GetHighWatermarkForSlot, hwSlot)
-            if okVal and type(val2) == "number" and val2 > 0 then
+            if okVal and isCleanNumber(val2) and val2 > 0 then
               watermark = val2
             end
           end
@@ -381,8 +370,8 @@ local function getSlotHighWatermark(unitId, slotId, itemLink, equippedItemLevel)
   end
 
   -- A slot's watermark can never be lower than the currently equipped item level
-  if equippedItemLevel and equippedItemLevel > 0 then
-    if not watermark or equippedItemLevel > watermark then
+  if isCleanNumber(equippedItemLevel) and equippedItemLevel > 0 then
+    if not isCleanNumber(watermark) or equippedItemLevel > watermark then
       watermark = equippedItemLevel
     end
   end
@@ -506,7 +495,7 @@ end
 ---@param B number Un-diminished percentage from rating
 ---@return number D Diminished effective percentage
 local function calculateSecondaryDiminishedPercent(B)
-  if B <= 0 then return 0 end
+  if not isCleanNumber(B) or B <= 0 then return 0 end
   if B <= 30 then
     return B
   elseif B <= 39 then
@@ -529,7 +518,7 @@ end
 ---@param D number Diminished effective percentage
 ---@return number B Un-diminished percentage
 local function undiminishSecondaryPercent(D)
-  if D <= 0 then return 0 end
+  if not isCleanNumber(D) or D <= 0 then return 0 end
   if D <= 30 then
     return D
   elseif D <= 38.1 then
@@ -551,18 +540,19 @@ end
 ---@param crId number Combat rating ID
 ---@return number ratingPerPercent
 local function getRatingPerPercent(crId)
-  local currentRating = (GetCombatRating and GetCombatRating(crId)) or 0
-  local currentBonus = (GetCombatRatingBonus and GetCombatRatingBonus(crId)) or 0
+  local currentRating = GetCombatRating and GetCombatRating(crId)
+  local currentBonus = GetCombatRatingBonus and GetCombatRatingBonus(crId)
 
-  if currentRating > 0 and currentBonus > 0 then
+  if isCleanNumber(currentRating) and isCleanNumber(currentBonus) and currentRating > 0 and currentBonus > 0 then
     local unDiminishedBonus = undiminishSecondaryPercent(currentBonus)
-    if unDiminishedBonus > 0 then
+    if isCleanNumber(unDiminishedBonus) and unDiminishedBonus > 0 then
       return currentRating / unDiminishedBonus
     end
   end
 
   -- Fallback level scaling (scaled to level 80 baseline)
-  local playerLevel = (UnitLevel and UnitLevel("player")) or 80
+  local rawLevel = UnitLevel and UnitLevel("player")
+  local playerLevel = (isCleanNumber(rawLevel) and rawLevel > 0) and rawLevel or 80
   local levelScale = playerLevel / 80
   if crId == CR_CRIT then return 700 * levelScale
   elseif crId == CR_HASTE then return 660 * levelScale
@@ -584,11 +574,11 @@ local function calculateSecondaryStatIncrease(crId, itemStatRating)
   if not itemStatRating or itemStatRating <= 0 then return 0 end
 
   local k = getRatingPerPercent(crId)
-  if not k or k <= 0 then return 0 end
+  if not isCleanNumber(k) or k <= 0 then return 0 end
 
-  local currentRating = (GetCombatRating and GetCombatRating(crId)) or 0
+  local currentRating = GetCombatRating and GetCombatRating(crId)
   local pctIncrease
-  if currentRating > 0 and currentRating >= itemStatRating then
+  if isCleanNumber(currentRating) and currentRating > 0 and currentRating >= itemStatRating then
     local ratingWithoutItem = currentRating - itemStatRating
     local B_total = currentRating / k
     local B_base = ratingWithoutItem / k
@@ -602,8 +592,8 @@ local function calculateSecondaryStatIncrease(crId, itemStatRating)
 
   -- For Mastery, multiply by the active specialization's mastery coefficient
   if crId == CR_MASTERY and GetMasteryEffect then
-    local _, bonusCoeff = GetMasteryEffect()
-    if bonusCoeff and bonusCoeff > 0 then
+    local ok, _, bonusCoeff = pcall(GetMasteryEffect)
+    if ok and isCleanNumber(bonusCoeff) and bonusCoeff > 0 then
       pctIncrease = pctIncrease * bonusCoeff
     end
   end
@@ -619,7 +609,7 @@ end
 ---@param B number
 ---@return number D
 local function calculateTertiaryDiminishedPercent(statType, B)
-  if B <= 0 then return 0 end
+  if not isCleanNumber(B) or B <= 0 then return 0 end
   if statType == "LEECH" then
     if B <= 10 then return B else return 10 + (B - 10) * 0.5 end
   elseif statType == "AVOIDANCE" then
@@ -637,14 +627,15 @@ end
 local function calculateTertiaryStatIncrease(statType, crId, itemStatRating)
   if not itemStatRating or itemStatRating <= 0 then return 0 end
 
-  local currentRating = (GetCombatRating and GetCombatRating(crId)) or 0
-  local currentBonus = (GetCombatRatingBonus and GetCombatRatingBonus(crId)) or 0
+  local currentRating = GetCombatRating and GetCombatRating(crId)
+  local currentBonus = GetCombatRatingBonus and GetCombatRatingBonus(crId)
 
   local k
-  if currentRating > 0 and currentBonus > 0 then
+  if isCleanNumber(currentRating) and isCleanNumber(currentBonus) and currentRating > 0 and currentBonus > 0 then
     k = currentRating / currentBonus
   else
-    local playerLevel = (UnitLevel and UnitLevel("player")) or 80
+    local rawLevel = UnitLevel and UnitLevel("player")
+    local playerLevel = (isCleanNumber(rawLevel) and rawLevel > 0) and rawLevel or 80
     local levelScale = playerLevel / 80
     if statType == "SPEED" then k = 500 * levelScale
     elseif statType == "LEECH" then k = 450 * levelScale
@@ -652,10 +643,10 @@ local function calculateTertiaryStatIncrease(statType, crId, itemStatRating)
     else k = 500 * levelScale end
   end
 
-  if not k or k <= 0 then return 0 end
+  if not isCleanNumber(k) or k <= 0 then return 0 end
 
   local pctIncrease
-  if currentRating > 0 and currentRating >= itemStatRating then
+  if isCleanNumber(currentRating) and currentRating > 0 and currentRating >= itemStatRating then
     local ratingWithoutItem = currentRating - itemStatRating
     local B_total = currentRating / k
     local B_base = ratingWithoutItem / k
@@ -1757,7 +1748,9 @@ function module:Refresh()
     return
   end
 
-  updateAllSlots("player")
+  if CharacterFrame and CharacterFrame:IsShown() then
+    updateAllSlots("player")
+  end
   if InspectFrame and InspectFrame:IsShown() then
     updateAllSlots("target")
   end
@@ -1811,19 +1804,29 @@ end
 function module:OnEnable()
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function(_, slotId)
-    if slotId then
-      updateSlot("player", slotId)
-    else
-      updateAllSlots("player")
+    if CharacterFrame and CharacterFrame:IsShown() then
+      if slotId then
+        updateSlot("player", slotId)
+      else
+        updateAllSlots("player")
+      end
     end
   end)
   self:RegisterEvent("UNIT_INVENTORY_CHANGED", function(_, unitId)
-    if unitId == "player" or unitId == "target" then
-      updateAllSlots(unitId)
+    if unitId == "player" then
+      if CharacterFrame and CharacterFrame:IsShown() then
+        updateAllSlots("player")
+      end
+    elseif unitId == "target" then
+      if InspectFrame and InspectFrame:IsShown() then
+        updateAllSlots("target")
+      end
     end
   end)
   self:RegisterEvent("INSPECT_READY", function()
-    updateAllSlots("target")
+    if InspectFrame and InspectFrame:IsShown() then
+      updateAllSlots("target")
+    end
   end)
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:Refresh()
