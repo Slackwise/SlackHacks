@@ -470,7 +470,7 @@ function module.ShowTooltip(self)
     local displayAmount = amount or "Unknown"
     -- These currencies expose explicit weekly and total caps in CurrencyInfo; other currencies show balance only.
     if currency.id == 3356 and info then
-      displayAmount = info.quantity .. " / " .. info.maxWeeklyQuantity .. " (" .. info.maxQuantity .. ")"
+      displayAmount = info.quantityEarnedThisWeek .. " / " .. info.maxWeeklyQuantity .. " (" .. info.quantity .. " / " .. info.maxQuantity .. ")"
     elseif currency.id == 3310 and info then
       displayAmount = info.quantity .. " / " .. info.maxWeeklyQuantity
     end
