@@ -14,6 +14,10 @@ setfenv(1, _G.SlackHacks)
 -- This only ships a curated subset of commonly-used frames (not an exhaustive, version-gated database of
 -- every frame across every WoW expansion back to Vanilla) since we only target current retail and WoW
 -- Forever (Classic Era). Use module:RegisterFrame(frameName, frameData) to add more.
+--
+-- Two windows get special handling instead of the generic drag handle: Blizzard's toast popups (moved via
+-- the real Edit Mode) and the Zone Map (moved by its own tab, with a "Change Scale" tab-menu slider). See
+-- their own sections below for why.
 
 local module = Self:NewModule("MovableWindows", "AceEvent-3.0", "AceHook-3.0")
 Self.MovableWindows = module
@@ -56,6 +60,7 @@ local toastHooked
 -- Forward declarations for functions referenced before their definition further down the file.
 local onMouseDown, onMouseUp, onMouseWheel, onShow, onSetPoint, onSizeUpdate, checkMouseWheelCapture
 local registerToastEditMode
+local setupZoneMap, setZoneMapScale
 
 --=====================================================================
 -- Settings helpers
@@ -1178,7 +1183,8 @@ end
 --- Retries processFrame() for every registered frame that isn't hooked yet (frames that didn't exist the
 --- first time, e.g. Blizzard sub-addons loaded after this module's own OnEnable), and re-registers the
 --- toast Edit Mode integration if it's enabled but hasn't been set up yet (AlertFrame or
---- Blizzard_EditMode themselves may not have loaded the first time either). Wired to ADDON_LOADED so this
+--- Blizzard_EditMode themselves may not have loaded the first time either), and likewise retries the Zone
+--- Map setup (Blizzard_BattlefieldMap is load-on-demand). Wired to ADDON_LOADED so this
 --- naturally happens every time something new finishes loading, and also called once directly from
 --- OnEnable() to cover anything already loaded at that point.
 function module:ApplyAll()
@@ -1191,6 +1197,7 @@ function module:ApplyAll()
   if settings().moveToasts and not toastSelection then
     registerToastEditMode()
   end
+  setupZoneMap()
 end
 
 --- Slash-command/options-panel action: forgets every saved drag position for every registered frame
@@ -1201,9 +1208,14 @@ end
 
 --- Slash-command/options-panel action: forgets every saved AND session scale for every registered frame,
 --- reverting everything back to its native scale (1.0, or whatever Blizzard's own code sets) on next Show.
+--- The Zone Map is snapped back to 1.0 immediately instead, since it isn't a registry frame and so has no
+--- onShow() hook that would pick up the wiped scale later.
 function module:ResetScales()
   wipe(settings().scales)
   wipe(sessionScales)
+  if isModuleEnabled() then
+    setZoneMapScale(1)
+  end
 end
 
 -- Toasts -- achievements, notable items (mounts/toys/recipes/BoE epics/etc.), honor, garrison, money,
@@ -1420,6 +1432,241 @@ function module:SetMoveToastsEnabled(enabled)
   end
 end
 
+--=====================================================================
+-- Zone Map (BattlefieldMapFrame)
+--=====================================================================
+-- The "Zone Map" (Shift+M; Blizzard's internal name is the Battlefield Map / Battlefield Minimap) lives in
+-- the load-on-demand Blizzard_BattlefieldMap addon, so it usually doesn't exist yet at OnEnable() time --
+-- setupZoneMap() is called from ApplyAll() and simply retries on every ADDON_LOADED until it does.
+--
+-- Unlike every other window, it is NOT put through the frame registry (module:RegisterFrame()). Reviewed
+-- against Blizzard_BattlefieldMap/{Mainline,Classic}/Blizzard_BattlefieldMap.lua/.xml, the map has no
+-- title bar at all: the visible map frame is anchored TOPLEFT to a separate little chat-style tab button
+-- (BattlefieldMapTab) that fades in on hover, and that TAB is what actually gets moved -- Blizzard already
+-- drags the tab (only while the "Lock Zone Map" menu checkbox is off) and persists its position on logout
+-- itself (BattlefieldMapOptions.position, restored on ADDON_LOADED via IsUserPlaced()). A registry move
+-- handle would have to sit over the top strip of the map itself (eating map clicks), and our SetPoint
+-- watchdog would re-anchor the map away from its tab, splitting the two apart. So instead we:
+-- - Let the tab be dragged even while Blizzard's "Lock" is on (that's the "movable when the module is
+--   enabled" part), reusing Blizzard's own tab-position persistence rather than our own points table.
+-- - Add a "Change Scale" entry to the tab's right-click menu, right under Blizzard's own "Change Opacity",
+--   opening a slider panel that's a 1:1 clone of Blizzard's OpacityFrame (the panel "Change Opacity"
+--   opens), stored in the same settings().scales/sessionScales tables as every other window's scale.
+-- Only the map frame is scaled, not the tab: the map is anchored by its TOPLEFT to the tab's BOTTOMLEFT, so
+-- scaling the map grows/shrinks it down and to the right from that fixed corner while the tab stays put.
+local ZONE_MAP_FRAME_NAME = "BattlefieldMapFrame"
+local ZONE_MAP_TAB_NAME = "BattlefieldMapTab"
+local ZONE_MAP_MENU_TAG = "MENU_BATTLEFIELD_MAP" -- rootDescription:SetTag() in BattlefieldMapTabMixin:OnClick
+local ZONE_MAP_SCALE_LABEL = "Change Scale" -- mirrors BATTLEFIELDMINIMAP_OPACITY_LABEL ("Change Opacity")
+local zoneMapHooked -- tab drag hooks installed (reset on disable, since UnhookAll() tears them down)
+local zoneMapScaleApplied -- saved scale applied to the live map this enable cycle
+local zoneMapMenuModified -- Menu.ModifyMenu() registered (permanent -- there's no API to unregister it)
+local zoneMapScaleFrame
+local zoneMapDragging
+
+--- Rounds to the nearest 0.1, matching the 0.1 step every other window's wheel-scaling uses. Needed because
+--- the slider's own float math (and the inverted mapping below) otherwise produces values like 1.2999999.
+---@param value number
+---@return number rounded
+local function roundScale(value)
+  return math.floor(value * 10 + 0.5) / 10
+end
+
+--- The Zone Map's current saved scale, honoring the same "permanent" vs "session" save strategy as every
+--- registry window's onShow() does.
+---@return number scale - 1 if nothing has been saved yet.
+local function getZoneMapScale()
+  if settings().saveScaleStrategy == "permanent" and settings().scales[ZONE_MAP_FRAME_NAME] then
+    return settings().scales[ZONE_MAP_FRAME_NAME]
+  end
+  return sessionScales[ZONE_MAP_FRAME_NAME] or 1
+end
+
+--- Persists and applies a new Zone Map scale (clamped to the same MIN_SCALE..MAX_SCALE range as every other
+--- window). Saved to both tables just like setFrameScale() does, so switching save strategies behaves the
+--- same as for registry windows. Safe to call before Blizzard_BattlefieldMap has loaded -- it just saves.
+---@param scale number
+function setZoneMapScale(scale)
+  scale = roundScale(math.max(MIN_SCALE, math.min(MAX_SCALE, scale)))
+  settings().scales[ZONE_MAP_FRAME_NAME] = scale
+  sessionScales[ZONE_MAP_FRAME_NAME] = scale
+  local map = _G[ZONE_MAP_FRAME_NAME]
+  if map then
+    map:SetScale(scale)
+  end
+end
+
+--- Lazily builds our clone of Blizzard's OpacityFrame (Blizzard_ColorPickerFrame/Mainline/ColorPickerFrame.xml)
+--- in Lua: same 80x180 dialog-bordered panel, same 16x128 vertical slider with the same backdrop/thumb art,
+--- the same "-"/"+" markers, and the same invisible full-screen "click anywhere else to close" button behind
+--- it. We clone it rather than reusing OpacityFrame itself because OpacityFrame is a single shared global
+--- (Blizzard also uses it for chat frames etc.) hardcoded to a 0..1 range with an "Opacity" label.
+--- Vertical sliders put their MIN value at the TOP; OpacityFrame relies on that (opacity 0 = fully visible
+--- is at the top, next to "+"). For scale we want bigger at the top too, so the slider's raw value is
+--- inverted: displayed scale = MIN_SCALE + MAX_SCALE - rawValue.
+---@return Frame scaleFrame
+local function ensureZoneMapScaleFrame()
+  if zoneMapScaleFrame then return zoneMapScaleFrame end
+
+  -- Retail's OpacityFrame uses DialogBorderTemplate; older clients only have the equivalent backdrop.
+  local hasDialogBorder = C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("DialogBorderTemplate")
+  local frameTemplate = (not hasDialogBorder and BackdropTemplateMixin) and "BackdropTemplate" or nil
+  local frame = CreateFrame("Frame", "SlackHacksZoneMapScaleFrame", UIParent, frameTemplate)
+  frame:SetSize(80, 180)
+  frame:SetToplevel(true)
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:SetClampedToScreen(true)
+  frame:Hide()
+  if hasDialogBorder then
+    frame.Border = CreateFrame("Frame", nil, frame, "DialogBorderTemplate")
+  elseif frame.SetBackdrop and BACKDROP_DIALOG_32_32 then
+    frame:SetBackdrop(BACKDROP_DIALOG_32_32)
+  end
+
+  local slider = CreateFrame("Slider", "SlackHacksZoneMapScaleFrameSlider", frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  slider:SetOrientation("VERTICAL")
+  slider:SetSize(16, 128)
+  slider:SetPoint("TOP", -10, -35)
+  if slider.SetBackdrop and BACKDROP_SLIDER_8_8 then
+    slider:SetBackdrop(BACKDROP_SLIDER_8_8)
+  end
+  slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Vertical")
+  slider:GetThumbTexture():SetSize(32, 32)
+  slider:SetMinMaxValues(MIN_SCALE, MAX_SCALE)
+  slider:SetValueStep(0.1)
+  slider:SetObeyStepOnDrag(true)
+  frame.Slider = slider
+
+  local label = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  label:SetPoint("TOP", frame, "TOP", 0, -15)
+  label:SetText("Scale")
+
+  local minus = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+  minus:SetPoint("BOTTOMLEFT", slider, "BOTTOMRIGHT", 8, 3)
+  minus:SetText("-")
+  minus:SetTextColor(1, 1, 1)
+
+  local plus = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+  plus:SetPoint("TOPLEFT", slider, "TOPRIGHT", 6, -3)
+  plus:SetText("+")
+  plus:SetTextColor(1, 1, 1)
+
+  slider:SetScript("OnValueChanged", function(self, value)
+    if frame.ignoreValueChanged then return end
+    setZoneMapScale(MIN_SCALE + MAX_SCALE - value)
+  end)
+
+  -- Same trick as OpacityFrameCloseButton: a full-screen button one level below the panel catches any click
+  -- outside it and closes the panel.
+  local closeButton = CreateFrame("Button", nil, UIParent)
+  closeButton:SetAllPoints(UIParent)
+  closeButton:SetFrameLevel(math.max(0, closeButton:GetFrameLevel() - 1))
+  closeButton:RegisterForClicks("LeftButtonDown", "RightButtonDown")
+  closeButton:SetScript("OnClick", function() frame:Hide() end)
+  closeButton:Hide()
+  frame:SetScript("OnShow", function() closeButton:Show() end)
+  frame:SetScript("OnHide", function() closeButton:Hide() end)
+
+  zoneMapScaleFrame = frame
+  return frame
+end
+
+--- Opens the scale slider panel. Mirrors BattlefieldMapTabMixin:ShowOpacity() exactly: same anchor (the
+--- panel's TOPRIGHT pinned to the map's TOPLEFT, nudged up 7px), then sets the slider to the current value.
+--- Since the map scales from that same TOPLEFT corner, the panel stays put while the slider is dragged.
+local function showZoneMapScale()
+  local map = _G[ZONE_MAP_FRAME_NAME]
+  if not map then return end
+  local frame = ensureZoneMapScaleFrame()
+  if OpacityFrame and OpacityFrame:IsShown() then
+    OpacityFrame:Hide() -- both panels anchor to the exact same spot
+  end
+  frame:ClearAllPoints()
+  frame:SetPoint("TOPRIGHT", map, "TOPLEFT", 0, 7)
+  frame.ignoreValueChanged = true
+  frame.Slider:SetValue(MIN_SCALE + MAX_SCALE - getZoneMapScale())
+  frame.ignoreValueChanged = nil
+  frame:Show()
+end
+
+--- Post-hook on the tab's OnDragStart. Blizzard's own handler only moves anything while the map is
+--- unlocked, so we only step in while it's LOCKED (unlocked already works natively, and stepping in there
+--- too would double-start the move). Respects the module's own move-modifier setting, like every window.
+--- Moving the tab via its own StartMoving() marks it user-placed, which is exactly what Blizzard's own
+--- PLAYER_LOGOUT handler checks to persist the position -- so no saving code of our own is needed.
+---@param tab Button - BattlefieldMapTab.
+local function onZoneMapTabDragStart(tab)
+  if not isModuleEnabled() then return end
+  if not (BattlefieldMapOptions and BattlefieldMapOptions.locked) then return end
+  if not isMoveModifierDown() then return end
+  zoneMapDragging = true
+  tab:StartMoving()
+end
+
+--- Post-hook on the tab's OnDragStop: ends a drag that onZoneMapTabDragStart() started. Blizzard's own
+--- OnDragStop already ran ValidateFramePosition() on the tab, but before we stopped moving it, so it's
+--- rerun here against the tab's final resting spot.
+---@param tab Button - BattlefieldMapTab.
+local function onZoneMapTabDragStop(tab)
+  if not zoneMapDragging then return end
+  zoneMapDragging = nil
+  tab:StopMovingOrSizing()
+  if ValidateFramePosition then
+    ValidateFramePosition(tab)
+  end
+end
+
+--- Adds our "Change Scale" button to the tab's right-click menu. Blizzard builds that menu with MenuUtil
+--- (on both retail and Classic) and tags it "MENU_BATTLEFIELD_MAP", which is exactly what
+--- Menu.ModifyMenu() exists for. Modifications append to the end, which lands it directly under
+--- "Change Opacity". Can't be unregistered, so it checks isModuleEnabled() each time the menu opens.
+local function modifyZoneMapMenu()
+  if zoneMapMenuModified or not (Menu and Menu.ModifyMenu) then return end
+  zoneMapMenuModified = true
+  Menu.ModifyMenu(ZONE_MAP_MENU_TAG, function(owner, rootDescription)
+    if not isModuleEnabled() then return end
+    rootDescription:CreateButton(ZONE_MAP_SCALE_LABEL, showZoneMapScale)
+  end)
+end
+
+--- Wires up the Zone Map once Blizzard_BattlefieldMap has loaded (no-op until then; ApplyAll() retries on
+--- every ADDON_LOADED). Idempotent: hooks, menu modification, and the initial scale apply each happen only
+--- once per enable cycle.
+function setupZoneMap()
+  local map, tab = _G[ZONE_MAP_FRAME_NAME], _G[ZONE_MAP_TAB_NAME]
+  if not (map and tab) then return end
+
+  if not zoneMapHooked then
+    zoneMapHooked = true
+    hookScript(tab, "OnDragStart", onZoneMapTabDragStart)
+    hookScript(tab, "OnDragStop", onZoneMapTabDragStop)
+  end
+
+  modifyZoneMapMenu()
+
+  if not zoneMapScaleApplied then
+    zoneMapScaleApplied = true
+    map:SetScale(getZoneMapScale())
+  end
+end
+
+--- Undoes setupZoneMap() for OnDisable(): returns the map to its native scale and closes the slider panel.
+--- The saved scale itself is kept, so re-enabling restores it. The tab's drag hooks are torn down by
+--- OnDisable()'s UnhookAll(); the menu entry hides itself via its isModuleEnabled() check.
+local function teardownZoneMap()
+  local map = _G[ZONE_MAP_FRAME_NAME]
+  if map and zoneMapScaleApplied then
+    map:SetScale(1)
+  end
+  if zoneMapScaleFrame then
+    zoneMapScaleFrame:Hide()
+  end
+  zoneMapHooked = nil
+  zoneMapScaleApplied = nil
+  zoneMapDragging = nil
+end
+
 --- Registers the curated, built-in set of commonly-movable Blizzard windows this addon ships with (not an
 --- exhaustive database of every frame across every WoW expansion/version -- callers can add more via
 --- module:RegisterFrame()). Also kicks off the toast Edit Mode integration if that setting is already
@@ -1574,4 +1821,5 @@ function module:OnDisable()
     toastSelection:Hide()
   end
   toastHooked = nil -- UnhookAll() above already tore down the EditModeManagerFrame hooks
+  teardownZoneMap()
 end
