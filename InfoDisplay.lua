@@ -407,6 +407,7 @@ local function getStatGroup(key)
   elseif upper:find("SPEED") then return "SPEED"
   elseif upper:find("LIFESTEAL") or upper:find("LEECH") then return "LEECH"
   elseif upper:find("AVOIDANCE") or upper:find("AVOID") then return "AVOIDANCE"
+  elseif upper:find("PRIMARY") then return "PRIMARY"
   elseif upper:find("STRENGTH") or upper:find("STR") then return "STRENGTH"
   elseif upper:find("AGILITY") or upper:find("AGI") then return "AGILITY"
   elseif upper:find("INTELLECT") or upper:find("INT") then return "INTELLECT"
@@ -427,52 +428,166 @@ local function getStatGroup(key)
   return key
 end
 
+--- Retrieves the player's primary stat token and localized display name.
+---@return string statKey "STRENGTH" | "AGILITY" | "INTELLECT" | "PRIMARY"
+---@return string statName "Strength" | "Agility" | "Intellect" | "Primary Stat"
+---@return string statSuffix "Str" | "Agi" | "Int" | "Primary"
+local function getPlayerPrimaryStat()
+  if GetSpecialization and GetSpecializationInfo then
+    local spec = GetSpecialization()
+    if spec and spec > 0 then
+      local _, _, _, _, _, primaryStatID = GetSpecializationInfo(spec)
+      if primaryStatID == 1 then return "STRENGTH", "Strength", "Str"
+      elseif primaryStatID == 2 then return "AGILITY", "Agility", "Agi"
+      elseif primaryStatID == 4 then return "INTELLECT", "Intellect", "Int"
+      end
+    end
+  end
+  if UnitStat then
+    local str = select(2, UnitStat("player", 1)) or 0
+    local agi = select(2, UnitStat("player", 2)) or 0
+    local int = select(2, UnitStat("player", 4)) or 0
+    if str > agi and str > int then return "STRENGTH", "Strength", "Str"
+    elseif agi > str and agi > int then return "AGILITY", "Agility", "Agi"
+    elseif int > str and int > agi then return "INTELLECT", "Intellect", "Int"
+    end
+  end
+  return "PRIMARY", "Primary Stat", "Primary"
+end
+
+-- Known enchant definitions for War Within & Midnight when tooltip lines omit explicit numbers
+local KNOWN_ENCHANTS = {
+  -- Ring Enchants
+  { pattern = "radiant%s+haste", stats = { HASTE = 315 }, text = "+315 Haste" },
+  { pattern = "radiant%s+crit", stats = { CRIT = 315 }, text = "+315 Crit" },
+  { pattern = "radiant%s+mastery", stats = { MASTERY = 315 }, text = "+315 Mastery" },
+  { pattern = "radiant%s+vers", stats = { VERSATILITY = 315 }, text = "+315 Vers" },
+  { pattern = "cursed%s+haste", stats = { HASTE = 375, AVOIDANCE = -150 }, text = "+375 Haste" },
+  { pattern = "cursed%s+crit", stats = { CRIT = 375, LEECH = -150 }, text = "+375 Crit" },
+  { pattern = "cursed%s+mastery", stats = { MASTERY = 375, SPEED = -150 }, text = "+375 Mastery" },
+  { pattern = "cursed%s+vers", stats = { VERSATILITY = 375, SPEED = -150 }, text = "+375 Vers" },
+  { pattern = "glimmering%s+haste", stats = { HASTE = 220 }, text = "+220 Haste" },
+  { pattern = "glimmering%s+crit", stats = { CRIT = 220 }, text = "+220 Crit" },
+  { pattern = "glimmering%s+mastery", stats = { MASTERY = 220 }, text = "+220 Mastery" },
+  { pattern = "glimmering%s+vers", stats = { VERSATILITY = 220 }, text = "+220 Vers" },
+  { pattern = "silvermoon's%s+alacrity", stats = { HASTE = 315 }, text = "+315 Haste" },
+  { pattern = "silvermoon's%s+tenacity", stats = { VERSATILITY = 315 }, text = "+315 Vers" },
+  { pattern = "nature's%s+fury", stats = { CRIT = 315 }, text = "+315 Crit" },
+  { pattern = "eyes%s+of%s+the%s+eagle", stats = { CRIT = 315 }, text = "+315 Crit" },
+  { pattern = "zul'jin's%s+mastery", stats = { MASTERY = 315 }, text = "+315 Mastery" },
+
+  -- Chest Enchants
+  { pattern = "crystalline%s+radiance", stats = { PRIMARY = 605 }, text = "+605 Primary" },
+  { pattern = "mark%s+of%s+the%s+worldsoul", stats = { PRIMARY = 50 }, text = "+50 Primary" },
+  { pattern = "mark%s+of%s+the%s+magister", stats = { PRIMARY = 50 }, text = "+50 Primary" },
+  { pattern = "council's%s+intellect", stats = { INTELLECT = 450 }, text = "+450 Int" },
+  { pattern = "stormrider's%s+agility", stats = { AGILITY = 450 }, text = "+450 Agi" },
+
+  -- Boots Enchants
+  { pattern = "scout's%s+march", stats = { SPEED = 250 }, text = "+250 Speed" },
+  { pattern = "defender's%s+march", stats = { SPEED = 250, STAMINA = 1150 }, text = "+250 Speed" },
+  { pattern = "cavalry's%s+march", stats = { SPEED = 250 }, text = "+250 Speed" },
+  { pattern = "lynx's%s+dexterity", stats = { SPEED = 250 }, text = "+250 Speed" },
+  { pattern = "shaladrassil's%s+roots", stats = { SPEED = 250 }, text = "+250 Speed" },
+  { pattern = "farstrider's%s+hunt", stats = { SPEED = 250 }, text = "+250 Speed" },
+
+  -- Cloak Enchants
+  { pattern = "winged%s+grace", stats = { AVOIDANCE = 125, SPEED = 125 }, text = "+125 Avoid / +125 Speed" },
+  { pattern = "leeching%s+fangs", stats = { LEECH = 250 }, text = "+250 Leech" },
+  { pattern = "silken%s+avoidance", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
+  { pattern = "empowered%s+blessing%s+of%s+speed", stats = { SPEED = 250 }, text = "+250 Speed" },
+  { pattern = "empowered%s+hex%s+of%s+leeching", stats = { LEECH = 250 }, text = "+250 Leech" },
+  { pattern = "empowered%s+rune%s+of%s+avoidance", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
+
+  -- Wrist Enchants
+  { pattern = "armored%s+avoidance", stats = { AVOIDANCE = 200, ARMOR = 250 }, text = "+200 Avoid" },
+  { pattern = "armored%s+speed", stats = { SPEED = 200, ARMOR = 250 }, text = "+200 Speed" },
+  { pattern = "armored%s+leech", stats = { LEECH = 200, ARMOR = 250 }, text = "+200 Leech" },
+
+  -- Leg Enhancements (Spellthreads & Armor Kits)
+  { pattern = "sunfire%s+silk%s+spellthread", stats = { INTELLECT = 450, STAMINA = 1150 }, text = "+450 Int / +1150 Stam" },
+  { pattern = "sunset%s+spellthread", stats = { INTELLECT = 450, STAMINA = 1150 }, text = "+450 Int / +1150 Stam" },
+  { pattern = "daybreak%s+spellthread", stats = { INTELLECT = 450, STAMINA = 1150 }, text = "+450 Int / +1150 Stam" },
+  { pattern = "arcanoweave%s+spellthread", stats = { INTELLECT = 325, STAMINA = 850 }, text = "+325 Int / +850 Stam" },
+  { pattern = "dual%s+flocked%s+spellthread", stats = { INTELLECT = 325, STAMINA = 850 }, text = "+325 Int / +850 Stam" },
+  { pattern = "forest%s+hunter's%s+armor%s+kit", stats = { PRIMARY = 450, STAMINA = 1150 }, text = "+450 Primary / +1150 Stam" },
+  { pattern = "blood%s+knight's%s+armor%s+kit", stats = { PRIMARY = 450, STAMINA = 1150 }, text = "+450 Primary / +1150 Stam" },
+  { pattern = "stormbound%s+armor%s+kit", stats = { PRIMARY = 450, STAMINA = 1150 }, text = "+450 Primary / +1150 Stam" },
+
+  -- Shoulder Enchants
+  { pattern = "akil'zon's%s+swiftness", stats = { SPEED = 250 }, text = "+250 Speed" },
+  { pattern = "amirdrassil's%s+grace", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
+  { pattern = "silvermoon's%s+mending", stats = { LEECH = 250 }, text = "+250 Leech" },
+  { pattern = "flight%s+of%s+the%s+eagle", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
+}
+
 --- Parses numeric stat grants from arbitrary text strings (such as enchant or gem lines).
---- Handles strings like "+50 Critical Strike", "+70 Speed and +35 Leech", "+147 Critical Strike and +98 Haste", etc.
+--- Accurately handles multi-stat lines (e.g. "+147 Critical Strike and +98 Haste", "+70 Speed and +35 Leech").
 ---@param rawText string
 ---@return table stats Table mapping canonical stat group to integer value
 local function parseStatsFromText(rawText)
   local stats = {}
   if not rawText or rawText == "" then return stats end
 
-  -- Strip formatting codes and textures
+  -- Strip formatting codes, textures, and hyperlinks
   local clean = rawText:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
   clean = clean:gsub("|A:[^|]+|a", ""):gsub("|T[^|]+|t", "")
   clean = clean:gsub("|H.-|h(.-)|h", "%1")
   clean = clean:gsub("(%d+),(%d+)", "%1%2"):gsub("(%d+),(%d+)", "%1%2")
-  clean = clean:gsub("%s+and%s+", ", ")
 
-  for chunk in clean:gmatch("[^,;/\n]+") do
-    chunk = chunk:gsub("^%s+", ""):gsub("%s+$", "")
-    if chunk ~= "" then
-      local sign, numStr, statStr = chunk:match("^([%+%-]?)(%d+)%s+(.+)$")
-      if not numStr then
-        statStr, sign, numStr = chunk:match("^(.+)%s+by%s+([%+%-]?)(%d+)$")
-        if not numStr then
-          statStr, sign, numStr = chunk:match("^(.+)%s+([%+%-]?)(%d+)$")
+  -- Normalize non-breaking spaces, conjunctions, and delimiters to commas
+  clean = clean:gsub("\194\160", " "):gsub("\160", " ")
+  clean = clean:gsub("%s+and%s+", ", ")
+  clean = clean:gsub("%s*&%s*", ", ")
+  clean = clean:gsub("%s*[/\\|]%s*", ", ")
+  clean = clean:gsub("([%a%)%.])%s*([%+%-]%s*%d+)", "%1, %2")
+
+  local function addParsedStat(sign, numStr, statStr)
+    if not numStr or not statStr then return end
+    statStr = statStr:gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+and%s*$", ""):gsub("%s+or%s*$", "")
+    if statStr:match("^%%") or statStr:match("^percent") then return end
+
+    local num = tonumber(numStr)
+    if sign == "-" then num = -num end
+    if num and num ~= 0 then
+      local upperStat = statStr:upper()
+      if upperStat:find("ALL STATS") or upperStat:find("TO ALL STATS") then
+        stats["STRENGTH"] = (stats["STRENGTH"] or 0) + num
+        stats["AGILITY"] = (stats["AGILITY"] or 0) + num
+        stats["INTELLECT"] = (stats["INTELLECT"] or 0) + num
+        stats["STAMINA"] = (stats["STAMINA"] or 0) + num
+      elseif upperStat:find("PRIMARY") then
+        stats["PRIMARY"] = (stats["PRIMARY"] or 0) + num
+      else
+        local group = getStatGroup(statStr)
+        if group then
+          stats[group] = (stats[group] or 0) + num
         end
+      end
+    end
+  end
+
+  for chunk in clean:gmatch("[^,;\n]+") do
+    chunk = chunk:gsub("^%s+", ""):gsub("%s+$", "")
+    if chunk ~= "" and not chunk:match("%d+%%") then
+      local sign, numStr, statStr = chunk:match("^([%+%-]?)(%d+)%s+(.-)$")
+      if not numStr then
+        statStr, sign, numStr = chunk:match("^(.-)%s+by%s+([%+%-]?)(%d+)")
+      end
+      if not numStr then
+        statStr, sign, numStr = chunk:match("^(.-)%s+([%+%-]?)(%d+)%s*$")
       end
 
       if numStr and statStr then
-        local num = tonumber(numStr)
-        if sign == "-" then num = -num end
-        if num and num ~= 0 then
-          local upperStat = statStr:upper()
-          if upperStat:find("ALL STATS") or upperStat:find("TO ALL STATS") then
-            stats["STRENGTH"] = (stats["STRENGTH"] or 0) + num
-            stats["AGILITY"] = (stats["AGILITY"] or 0) + num
-            stats["INTELLECT"] = (stats["INTELLECT"] or 0) + num
-            stats["STAMINA"] = (stats["STAMINA"] or 0) + num
-          elseif upperStat:find("PRIMARY") then
-            stats["PRIMARY"] = (stats["PRIMARY"] or 0) + num
-          else
-            local group = getStatGroup(statStr)
-            if group then
-              stats[group] = (stats[group] or 0) + num
-            end
-          end
-        end
+        addParsedStat(sign, numStr, statStr)
       end
+    end
+  end
+
+  -- Fallback scan to capture any remaining (number, stat) pairs
+  if not next(stats) then
+    for sign, numStr, statStr in clean:gmatch("([%+%-]?)(%d+)%s+([%a%s]+)") do
+      addParsedStat(sign, numStr, statStr)
     end
   end
 
@@ -667,8 +782,9 @@ end
 ---@param rawEnchantText string Text extracted from tooltip enchant line
 ---@param enchantAtlas string|nil Optional quality tier atlas icon
 ---@param slotId number Equipment slot ID
+---@param enchantBuckets table|nil Optional pre-calculated enchant stat buckets
 ---@return string
-local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slotId)
+local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slotId, enchantBuckets)
   if not rawEnchantText or rawEnchantText == "" then return "" end
 
   local atlas = enchantAtlas
@@ -678,6 +794,7 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
 
   local cleanText = rawEnchantText:gsub("|A:[^|]+|a", ""):gsub("|T[^|]+|t", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", "")
 
+  -- If raw text already has "+123 Stat" format, use it directly
   local sign, num, stat = cleanText:match("^([%+%-]?)(%d+)%s+(.+)$")
   if num and stat then
     local formatted = (sign == "-" and "-" or "+") .. num .. " " .. stat
@@ -687,99 +804,60 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
     return formatted
   end
 
-  local statText = nil
-  local itemPayload = itemLink and itemLink:match("item:([%-?%d:]+)")
-  if itemPayload then
-    local parts = { strsplit(":", itemPayload) }
-    local enchantID = tonumber(parts[2])
-    if enchantID and enchantID > 0 then
-      parts[2] = "0"
-      local linkWithoutEnchant = "item:" .. table.concat(parts, ":")
-
-      local statsWith = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(itemLink)) or {}
-      local statsWithout = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkWithoutEnchant)) or {}
-
-      local diffs = {}
-      for k, v in pairs(statsWith) do
-        local d = v - (statsWithout[k] or 0)
-        if d > 0 then
-          diffs[k] = d
-        end
+  -- If enchantBuckets has calculated stats, format cleanly from stats
+  if enchantBuckets and next(enchantBuckets) then
+    local parts = {}
+    if enchantBuckets["PRIMARY"] then table.insert(parts, string.format("+%d Primary", enchantBuckets["PRIMARY"])) end
+    if enchantBuckets["STRENGTH"] then table.insert(parts, string.format("+%d Str", enchantBuckets["STRENGTH"])) end
+    if enchantBuckets["AGILITY"] then table.insert(parts, string.format("+%d Agi", enchantBuckets["AGILITY"])) end
+    if enchantBuckets["INTELLECT"] then table.insert(parts, string.format("+%d Int", enchantBuckets["INTELLECT"])) end
+    if enchantBuckets["CRIT"] then table.insert(parts, string.format("+%d Crit", enchantBuckets["CRIT"])) end
+    if enchantBuckets["HASTE"] then table.insert(parts, string.format("+%d Haste", enchantBuckets["HASTE"])) end
+    if enchantBuckets["MASTERY"] then table.insert(parts, string.format("+%d Mastery", enchantBuckets["MASTERY"])) end
+    if enchantBuckets["VERSATILITY"] then table.insert(parts, string.format("+%d Vers", enchantBuckets["VERSATILITY"])) end
+    if enchantBuckets["SPEED"] then table.insert(parts, string.format("+%d Speed", enchantBuckets["SPEED"])) end
+    if enchantBuckets["LEECH"] then table.insert(parts, string.format("+%d Leech", enchantBuckets["LEECH"])) end
+    if enchantBuckets["AVOIDANCE"] then table.insert(parts, string.format("+%d Avoid", enchantBuckets["AVOIDANCE"])) end
+    if #parts > 0 then
+      local formatted = table.concat(parts, " / ")
+      if atlas and atlas ~= "" then
+        return "|A:" .. atlas .. ":12:12|a " .. formatted
       end
-
-      local str = diffs["ITEM_MOD_STRENGTH_SHORT"] or diffs["ITEM_MOD_STRENGTH"]
-      local agi = diffs["ITEM_MOD_AGILITY_SHORT"] or diffs["ITEM_MOD_AGILITY"]
-      local int = diffs["ITEM_MOD_INTELLECT_SHORT"] or diffs["ITEM_MOD_INTELLECT"]
-      local primaryVal = str or agi or int
-
-      local haste = diffs["ITEM_MOD_HASTE_RATING_SHORT"] or diffs["ITEM_MOD_HASTE_RATING"]
-      local crit = diffs["ITEM_MOD_CRIT_RATING_SHORT"] or diffs["ITEM_MOD_CRIT_RATING"]
-      local mastery = diffs["ITEM_MOD_MASTERY_RATING_SHORT"] or diffs["ITEM_MOD_MASTERY_RATING"]
-      local vers = diffs["ITEM_MOD_VERSATILITY"] or diffs["ITEM_MOD_VERSATILITY_RATING_SHORT"]
-      local stam = diffs["ITEM_MOD_STAMINA_SHORT"] or diffs["ITEM_MOD_STAMINA"]
-      local speed = diffs["ITEM_MOD_CR_SPEED_SHORT"] or diffs["ITEM_MOD_CR_SPEED"]
-      local leech = diffs["ITEM_MOD_CR_LIFESTEAL_SHORT"] or diffs["ITEM_MOD_CR_LIFESTEAL"]
-      local avoid = diffs["ITEM_MOD_CR_AVOIDANCE_SHORT"] or diffs["ITEM_MOD_CR_AVOIDANCE"]
-
-      if primaryVal and (slotId == 5 or (str and agi and int) or cleanText:find("Worldsoul", 1, true) or cleanText:find("Radiance", 1, true)) then
-        statText = string.format("+%d Primary", primaryVal)
-      elseif haste then
-        statText = string.format("+%d Haste", haste)
-      elseif crit then
-        statText = string.format("+%d Crit", crit)
-      elseif mastery then
-        statText = string.format("+%d Mastery", mastery)
-      elseif vers then
-        statText = string.format("+%d Vers", vers)
-      elseif speed then
-        statText = string.format("+%d Speed", speed)
-      elseif leech then
-        statText = string.format("+%d Leech", leech)
-      elseif avoid then
-        statText = string.format("+%d Avoid", avoid)
-      elseif primaryVal then
-        statText = string.format("+%d Primary", primaryVal)
-      elseif stam then
-        statText = string.format("+%d Stam", stam)
-      end
+      return formatted
     end
   end
 
-  if not statText then
-    local cleaned = cleanText:gsub("^Enchant%s+[%a%s]+%s*-%s*", "")
-    cleaned = cleaned:gsub("^Enchant%s*-%s*", "")
-
-    local lower = cleaned:lower()
-    if lower:find("worldsoul") or lower:find("radiance") then
-      statText = "+50 Primary"
-    elseif lower:find("alacrity") or (lower:find("haste") and not lower:find("cursed")) then
-      statText = "+29 Haste"
-    elseif lower:find("tenacity") or (lower:find("versatility") and not lower:find("cursed")) then
-      statText = "+29 Vers"
-    elseif lower:find("fury") or (lower:find("crit") and not lower:find("cursed")) then
-      statText = "+29 Crit"
-    elseif lower:find("mastery") and not lower:find("cursed") then
-      statText = "+29 Mastery"
-    else
-      statText = cleaned
+  local lower = cleanText:lower()
+  for _, ke in ipairs(KNOWN_ENCHANTS) do
+    if lower:find(ke.pattern) then
+      if atlas and atlas ~= "" then
+        return "|A:" .. atlas .. ":12:12|a " .. ke.text
+      end
+      return ke.text
     end
   end
+
+  local cleaned = cleanText:gsub("^Enchant%s+[%a%s]+%s*-%s*", "")
+  cleaned = cleaned:gsub("^Enchant%s*-%s*", "")
 
   if atlas and atlas ~= "" then
-    return "|A:" .. atlas .. ":12:12|a " .. statText
+    return "|A:" .. atlas .. ":12:12|a " .. cleaned
   end
-  return statText
+  return cleaned
 end
 
 --- Returns whether a slot can be enchanted in the current client expansion.
---- In modern retail, bracers (slot 9) and cloak/back (slot 15) do not have enchants.
---- In Forever / Classic, bracers and cloak can be enchanted.
+--- In modern retail, wrist and cloak have enchants.
 ---@param slot table
 ---@return boolean
 local function canSlotEnchant(slot)
   if not slot then return false end
+  -- Slots that never accept enchants across all modern expansions
+  if slot.id == 2 or slot.id == 6 or slot.id == 10 or slot.id == 13 or slot.id == 14 then
+    return false
+  end
   if slot.id == 9 or slot.id == 15 then
-    return not isRetail()
+    return true
   end
   return slot.canEnchant == true
 end
@@ -842,7 +920,7 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   end
 
   local sideSummary = CreateFrame("Frame", frameName .. "SideSummary", slotOverlay)
-  sideSummary:SetSize(130, 42)
+  sideSummary:SetSize(130, 50)
   sideSummary:SetPoint(sideSummaryPoint, slotOverlay, slotPoint, offsetX, 0)
   sideSummary:EnableMouse(true)
   sideSummary:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
@@ -1208,39 +1286,82 @@ local function updateSlot(unitId, slotId)
   local enchantEffectText = nil
   local isMissingEnchant = false
 
+  -- 1. Parse enchant from tooltip line if text is available
   if itemEnchant ~= nil and itemEnchant ~= "" then
-    enchantEffectText = getEnchantDisplayText(itemLink, itemEnchant, itemEnchantAtlas, slot.id)
     local pStats = parseStatsFromText(itemEnchant)
     for g, v in pairs(pStats) do
-      enchantBuckets[g] = (enchantBuckets[g] or 0) + v
+      enchantBuckets[g] = math.max(enchantBuckets[g] or 0, v)
     end
-    if not next(enchantBuckets) and enchantEffectText then
-      pStats = parseStatsFromText(enchantEffectText)
-      for g, v in pairs(pStats) do
-        enchantBuckets[g] = (enchantBuckets[g] or 0) + v
+  end
+
+  -- 2. Try reading enchant:enchantID hyperlink tooltip
+  if enchantID and enchantID > 0 then
+    local enchData = safeGetHyperlinkTooltipData and safeGetHyperlinkTooltipData("enchant:" .. enchantID)
+    if enchData and enchData.lines then
+      for _, eLine in ipairs(enchData.lines) do
+        if eLine.leftText then
+          local pStats = parseStatsFromText(eLine.leftText)
+          for g, v in pairs(pStats) do
+            enchantBuckets[g] = math.max(enchantBuckets[g] or 0, v)
+          end
+        end
+      end
+    end
+
+    if not next(enchantBuckets) then
+      pcall(function()
+        scanTooltip:ClearLines()
+        scanTooltip:SetHyperlink("enchant:" .. enchantID)
+        for i = 1, scanTooltip:NumLines() do
+          local fs = _G["SlackHacksInfoDisplayScanTooltipTextLeft" .. i]
+          if fs then
+            local t = fs:GetText()
+            if t and t ~= "" then
+              local pStats = parseStatsFromText(t)
+              for g, v in pairs(pStats) do
+                enchantBuckets[g] = math.max(enchantBuckets[g] or 0, v)
+              end
+            end
+          end
+        end
+      end)
+    end
+
+    -- 3. Diff item stats with/without enchant
+    local partsNoEnchant = { unpack(payloadParts) }
+    partsNoEnchant[2] = "0"
+    local linkNoEnchant = "item:" .. table.concat(partsNoEnchant, ":")
+    local statsNoEnchant = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkNoEnchant)) or {}
+
+    for k, v in pairs(totalStats) do
+      local d = v - (statsNoEnchant[k] or 0)
+      if d > 0 then
+        local g = getStatGroup(k)
+        if g then
+          enchantBuckets[g] = math.max(enchantBuckets[g] or 0, d)
+        end
       end
     end
   end
 
-  if enchantID and enchantID > 0 then
-    local partsOnlyEnchant = { unpack(payloadParts) }
-    partsOnlyEnchant[3] = "0"
-    partsOnlyEnchant[4] = "0"
-    partsOnlyEnchant[5] = "0"
-    partsOnlyEnchant[6] = "0"
-    local linkOnlyEnchant = "item:" .. table.concat(partsOnlyEnchant, ":")
-    local statsWithEnchant = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats(linkOnlyEnchant)) or {}
-
-    for k, v in pairs(statsWithEnchant) do
-      local d = v - (baseStats[k] or 0)
-      if d > 0 then
-        local g = getStatGroup(k)
-        if not enchantBuckets[g] then
-          enchantBuckets[g] = d
+  -- 4. Known enchants table fallback by name
+  if itemEnchant and itemEnchant ~= "" and not next(enchantBuckets) then
+    local lowerEnchant = itemEnchant:lower()
+    for _, ke in ipairs(KNOWN_ENCHANTS) do
+      if lowerEnchant:find(ke.pattern) then
+        for g, val in pairs(ke.stats) do
+          enchantBuckets[g] = math.max(enchantBuckets[g] or 0, val)
         end
+        break
       end
     end
-  elseif (not itemEnchant or itemEnchant == "") and canSlotEnchant(slot) then
+  end
+
+  if itemEnchant ~= nil and itemEnchant ~= "" then
+    enchantEffectText = getEnchantDisplayText(itemLink, itemEnchant, itemEnchantAtlas, slot.id, enchantBuckets)
+  end
+
+  if (not itemEnchant or itemEnchant == "") and canSlotEnchant(slot) then
     local _, _, _, _, _, _, _, _, itemEquipLoc = C_Item.GetItemInfo(itemLink)
     if itemEquipLoc ~= "INVTYPE_HOLDABLE" and itemEquipLoc ~= "INVTYPE_SHIELD" then
       isMissingEnchant = true
@@ -1262,43 +1383,44 @@ local function updateSlot(unitId, slotId)
     if hasSocket then
       local isFilled = (gemID and gemID > 0) or (socketData and socketData.gemIcon ~= nil)
       if isFilled then
-        local gName = nil
-        if gemID and gemID > 0 then
+        local gName, gLink
+        if C_Item and C_Item.GetItemGem then
+          gName, gLink = C_Item.GetItemGem(itemLink, socketIndex)
+        end
+        if not gName and gemID and gemID > 0 then
           gName = (C_Item and C_Item.GetItemInfo and C_Item.GetItemInfo(gemID))
-            or (C_Item and C_Item.GetItemGem and select(1, C_Item.GetItemGem(itemLink, socketIndex)))
+        end
+        if not gLink and gemID and gemID > 0 then
+          gLink = select(2, C_Item.GetItemInfo(gemID)) or ("item:" .. gemID)
         end
         gName = gName or ("Gem " .. socketIndex)
 
         local gBuckets = {}
 
-        -- 1. Try parsing stats from socket line text in the item's own tooltip
-        if socketData and socketData.text then
-          local pStats = parseStatsFromText(socketData.text)
-          for g, v in pairs(pStats) do
-            gBuckets[g] = (gBuckets[g] or 0) + v
-          end
-        end
-
-        -- 2. If no stats found from tooltip line and gemID exists, query gem item stats
-        if not next(gBuckets) and gemID and gemID > 0 then
-          local rawGStats = (C_Item and C_Item.GetItemStats and C_Item.GetItemStats("item:" .. gemID)) or {}
-          for k, v in pairs(rawGStats) do
-            if v and v > 0 then
-              local g = getStatGroup(k)
-              gBuckets[g] = (gBuckets[g] or 0) + v
+        -- 1. Query gem item stats directly using full gemLink
+        if gLink and C_Item and C_Item.GetItemStats then
+          local rawGStats = C_Item.GetItemStats(gLink)
+          if rawGStats then
+            for k, v in pairs(rawGStats) do
+              if v and v > 0 then
+                local g = getStatGroup(k)
+                if g then
+                  gBuckets[g] = math.max(gBuckets[g] or 0, v)
+                end
+              end
             end
           end
         end
 
-        -- 3. If still empty, scan gem hyperlink via safeGetHyperlinkTooltipData or scanTooltip
-        if not next(gBuckets) and gemID and gemID > 0 then
-          local gemData = safeGetHyperlinkTooltipData and safeGetHyperlinkTooltipData("item:" .. gemID)
+        -- 2. Scan gem hyperlink tooltip (picks up dual stats and equip text)
+        if gLink then
+          local gemData = safeGetHyperlinkTooltipData and safeGetHyperlinkTooltipData(gLink)
           if gemData and gemData.lines then
             for _, gLine in ipairs(gemData.lines) do
               if gLine.leftText and not gLine.leftText:find("Item Level") and not gLine.leftText:find(gName, 1, true) then
                 local pStats = parseStatsFromText(gLine.leftText)
                 for g, v in pairs(pStats) do
-                  gBuckets[g] = (gBuckets[g] or 0) + v
+                  gBuckets[g] = math.max(gBuckets[g] or 0, v)
                 end
               end
             end
@@ -1307,7 +1429,7 @@ local function updateSlot(unitId, slotId)
           if not next(gBuckets) then
             pcall(function()
               scanTooltip:ClearLines()
-              scanTooltip:SetHyperlink("item:" .. gemID)
+              scanTooltip:SetHyperlink(gLink)
               for i = 1, scanTooltip:NumLines() do
                 local fs = _G["SlackHacksInfoDisplayScanTooltipTextLeft" .. i]
                 if fs then
@@ -1315,7 +1437,7 @@ local function updateSlot(unitId, slotId)
                   if t and t ~= "" and not t:find("Item Level") and not t:find(gName, 1, true) then
                     local pStats = parseStatsFromText(t)
                     for g, v in pairs(pStats) do
-                      gBuckets[g] = (gBuckets[g] or 0) + v
+                      gBuckets[g] = math.max(gBuckets[g] or 0, v)
                     end
                   end
                 end
@@ -1324,9 +1446,18 @@ local function updateSlot(unitId, slotId)
           end
         end
 
+        -- 3. Parse stats from socket line text in the item's own tooltip
+        if socketData and socketData.text then
+          local pStats = parseStatsFromText(socketData.text)
+          for g, v in pairs(pStats) do
+            gBuckets[g] = math.max(gBuckets[g] or 0, v)
+          end
+        end
+
         table.insert(gemList, {
           id = gemID,
           name = gName,
+          link = gLink,
           buckets = gBuckets,
         })
       else
@@ -1335,20 +1466,36 @@ local function updateSlot(unitId, slotId)
     end
   end
 
+  local totalBuckets = {}
+  for k, v in pairs(totalStats) do
+    if v and v > 0 then
+      local g = getStatGroup(k)
+      if g then
+        totalBuckets[g] = (totalBuckets[g] or 0) + v
+      end
+    end
+  end
+
   local baseBuckets = {}
   for k, v in pairs(baseStats) do
     if v and v > 0 then
       local g = getStatGroup(k)
-      baseBuckets[g] = (baseBuckets[g] or 0) + v
+      if g then
+        baseBuckets[g] = (baseBuckets[g] or 0) + v
+      end
     end
   end
 
-  for k, v in pairs(totalStats) do
-    if v and v > 0 then
-      local g = getStatGroup(k)
-      if not baseBuckets[g] then
-        baseBuckets[g] = v
-      end
+  -- Accurately deduce base stats from totalStats by subtracting enchant and gem contributions
+  for g, totalVal in pairs(totalBuckets) do
+    local enchVal = enchantBuckets[g] or 0
+    local gemVal = 0
+    for _, gem in ipairs(gemList) do
+      gemVal = gemVal + (gem.buckets and gem.buckets[g] or 0)
+    end
+    local deducedBase = math.max(0, totalVal - enchVal - gemVal)
+    if not baseBuckets[g] or baseBuckets[g] > totalVal or baseBuckets[g] == 0 then
+      baseBuckets[g] = deducedBase
     end
   end
 
@@ -1381,6 +1528,10 @@ local function updateSlot(unitId, slotId)
       end
     end
     local sum = bAmt + eAmt + gAmt
+    if totalBuckets[g] and totalBuckets[g] > 0 and sum < totalBuckets[g] then
+      bAmt = math.max(0, totalBuckets[g] - eAmt - gAmt)
+      sum = bAmt + eAmt + gAmt
+    end
     return sum, bAmt, eAmt, gAmt
   end
 
@@ -1390,8 +1541,61 @@ local function updateSlot(unitId, slotId)
 
   if isRetail() then
     -- ------------------------------------------------------------------------
-    -- Retail Mode: Secondary & Tertiary Stats with Diminishing Returns
+    -- Retail Mode: Primary, Secondary & Tertiary Stats with Diminishing Returns
     -- ------------------------------------------------------------------------
+    -- Process Primary stat (Strength, Agility, Intellect, or generic Primary)
+    local pKey, pName, pSuffix = getPlayerPrimaryStat()
+    local foundPrimaryKey = pKey
+    if (baseBuckets[pKey] or 0) > 0 or (enchantBuckets[pKey] or 0) > 0 then
+      foundPrimaryKey = pKey
+    elseif (baseBuckets["STRENGTH"] or 0) > 0 or (enchantBuckets["STRENGTH"] or 0) > 0 then
+      foundPrimaryKey = "STRENGTH"
+      pName, pSuffix = "Strength", "Str"
+    elseif (baseBuckets["AGILITY"] or 0) > 0 or (enchantBuckets["AGILITY"] or 0) > 0 then
+      foundPrimaryKey = "AGILITY"
+      pName, pSuffix = "Agility", "Agi"
+    elseif (baseBuckets["INTELLECT"] or 0) > 0 or (enchantBuckets["INTELLECT"] or 0) > 0 then
+      foundPrimaryKey = "INTELLECT"
+      pName, pSuffix = "Intellect", "Int"
+    end
+
+    local pBase = (baseBuckets[foundPrimaryKey] or 0) + ((foundPrimaryKey ~= "PRIMARY") and (baseBuckets["PRIMARY"] or 0) or 0)
+    local pEnchant = (enchantBuckets[foundPrimaryKey] or 0) + ((foundPrimaryKey ~= "PRIMARY") and (enchantBuckets["PRIMARY"] or 0) or 0)
+    local pGem = 0
+    for _, gem in ipairs(gemList) do
+      local a = (gem.buckets and gem.buckets[foundPrimaryKey] or 0) + ((foundPrimaryKey ~= "PRIMARY") and (gem.buckets and gem.buckets["PRIMARY"] or 0) or 0)
+      pGem = pGem + a
+    end
+    local pSum = pBase + pEnchant + pGem
+
+    if pSum > 0 then
+      local displayName = pName
+      if pBase == 0 and (pEnchant > 0 or pGem > 0) then
+        displayName = "Primary Stat"
+        pSuffix = "Primary"
+      end
+
+      table.insert(activeStats, {
+        type = foundPrimaryKey,
+        name = displayName,
+        suffix = pSuffix,
+        order = 0,
+        total = pSum,
+        base = pBase,
+        enchant = pEnchant,
+        gem = pGem,
+        isPrimary = true,
+      })
+
+      -- If an enchant or gem increases primary, show it at the top of the side summary
+      if pEnchant > 0 or pGem > 0 then
+        table.insert(sideSummaryLines, {
+          order = 0,
+          text = string.format("+%d %s", (pEnchant + pGem), pSuffix),
+        })
+      end
+    end
+
     -- Process Secondary stats
     for _, statInfo in ipairs(SECONDARY_STATS) do
       local sum, bAmt, eAmt, gAmt = getStatSumAndBreakdown(statInfo.type)
