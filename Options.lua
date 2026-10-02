@@ -128,6 +128,7 @@ dbDefaults = {
       charSheet = {
         itemLevel = true,
         upgradeTrack = true,
+        slotWatermark = true,
         secondaryStats = true,
         tertiaryStats = true,
         itemStats = true,
@@ -1464,6 +1465,21 @@ options = {
                 Self.InfoDisplay:Refresh()
               end,
               order = 2
+            },
+            slotWatermark = {
+              name = "Slot Watermark Item Level",
+              desc = "Show the slot's high watermark item level at the top of the side stats.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              hidden = function() return not isRetail() end,
+              disabled = function() return not db.profile.infoDisplay.enabled end,
+              get = function() return db.profile.infoDisplay.charSheet.slotWatermark ~= false end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.slotWatermark = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 2.5
             },
             highWatermarkColoring = {
               name = function() return isRetail() and "High Watermark Coloring" or "Item Quality Coloring" end,

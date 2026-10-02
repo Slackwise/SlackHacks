@@ -12,6 +12,7 @@ Self.InfoDisplay = module
 local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
 local STATS_FONT = "Fonts\\ARIALN.TTF"
 local FONT_SIZE_LEVEL = 13
+local FONT_SIZE_WATERMARK = 11
 local FONT_SIZE_TRACK = 8
 local FONT_SIZE_STATS = 9
 local FONT_OUTLINE = "OUTLINE"
@@ -227,6 +228,7 @@ local function charSheetSettings()
   return {
     itemLevel = true,
     upgradeTrack = true,
+    slotWatermark = true,
     secondaryStats = true,
     tertiaryStats = true,
     itemStats = true,
@@ -278,6 +280,114 @@ local function getWatermarkColor(itemLevel, itemQuality)
   else
     return getQualityColor(itemQuality or 1)
   end
+end
+
+local SLOT_TO_INVTYPE = {
+  [1]  = "INVTYPE_HEAD",
+  [2]  = "INVTYPE_NECK",
+  [3]  = "INVTYPE_SHOULDER",
+  [5]  = "INVTYPE_CHEST",
+  [6]  = "INVTYPE_WAIST",
+  [7]  = "INVTYPE_LEGS",
+  [8]  = "INVTYPE_FEET",
+  [9]  = "INVTYPE_WRIST",
+  [10] = "INVTYPE_HAND",
+  [11] = "INVTYPE_FINGER",
+  [12] = "INVTYPE_FINGER",
+  [13] = "INVTYPE_TRINKET",
+  [14] = "INVTYPE_TRINKET",
+  [15] = "INVTYPE_CLOAK",
+  [16] = "INVTYPE_WEAPON",
+  [17] = "INVTYPE_SHIELD",
+}
+
+--- Retrieves the high watermark item level for an equipment slot in Retail.
+--- Queries C_ItemUpgrade APIs, falling back to equipped item level if higher.
+---@param unitId string "player" | "target"
+---@param slotId number Equipment slot ID
+---@param itemLink string|nil Equipped item link
+---@param equippedItemLevel number|nil Equipped item level
+---@return number|nil watermarkIlevel
+local function getSlotHighWatermark(unitId, slotId, itemLink, equippedItemLevel)
+  if not isRetail() or unitId ~= "player" then return nil end
+
+  local watermark = nil
+
+  if C_ItemUpgrade then
+    -- Method 1: C_ItemUpgrade.GetHighWatermarkForItem(itemLink)
+    if itemLink and C_ItemUpgrade.GetHighWatermarkForItem then
+      local ok, val = pcall(C_ItemUpgrade.GetHighWatermarkForItem, itemLink)
+      if ok and type(val) == "number" and val > 0 then
+        watermark = val
+      end
+    end
+
+    -- Method 2: C_ItemUpgrade.GetItemHyperlinkHighWatermark(itemLink)
+    if not watermark and itemLink and C_ItemUpgrade.GetItemHyperlinkHighWatermark then
+      local ok, val = pcall(C_ItemUpgrade.GetItemHyperlinkHighWatermark, itemLink)
+      if ok and type(val) == "number" and val > 0 then
+        watermark = val
+      end
+    end
+
+    -- Method 3: ItemLocation-based watermark
+    if not watermark and ItemLocation and ItemLocation.CreateFromEquipmentSlot then
+      local loc = ItemLocation:CreateFromEquipmentSlot(slotId)
+      if loc and loc:IsValid() then
+        if C_ItemUpgrade.GetHighWatermarkForLocation then
+          local ok, val = pcall(C_ItemUpgrade.GetHighWatermarkForLocation, loc)
+          if ok and type(val) == "number" and val > 0 then
+            watermark = val
+          end
+        end
+        if not watermark and C_ItemUpgrade.GetItemLocationHighWatermark then
+          local ok, val = pcall(C_ItemUpgrade.GetItemLocationHighWatermark, loc)
+          if ok and type(val) == "number" and val > 0 then
+            watermark = val
+          end
+        end
+      end
+    end
+
+    -- Method 4: C_ItemUpgrade.GetHighWatermarkForSlot(slot)
+    if not watermark and C_ItemUpgrade.GetHighWatermarkForSlot then
+      local ok, val = pcall(C_ItemUpgrade.GetHighWatermarkForSlot, slotId)
+      if ok and type(val) == "number" and val > 0 then
+        watermark = val
+      end
+
+      if not watermark and C_ItemUpgrade.GetHighWatermarkSlotForInventoryType then
+        local invType = nil
+        if itemLink and C_Item and C_Item.GetItemInfo then
+          invType = select(9, C_Item.GetItemInfo(itemLink))
+        end
+        if not invType and GetItemInfo and itemLink then
+          invType = select(9, GetItemInfo(itemLink))
+        end
+        if not invType then
+          invType = SLOT_TO_INVTYPE[slotId]
+        end
+        if invType then
+          local okSlot, hwSlot = pcall(C_ItemUpgrade.GetHighWatermarkSlotForInventoryType, invType)
+          if okSlot and hwSlot then
+            local okVal, val2 = pcall(C_ItemUpgrade.GetHighWatermarkForSlot, hwSlot)
+            if okVal and type(val2) == "number" and val2 > 0 then
+              watermark = val2
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- A slot's watermark can never be lower than the currently equipped item level
+  if equippedItemLevel and equippedItemLevel > 0 then
+    if not watermark or equippedItemLevel > watermark then
+      watermark = equippedItemLevel
+    end
+  end
+
+  return watermark
 end
 
 --- Derives a short track abbreviation (e.g. "Champion" -> "C").
@@ -730,19 +840,25 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   local offsetX = slot.side == "LEFT" and 8 or -8
 
   local sideSummary = CreateFrame("Frame", frameName .. "SideSummary", slotOverlay)
-  sideSummary:SetSize(130, 37)
+  sideSummary:SetSize(130, 42)
   sideSummary:SetPoint(slot.side, slotOverlay, relativePoint, offsetX, 0)
   sideSummary:EnableMouse(true)
   sideSummary:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
   slotOverlay.SideSummary = sideSummary
 
+  -- Watermark item level at the top of side summary
+  local watermarkText = sideSummary:CreateFontString(frameName .. "Watermark", "OVERLAY", "GameTooltipText")
+  watermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
+  watermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+  watermarkText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
+  sideSummary.WatermarkText = watermarkText
+
   -- Stats summary font string (multi-line)
   local statsText = sideSummary:CreateFontString(frameName .. "SideStats", "OVERLAY", "GameTooltipText")
-  statsText:SetAllPoints(sideSummary)
   statsText:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
   statsText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
   statsText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
-  statsText:SetJustifyV("MIDDLE")
+  statsText:SetJustifyV("TOP")
   sideSummary.StatsText = statsText
 
   -- Missing Enchant alert icon
@@ -777,6 +893,11 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
     local data = sideSummary.breakdownData
     GameTooltip:AddLine(data.itemName or "Equipment Details", 1, 1, 1)
     GameTooltip:AddLine("Stat & Enhancement Breakdown", 1, 0.82, 0)
+
+    if data.watermarkIlevel and data.watermarkIlevel > 0 then
+      local wmColor = getWatermarkColor(data.watermarkIlevel, data.itemQuality)
+      GameTooltip:AddDoubleLine("Slot Watermark:", tostring(data.watermarkIlevel), 1, 0.82, 0, wmColor.r, wmColor.g, wmColor.b)
+    end
 
     local hasEnchantInStats = false
 
@@ -1372,8 +1493,13 @@ local function updateSlot(unitId, slotId)
   table.sort(sideSummaryLines, function(a, b) return a.order < b.order end)
 
   -- Save breakdown data onto the SideSummary frame for hover tooltip
+  local showWatermark = isRetail() and (settings.slotWatermark ~= false)
+  local watermarkIlevel = showWatermark and getSlotHighWatermark(unitId, slotId, itemLink, itemLevel) or nil
+
   slotOverlay.SideSummary.breakdownData = {
     itemName = itemName,
+    itemQuality = itemQuality,
+    watermarkIlevel = watermarkIlevel,
     statsList = activeStats,
     enchantEffect = enchantEffectText,
     gemsList = gemList,
@@ -1432,24 +1558,67 @@ local function updateSlot(unitId, slotId)
     sideSummary.MissingGem:Hide()
   end
 
-  -- Position stats text according to whether missing icons are present
-  sideSummary.StatsText:ClearAllPoints()
-  if showMissingEnchant or showMissingGem then
-    if slot.side == "LEFT" then
-      sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary, "TOPLEFT", 0, 0)
-      sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 16)
+  -- Position watermark and stats text according to whether watermark and missing icons are present
+  if watermarkIlevel and watermarkIlevel > 0 then
+    sideSummary.WatermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
+    sideSummary.WatermarkText:SetText(tostring(watermarkIlevel))
+    if settings.highWatermarkColoring then
+      local wmColor = getWatermarkColor(watermarkIlevel, itemQuality)
+      sideSummary.WatermarkText:SetTextColor(wmColor.r, wmColor.g, wmColor.b, wmColor.a)
     else
-      sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary, "TOPRIGHT", 0, 0)
-      sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 16)
+      sideSummary.WatermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+    end
+
+    sideSummary.WatermarkText:ClearAllPoints()
+    if slot.side == "LEFT" then
+      sideSummary.WatermarkText:SetPoint("TOPLEFT", sideSummary, "TOPLEFT", 0, 0)
+      sideSummary.WatermarkText:SetJustifyH("LEFT")
+    else
+      sideSummary.WatermarkText:SetPoint("TOPRIGHT", sideSummary, "TOPRIGHT", 0, 0)
+      sideSummary.WatermarkText:SetJustifyH("RIGHT")
+    end
+    sideSummary.WatermarkText:Show()
+
+    sideSummary.StatsText:ClearAllPoints()
+    if slot.side == "LEFT" then
+      sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary.WatermarkText, "BOTTOMLEFT", 0, -1)
+      if showMissingEnchant or showMissingGem then
+        sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 16)
+      else
+        sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 0)
+      end
+    else
+      sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary.WatermarkText, "BOTTOMRIGHT", 0, -1)
+      if showMissingEnchant or showMissingGem then
+        sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 16)
+      else
+        sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 0)
+      end
     end
     sideSummary.StatsText:SetJustifyV("TOP")
   else
-    sideSummary.StatsText:SetAllPoints(sideSummary)
-    sideSummary.StatsText:SetJustifyV("MIDDLE")
+    sideSummary.WatermarkText:SetText("")
+    sideSummary.WatermarkText:Hide()
+
+    sideSummary.StatsText:ClearAllPoints()
+    if showMissingEnchant or showMissingGem then
+      if slot.side == "LEFT" then
+        sideSummary.StatsText:SetPoint("TOPLEFT", sideSummary, "TOPLEFT", 0, 0)
+        sideSummary.StatsText:SetPoint("BOTTOMRIGHT", sideSummary, "BOTTOMRIGHT", 0, 16)
+      else
+        sideSummary.StatsText:SetPoint("TOPRIGHT", sideSummary, "TOPRIGHT", 0, 0)
+        sideSummary.StatsText:SetPoint("BOTTOMLEFT", sideSummary, "BOTTOMLEFT", 0, 16)
+      end
+      sideSummary.StatsText:SetJustifyV("TOP")
+    else
+      sideSummary.StatsText:SetAllPoints(sideSummary)
+      sideSummary.StatsText:SetJustifyV("MIDDLE")
+    end
   end
 
   -- Hide side summary if everything is empty and no alerts
-  if summaryString == "" and not showMissingEnchant and not showMissingGem then
+  local hasWatermark = (watermarkIlevel and watermarkIlevel > 0)
+  if summaryString == "" and not hasWatermark and not showMissingEnchant and not showMissingGem then
     sideSummary:Hide()
   else
     sideSummary:Show()
