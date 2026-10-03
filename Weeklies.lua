@@ -380,6 +380,7 @@ local function createButton()
   button = CreateFrame("Button", "SlackHacksDelvesTrackerButton", header)
   button:SetSize(BUTTON_SIZE, BUTTON_SIZE)
   button:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
+  button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
   local icon = button:CreateTexture(nil, "ARTWORK")
   icon:SetAllPoints()
