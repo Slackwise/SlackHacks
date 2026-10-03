@@ -373,6 +373,7 @@ end
 --- Lazily creates the Objective Tracker button and wires its tooltip and context-menu interactions.
 local function createButton()
   if button then return end
+  if InCombatLockdown() then return end
   local header = ObjectiveTrackerFrame and ObjectiveTrackerFrame.Header
   local anchor = header and header.MinimizeButton
   if not anchor then return end
@@ -517,6 +518,7 @@ end
 --- The door atlas only goes dark (the plain, non-bountiful world-map door) once BOTH weekly Delve
 --- tasks are done; the map marker independently reflects Trovehunter's Bounty status.
 function module:Refresh()
+  if InCombatLockdown() then return end
   createButton()
   if not button then return end
 
@@ -574,11 +576,23 @@ function module:OnEnable()
   self:RegisterEvent("UPDATE_UI_WIDGET", "Refresh")
   self:RegisterEvent("QUEST_LOG_UPDATE", "Refresh")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
+  self:RegisterEvent("PLAYER_REGEN_ENABLED", "Refresh")
   self:Refresh()
+end
+
+--- Hides the tracker button after combat when the module was disabled during lockdown.
+function module:HideButtonAfterCombat()
+  self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+  if button then button:Hide() end
 end
 
 --- Unregisters module events and hides the tracker button when the module is disabled.
 function module:OnDisable()
   self:UnregisterAllEvents()
-  if button then button:Hide() end
+  if not button then return end
+  if InCombatLockdown() then
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "HideButtonAfterCombat")
+  else
+    button:Hide()
+  end
 end
