@@ -11,9 +11,9 @@ Self.InfoDisplay = module
 
 local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
 local STATS_FONT = "Fonts\\ARIALN.TTF"
-local FONT_SIZE_LEVEL = 13
+local FONT_SIZE_LEVEL = 17
 local FONT_SIZE_WATERMARK = 11
-local FONT_SIZE_TRACK = 8
+local FONT_SIZE_TRACK = 12
 local FONT_SIZE_STATS = 9
 local FONT_OUTLINE = "OUTLINE"
 
@@ -236,6 +236,7 @@ local function charSheetSettings()
   return {
     itemLevel = true,
     upgradeTrack = true,
+    maxUpgradeStar = false,
     slotWatermark = true,
     secondaryStats = true,
     tertiaryStats = false,
@@ -870,180 +871,189 @@ end
 local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   local frameName = characterSlotFrame:GetName() .. OVERLAY_NAME_SUFFIX
   local slotOverlay = characterSlotFrame[OVERLAY_NAME_SUFFIX]
-  if slotOverlay then return slotOverlay end
+  if not slotOverlay then
+    slotOverlay = CreateFrame("Frame", frameName, characterSlotFrame)
+    characterSlotFrame[OVERLAY_NAME_SUFFIX] = slotOverlay
+    table.insert(createdOverlays, slotOverlay)
 
-  slotOverlay = CreateFrame("Frame", frameName, characterSlotFrame)
-  characterSlotFrame[OVERLAY_NAME_SUFFIX] = slotOverlay
-  table.insert(createdOverlays, slotOverlay)
+    slotOverlay:SetAllPoints(characterSlotFrame)
+    slotOverlay:SetFrameLevel(characterSlotFrame:GetFrameLevel() + 5)
 
-  slotOverlay:SetAllPoints(characterSlotFrame)
-  slotOverlay:SetFrameLevel(characterSlotFrame:GetFrameLevel() + 5)
+    -- Subtle dark background tint on icon
+    local tint = slotOverlay:CreateTexture(nil, "BACKGROUND")
+    tint:SetTexture("Interface\\TutorialFrame\\TutorialFrameBackground")
+    tint:SetColorTexture(COLOR_TINT.r, COLOR_TINT.g, COLOR_TINT.b, COLOR_TINT.a)
+    tint:SetAllPoints(slotOverlay)
+    slotOverlay.Tint = tint
 
-  -- Subtle dark background tint on icon
-  local tint = slotOverlay:CreateTexture(nil, "BACKGROUND")
-  tint:SetTexture("Interface\\TutorialFrame\\TutorialFrameBackground")
-  tint:SetColorTexture(COLOR_TINT.r, COLOR_TINT.g, COLOR_TINT.b, COLOR_TINT.a)
-  tint:SetAllPoints(slotOverlay)
-  slotOverlay.Tint = tint
+    -- Item Level: center of icon
+    local level = slotOverlay:CreateFontString(frameName .. "Level", "OVERLAY", "GameTooltipText")
+    level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 0)
+    level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
+    level:SetJustifyH("CENTER")
+    slotOverlay.Level = level
 
-  -- Item Level: center of icon
-  local level = slotOverlay:CreateFontString(frameName .. "Level", "OVERLAY", "GameTooltipText")
-  level:SetPoint("CENTER", slotOverlay, "CENTER", 0, 0)
-  level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
-  level:SetJustifyH("CENTER")
-  slotOverlay.Level = level
+    -- Upgrade Track: anchored underneath centered to item level
+    local track = slotOverlay:CreateFontString(frameName .. "Track", "OVERLAY", "GameTooltipText")
+    track:SetPoint("TOP", level, "BOTTOM", 0, -1)
+    track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
+    track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+    track:SetJustifyH("CENTER")
+    track:Hide()
+    slotOverlay.Track = track
 
-  -- Upgrade Track: anchored underneath centered to item level
-  local track = slotOverlay:CreateFontString(frameName .. "Track", "OVERLAY", "GameTooltipText")
-  track:SetPoint("TOP", level, "BOTTOM", 0, -1)
-  track:SetFont(DEFAULT_FONT, FONT_SIZE_TRACK, FONT_OUTLINE)
-  track:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
-  track:SetJustifyH("CENTER")
-  track:Hide()
-  slotOverlay.Track = track
+    -- Side Summary Frame: sits off to the side where enchants and gems display
+    local isBottomSlot = (slot.id == 16 or slot.id == 17)
+    local relativePoint = slot.side == "LEFT" and "RIGHT" or "LEFT"
+    local offsetX = slot.side == "LEFT" and 8 or -8
 
-  -- Side Summary Frame: sits off to the side where enchants and gems display
-  local isBottomSlot = (slot.id == 16 or slot.id == 17)
-  local relativePoint = slot.side == "LEFT" and "RIGHT" or "LEFT"
-  local offsetX = slot.side == "LEFT" and 8 or -8
-
-  local sideSummaryPoint, slotPoint
-  if isBottomSlot then
-    sideSummaryPoint = slot.side == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"
-    slotPoint = slot.side == "LEFT" and "BOTTOMRIGHT" or "BOTTOMLEFT"
-  else
-    sideSummaryPoint = slot.side
-    slotPoint = relativePoint
-  end
-
-  local sideSummary = CreateFrame("Frame", frameName .. "SideSummary", slotOverlay)
-  sideSummary:SetSize(130, 50)
-  sideSummary:SetPoint(sideSummaryPoint, slotOverlay, slotPoint, offsetX, 0)
-  sideSummary:EnableMouse(true)
-  sideSummary:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
-  slotOverlay.SideSummary = sideSummary
-
-  -- Watermark item level at the top of side summary
-  local watermarkText = sideSummary:CreateFontString(frameName .. "Watermark", "OVERLAY", "GameTooltipText")
-  watermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
-  watermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
-  watermarkText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
-  sideSummary.WatermarkText = watermarkText
-
-  -- Stats summary font string (multi-line)
-  local statsText = sideSummary:CreateFontString(frameName .. "SideStats", "OVERLAY", "GameTooltipText")
-  statsText:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
-  statsText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
-  statsText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
-  statsText:SetJustifyV("TOP")
-  sideSummary.StatsText = statsText
-
-  -- Missing Enchant alert icon
-  local missingEnchant = CreateFrame("Button", frameName .. "MissingEnchant", sideSummary)
-  missingEnchant:SetSize(14, 14)
-  missingEnchant:EnableMouse(true)
-  missingEnchant:SetFrameLevel(sideSummary:GetFrameLevel() + 2)
-  local meIcon = missingEnchant:CreateTexture(nil, "ARTWORK")
-  meIcon:SetAllPoints()
-  meIcon:SetTexture("Interface\\Icons\\inv_misc_enchantedscroll")
-  meIcon:SetVertexColor(1, 0.25, 0.25)
-  missingEnchant.Icon = meIcon
-  sideSummary.MissingEnchant = missingEnchant
-
-  -- Missing Gem alert icon
-  local missingGem = CreateFrame("Button", frameName .. "MissingGem", sideSummary)
-  missingGem:SetSize(14, 14)
-  missingGem:EnableMouse(true)
-  missingGem:SetFrameLevel(sideSummary:GetFrameLevel() + 2)
-  local mgIcon = missingGem:CreateTexture(nil, "ARTWORK")
-  mgIcon:SetAllPoints()
-  mgIcon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
-  missingGem.Icon = mgIcon
-  sideSummary.MissingGem = missingGem
-
-  -- Hover tooltip on the side summary showing the stat and enhancement breakdown
-  local function showBreakdownTooltip(anchorFrame)
-    if not sideSummary.breakdownData then return end
-    GameTooltip:SetOwner(anchorFrame, slot.side == "LEFT" and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
-    GameTooltip:ClearLines()
-
-    local data = sideSummary.breakdownData
-    GameTooltip:AddLine(data.itemName or "Equipment Details", 1, 1, 1)
-
-    if data.watermarkIlevel and data.watermarkIlevel > 0 then
-      local wmColor = getWatermarkColor(data.watermarkIlevel, data.itemQuality)
-      GameTooltip:AddDoubleLine("Slot Watermark:", tostring(data.watermarkIlevel), 1, 0.82, 0, wmColor.r, wmColor.g, wmColor.b)
+    local sideSummaryPoint, slotPoint
+    if isBottomSlot then
+      sideSummaryPoint = slot.side == "LEFT" and "BOTTOMLEFT" or "BOTTOMRIGHT"
+      slotPoint = slot.side == "LEFT" and "BOTTOMRIGHT" or "BOTTOMLEFT"
+    else
+      sideSummaryPoint = slot.side
+      slotPoint = relativePoint
     end
 
-    local hasEnchantInStats = false
+    local sideSummary = CreateFrame("Frame", frameName .. "SideSummary", slotOverlay)
+    sideSummary:SetSize(90, 37)
+    sideSummary:SetPoint(sideSummaryPoint, slotOverlay, slotPoint, offsetX, 0)
+    sideSummary:EnableMouse(true)
+    sideSummary:SetFrameLevel(slotOverlay:GetFrameLevel() + 10)
+    slotOverlay.SideSummary = sideSummary
 
-    if data.statsList and #data.statsList > 0 then
-      for _, stat in ipairs(data.statsList) do
-        GameTooltip:AddLine(" ")
-        local rightText
-        local totalPct = stat.totalPct or stat.pct
-        if totalPct then
-          rightText = string.format("%d (%.1f%%)", stat.total, totalPct)
-        else
-          rightText = string.format("%d", stat.total)
-        end
-        GameTooltip:AddDoubleLine(stat.name .. ":", rightText, 1, 1, 1, 0, 1, 0)
+    -- Watermark item level at the top of side summary
+    local watermarkText = sideSummary:CreateFontString(frameName .. "Watermark", "OVERLAY", "GameTooltipText")
+    watermarkText:SetFont(DEFAULT_FONT, FONT_SIZE_WATERMARK, FONT_OUTLINE)
+    watermarkText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+    watermarkText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
+    sideSummary.WatermarkText = watermarkText
 
-        if stat.base and stat.base > 0 then
-          local basePctText
-          if stat.basePct then
-            basePctText = string.format("%d (%.1f%%)", stat.base, stat.basePct)
+    -- Stats summary font string (multi-line)
+    local statsText = sideSummary:CreateFontString(frameName .. "SideStats", "OVERLAY", "GameTooltipText")
+    statsText:SetFont(getStatsFont(), FONT_SIZE_STATS, FONT_OUTLINE)
+    statsText:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b, COLOR_WHITE.a)
+    statsText:SetJustifyH(slot.side == "RIGHT" and "RIGHT" or "LEFT")
+    statsText:SetJustifyV("TOP")
+    sideSummary.StatsText = statsText
+
+    -- Missing Enchant alert icon
+    local missingEnchant = CreateFrame("Button", frameName .. "MissingEnchant", sideSummary)
+    missingEnchant:SetSize(14, 14)
+    missingEnchant:EnableMouse(true)
+    missingEnchant:SetFrameLevel(sideSummary:GetFrameLevel() + 2)
+    local meIcon = missingEnchant:CreateTexture(nil, "ARTWORK")
+    meIcon:SetAllPoints()
+    meIcon:SetTexture("Interface\\Icons\\inv_misc_enchantedscroll")
+    meIcon:SetVertexColor(1, 0.25, 0.25)
+    missingEnchant.Icon = meIcon
+    sideSummary.MissingEnchant = missingEnchant
+
+    -- Missing Gem alert icon
+    local missingGem = CreateFrame("Button", frameName .. "MissingGem", sideSummary)
+    missingGem:SetSize(14, 14)
+    missingGem:EnableMouse(true)
+    missingGem:SetFrameLevel(sideSummary:GetFrameLevel() + 2)
+    local mgIcon = missingGem:CreateTexture(nil, "ARTWORK")
+    mgIcon:SetAllPoints()
+    mgIcon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
+    missingGem.Icon = mgIcon
+    sideSummary.MissingGem = missingGem
+
+    -- Hover tooltip on the side summary showing the stat and enhancement breakdown
+    local function showBreakdownTooltip(anchorFrame)
+      if not sideSummary.breakdownData then return end
+      GameTooltip:SetOwner(anchorFrame, slot.side == "LEFT" and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
+      GameTooltip:ClearLines()
+
+      local data = sideSummary.breakdownData
+      GameTooltip:AddLine(data.itemName or "Equipment Details", 1, 1, 1)
+
+      if data.watermarkIlevel and data.watermarkIlevel > 0 then
+        local wmColor = getWatermarkColor(data.watermarkIlevel, data.itemQuality)
+        GameTooltip:AddDoubleLine("Slot Watermark:", tostring(data.watermarkIlevel), 1, 0.82, 0, wmColor.r, wmColor.g, wmColor.b)
+      end
+
+      local hasEnchantInStats = false
+
+      if data.statsList and #data.statsList > 0 then
+        for _, stat in ipairs(data.statsList) do
+          GameTooltip:AddLine(" ")
+          local rightText
+          local totalPct = stat.totalPct or stat.pct
+          if totalPct then
+            rightText = string.format("%d (%.1f%%)", stat.total, totalPct)
           else
-            basePctText = string.format("%d", stat.base)
+            rightText = string.format("%d", stat.total)
           end
-          GameTooltip:AddDoubleLine("  Item:", basePctText, 0.75, 0.75, 0.75, 1, 1, 1)
-        end
-        if stat.enchant and stat.enchant > 0 then
-          hasEnchantInStats = true
-          local enchPctText
-          if stat.enchantPct then
-            enchPctText = string.format("%d (%.1f%%)", stat.enchant, stat.enchantPct)
-          else
-            enchPctText = string.format("%d", stat.enchant)
+          GameTooltip:AddDoubleLine(stat.name .. ":", rightText, 1, 1, 1, 0, 1, 0)
+
+          if stat.base and stat.base > 0 then
+            local basePctText
+            if stat.basePct then
+              basePctText = string.format("%d (%.1f%%)", stat.base, stat.basePct)
+            else
+              basePctText = string.format("%d", stat.base)
+            end
+            GameTooltip:AddDoubleLine("  Item:", basePctText, 0.75, 0.75, 0.75, 1, 1, 1)
           end
-          GameTooltip:AddDoubleLine("  Enchant:", enchPctText, 0.75, 0.75, 0.75, 0.2, 1, 0.4)
-        end
-        if stat.gem and stat.gem > 0 then
-          local gemPctText
-          if stat.gemPct then
-            gemPctText = string.format("%d (%.1f%%)", stat.gem, stat.gemPct)
-          else
-            gemPctText = string.format("%d", stat.gem)
+          if stat.enchant and stat.enchant > 0 then
+            hasEnchantInStats = true
+            local enchPctText
+            if stat.enchantPct then
+              enchPctText = string.format("%d (%.1f%%)", stat.enchant, stat.enchantPct)
+            else
+              enchPctText = string.format("%d", stat.enchant)
+            end
+            GameTooltip:AddDoubleLine("  Enchant:", enchPctText, 0.75, 0.75, 0.75, 0.2, 1, 0.4)
           end
-          GameTooltip:AddDoubleLine("  Gem:", gemPctText, 0.75, 0.75, 0.75, 0.4, 0.8, 1)
+          if stat.gem and stat.gem > 0 then
+            local gemPctText
+            if stat.gemPct then
+              gemPctText = string.format("%d (%.1f%%)", stat.gem, stat.gemPct)
+            else
+              gemPctText = string.format("%d", stat.gem)
+            end
+            GameTooltip:AddDoubleLine("  Gem:", gemPctText, 0.75, 0.75, 0.75, 0.4, 0.8, 1)
+          end
         end
       end
+
+      if data.enchantEffect and data.enchantEffect ~= "" and not hasEnchantInStats then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine("Enchant:", data.enchantEffect, 1, 0.82, 0, 0.2, 1, 0.4)
+      end
+
+      if data.isMissingEnchant then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cffff2020Warning: Missing Enchant!|r")
+      end
+
+      if data.missingGemCount and data.missingGemCount > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(string.format("|cffff2020Warning: %d Empty Gem Socket%s!|r", data.missingGemCount, data.missingGemCount > 1 and "s" or ""))
+      end
+
+      GameTooltip:Show()
     end
 
-    if data.enchantEffect and data.enchantEffect ~= "" and not hasEnchantInStats then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddDoubleLine("Enchant:", data.enchantEffect, 1, 0.82, 0, 0.2, 1, 0.4)
-    end
-
-    if data.isMissingEnchant then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine("|cffff2020Warning: Missing Enchant!|r")
-    end
-
-    if data.missingGemCount and data.missingGemCount > 0 then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(string.format("|cffff2020Warning: %d Empty Gem Socket%s!|r", data.missingGemCount, data.missingGemCount > 1 and "s" or ""))
-    end
-
-    GameTooltip:Show()
+    sideSummary:SetScript("OnEnter", showBreakdownTooltip)
+    sideSummary:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    missingEnchant:SetScript("OnEnter", showBreakdownTooltip)
+    missingEnchant:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    missingGem:SetScript("OnEnter", showBreakdownTooltip)
+    missingGem:SetScript("OnLeave", function() GameTooltip:Hide() end)
   end
 
-  sideSummary:SetScript("OnEnter", showBreakdownTooltip)
-  sideSummary:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  missingEnchant:SetScript("OnEnter", showBreakdownTooltip)
-  missingEnchant:SetScript("OnLeave", function() GameTooltip:Hide() end)
-  missingGem:SetScript("OnEnter", showBreakdownTooltip)
-  missingGem:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  slotOverlay:EnableMouse(false)
+  if slotOverlay.SetMouseClickEnabled then slotOverlay:SetMouseClickEnabled(false) end
+  if slotOverlay.SetMouseMotionEnabled then slotOverlay:SetMouseMotionEnabled(false) end
+  if slotOverlay.SetPassThroughButtons then slotOverlay:SetPassThroughButtons("LeftButton", "RightButton", "MiddleButton") end
+  slotOverlay:SetScript("OnEnter", nil)
+  slotOverlay:SetScript("OnLeave", nil)
+  slotOverlay:SetScript("OnMouseDown", nil)
+  slotOverlay:SetScript("OnMouseUp", nil)
 
   -- Hide any legacy overlay elements from earlier builds
   if slotOverlay.Secondary then slotOverlay.Secondary:Hide() end
@@ -1072,6 +1082,11 @@ local function updateSlot(unitId, slotId)
   if not characterSlotFrame then return end
 
   local slotOverlay = getOrCreateSlotOverlay(characterSlotFrame, slot)
+  slotOverlay:EnableMouse(false)
+  if slotOverlay.SetMouseClickEnabled then slotOverlay:SetMouseClickEnabled(false) end
+  if slotOverlay.SetMouseMotionEnabled then slotOverlay:SetMouseMotionEnabled(false) end
+  if slotOverlay.SetPassThroughButtons then slotOverlay:SetPassThroughButtons("LeftButton", "RightButton", "MiddleButton") end
+
   if not isModuleEnabled() then
     slotOverlay:Hide()
     return
@@ -1146,7 +1161,14 @@ local function updateSlot(unitId, slotId)
           if tName and cur and maxR then
             local abbrev = getTrackAbbreviation(tName)
             if abbrev then
-              trackText = string.format("%s/%s %s", cur, maxR, abbrev)
+              local curNum = tonumber(cur)
+              local maxNum = tonumber(maxR)
+              local isMaxRank = (curNum and maxNum and curNum >= maxNum) or (cur == maxR)
+              if settings.maxUpgradeStar and isMaxRank then
+                trackText = string.format("★ %s", abbrev)
+              else
+                trackText = string.format("%s/%s %s", cur, maxR, abbrev)
+              end
               hasTrack = true
             end
           end
@@ -1198,7 +1220,14 @@ local function updateSlot(unitId, slotId)
         if tName and cur and maxR then
           local abbrev = getTrackAbbreviation(tName)
           if abbrev then
-            trackText = string.format("%s/%s %s", cur, maxR, abbrev)
+            local curNum = tonumber(cur)
+            local maxNum = tonumber(maxR)
+            local isMaxRank = (curNum and maxNum and curNum >= maxNum) or (cur == maxR)
+            if settings.maxUpgradeStar and isMaxRank then
+              trackText = string.format("★ %s", abbrev)
+            else
+              trackText = string.format("%s/%s %s", cur, maxR, abbrev)
+            end
             hasTrack = true
           end
         end
@@ -1220,7 +1249,7 @@ local function updateSlot(unitId, slotId)
   end
 
   local showTrack = isRetail() and settings.upgradeTrack and hasTrack and trackText ~= ""
-  local levelY = showTrack and 4 or 0
+  local levelY = showTrack and 6 or 0
   slotOverlay.Level:ClearAllPoints()
   slotOverlay.Level:SetPoint("CENTER", slotOverlay, "CENTER", 0, levelY)
   slotOverlay.Level:SetFont(DEFAULT_FONT, FONT_SIZE_LEVEL, FONT_OUTLINE)
@@ -1766,6 +1795,14 @@ local function updateSlot(unitId, slotId)
   local numLines = #sideSummaryLines
   local hasWatermark = (watermarkIlevel and watermarkIlevel > 0)
   local gap = (hasWatermark and numLines > 0) and 2 or 0
+  local hWatermark = 13
+  local hPerStatLine = 11
+  local totalContentH = (hasWatermark and hWatermark or 0) + gap + (numLines * hPerStatLine)
+  local alertH = (showMissingEnchant or showMissingGem) and 16 or 0
+  local frameH = math.max(20, math.min(37, totalContentH + alertH))
+  local maxTextW = math.max(sideSummary.StatsText:GetStringWidth() or 0, sideSummary.WatermarkText:GetStringWidth() or 0)
+  local frameW = math.max(75, math.min(95, maxTextW + 8))
+  sideSummary:SetSize(frameW, frameH)
 
   sideSummary.WatermarkText:ClearAllPoints()
   sideSummary.StatsText:ClearAllPoints()

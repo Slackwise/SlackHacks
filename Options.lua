@@ -128,6 +128,7 @@ dbDefaults = {
       charSheet = {
         itemLevel = true,
         upgradeTrack = true,
+        maxUpgradeStar = false,
         slotWatermark = true,
         secondaryStats = true,
         tertiaryStats = false,
@@ -1465,6 +1466,21 @@ options = {
                 Self.InfoDisplay:Refresh()
               end,
               order = 2
+            },
+            maxUpgradeStar = {
+              name = "Star for Max Upgrade",
+              desc = "Replace the upgrade track numbers (e.g. '6/6') with a star ('★') when an item is fully upgraded.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              hidden = function() return not isRetail() end,
+              disabled = function() return not db.profile.infoDisplay.enabled or not db.profile.infoDisplay.charSheet.upgradeTrack end,
+              get = function() return db.profile.infoDisplay.charSheet.maxUpgradeStar end,
+              set = function(_, value)
+                db.profile.infoDisplay.charSheet.maxUpgradeStar = value
+                Self.InfoDisplay:Refresh()
+              end,
+              order = 2.1
             },
             slotWatermark = {
               name = "Slot Watermark Item Level",
