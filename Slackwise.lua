@@ -996,6 +996,8 @@ BINDINGS = {
       {"F",       "Hammer of Justice"},
 
       -- Tanking
+      {"Q",       {"HealShield", "inv_misc_questionmark", "#showtooltip\n/equipset HealShield"}},
+      {"SHIFT-Q", {"TwoHander", "inv_misc_questionmark", "#showtooltip\n/equipset TwoHander"}},
 
       -- Blessings
       {"T",       "Blessing of Might"},
