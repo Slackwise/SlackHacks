@@ -978,20 +978,17 @@ BINDINGS = {
       {"BUTTON5", "MOUSE5", BT.MACRO},
 
       -- Core
-      {"Z",     "Divine Protection"},
-      {"ALT-Z", "Perception"},
+      {"SHIFT-V", "Divine Protection"},
+      {"ALT-Z",   "Perception"},
 
       -- Main Attacks and Runes?
       {"4",       "Judgement"},
       {"5",       "Hammer of Wrath"},
       {"C",       "Consecration"},
-      {"SHIFT-C", "Divine Storm"},
 
       -- Heals (Coming from left hand?)
-      {"3",      "Divine Storm"}, -- AoE Heal
-      {"Q",      "Holy Light"}, -- Instant Attack (Holy Shock macro @ Enemy only)
-      {"ALT-Q",  "Purify"}, -- Cleanse later
-      {"CTRL-Z", "Redemption"},
+      {"2",       "Holy Light"},
+      {"ALT-CTRL-Z", "Redemption"},
 
       -- "OHSHIT" Buttons
       {"G",       "Blessing of Protection"},
