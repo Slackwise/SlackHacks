@@ -739,7 +739,7 @@ end
 function module:NotifyTradeUnavailable(name)
   if not name then return end
   SendChatMessage("You're too far away to trade with me. Move closer and I'll try again.", "WHISPER", nil, name)
-  TargetUnit(name)
+  -- TargetUnit is protected (hardware-event only); DoEmote accepts the name directly instead.
   DoEmote("BECKON", name)
 end
 
