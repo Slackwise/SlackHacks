@@ -1049,9 +1049,8 @@ local function getOrCreateSlotOverlay(characterSlotFrame, slot)
   end
 
   slotOverlay:EnableMouse(false)
-  if slotOverlay.SetMouseClickEnabled then slotOverlay:SetMouseClickEnabled(false) end
-  if slotOverlay.SetMouseMotionEnabled then slotOverlay:SetMouseMotionEnabled(false) end
-  if slotOverlay.SetPassThroughButtons then slotOverlay:SetPassThroughButtons("LeftButton", "RightButton", "MiddleButton") end
+  if slotOverlay.SetMouseClickEnabled then pcall(slotOverlay.SetMouseClickEnabled, slotOverlay, false) end
+  if slotOverlay.SetMouseMotionEnabled then pcall(slotOverlay.SetMouseMotionEnabled, slotOverlay, false) end
   slotOverlay:SetScript("OnEnter", nil)
   slotOverlay:SetScript("OnLeave", nil)
   slotOverlay:SetScript("OnMouseDown", nil)
@@ -1085,9 +1084,8 @@ local function updateSlot(unitId, slotId)
 
   local slotOverlay = getOrCreateSlotOverlay(characterSlotFrame, slot)
   slotOverlay:EnableMouse(false)
-  if slotOverlay.SetMouseClickEnabled then slotOverlay:SetMouseClickEnabled(false) end
-  if slotOverlay.SetMouseMotionEnabled then slotOverlay:SetMouseMotionEnabled(false) end
-  if slotOverlay.SetPassThroughButtons then slotOverlay:SetPassThroughButtons("LeftButton", "RightButton", "MiddleButton") end
+  if slotOverlay.SetMouseClickEnabled then pcall(slotOverlay.SetMouseClickEnabled, slotOverlay, false) end
+  if slotOverlay.SetMouseMotionEnabled then pcall(slotOverlay.SetMouseMotionEnabled, slotOverlay, false) end
 
   if not isModuleEnabled() then
     slotOverlay:Hide()
