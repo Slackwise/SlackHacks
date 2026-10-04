@@ -17,6 +17,8 @@ local FONT_SIZE_TRACK = 12
 local FONT_SIZE_STATS = 9
 local FONT_OUTLINE = "OUTLINE"
 
+local STAR_ICON = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:11:11:0:-1|t"
+
 local function getStatsFont()
   if NumberFontNormalSmall then
     local font = NumberFontNormalSmall:GetFont()
@@ -1165,7 +1167,7 @@ local function updateSlot(unitId, slotId)
               local maxNum = tonumber(maxR)
               local isMaxRank = (curNum and maxNum and curNum >= maxNum) or (cur == maxR)
               if settings.maxUpgradeStar and isMaxRank then
-                trackText = string.format("★ %s", abbrev)
+                  trackText = string.format("%s %s", STAR_ICON, abbrev)
               else
                 trackText = string.format("%s/%s %s", cur, maxR, abbrev)
               end
@@ -1224,7 +1226,7 @@ local function updateSlot(unitId, slotId)
             local maxNum = tonumber(maxR)
             local isMaxRank = (curNum and maxNum and curNum >= maxNum) or (cur == maxR)
             if settings.maxUpgradeStar and isMaxRank then
-              trackText = string.format("★ %s", abbrev)
+              trackText = string.format("%s %s", STAR_ICON, abbrev)
             else
               trackText = string.format("%s/%s %s", cur, maxR, abbrev)
             end

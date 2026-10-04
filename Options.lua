@@ -1469,7 +1469,7 @@ options = {
             },
             maxUpgradeStar = {
               name = "Star for Max Upgrade",
-              desc = "Replace the upgrade track numbers (e.g. '6/6') with a star ('★') when an item is fully upgraded.",
+              desc = "Replace the upgrade track numbers (e.g. '6/6') with the chat star icon (|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:12:12|t) when an item is fully upgraded.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
