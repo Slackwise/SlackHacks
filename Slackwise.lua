@@ -974,8 +974,6 @@ BINDINGS = {
       {"F11",     "SHAPESHIFTBUTTON3", BT.COMMAND},
       {"F12",     "SHAPESHIFTBUTTON4", BT.COMMAND},
       {"`",       "!STOP", BT.MACRO},
-      {"BUTTON4", "MOUSE4", BT.MACRO},
-      {"BUTTON5", "MOUSE5", BT.MACRO},
 
       -- Core
       {"SHIFT-V", "Divine Protection"},
@@ -995,8 +993,9 @@ BINDINGS = {
       {"SHIFT-G", "Lay on Hands"},
 
       -- CC
-      {"F",       "Rebuke"},
-      {"SHIFT-F", "Hammer of Justice"},
+      {"F",       "Hammer of Justice"},
+
+      -- Tanking
 
       -- Blessings
       {"T",       "Blessing of Might"},
