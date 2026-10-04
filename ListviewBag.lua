@@ -771,34 +771,35 @@ local function forEachDefaultBagFrame(callback)
   end
 end
 
--- Closes via Blizzard's own CloseAllBags() -- the same call the default UI's close button/ESC use --
--- instead of reaching in and calling :Hide() on each ContainerFrame ourselves. Hiding the container
--- frames directly never told Blizzard's own "which bags are open" bookkeeping that they'd closed, and
--- left sibling elements anchored to them (e.g. the tracked-currency display, which isn't actually a
--- child of the container) stranded at stale positions instead of being hidden/repositioned with them.
-local function hideDefaultBags()
-  if _G.CloseAllBags then
-    CloseAllBags()
-  end
-end
+-- Calling CloseAllBags/OpenAllBags/ToggleAllBags from addon code makes Blizzard reinitialize its pooled
+-- bag item buttons while tainted, which later blames SlackHacks for UseContainerItem in the default bags.
+-- Like Sorted, the default bag frames are instead reparented under a hidden frame; Blizzard still opens
+-- and closes them itself, they just aren't visible while the list view is active.
+local suppressedBagsParent = CreateFrame("Frame", nil, UIParent)
+suppressedBagsParent:SetAllPoints()
+suppressedBagsParent:Hide()
+local originalBagParents = {}
 
-local function areDefaultBagsShown()
-  local shown = false
+local function setDefaultBagsSuppressed(suppressed)
   forEachDefaultBagFrame(function(defaultFrame)
-    shown = shown or defaultFrame:IsShown()
+    if suppressed then
+      if defaultFrame:GetParent() ~= suppressedBagsParent then
+        originalBagParents[defaultFrame] = defaultFrame:GetParent()
+        defaultFrame:SetParent(suppressedBagsParent)
+      end
+    elseif originalBagParents[defaultFrame] then
+      defaultFrame:SetParent(originalBagParents[defaultFrame])
+      originalBagParents[defaultFrame] = nil
+    end
   end)
-  return shown
 end
 
--- Reopens via the same native entry points the default UI uses so Blizzard recomputes each frame's
--- anchor/position itself, instead of us calling :Show() directly on stale frames.
+local function hideDefaultBags()
+  setDefaultBagsSuppressed(true)
+end
+
 local function showDefaultBags()
-  if areDefaultBagsShown() then return end
-  if _G.ToggleAllBags then
-    ToggleAllBags()
-  elseif _G.OpenAllBags then
-    OpenAllBags()
-  end
+  setDefaultBagsSuppressed(false)
 end
 
 local function setListViewActive(active)
@@ -1140,21 +1141,15 @@ function module:OnEnable()
 end
 
 function module:OnDisable()
-  -- Only swap back to the default bags if our window was actually open -- doesn't force bags open,
-  -- and deliberately leaves the player's list-view preference (settings().listViewActive) untouched
-  -- so it's remembered next time the module/feature is re-enabled.
-  local wasShown = frame and frame:IsShown()
   if frame then frame:Hide() end
   self:UpdateListViewBindings()
-  if wasShown then
-    showDefaultBags()
-  end
+  showDefaultBags()
   EventRegistry:UnregisterCallback("TokenFrame.OnTokenWatchChanged", self)
 end
 
 function module:MERCHANT_SHOW()
-  hideDefaultBags()
   if settings().listViewActive then
+    hideDefaultBags()
     frame:Show()
   end
   if settings().autoSellMarkedItems then
