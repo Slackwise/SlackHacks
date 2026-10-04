@@ -1,4 +1,4 @@
-## Interface: 120100
+## Interface: 16001, 120100
 ## Title: SlackHacks
 ## Notes: A compilation of small feature hacks and minimalistic tweaks to the default UI.
 ## IconTexture: Interface\Icons\inv_12_profession_blacksmithing_blacksmithstoolkit_green
