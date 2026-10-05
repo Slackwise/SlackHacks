@@ -402,6 +402,14 @@ function unbindUnwantedDefaults()
   SetBinding("SHIFT-T")
 end
 
+--- Set Self Cast to "Auto" (auto self cast on, no self cast key), matching the Combat settings dropdown.
+--- The default ALT self cast key otherwise hijacks ALT-clicks, e.g. our ALT-BUTTON1 click-cast "TARGET" binding.
+--- The self cast key is a "modified click" saved alongside keybindings, so this must run after `LoadBindings()`.
+function setSelfCastAuto()
+  SetCVar("autoSelfCast", "1")
+  SetModifiedClick("SELFCAST", "NONE")
+end
+
 function bindBestUseItems()
   if InCombatLockdown() then
     runAfterCombat(bindBestUseItems)
@@ -478,6 +486,7 @@ function setBindings()
 
   LoadBindings(BINDING_CATEGORY.DEFAULT_BINDINGS)
   unbindUnwantedDefaults()
+  setSelfCastAuto()
 
   namedMacros = {}
   pendingClickCastBindings = {}
