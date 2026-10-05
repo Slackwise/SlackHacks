@@ -30,7 +30,8 @@ BINDING_TYPE = {
   SPELL   = "SPELL",
   MACRO   = "MACRO",
   ITEM    = "ITEM",
-  CLICK   = "CLICK"
+  CLICK   = "CLICK",
+  CLICKCAST = "CLICKCAST"
 }
 
 BT = BINDING_TYPE
@@ -130,26 +131,262 @@ function defineMacro(name, icon, body, perCharacter)
   return index
 end
 
---- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL".
+--- Names of macros defined via `MACROS` tables during the current `setBindings()` run, so bindings can refer
+--- to them by name (and implicitly default to a macro binding instead of a spell binding).
+local namedMacros = {}
+
+--- Click-cast bindings collected during the current `setBindings()` run, applied all at once at the end
+--- since the click-cast profile can only be set as a whole.
+local pendingClickCastBindings = {}
+
+--- Define every macro in a binding table's `MACROS` list, e.g. `BINDINGS.GLOBAL.MACROS` (general/account-wide)
+--- or `BINDINGS.FOREVER.PALADIN.MACROS` (per-character), so bindings in that or any later table can bind them by
+--- name, e.g. `{"E", "!ENGAGE"}` or `{"E", "!ENGAGE", BT.MACRO}`.
+--- Each entry is a macro definition table: `{macroName, icon, body}`.
+---@param bindingTable table - A bindings table that may contain a `MACROS` list.
+---@param perCharacter boolean - Whether the macros should be per-character rather than general/account-wide.
+function defineMacros(bindingTable, perCharacter)
+  if not (bindingTable and bindingTable.MACROS) then return end
+  for _, macro in ipairs(bindingTable.MACROS) do
+    local name, icon, body = unpack(macro)
+    defineMacro(name, icon, body, perCharacter)
+    namedMacros[name] = true
+  end
+end
+
+local CLICK_CAST_BUTTONS = {
+  BUTTON1      = "LeftButton",
+  LEFTBUTTON   = "LeftButton",
+  BUTTON2      = "RightButton",
+  RIGHTBUTTON  = "RightButton",
+  BUTTON3      = "MiddleButton",
+  MIDDLEBUTTON = "MiddleButton",
+}
+
+local CLICK_CAST_MODIFIER_NAMES = {
+  SHIFT = function() return { "SHIFT", SHIFT_KEY_TEXT } end,
+  CTRL  = function() return { "CTRL", CTRL_KEY_TEXT } end,
+  ALT   = function() return { "ALT", ALT_KEY_TEXT } end,
+  META  = function() return { "META", "CMD", META_KEY_TEXT } end,
+}
+
+local clickCastModifierBits
+
+--- The modifier bitmask layout used by click-casting isn't documented, so discover it by asking the client to
+--- describe each single bit and matching the description against the (possibly localized) modifier key names.
+--- Each modifier has separate left/right bits (e.g. ALT = 16 + 32), and the client sets *both* whenever either
+--- side is held, so a modifier's value is the sum of every bit that describes it.
+---@return table - Map of modifier name ("SHIFT", "CTRL", "ALT", "META") to its combined bit value.
+local function getClickCastModifierBits()
+  if clickCastModifierBits then return clickCastModifierBits end
+  local modifiersToString = GetStringFromModifiers or (C_ClickBindings and C_ClickBindings.GetStringFromModifiers)
+  local bits = {}
+  if modifiersToString then
+    for i = 0, 15 do
+      local flag = 2 ^ i
+      local description = string.upper(modifiersToString(flag) or "")
+      if description ~= "" then
+        for modifier, getNames in pairs(CLICK_CAST_MODIFIER_NAMES) do
+          for _, modifierName in ipairs(getNames()) do
+            if modifierName and modifierName ~= "" and description:find(string.upper(modifierName), 1, true) then
+              bits[modifier] = (bits[modifier] or 0) + flag
+              break
+            end
+          end
+        end
+      end
+    end
+  end
+  clickCastModifierBits = bits
+  return bits
+end
+
+--- Parse a binding key such as "CTRL-BUTTON4" into a click-cast mouse button name and modifier bitmask.
+---@param key string - A binding key whose last part is a mouse button, e.g. "BUTTON4", "SHIFT-BUTTON1".
+---@return string|nil - The click-cast button name, e.g. "Button4", or `nil` if the key isn't a mouse button.
+---@return number|nil - The modifier bitmask, or `nil` if a modifier couldn't be mapped.
+function parseClickCastKey(key)
+  local parts = { strsplit("-", string.upper(key)) }
+  local buttonPart = table.remove(parts)
+  local button = CLICK_CAST_BUTTONS[buttonPart]
+  if not button then
+    local buttonNumber = buttonPart:match("^BUTTON(%d+)$")
+    if not buttonNumber then return nil end
+    button = "Button" .. buttonNumber
+  end
+
+  local bits = getClickCastModifierBits()
+  local modifiers, seen = 0, {}
+  for _, modifier in ipairs(parts) do
+    local flag = bits[modifier]
+    if not flag then return button, nil end
+    if not seen[modifier] then
+      seen[modifier] = true
+      modifiers = modifiers + flag
+    end
+  end
+  return button, modifiers
+end
+
+--- Get the spellID of a known spell by name, as the base spell ID that click-casting expects.
+local function getClickCastSpellID(name)
+  local spellID
+  if C_Spell and C_Spell.GetSpellInfo then
+    local info = C_Spell.GetSpellInfo(name)
+    spellID = info and info.spellID
+  elseif GetSpellInfo then
+    spellID = select(7, GetSpellInfo(name))
+  end
+  if spellID and FindBaseSpellByID then
+    spellID = FindBaseSpellByID(spellID) or spellID
+  end
+  return spellID
+end
+
+local function getClickBindingType(typeName, fallback)
+  return (Enum and Enum.ClickBindingType and Enum.ClickBindingType[typeName]) or fallback
+end
+
+--- Built-in click-cast interactions, bindable by these names instead of a spell/macro name:
+--- "TARGET" targets the clicked unit (default left-click), and "CONTEXTMENU" opens its unit menu (default right-click).
+CLICK_CAST_INTERACTIONS = {
+  TARGET      = { enumName = "Target",          fallback = 1 },
+  CONTEXTMENU = { enumName = "OpenContextMenu", fallback = 2 },
+}
+
+--- Resolve a click-cast binding's action to a `ClickBindingInfo` type and actionID.
+--- Interaction names (see `CLICK_CAST_INTERACTIONS`) come first, then macros defined by name (in a `MACROS`
+--- table), then known spells, then any existing in-game macro with that name.
+---@return number|nil, number|nil - The `Enum.ClickBindingType` and actionID, or `nil` if unresolvable.
+local function resolveClickCastAction(name)
+  local interaction = CLICK_CAST_INTERACTIONS[name]
+  if interaction then
+    local interactionID = (Enum and Enum.ClickBindingInteraction and Enum.ClickBindingInteraction[interaction.enumName])
+      or interaction.fallback
+    return getClickBindingType("Interaction", 3), interactionID
+  end
+  if not namedMacros[name] then
+    local spellID = getClickCastSpellID(name)
+    if spellID then
+      return getClickBindingType("Spell", 1), spellID
+    end
+  end
+  local macroIndex = GetMacroIndexByName(name)
+  if macroIndex and macroIndex ~= 0 then
+    return getClickBindingType("Macro", 2), macroIndex
+  end
+  return nil
+end
+
+--- Queue a click-cast (mouse click on unit frames) binding to be applied by `applyClickCastBindings()`.
+--- `name` is either a spell name or a macro name, as resolved by `resolveClickCastAction()`.
+function setClickCastBinding(key, name)
+  local button, modifiers = parseClickCastKey(key)
+  if not button then
+    print("SlackHacks Binding: Click-cast key must be a mouse button (e.g. \"CTRL-BUTTON4\"): " .. key)
+    return
+  end
+  if not modifiers then
+    print("SlackHacks Binding: Unable to map click-cast modifiers for: " .. key)
+    return
+  end
+  local actionType, actionID = resolveClickCastAction(name)
+  if not actionType then
+    print("SlackHacks Binding: Unknown spell or macro for click-cast binding " .. key .. ": " .. name)
+    return
+  end
+  table.insert(pendingClickCastBindings, {
+    type = actionType,
+    actionID = actionID,
+    button = button,
+    modifiers = modifiers,
+  })
+end
+
+--- Apply all queued click-cast bindings. Like regular keybindings, the click-cast profile is first reset to the
+--- game defaults (e.g. left-click to target) and then our bindings are layered on top, replacing any default
+--- that uses the same button and modifiers. Mouseover/hover casting is intentionally left untouched.
+--- The game only allows one binding per interaction (Target/Menu), so binding an interaction *moves* it, e.g.
+--- binding "TARGET" to "ALT-BUTTON1" means a plain left-click on a unit frame no longer targets.
+--- If no click-cast bindings were queued, the existing click-cast profile is left as-is.
+function applyClickCastBindings()
+  local clickCastBindings = pendingClickCastBindings
+  pendingClickCastBindings = {}
+  if #clickCastBindings == 0 then return end
+
+  if not (C_ClickBindings and C_ClickBindings.SetProfileByInfo and C_ClickBindings.GetProfileInfo) then
+    print("SlackHacks Binding: Click casting is not available on this client; skipping click-cast bindings.")
+    return
+  end
+
+  if C_ClickBindings.ResetCurrentProfile then
+    C_ClickBindings.ResetCurrentProfile()
+  end
+
+  local interactionType = getClickBindingType("Interaction", 3)
+  local function conflicts(a, b)
+    if a.button == b.button and a.modifiers == b.modifiers then
+      return true
+    end
+    return a.type == interactionType and b.type == interactionType and a.actionID == b.actionID
+  end
+
+  -- Later bindings win over earlier ones (e.g. class bindings over GLOBAL), and over the game defaults.
+  local profile = {}
+  local function addBinding(info)
+    for i = #profile, 1, -1 do
+      if conflicts(profile[i], info) then
+        table.remove(profile, i)
+      end
+    end
+    table.insert(profile, info)
+  end
+
+  for _, info in ipairs(C_ClickBindings.GetProfileInfo() or {}) do
+    addBinding(info)
+  end
+  for _, clickCastBinding in ipairs(clickCastBindings) do
+    addBinding(clickCastBinding)
+  end
+
+  C_ClickBindings.SetProfileByInfo(profile)
+end
+
+--- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL",
+--- or to "MACRO" if `name` is a macro defined in a `MACROS` table.
 --- If `name` is a table `{macroName, icon, body}` instead of a string, the binding is treated as a macro
 --- (no `bindingType` needed): the macro is created/updated to match the definition, then bound to `key`.
+--- A "CLICKCAST" binding binds a mouse button `key` (e.g. "CTRL-BUTTON4") via the game's Click Casting feature
+--- (clicking on unit frames) to a spell or macro, where `name` may also be a macro definition table.
 ---@param perCharacter boolean - Whether a newly-defined macro should be per-character rather than general.
 function setBinding(binding, perCharacter)
   local key, name, bindingType = unpack(binding)
   if type(name) == "table" then
     local macroName, icon, body = unpack(name)
     defineMacro(macroName, icon, body, perCharacter)
-    SetBindingMacro(key, macroName)
+    namedMacros[macroName] = true
+    if bindingType == BT.CLICKCAST then
+      setClickCastBinding(key, macroName)
+    else
+      SetBindingMacro(key, macroName)
+    end
     return
   end
-  BINDINGS_FUNCTIONS[bindingType or "SPELL"](key, name)
+  if bindingType == BT.CLICKCAST then
+    setClickCastBinding(key, name)
+    return
+  end
+  BINDINGS_FUNCTIONS[bindingType or (namedMacros[name] and BT.MACRO) or BT.SPELL](key, name)
 end
 
 --- Whether a binding should be skipped because it's a spell binding for a spell the player doesn't know.
 function shouldSkipBinding(binding)
   local key, name, bindingType = unpack(binding)
-  if type(name) == "table" then
+  if type(name) == "table" or namedMacros[name] then
     return false
+  end
+  if bindingType == BT.CLICKCAST then
+    return not CLICK_CAST_INTERACTIONS[name] and not getClickCastSpellID(name) and GetMacroIndexByName(name) == 0
   end
   return (bindingType or "SPELL") == "SPELL" and not C_Spell.DoesSpellExist(name)
 end
@@ -242,7 +479,11 @@ function setBindings()
   LoadBindings(BINDING_CATEGORY.DEFAULT_BINDINGS)
   unbindUnwantedDefaults()
 
+  namedMacros = {}
+  pendingClickCastBindings = {}
+
   -- Global bindings: macros defined here go in the general/account-wide macro list.
+  defineMacros(BINDINGS.GLOBAL, false)
   for _, binding in ipairs(BINDINGS.GLOBAL) do
     setBinding(binding, false)
   end
@@ -250,7 +491,7 @@ function setBindings()
   -- Class specific bindings:
   local game = getGameType()
   local class = getClassName()
-  local bindings = BINDINGS[game][class]
+  local bindings = (BINDINGS[game] and BINDINGS[game][class]) or {}
 
   if isRetail() then
     local spec = getSpecName()
@@ -258,7 +499,10 @@ function setBindings()
       print("SlackHacks Binding: No spec currently to bind!")
     end
 
+    defineMacros(bindings, true)
+
     if bindings.CLASS ~= nil then
+      defineMacros(bindings.CLASS, true)
       if bindings.CLASS.PRE_SCRIPT then
         bindings.CLASS.PRE_SCRIPT()	
       end
@@ -272,26 +516,28 @@ function setBindings()
       end
     end
 
-    if spec and spec ~= "" then
-      if bindings[spec].PRE_SCRIPT then
-        bindings[spec].PRE_SCRIPT()	
+    local specBindings = spec and spec ~= "" and bindings[spec]
+    if specBindings then
+      if specBindings.PRE_SCRIPT then
+        specBindings.PRE_SCRIPT()	
       end
-      local specBindings = bindings[spec]
-      if specBindings ~= nil then
-        for _, binding in ipairs(specBindings) do
-          if not shouldSkipBinding(binding) then
-            setBinding(binding, true)
-          end
+      defineMacros(specBindings, true)
+      for _, binding in ipairs(specBindings) do
+        if not shouldSkipBinding(binding) then
+          setBinding(binding, true)
         end
       end
-      if bindings[spec].POST_SCRIPT then
-        bindings[spec].POST_SCRIPT()	
+      if specBindings.POST_SCRIPT then
+        specBindings.POST_SCRIPT()	
       end
     end
 
+    applyClickCastBindings()
     SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
     print((spec or "CLASS-ONLY") .. " " .. class .. " binding presets loaded!")
   elseif isForever() then
+    defineMacros(bindings, true)
+
     if bindings.PRE_SCRIPT then
       bindings.PRE_SCRIPT()	
     end
@@ -306,9 +552,12 @@ function setBindings()
       bindings.POST_SCRIPT()	
     end
 
+    applyClickCastBindings()
     SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
     print(class .. " binding presets loaded!")
   elseif isClassic() then
+    defineMacros(bindings, true)
+
     if bindings.PRE_SCRIPT then
       bindings.PRE_SCRIPT()	
     end
@@ -323,9 +572,11 @@ function setBindings()
       bindings.POST_SCRIPT()	
     end
 
+    applyClickCastBindings()
     SaveBindings(BINDING_CATEGORY.CHARACTER_BINDINGS)
     print(class .. " binding presets loaded!")
   else -- There are other game types like TBC and WOTLK classic, and who knows what else in the future...
+    applyClickCastBindings()
     print("Unknown game type! Cannot rebind.")
   end
 end

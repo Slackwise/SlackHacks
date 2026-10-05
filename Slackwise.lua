@@ -348,7 +348,9 @@ BINDINGS = {
     {"BUTTON3",              "TOGGLEAUTORUN", BT.COMMAND},
     {"ALT-BUTTON3",          "TOGGLEPINGLISTENER", BT.COMMAND},
     {"SHIFT-MOUSEWHEELUP",   "NONE", BT.COMMAND},
-    {"SHIFT-MOUSEWHEELDOWN", "NONE", BT.COMMAND}
+    {"SHIFT-MOUSEWHEELDOWN", "NONE", BT.COMMAND},
+    {"ALT-BUTTON1",          "TARGET", BT.CLICKCAST},      -- Alt-Left-Click: Target unit (replaces plain left-click)
+    {"ALT-BUTTON2",          "CONTEXTMENU", BT.CLICKCAST}, -- Alt-Right-Click: Open unit menu (replaces plain right-click)
   },
   RETAIL = {
     HUNTER = {
@@ -961,14 +963,19 @@ BINDINGS = {
       {"CTRL-SPACE",    "Walk on Air"},
     },
     PALADIN = {
+      MACROS = {
+      { 
+        "!ENGAGE",
+        "classicon_paladin",
+        multilineTrim([[
+          #showtooltip Holy Strike
+          /startattack
+          /cast Holy Strike
+        ]])
+      },
+      },
       -- General
-      {"E", { "!ENGAGE",
-              "classicon_paladin",
-              multilineTrim([[
-              #showtooltip Holy Strike
-              /startattack
-              /cast Holy Strike
-            ]])} },
+      {"E",       "!ENGAGE", BT.MACRO },
       {"F9",      "SHAPESHIFTBUTTON1", BT.COMMAND},
       {"F10",     "SHAPESHIFTBUTTON2", BT.COMMAND},
       {"F11",     "SHAPESHIFTBUTTON3", BT.COMMAND},
@@ -990,6 +997,7 @@ BINDINGS = {
 
       -- "OHSHIT" Buttons
       {"G",       "Blessing of Protection"},
+      {"CTRL-BUTTON4", "Blessing of Protection", "CLICKCAST"},
       {"SHIFT-G", "Lay on Hands"},
 
       -- CC
@@ -1001,6 +1009,7 @@ BINDINGS = {
 
       -- Blessings
       {"T",       "Blessing of Might"},
+      {"BUTTON5", "Purify", BT.CLICKCAST},
       {"SHIFT-T", "Blessing of Wisdom"},
 
       -- Seals & Judgement
