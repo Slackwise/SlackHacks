@@ -443,6 +443,22 @@ BINDINGS = {
 
         ---------------------------------------------------
 
+        -- Click-Casting
+        -- Click-Casting
+        {"BUTTON1",                 "Flash of Light",         BT.CLICKCAST},
+        {"SHIFT-BUTTON1",           "Flash of Light",         BT.CLICKCAST},
+        {"ALT-CTRL-BUTTON1",        "Intercession",           BT.CLICKCAST},
+        {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption",             BT.CLICKCAST},
+        {"BUTTON2",                 "Word of Glory",          BT.CLICKCAST},
+        {"SHIFT-BUTTON2",           "Word of Glory",          BT.CLICKCAST},
+        {"ALT-CTRL-BUTTON2",        "Lay on Hands",           BT.CLICKCAST},
+        {"BUTTON3",                 "Word of Glory",          BT.CLICKCAST},
+        {"BUTTON4",                 "Blessing of Sacrifice",  BT.CLICKCAST},
+        {"SHIFT-BUTTON4",           "Blessing of Freedom",    BT.CLICKCAST},
+        {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
+        {"BUTTON5",                 "Cleanse Toxins",         BT.CLICKCAST},
+
+
         -- General
         {"F8",               "SUMMONPET", BT.MACRO},
         {"F9",               "SHAPESHIFTBUTTON1", BT.COMMAND},
@@ -509,6 +525,13 @@ BINDINGS = {
         {"CTRL-V",       "LAY_SELF", BT.MACRO},
       },
       HOLY = {
+        -- Click-Casting
+        {"BUTTON1",           "Flash of Light",         BT.CLICKCAST},
+        {"SHIFT-BUTTON1",     "Holy Light",             BT.CLICKCAST},
+        {"BUTTON2",           "Holy Shock",             BT.CLICKCAST},
+        {"SHIFT-BUTTON2",     "Beacon of Virtue",       BT.CLICKCAST},
+        {"CTRL-BUTTON2",      "Divine Toll",            BT.CLICKCAST},
+
         -- Quick Heals
         {"`",       "Barrier of Faith"},
         {"SHIFT-1", "Cleanse"},
@@ -553,6 +576,7 @@ BINDINGS = {
       },
       PROTECTION = {
         {"E", "Blessed Hammer"},
+
         -- Quick Heals
         {"SHIFT-1", "Cleanse Toxins"},
 
