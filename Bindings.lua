@@ -26,12 +26,13 @@ BINDING_CATEGORY = {
 }
 
 BINDING_TYPE = {
-  COMMAND = "COMMAND",
-  SPELL   = "SPELL",
-  MACRO   = "MACRO",
-  ITEM    = "ITEM",
-  CLICK   = "CLICK",
-  CLICKCAST = "CLICKCAST"
+  COMMAND        = "COMMAND",
+  SPELL          = "SPELL",
+  MACRO          = "MACRO",
+  ITEM           = "ITEM",
+  CLICK          = "CLICK",
+  CLICKCAST      = "CLICKCAST",
+  CLICKCASTMACRO = "CLICKCASTMACRO"
 }
 
 BT = BINDING_TYPE
@@ -255,32 +256,34 @@ CLICK_CAST_INTERACTIONS = {
 }
 
 --- Resolve a click-cast binding's action to a `ClickBindingInfo` type and actionID.
---- Interaction names (see `CLICK_CAST_INTERACTIONS`) come first, then macros defined by name (in a `MACROS`
---- table), then known spells, then any existing in-game macro with that name.
+--- For a macro (`isMacro`), `name` is an in-game macro name. Otherwise `name` is an interaction name (see
+--- `CLICK_CAST_INTERACTIONS`) or a known spell name.
+---@param isMacro boolean - Whether `name` refers to a macro rather than a spell/interaction.
 ---@return number|nil, number|nil - The `Enum.ClickBindingType` and actionID, or `nil` if unresolvable.
-local function resolveClickCastAction(name)
+local function resolveClickCastAction(name, isMacro)
+  if isMacro then
+    local macroIndex = GetMacroIndexByName(name)
+    if macroIndex and macroIndex ~= 0 then
+      return getClickBindingType("Macro", 2), macroIndex
+    end
+    return nil
+  end
   local interaction = CLICK_CAST_INTERACTIONS[name]
   if interaction then
     local interactionID = (Enum and Enum.ClickBindingInteraction and Enum.ClickBindingInteraction[interaction.enumName])
       or interaction.fallback
     return getClickBindingType("Interaction", 3), interactionID
   end
-  if not namedMacros[name] then
-    local spellID = getClickCastSpellID(name)
-    if spellID then
-      return getClickBindingType("Spell", 1), spellID
-    end
-  end
-  local macroIndex = GetMacroIndexByName(name)
-  if macroIndex and macroIndex ~= 0 then
-    return getClickBindingType("Macro", 2), macroIndex
+  local spellID = getClickCastSpellID(name)
+  if spellID then
+    return getClickBindingType("Spell", 1), spellID
   end
   return nil
 end
 
 --- Queue a click-cast (mouse click on unit frames) binding to be applied by `applyClickCastBindings()`.
---- `name` is either a spell name or a macro name, as resolved by `resolveClickCastAction()`.
-function setClickCastBinding(key, name)
+--- `name` is a macro name if `isMacro`, otherwise a spell or interaction name; see `resolveClickCastAction()`.
+function setClickCastBinding(key, name, isMacro)
   local button, modifiers = parseClickCastKey(key)
   if not button then
     print("SlackHacks Binding: Click-cast key must be a mouse button (e.g. \"CTRL-BUTTON4\"): " .. key)
@@ -290,9 +293,9 @@ function setClickCastBinding(key, name)
     print("SlackHacks Binding: Unable to map click-cast modifiers for: " .. key)
     return
   end
-  local actionType, actionID = resolveClickCastAction(name)
+  local actionType, actionID = resolveClickCastAction(name, isMacro)
   if not actionType then
-    print("SlackHacks Binding: Unknown spell or macro for click-cast binding " .. key .. ": " .. name)
+    print("SlackHacks Binding: Unknown " .. (isMacro and "macro" or "spell") .. " for click-cast binding " .. key .. ": " .. name)
     return
   end
   table.insert(pendingClickCastBindings, {
@@ -356,37 +359,45 @@ end
 --- or to "MACRO" if `name` is a macro defined in a `MACROS` table.
 --- If `name` is a table `{macroName, icon, body}` instead of a string, the binding is treated as a macro
 --- (no `bindingType` needed): the macro is created/updated to match the definition, then bound to `key`.
---- A "CLICKCAST" binding binds a mouse button `key` (e.g. "CTRL-BUTTON4") via the game's Click Casting feature
---- (clicking on unit frames) to a spell or macro, where `name` may also be a macro definition table.
+--- Click-cast bindings bind a mouse button `key` (e.g. "CTRL-BUTTON4") via the game's Click Casting feature
+--- (clicking on unit frames):
+---   "CLICKCAST"      - `name` is a spell name, or an interaction name ("TARGET"/"CONTEXTMENU").
+---   "CLICKCASTMACRO" - `name` is a macro name (e.g. from a `MACROS` table) or a macro definition table.
+--- A macro definition table with "CLICKCAST" is also treated as a macro, since it's unambiguous.
 ---@param perCharacter boolean - Whether a newly-defined macro should be per-character rather than general.
 function setBinding(binding, perCharacter)
   local key, name, bindingType = unpack(binding)
+  local isClickCast = bindingType == BT.CLICKCAST or bindingType == BT.CLICKCASTMACRO
   if type(name) == "table" then
     local macroName, icon, body = unpack(name)
     defineMacro(macroName, icon, body, perCharacter)
     namedMacros[macroName] = true
-    if bindingType == BT.CLICKCAST then
-      setClickCastBinding(key, macroName)
+    if isClickCast then
+      setClickCastBinding(key, macroName, true)
     else
       SetBindingMacro(key, macroName)
     end
     return
   end
-  if bindingType == BT.CLICKCAST then
-    setClickCastBinding(key, name)
+  if isClickCast then
+    setClickCastBinding(key, name, bindingType == BT.CLICKCASTMACRO)
     return
   end
   BINDINGS_FUNCTIONS[bindingType or (namedMacros[name] and BT.MACRO) or BT.SPELL](key, name)
 end
 
 --- Whether a binding should be skipped because it's a spell binding for a spell the player doesn't know.
+--- Macro bindings (including "CLICKCASTMACRO") are never skipped, so a missing macro is reported instead.
 function shouldSkipBinding(binding)
   local key, name, bindingType = unpack(binding)
-  if type(name) == "table" or namedMacros[name] then
+  if type(name) == "table" or bindingType == BT.CLICKCASTMACRO then
     return false
   end
   if bindingType == BT.CLICKCAST then
-    return not CLICK_CAST_INTERACTIONS[name] and not getClickCastSpellID(name) and GetMacroIndexByName(name) == 0
+    return not CLICK_CAST_INTERACTIONS[name] and not getClickCastSpellID(name)
+  end
+  if namedMacros[name] then
+    return false
   end
   return (bindingType or "SPELL") == "SPELL" and not C_Spell.DoesSpellExist(name)
 end
