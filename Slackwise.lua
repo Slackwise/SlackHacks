@@ -998,6 +998,16 @@ BINDINGS = {
         ]])
       },
       },
+      
+      --Click-Casting
+      {"BUTTON1",         "Holy Light", BT.CLICKCAST},
+      {"SHIFT=BUTTON1",   "Holy Light", BT.CLICKCAST},
+      {"BUTTON2",         "Holy Light", BT.CLICKCAST},
+      {"BUTTON4",         "Blessing of Sacrifice",  BT.CLICKCAST},
+      {"SHIFT-BUTTON4",   "Blessing of Freedom",    BT.CLICKCAST},
+      {"CTRL-BUTTON4",    "Blessing of Protection", BT.CLICKCAST},
+      {"BUTTON5",         "Purify",     BT.CLICKCAST},
+
       -- General
       {"E",       "!ENGAGE", BT.MACRO },
       {"F9",      "SHAPESHIFTBUTTON1", BT.COMMAND},
@@ -1033,7 +1043,6 @@ BINDINGS = {
 
       -- Blessings
       {"T",       "Blessing of Might"},
-      {"BUTTON5", "Purify", BT.CLICKCAST},
       {"SHIFT-T", "Blessing of Wisdom"},
 
       -- Seals & Judgement
