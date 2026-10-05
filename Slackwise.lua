@@ -1048,6 +1048,7 @@ BINDINGS = {
       -- Seals & Judgement
       {"R",       "Seal of Righteousness"},
       {"SHIFT-R", "Seal of the Crusader"},
+      {"CTRL-R",  "Seal of Fury"},
 
       -- Items
       {"ALT-Z", "Insignia of the Alliance", "ITEM"}, -- PvP Trinket
