@@ -1002,6 +1002,7 @@ BINDINGS = {
       --Click-Casting
       {"BUTTON1",         "Holy Light", BT.CLICKCAST},
       {"SHIFT-BUTTON1",   "Holy Light", BT.CLICKCAST},
+      {"ALT-CTRL-BUTTON1","Redemption", BT.CLICKCAST},
       {"BUTTON2",         "Holy Light", BT.CLICKCAST},
       {"BUTTON4",         "Blessing of Sacrifice",  BT.CLICKCAST},
       {"SHIFT-BUTTON4",   "Blessing of Freedom",    BT.CLICKCAST},
