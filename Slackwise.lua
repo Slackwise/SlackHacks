@@ -979,6 +979,23 @@ BINDINGS = {
       {"ALT-CTRL-Z",    "Shadowmeld"},
     },
     MAGE = {
+      MACROS = {
+        {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"},
+        {"FOOD", "134400",
+          multilineTrim([[
+            #showtooltip [mod] Conjure Food; Conjured Muffin
+            /use  [mod] !Conjure Food
+            /use Conjured Muffin
+          ]])
+        },
+        {"WATER", "134400",
+          multilineTrim([[
+            #showtooltip [mod] Conjure Water; Conjured Water
+            /use  [mod] !Conjure Water
+            /use Conjured Water
+          ]])
+        },
+      },
       {"E",             {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"}},
       {"2",             "Fireball"},
       {"4",             "Fire Blast"},
