@@ -709,6 +709,7 @@ function module:OnDisable()
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
+  self.tradeClosing = nil
   self.tradeQueue = {}
   self:UnregisterAllEvents()
 end
@@ -874,6 +875,13 @@ function module:TRADE_SHOW()
 end
 
 function module:UI_INFO_MESSAGE(_, _, message)
+  if message and message == ERR_TRADE_COMPLETE then
+    if self.activeTradeName then
+      self.tradeSucceeded = true
+      log("Trade completion confirmed for " .. self.activeTradeName)
+    end
+    return
+  end
   if not self.pendingName or not message then return end
   local lowerMessage = message:lower()
   if not lowerMessage:find("too far", 1, true) and not lowerMessage:find("out of range", 1, true) then return end
@@ -891,16 +899,9 @@ function module:UI_INFO_MESSAGE(_, _, message)
 end
 
 function module:TRADE_ACCEPT_UPDATE(_, playerAccepted, targetAccepted)
-  -- playerAccepted/targetAccepted are 0/1 numbers, not booleans: 0 is truthy in Lua, so a raw
-  -- `playerAccepted and targetAccepted` treats an all-zero (nobody has accepted yet) update as
-  -- "both accepted" and marks the trade succeeded before anything actually happened.
   local playerReady = playerAccepted == 1
   local targetReady = targetAccepted == 1
   self.tradeAccepted = (playerReady and targetReady) or nil
-  -- TRADE_SUCCEEDED is not a real client event; both parties accepting means the trade completed
-  if self.tradeAccepted then
-    self.tradeSucceeded = true
-  end
 end
 
 function module:TRADE_REQUEST_CANCEL()
@@ -937,25 +938,33 @@ function module:StartNextQueuedTrade()
   end
 end
 
+local function finishClosedTrade()
+  module:FinishClosedTrade()
+end
+
 function module:TRADE_CLOSED()
-  -- Blizzard fires TRADE_CLOSED twice when a trade is canceled from an open window. The first
-  -- call below clears activeTradeName, so the ghost duplicate has nothing left to close; ignore
-  -- it instead of re-running cleanup against whichever trade we've already moved on to.
-  if not self.activeTradeName then return end
+  if not self.activeTradeName or self.tradeClosing then return end
+  self.tradeClosing = true
+  -- The completion message can follow TRADE_CLOSED; keep this trade until its events settle.
+  C_Timer.After(0.2, finishClosedTrade)
+end
+
+function module:FinishClosedTrade()
+  if not self.tradeClosing or not self.activeTradeName then return end
   local servicedName = self.activeTradeName
   local servicedLabel = requestLabel(self.activeTradeMode, self.activeTradeEmote)
-  local successful = self.tradeSucceeded and not self.tradeCanceled
+  local successful = self.tradeSucceeded
   self.activeTradeName = nil
   self.activeTradeMode = nil
   self.activeTradeEmote = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
+  self.tradeClosing = nil
   if successful then
     print("SlackHacks: finished servicing " .. servicedName .. " (" .. servicedLabel .. ").")
     log("Finished servicing " .. servicedName .. " (" .. servicedLabel .. ")")
   else
-    self:NotifyTradeUnavailable(servicedName)
     print("SlackHacks: trade with " .. servicedName .. " (" .. servicedLabel .. ") did not complete.")
     log("Trade with " .. servicedName .. " did not complete; moving to next queued player")
   end
