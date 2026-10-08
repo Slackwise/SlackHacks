@@ -79,11 +79,16 @@ end
 --- cursor-tracking accordingly. Called on Refresh() (settings changed) and on the combat-transition
 --- events (see PLAYER_REGEN_DISABLED/ENABLED below) -- never polled on a timer, since those events are
 --- the only times visibility could possibly need to change.
-local function updateVisibility()
+---@param inCombat boolean|nil - Explicit event state; otherwise query the current combat lockdown.
+local function updateVisibility(inCombat)
   if not frame then return end
 
+  if inCombat == nil then
+    inCombat = InCombatLockdown()
+  end
+
   local settings = db.profile.mouseRing
-  local shouldShow = settings.enabled and (settings.showOutOfCombat or InCombatLockdown())
+  local shouldShow = settings.enabled and (settings.showOutOfCombat or inCombat)
 
   if shouldShow then
     followCursor() -- Snap to the current position immediately instead of waiting for the next OnUpdate,
@@ -149,14 +154,13 @@ end
 
 --- Event handler for PLAYER_REGEN_DISABLED (fires the instant the player enters combat). Re-evaluates
 --- visibility, since combat state is one of the two things (alongside the "Show Out of Combat" setting)
---- that determines whether the ring should be shown.
+--- that determines whether the ring should be shown. Use the event state rather than querying lockdown.
 function module:PLAYER_REGEN_DISABLED()
-  updateVisibility()
+  updateVisibility(true)
 end
 
 --- Event handler for PLAYER_REGEN_ENABLED (fires the instant the player leaves combat). Re-evaluates
 --- visibility for the same reason as PLAYER_REGEN_DISABLED above.
 function module:PLAYER_REGEN_ENABLED()
-  updateVisibility()
+  updateVisibility(false)
 end
-
