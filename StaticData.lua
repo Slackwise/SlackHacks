@@ -380,6 +380,10 @@ SELF_VENDOR_TRIGGER_EMOTES = {
 
 SELF_VENDOR_MODES = {
   [Enum.SelfVendorMode.FLASK] = { key = "flask", name = "Flask", description = "Always trades one flask.", command = "flask" },
+  [Enum.SelfVendorMode.CRIT_FLASK] = { key = "critflask", name = "Critical Strike Flask", description = "Trades one Flask of the Shattered Sun.", command = "critflask", flaskItemName = "Flask of the Shattered Sun" },
+  [Enum.SelfVendorMode.MASTERY_FLASK] = { key = "masteryflask", name = "Mastery Flask", description = "Trades one Flask of the Magisters.", command = "masteryflask", flaskItemName = "Flask of the Magisters" },
+  [Enum.SelfVendorMode.HASTE_FLASK] = { key = "hasteflask", name = "Haste Flask", description = "Trades one Flask of the Blood Knights.", command = "hasteflask", flaskItemName = "Flask of the Blood Knights" },
+  [Enum.SelfVendorMode.VERSATILITY_FLASK] = { key = "versflask", name = "Versatility Flask", description = "Trades one Flask of Thalassian Resistance.", command = "versflask", flaskItemName = "Flask of Thalassian Resistance" },
   [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { key = "consumablesmissing", name = "Consumables (Missing Only)", description = "Trades a flask, oil, and five runes only when the target is missing the flask or runes.", command = "consumablesmissing" },
   [Enum.SelfVendorMode.CONSUMABLES_ALL] = { key = "consumables", name = "Consumables", description = "Always trades a flask, oil, and five runes.", command = "consumables" },
   [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { key = "flaskandoil", name = "Flask and Oil", description = "Always trades one flask and one oil.", command = "flaskandoil" },

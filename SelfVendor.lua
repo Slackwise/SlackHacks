@@ -34,6 +34,8 @@ local VendorMode = Enum.SelfVendorMode
 -- @param mode number Enum.SelfVendorMode value.
 -- @return table|nil the mode's profile configuration table, or nil if unknown.
 local function modeConfiguration(mode)
+  local details = SELF_VENDOR_MODES[mode]
+  if details and details.flaskItemName then mode = VendorMode.FLASK end
   return db.profile.selfVendor.modes[mode]
 end
 
@@ -63,6 +65,15 @@ end
 
 local chatRequestModes = {
   flask = VendorMode.FLASK, flasks = VendorMode.FLASK,
+  crit = VendorMode.CRIT_FLASK, criticalstrike = VendorMode.CRIT_FLASK,
+  critflask = VendorMode.CRIT_FLASK, criticalstrikeflask = VendorMode.CRIT_FLASK,
+  mast = VendorMode.MASTERY_FLASK, mastery = VendorMode.MASTERY_FLASK,
+  mastflask = VendorMode.MASTERY_FLASK, masteryflask = VendorMode.MASTERY_FLASK,
+  haste = VendorMode.HASTE_FLASK, hasteflask = VendorMode.HASTE_FLASK,
+  vers = VendorMode.VERSATILITY_FLASK, versatility = VendorMode.VERSATILITY_FLASK,
+  versability = VendorMode.VERSATILITY_FLASK,
+  versflask = VendorMode.VERSATILITY_FLASK, versatilityflask = VendorMode.VERSATILITY_FLASK,
+  versabilityflask = VendorMode.VERSATILITY_FLASK,
   oil = VendorMode.OIL, oils = VendorMode.OIL,
   rune = VendorMode.AUGMENT_RUNES, runes = VendorMode.AUGMENT_RUNES,
   augmentrune = VendorMode.AUGMENT_RUNES, augmentrunes = VendorMode.AUGMENT_RUNES,
@@ -969,12 +980,25 @@ local function modeIncludesConsumable(mode, kind)
 end
 
 function module:GetRequiredItems()
+  local required = {}
+  local mode = self.pendingMode
+  local hasExplicitFlask = false
+  for flaskMode, details in pairs(SELF_VENDOR_MODES) do
+    if details.flaskItemName and requestIncludesMode(mode, flaskMode) then
+      addRequiredItem(required, itemID(details.flaskItemName))
+      hasExplicitFlask = true
+    end
+  end
+  local needsRecommendation = modeIncludesGear(mode)
+    or not hasExplicitFlask and modeIncludesConsumable(mode, "flask")
+    or modeIncludesConsumable(mode, "oil")
+    or modeIncludesConsumable(mode, "augmentRune")
+    or modeIncludesConsumable(mode, "vantusRune")
+  if not needsRecommendation then return required end
   local recommendationData, sourceKey = currentRecommendation(self.pendingUnit or "player", db.profile.selfVendor.source, self.pendingName)
   if not recommendationData then
     return nil, sourceKey
   end
-  local required = {}
-  local mode = self.pendingMode
   if modeIncludesGear(mode) then
     local equippedGemCounts = {}
     for _, slotKey in ipairs(recommendationData.slotKeys) do
@@ -1013,7 +1037,7 @@ function module:GetRequiredItems()
     end
   end
   for _, item in ipairs(recommendationData.consumables) do
-    if modeIncludesConsumable(mode, item.kind) then
+    if modeIncludesConsumable(mode, item.kind) and not (hasExplicitFlask and item.kind == "flask") then
       local quantity = item.quantity
       if item.kind == "augmentRune" and requestIncludesMode(mode, VendorMode.AUGMENT_RUNES) then
         quantity = modeConfiguration(VendorMode.AUGMENT_RUNES).runeQuantity
