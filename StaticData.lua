@@ -379,6 +379,7 @@ SELF_VENDOR_TRIGGER_EMOTES = {
 }
 
 SELF_VENDOR_MODES = {
+  [Enum.SelfVendorMode.FLASK] = { key = "flask", name = "Flask", description = "Always trades one flask.", command = "flask" },
   [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { key = "consumablesmissing", name = "Consumables (Missing Only)", description = "Trades a flask, oil, and five runes only when the target is missing the flask or runes.", command = "consumablesmissing" },
   [Enum.SelfVendorMode.CONSUMABLES_ALL] = { key = "consumables", name = "Consumables", description = "Always trades a flask, oil, and five runes.", command = "consumables" },
   [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { key = "flaskandoil", name = "Flask and Oil", description = "Always trades one flask and one oil.", command = "flaskandoil" },

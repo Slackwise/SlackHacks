@@ -29,6 +29,7 @@ Enum.SelfVendorMode = {
   AUGMENT_RUNES = 5,
   VANTUS_RUNE = 6,
   AUGMENTS = 7,
+  FLASK = 8,
 }
 
 function getBattletag()

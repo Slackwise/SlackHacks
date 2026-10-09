@@ -1,11 +1,8 @@
 --[[
   SelfVendor.lua
 
-  Lets an eligible player (group/raid/guild member) request a scripted trade from you by
-  emoting at you or by you targeting them and running a slash command. Each "mode" (e.g.
-  Consumables, Augment Runes, Vantus Rune, Augments) maps to a bundle of items, and a single
-  configurable emote can act as that mode's trigger so the sender never needs an addon of
-  their own.
+  Lets group members request scripted trades using item keywords in party, raid, or
+  instance chat. Multiple keywords combine into one queued request.
 
   Design decisions worth remembering:
   - Everything funnels through a FIFO queue (`self.tradeQueue`) so only one trade is ever
@@ -21,7 +18,7 @@
   - Vantus Runes are intentionally excluded from the "Consumables" bundles (CONSUMABLES_MISSING /
     CONSUMABLES_ALL) because they are per-raid-instance items you may not want handed out by
     default, unlike flasks/oils/augment runes which are always useful. They get their own mode
-    and trigger emote instead.
+    instead.
 ]]
 
 setfenv(1, _G.SlackHacks)
@@ -32,7 +29,7 @@ local maxTradeSlots = MAX_TRADABLE_ITEMS or 6
 local VendorMode = Enum.SelfVendorMode
 
 --- Look up the saved-variable configuration table for a given vendor mode.
--- Centralized so every read/write of a mode's `enabled`/`triggerEmote`/`runeQuantity`
+-- Centralized so every read/write of a mode's `enabled`/`runeQuantity`
 -- goes through one place instead of repeating the `db.profile.selfVendor.modes[mode]` path.
 -- @param mode number Enum.SelfVendorMode value.
 -- @return table|nil the mode's profile configuration table, or nil if unknown.
@@ -51,34 +48,49 @@ local function modeForCommand(command)
   end
 end
 
---- Determine which configured emote (if any) a raw CHAT_MSG_TEXT_EMOTE message matches.
--- We use a plain substring match (`find(..., 1, true)`) rather than a pattern match because
--- emote text contains punctuation/parentheses that would need escaping, and because the
--- observer-facing emote text ("<Name> glares angrily at you") only ever needs to *contain*
--- the configured fragment, not match it exactly (the player name prefix varies).
--- NOTE: SELF_VENDOR_TRIGGER_EMOTES.trigger values must be written from the *target's*
--- point of view (what the recipient of the emote sees), not the actor's own message.
--- @param message string lower-cased chat text of the emote as seen by the local player.
--- @return string|nil the SELF_VENDOR_TRIGGER_EMOTES token (e.g. "STARE") that matched, or nil.
-local function emoteForTargetedMessage(message)
-  for token, emote in pairs(SELF_VENDOR_TRIGGER_EMOTES) do
-    if message:find(emote.trigger, 1, true) then return token end
-  end
+local function requestIncludesMode(request, mode)
+  return request == mode or type(request) == "table" and request[mode] == true
 end
 
---- Build a human-readable label describing what was requested, for chat/log output.
--- Falls back to "(manual command)" when the request came from a targeted slash command
--- instead of an emote, so queue/status messages always read naturally either way.
--- @param mode number Enum.SelfVendorMode value.
--- @param emoteToken string|nil SELF_VENDOR_TRIGGER_EMOTES token if the request came from an emote.
--- @return string e.g. "Vantus Rune (via /stare)" or "Augments (manual command)".
-local function requestLabel(mode, emoteToken)
-  local modeName = SELF_VENDOR_MODES[mode] and SELF_VENDOR_MODES[mode].name or "unknown request"
-  local emoteInfo = emoteToken and SELF_VENDOR_TRIGGER_EMOTES[emoteToken]
-  if emoteInfo then
-    return modeName .. " (via " .. emoteInfo.slashCommands:match("%S+") .. ")"
+local function requestLabel(request)
+  local labels = {}
+  for mode, details in pairs(SELF_VENDOR_MODES) do
+    if requestIncludesMode(request, mode) then labels[#labels + 1] = details.name end
   end
-  return modeName .. " (manual command)"
+  table.sort(labels)
+  return #labels > 0 and table.concat(labels, ", ") or "unknown request"
+end
+
+local chatRequestModes = {
+  flask = VendorMode.FLASK, flasks = VendorMode.FLASK,
+  oil = VendorMode.OIL, oils = VendorMode.OIL,
+  rune = VendorMode.AUGMENT_RUNES, runes = VendorMode.AUGMENT_RUNES,
+  augmentrune = VendorMode.AUGMENT_RUNES, augmentrunes = VendorMode.AUGMENT_RUNES,
+  vantus = VendorMode.VANTUS_RUNE, vantusrune = VendorMode.VANTUS_RUNE,
+  vantusrunes = VendorMode.VANTUS_RUNE,
+  consumables = VendorMode.CONSUMABLES_ALL,
+  augments = VendorMode.AUGMENTS,
+}
+
+function module:ParseChatRequest(message)
+  if type(message) ~= "string" or not db.profile.selfVendor.enabled then return end
+  local settings = db.profile.selfVendor
+  local prefix = settings.chatPrefix
+  if not prefix or prefix == "" then prefix = "!" end
+  local hasPrefix = message:sub(1, #prefix) == prefix
+  if settings.requirePrefix and not hasPrefix then return end
+  if hasPrefix then message = message:sub(#prefix + 1) end
+  local requested, previousWord = {}, nil
+  for word in message:lower():gmatch("[%w_]+") do
+    local mode = chatRequestModes[word]
+    if (word == "rune" or word == "runes") and previousWord == "vantus" then
+      mode = VendorMode.VANTUS_RUNE
+    end
+    local configuration = mode and modeConfiguration(mode)
+    if configuration and configuration.enabled then requested[mode] = true end
+    previousWord = word
+  end
+  if next(requested) then return requested end
 end
 
 --- Look up an item's numeric ID by its display name.
@@ -211,7 +223,7 @@ end
 
 --- Determine whether a named player is allowed to request a Self Vendor trade.
 -- Eligibility is intentionally limited to people in your current group/raid or your guild
--- (not, say, "anyone who whispers you") so random players can't emote at you to drain your
+-- (not, say, "anyone who whispers you") so random players can't request trades to drain your
 -- consumables/enchant mats.
 -- @param name string player name (with or without realm).
 -- @return boolean|string truthy if eligible: a unit token from groupUnitFor, or true-ish guild match.
@@ -249,9 +261,9 @@ end
 
 --- Transition module state from "pending" to "active" once the trade window has been populated.
 -- This is the hand-off point between preparation (finding/splitting items, opening the trade
--- window) and the "trade in progress" phase tracked by TRADE_ACCEPT_UPDATE/TRADE_CLOSED. We
--- snapshot pendingName/pendingMode/pendingEmote into activeTradeName/activeTradeMode/
--- activeTradeEmote here (rather than leaving them in the pending* fields) so TRADE_CLOSED can
+-- window) and the "trade in progress" phase tracked by UI_INFO_MESSAGE/TRADE_CLOSED. We
+-- snapshot pendingName/pendingMode into activeTradeName/activeTradeMode
+-- here (rather than leaving them in the pending* fields) so TRADE_CLOSED can
 -- still report who/what was serviced even though the pending fields get cleared for the next
 -- queued trade.
 -- @param module table the SelfVendor module (passed explicitly since this is a local function,
@@ -273,9 +285,7 @@ local function finishTradePopulation(module, added)
   module.pendingTradeIndex = nil
   module.pendingTradeInitiated = nil
   module.activeTradeMode = module.pendingMode
-  module.activeTradeEmote = module.pendingEmote
   module.pendingMode = nil
-  module.pendingEmote = nil
 end
 
 --- Convert an item ID back into a display name for chat/log output.
@@ -316,7 +326,7 @@ local function parseClassAndSpec(rawCommand)
 end
 
 --- Flatten a recommendation's enchants + gems into a single "itemID -> total quantity needed" map.
--- Used only for the gear-focused `/slack sendaugs` mail flow (not the emote-trade flow, which
+-- Used only for the gear-focused `/slack sendaugs` mail flow (not the chat-trade flow, which
 -- has its own GetRequiredItems that also accounts for consumables and what's already equipped).
 -- @param recommendationData table from buildBISEnhancementRecommendation.
 -- @return table map of itemID -> required quantity.
@@ -431,7 +441,7 @@ end
 -- Used only for the CONSUMABLES_MISSING mode, to decide whether an already-buffed target
 -- still needs that particular consumable traded to them.
 -- @param unit string|nil unit token to inspect; returns false immediately if nil (can't inspect,
---   e.g. no unit token available for the target of an emote-only request).
+--   e.g. no unit token available for the target of a manual request).
 -- @param buffName string|table exact/partial buff name(s) to match against, case-insensitive.
 -- @param auraSpellID number|nil optional exact spell ID to match (used for the Phoenix Oil check).
 -- @return boolean true if a matching aura was found.
@@ -455,7 +465,7 @@ end
 -- `/slack sendaugs <character> <realm> [source]` override form). Mails BIS enchants/gems
 -- for a class/spec (or a saved personal override) rather than trading them directly, since
 -- this command is meant for prepping mail to alts/other players who aren't online/nearby to
--- trade with — unlike the emote-trade flow, which requires the recipient to be in range.
+-- trade with — unlike the chat-trade flow, which requires the recipient to be in range.
 -- Gated to isSlackwise() because this is a personal bulk-mailing tool, not a general feature.
 -- @param input string command text after "sendaugs", e.g. "shaman enhancement wowhead" or
 --   "Charname Realmname" for a personal override lookup.
@@ -588,27 +598,6 @@ function module:SetModeEnabled(mode, enabled)
   configuration.enabled = enabled
 end
 
---- Assign a trigger emote to a vendor mode, enforcing that each emote token is used by at
--- most one mode at a time. Without this uniqueness check, two modes could silently share an
--- emote and only one (whichever `pairs()` iteration order hits first in CHAT_MSG_TEXT_EMOTE)
--- would ever actually fire, which is a confusing, hard-to-debug state for the user to end up in.
--- @param mode number Enum.SelfVendorMode value to assign the emote to.
--- @param emote string SELF_VENDOR_TRIGGER_EMOTES token (e.g. "STARE").
--- @return boolean|nil true on success; false if the emote is already claimed by another mode;
---   nil if the mode or emote token itself is invalid.
-function module:SetModeTriggerEmote(mode, emote)
-  local configuration = modeConfiguration(mode)
-  if not configuration or not SELF_VENDOR_TRIGGER_EMOTES[emote] then return end
-  for otherMode, otherConfiguration in pairs(db.profile.selfVendor.modes) do
-    if otherMode ~= mode and otherConfiguration.triggerEmote == emote then
-      print("SlackHacks: " .. SELF_VENDOR_MODES[otherMode].name .. " already uses that trigger emote.")
-      return false
-    end
-  end
-  configuration.triggerEmote = emote
-  return true
-end
-
 --- Set how many Augment Runes are traded as a single stack for the AUGMENT_RUNES mode.
 -- Clamped to [1, 100] to keep the value sane for the options UI slider/input and to avoid
 -- someone accidentally configuring an absurd or non-positive quantity that would then fail
@@ -664,7 +653,7 @@ function module:HandleSlash(input)
       print("SlackHacks: " .. SELF_VENDOR_MODES[mode].name .. " is disabled.")
       return
     end
-    self:BeginEmoteTrade(targetName, mode)
+    self:BeginChatTrade(targetName, mode)
   elseif command == "mode" then
     print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins|murlok]")
   elseif command == "toggle" then
@@ -687,7 +676,12 @@ end
 
 function module:OnEnable()
   log("Self Vendor enabled; registering events")
-  self:RegisterEvent("CHAT_MSG_TEXT_EMOTE")
+  self:RegisterEvent("CHAT_MSG_PARTY", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_PARTY_LEADER", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_RAID", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_RAID_LEADER", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_GROUP")
   self:RegisterEvent("TRADE_SHOW")
   self:RegisterEvent("INSPECT_READY")
   self:RegisterEvent("UI_INFO_MESSAGE")
@@ -701,11 +695,9 @@ function module:OnDisable()
   if self.queueFrame then self.queueFrame:Hide() end
   self.pendingBagUpdate = nil
   self.pendingMode = nil
-  self.pendingEmote = nil
   self.pendingTradeInitiated = nil
   self.activeTradeName = nil
   self.activeTradeMode = nil
-  self.activeTradeEmote = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
@@ -762,7 +754,6 @@ function module:FailPendingTrade(message)
   self.pendingTradeInitiated = nil
   self.inspectGUID = nil
   self.pendingMode = nil
-  self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
@@ -783,7 +774,6 @@ function module:ReportMissingItems(shortages)
   self.pendingTradeInitiated = nil
   self.inspectGUID = nil
   self.pendingMode = nil
-  self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
@@ -803,23 +793,23 @@ local function removeQueueEntries(queue, name)
 end
 
 -- Enqueue immediately so the player holds a queue position before any async work (inspect, bag checks) begins
-function module:BeginEmoteTrade(sender, mode, emoteToken)
+function module:BeginChatTrade(sender, mode)
   self.tradeQueue = self.tradeQueue or {}
-  local label = requestLabel(mode, emoteToken)
+  local label = requestLabel(mode)
   if sameName(self.pendingName, sender) or sameName(self.activeTradeName, sender) then
     removeQueueEntries(self.tradeQueue, sender)
     print("SlackHacks: " .. sender .. " is already being serviced.")
-    log(tostring(sender) .. " emoted again (" .. label .. ") while already being serviced; ignoring duplicate")
+    log(tostring(sender) .. " requested again (" .. label .. ") while already being serviced; ignoring duplicate")
     return
   end
   local existingPosition = queuePositionFor(self.tradeQueue, sender)
   if existingPosition then
     SendChatMessage("You're already in the queue at position #" .. existingPosition .. ". Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
     print("SlackHacks: " .. sender .. " is already in the Self Vendor queue (position #" .. existingPosition .. ").")
-    log(tostring(sender) .. " emoted again (" .. label .. ") while already queued at position " .. existingPosition)
+    log(tostring(sender) .. " requested again (" .. label .. ") while already queued at position " .. existingPosition)
     return
   end
-  table.insert(self.tradeQueue, { name = sender, mode = mode, emote = emoteToken })
+  table.insert(self.tradeQueue, { name = sender, mode = mode })
   self:RefreshQueueWindow()
   if self.pendingName or self.activeTradeName then
     local currentName = self.activeTradeName or self.pendingName
@@ -832,30 +822,10 @@ function module:BeginEmoteTrade(sender, mode, emoteToken)
   self:StartNextQueuedTrade()
 end
 
-function module:CHAT_MSG_TEXT_EMOTE(_, message, sender, languageName, channelName, target, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID, lineID, senderGUID)
-  log("Text emote received: message=" .. tostring(message) .. ", sender=" .. tostring(sender) .. ", target=" .. tostring(target) .. ", language=" .. tostring(languageName) .. ", channel=" .. tostring(channelName) .. ", senderGUID=" .. tostring(senderGUID))
-  if not senderIsEligible(sender) then
-    log("Ignoring text emote because sender is not eligible")
-    return
-  end
-  if not message then
-    log("Ignoring text emote because it has no message text")
-    return
-  end
-  local emoteToken = emoteForTargetedMessage(message:lower())
-  if not emoteToken then
-    log("Ignoring text emote because it does not match a configured target-emote pattern")
-    return
-  end
-  for mode, details in pairs(SELF_VENDOR_MODES) do
-    local configuration = modeConfiguration(mode)
-    if configuration and configuration.enabled and configuration.triggerEmote == emoteToken then
-      log("Matching " .. details.name .. " trigger received from " .. tostring(sender))
-      self:BeginEmoteTrade(sender, mode, emoteToken)
-      return
-    end
-  end
-  log("Ignoring text emote because it does not match an enabled trigger")
+function module:CHAT_MSG_GROUP(_, message, sender)
+  if not sender or sameName(sender, UnitName("player")) or not groupUnitFor(sender) then return end
+  local request = self:ParseChatRequest(message)
+  if request then self:BeginChatTrade(sender, request) end
 end
 
 function module:INSPECT_READY(_, guid)
@@ -894,7 +864,6 @@ function module:UI_INFO_MESSAGE(_, _, message)
   self.pendingTradeIndex = nil
   self.pendingTradeInitiated = nil
   self.pendingMode = nil
-  self.pendingEmote = nil
   self:StartNextQueuedTrade()
 end
 
@@ -927,10 +896,9 @@ function module:StartNextQueuedTrade()
   self.pendingTradeInitiated = nil
   self.pendingName = queuedTrade.name
   self.pendingMode = queuedTrade.mode
-  self.pendingEmote = queuedTrade.emote
   self.pendingUnit = groupUnitFor(queuedTrade.name)
   if not self.pendingUnit and sameName(UnitName("target"), queuedTrade.name) then self.pendingUnit = "target" end
-  if queuedTrade.mode == VendorMode.AUGMENTS and self.pendingUnit then
+  if requestIncludesMode(queuedTrade.mode, VendorMode.AUGMENTS) and self.pendingUnit then
     self.inspectGUID = UnitGUID(self.pendingUnit)
     NotifyInspect(self.pendingUnit)
   else
@@ -952,11 +920,10 @@ end
 function module:FinishClosedTrade()
   if not self.tradeClosing or not self.activeTradeName then return end
   local servicedName = self.activeTradeName
-  local servicedLabel = requestLabel(self.activeTradeMode, self.activeTradeEmote)
+  local servicedLabel = requestLabel(self.activeTradeMode)
   local successful = self.tradeSucceeded
   self.activeTradeName = nil
   self.activeTradeMode = nil
-  self.activeTradeEmote = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
   self.tradeCanceled = nil
@@ -981,16 +948,23 @@ function module:FinishClosedTrade()
 end
 
 local function modeIncludesGear(mode)
-  return mode == VendorMode.AUGMENTS
+  return requestIncludesMode(mode, VendorMode.AUGMENTS)
 end
 
 local function modeIncludesConsumable(mode, kind)
+  if type(mode) == "table" then
+    for requestedMode in pairs(mode) do
+      if modeIncludesConsumable(requestedMode, kind) then return true end
+    end
+    return false
+  end
   -- Vantus Runes are situational/per-raid, not part of the general "consumables" bundle.
   return mode == VendorMode.CONSUMABLES_MISSING and kind ~= "vantusRune"
     or mode == VendorMode.CONSUMABLES_ALL and kind ~= "vantusRune"
     or mode == VendorMode.CONSUMABLES_PERSISTENT and (kind == "flask" or kind == "oil")
     or mode == VendorMode.AUGMENT_RUNES and kind == "augmentRune"
     or mode == VendorMode.OIL and kind == "oil"
+    or mode == VendorMode.FLASK and kind == "flask"
     or mode == VendorMode.VANTUS_RUNE and kind == "vantusRune"
 end
 
@@ -1041,7 +1015,7 @@ function module:GetRequiredItems()
   for _, item in ipairs(recommendationData.consumables) do
     if modeIncludesConsumable(mode, item.kind) then
       local quantity = item.quantity
-      if mode == VendorMode.AUGMENT_RUNES then
+      if item.kind == "augmentRune" and requestIncludesMode(mode, VendorMode.AUGMENT_RUNES) then
         quantity = modeConfiguration(VendorMode.AUGMENT_RUNES).runeQuantity
       end
       local hasBuff = mode == VendorMode.CONSUMABLES_MISSING
@@ -1074,7 +1048,6 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
-    self.pendingEmote = nil
     self:StartNextQueuedTrade()
     return
   end
@@ -1089,7 +1062,6 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
-    self.pendingEmote = nil
     self:StartNextQueuedTrade()
     return
   end
@@ -1102,7 +1074,7 @@ function module:CheckAndInitiateTrade()
     self:ReportMissingItems(shortages)
     return
   end
-  local augmentMode = self.pendingMode == VendorMode.AUGMENTS
+  local augmentMode = modeIncludesGear(self.pendingMode)
   if augmentMode and not next(required) then
     DoEmote("IMPRESSED", self.pendingName)
     log("Augments already match for " .. self.pendingName)
@@ -1112,7 +1084,6 @@ function module:CheckAndInitiateTrade()
     self.pendingTradeItems = nil
     self.pendingTradeIndex = nil
     self.pendingMode = nil
-    self.pendingEmote = nil
     self:StartNextQueuedTrade()
     return
   end
@@ -1140,7 +1111,7 @@ function module:PrepareTradeItems(required)
       end
       log("Exact trade stacks prepared; initiating trade with " .. self.pendingName)
       self.pendingTradeInitiated = true
-      InitiateTrade(self.pendingName)
+      InitiateTrade(self.pendingUnit or self.pendingName)
       return
     end
     local itemID = itemIDs[itemIndex]
@@ -1326,7 +1297,7 @@ function module:RefreshQueueWindow()
     local entry = queue[index]
     local row = ensureQueueRow(self, index)
     row.name = entry.name
-    row.text:SetText("#" .. index .. "  " .. entry.name .. " - " .. requestLabel(entry.mode, entry.emote))
+    row.text:SetText("#" .. index .. "  " .. entry.name .. " - " .. requestLabel(entry.mode))
     row:Show()
   end
   for index = shown + 1, (queueRows and #queueRows or 0) do

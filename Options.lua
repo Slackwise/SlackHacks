@@ -109,14 +109,17 @@ dbDefaults = {
     selfVendor = {
       enabled = false,
       source = "murlok",
+      requirePrefix = false,
+      chatPrefix = "!",
       modes = {
-        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = false, triggerEmote = "SALUTE" },
-        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = false, triggerEmote = "GLARE" },
-        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = false, triggerEmote = "GAZE" },
-        [Enum.SelfVendorMode.OIL] = { enabled = false, triggerEmote = "FLIRT" },
-        [Enum.SelfVendorMode.AUGMENT_RUNES] = { enabled = false, triggerEmote = "FLEX", runeQuantity = 5 },
-        [Enum.SelfVendorMode.AUGMENTS] = { enabled = false, triggerEmote = "VICTORY" },
-        [Enum.SelfVendorMode.VANTUS_RUNE] = { enabled = false, triggerEmote = "STARE" },
+        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = false },
+        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = false },
+        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = false },
+        [Enum.SelfVendorMode.FLASK] = { enabled = false },
+        [Enum.SelfVendorMode.OIL] = { enabled = false },
+        [Enum.SelfVendorMode.AUGMENT_RUNES] = { enabled = false, runeQuantity = 5 },
+        [Enum.SelfVendorMode.AUGMENTS] = { enabled = false },
+        [Enum.SelfVendorMode.VANTUS_RUNE] = { enabled = false },
       }
     },
     weeklies = {
@@ -356,20 +359,10 @@ function handleSlashCommand(input)
   end
 end
 
-local selfVendorEmoteValues, selfVendorEmoteSorting = {}, {}
-for token, emote in pairs(SELF_VENDOR_TRIGGER_EMOTES) do
-  selfVendorEmoteValues[token] = emote.slashCommands
-  table.insert(selfVendorEmoteSorting, token)
-end
-table.sort(selfVendorEmoteSorting, function(left, right)
-  return selfVendorEmoteValues[left] < selfVendorEmoteValues[right]
-end)
-
 local selfVendorModeSorting = {
-  Enum.SelfVendorMode.CONSUMABLES_MISSING,
-  Enum.SelfVendorMode.CONSUMABLES_ALL,
-  Enum.SelfVendorMode.CONSUMABLES_PERSISTENT,
+  Enum.SelfVendorMode.FLASK,
   Enum.SelfVendorMode.OIL,
+  Enum.SelfVendorMode.CONSUMABLES_ALL,
   Enum.SelfVendorMode.AUGMENT_RUNES,
   Enum.SelfVendorMode.VANTUS_RUNE,
   Enum.SelfVendorMode.AUGMENTS,
@@ -395,7 +388,7 @@ local function selfVendorModeOptions()
   local args = {}
   args.enabled = {
     name = "Enable Self Vendor",
-    desc = "Enable or disable all Self Vendor emote and slash-command triggers.",
+    desc = "Accept item requests in party, raid, and instance chat.",
     type = "toggle",
     descStyle = "inline",
     width = "full",
@@ -403,50 +396,42 @@ local function selfVendorModeOptions()
     set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
     order = 0,
   }
+  args.requirePrefix = {
+    name = "Require Chat Prefix",
+    type = "toggle",
+    get = function() return db.profile.selfVendor.requirePrefix end,
+    set = function(_, value) db.profile.selfVendor.requirePrefix = value end,
+    order = 1,
+  }
+  args.chatPrefix = {
+    name = "Chat Prefix",
+    type = "input",
+    get = function() return db.profile.selfVendor.chatPrefix end,
+    set = function(_, value) db.profile.selfVendor.chatPrefix = value end,
+    validate = function(_, value) return #value > 0 and not value:find("%s") end,
+    disabled = function() return not db.profile.selfVendor.requirePrefix end,
+    order = 2,
+  }
   for order, mode in ipairs(selfVendorModeSorting) do
     local configuredMode = mode
     local details = SELF_VENDOR_MODES[mode]
     args[details.key] = {
-      type = "group",
+      type = "toggle",
       name = details.name,
-      inline = true,
-      order = order,
-      args = {
-        description = {
-          type = "description",
-          name = details.description,
-          width = "full",
-          order = 1,
-        },
-        enabled = {
-          name = "Enable",
-          type = "toggle",
-          width = 1.1,
-          get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
-          set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
-          order = 2,
-        },
-        triggerEmote = {
-          name = "Trigger Emote",
-          type = "select",
-          width = 1.9,
-          values = selfVendorEmoteValues,
-          sorting = selfVendorEmoteSorting,
-          get = function() return db.profile.selfVendor.modes[configuredMode].triggerEmote end,
-          set = function(_, value) Self.SelfVendor:SetModeTriggerEmote(configuredMode, value) end,
-          order = 3,
-        },
-      },
+      desc = details.description,
+      get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
+      set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
+      order = order + 2,
     }
     if mode == Enum.SelfVendorMode.AUGMENT_RUNES then
-      args[details.key].args.runeQuantity = {
+      args.runeQuantity = {
         name = "Rune Stack Size",
         type = "input",
         width = 0.7,
         get = function() return tostring(db.profile.selfVendor.modes[configuredMode].runeQuantity) end,
         set = function(_, value) Self.SelfVendor:SetRuneQuantity(value) end,
         validate = function(_, value) return tonumber(value) and tonumber(value) >= 1 and tonumber(value) <= 100 end,
-        order = 4,
+        order = order + 2.5,
       }
     end
   end
