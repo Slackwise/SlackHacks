@@ -1965,6 +1965,54 @@ end
 -- Character Sheet "Show Gear Stats" Checkbox
 local gearStatsCheckbox
 
+local function getForeverScrollArea()
+  local sb = _G["CharacterStatsPaneScrollBox"]
+  if sb then
+    return (sb.ScrollBox or sb)
+  end
+  if CharacterStatsPane then
+    if CharacterStatsPane.ScrollBox then
+      return CharacterStatsPane.ScrollBox
+    end
+    if CharacterStatsPane.ScrollBar then
+      return CharacterStatsPane.ScrollBar
+    end
+  end
+  if _G["CharacterStatsPaneScrollBar"] then
+    return _G["CharacterStatsPaneScrollBar"]
+  end
+  if PaperDollFrame then
+    if PaperDollFrame.ScrollBox then
+      return PaperDollFrame.ScrollBox
+    end
+    if PaperDollFrame.StatsPane then
+      return PaperDollFrame.StatsPane.ScrollBox or PaperDollFrame.StatsPane
+    end
+  end
+  if CharacterFrame and CharacterFrame.ScrollBox then
+    return CharacterFrame.ScrollBox
+  end
+  return CharacterAttributesFrame or PaperDollFrame or CharacterFrame
+end
+
+local function getCheckboxParentAndAnchor()
+  if isRetail() then
+    local parent = CharacterFrameInsetRight
+      or (CharacterFrame and CharacterFrame.InsetRight)
+      or CharacterStatsPane
+      or CharacterFrame
+    return parent, "BOTTOM", parent, "BOTTOM", 9
+  else
+    local scrollArea = getForeverScrollArea()
+    local parent = PaperDollFrame or (scrollArea and scrollArea:GetParent()) or CharacterFrame
+    if scrollArea and scrollArea ~= PaperDollFrame and scrollArea ~= CharacterFrame then
+      return parent, "TOP", scrollArea, "BOTTOM", -2
+    else
+      return parent, "BOTTOM", parent, "BOTTOM", 75
+    end
+  end
+end
+
 local function updateGearStatsCheckbox()
   if not gearStatsCheckbox then return end
   local enabled = (db and db.profile and db.profile.infoDisplay and db.profile.infoDisplay.enabled) and true or false
@@ -1973,8 +2021,18 @@ end
 
 local function updateCheckboxPosition()
   if not gearStatsCheckbox then return end
-  local parent = gearStatsCheckbox:GetParent()
-  if not parent then return end
+  local parent, point, relFrame, relPoint, yOffset = getCheckboxParentAndAnchor()
+  if not parent or not relFrame then return end
+
+  if gearStatsCheckbox:GetParent() ~= parent then
+    gearStatsCheckbox:SetParent(parent)
+    local statsLevel = (relFrame.GetFrameLevel and relFrame:GetFrameLevel()) or 0
+    local parentLevel = (parent.GetFrameLevel and parent:GetFrameLevel()) or 0
+    gearStatsCheckbox:SetFrameLevel(math.max(statsLevel, parentLevel) + 15)
+  end
+
+  local boxSize = isRetail() and 20 or 18
+  gearStatsCheckbox:SetSize(boxSize, boxSize)
 
   local text = gearStatsCheckbox.text or gearStatsCheckbox.Text or _G[gearStatsCheckbox:GetName() .. "Text"]
   local textWidth = (text and text:GetStringWidth()) or 0
@@ -1984,7 +2042,7 @@ local function updateCheckboxPosition()
 
   local offsetX = -math.floor((textWidth + 4) / 2)
   gearStatsCheckbox:ClearAllPoints()
-  gearStatsCheckbox:SetPoint("BOTTOM", parent, "BOTTOM", offsetX, 9)
+  gearStatsCheckbox:SetPoint(point, relFrame, relPoint, offsetX, yOffset)
   gearStatsCheckbox:SetHitRectInsets(0, -textWidth - 4, 0, 0)
 end
 
@@ -1992,16 +2050,15 @@ local function getOrCreateGearStatsCheckbox()
   if gearStatsCheckbox then return gearStatsCheckbox end
   if not CharacterFrame then return nil end
 
-  local parent = CharacterFrameInsetRight
-    or (CharacterFrame and CharacterFrame.InsetRight)
-    or CharacterStatsPane
-    or CharacterFrame
+  local parent, point, relFrame, relPoint, yOffset = getCheckboxParentAndAnchor()
+  if not parent or not relFrame then return nil end
 
   local cb = CreateFrame("CheckButton", "SlackHacksInfoDisplayGearStatsToggle", parent, "UICheckButtonTemplate")
   gearStatsCheckbox = cb
 
-  cb:SetSize(20, 20)
-  local statsLevel = (CharacterStatsPane and CharacterStatsPane:GetFrameLevel()) or 0
+  local boxSize = isRetail() and 20 or 18
+  cb:SetSize(boxSize, boxSize)
+  local statsLevel = (relFrame.GetFrameLevel and relFrame:GetFrameLevel()) or 0
   local parentLevel = (parent.GetFrameLevel and parent:GetFrameLevel()) or 0
   cb:SetFrameLevel(math.max(statsLevel, parentLevel) + 15)
 
@@ -2046,8 +2103,22 @@ local function getOrCreateGearStatsCheckbox()
       end
     end)
     CharacterStatsPane:HookScript("OnHide", function()
-      if gearStatsCheckbox then
+      if isRetail() and gearStatsCheckbox then
         gearStatsCheckbox:Hide()
+      end
+    end)
+  end
+
+  if PaperDollFrame then
+    PaperDollFrame:HookScript("OnShow", function()
+      if gearStatsCheckbox then
+        if isRetail() and CharacterStatsPane then
+          gearStatsCheckbox:SetShown(CharacterStatsPane:IsShown())
+        else
+          gearStatsCheckbox:Show()
+        end
+        updateCheckboxPosition()
+        updateGearStatsCheckbox()
       end
     end)
   end
@@ -2098,7 +2169,7 @@ function module:OnInitialize()
     CharacterFrame:HookScript("OnShow", function()
       local cb = getOrCreateGearStatsCheckbox()
       if cb then
-        if CharacterStatsPane then
+        if isRetail() and CharacterStatsPane then
           cb:SetShown(CharacterStatsPane:IsShown())
         else
           cb:Show()
