@@ -2006,9 +2006,9 @@ local function getCheckboxParentAndAnchor()
     local scrollArea = getForeverScrollArea()
     local parent = PaperDollFrame or (scrollArea and scrollArea:GetParent()) or CharacterFrame
     if scrollArea and scrollArea ~= PaperDollFrame and scrollArea ~= CharacterFrame then
-      return parent, "TOP", scrollArea, "BOTTOM", -2
+      return parent, "TOP", scrollArea, "BOTTOM", -5
     else
-      return parent, "BOTTOM", parent, "BOTTOM", 75
+      return parent, "BOTTOM", parent, "BOTTOM", 72
     end
   end
 end
