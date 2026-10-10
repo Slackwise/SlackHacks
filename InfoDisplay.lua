@@ -1962,8 +1962,102 @@ end
 -- AceAddon Module Lifecycle & Events
 -- ============================================================================
 
+-- Character Sheet "Show Gear Stats" Checkbox
+local gearStatsCheckbox
+
+local function updateGearStatsCheckbox()
+  if not gearStatsCheckbox then return end
+  local enabled = (db and db.profile and db.profile.infoDisplay and db.profile.infoDisplay.enabled) and true or false
+  gearStatsCheckbox:SetChecked(enabled)
+end
+
+local function updateCheckboxPosition()
+  if not gearStatsCheckbox then return end
+  local parent = gearStatsCheckbox:GetParent()
+  if not parent then return end
+
+  local text = gearStatsCheckbox.text or gearStatsCheckbox.Text or _G[gearStatsCheckbox:GetName() .. "Text"]
+  local textWidth = (text and text:GetStringWidth()) or 0
+  if not textWidth or textWidth == 0 then
+    textWidth = 92
+  end
+
+  local offsetX = -math.floor((textWidth + 4) / 2)
+  gearStatsCheckbox:ClearAllPoints()
+  gearStatsCheckbox:SetPoint("BOTTOM", parent, "BOTTOM", offsetX, 9)
+  gearStatsCheckbox:SetHitRectInsets(0, -textWidth - 4, 0, 0)
+end
+
+local function getOrCreateGearStatsCheckbox()
+  if gearStatsCheckbox then return gearStatsCheckbox end
+  if not CharacterFrame then return nil end
+
+  local parent = CharacterFrameInsetRight
+    or (CharacterFrame and CharacterFrame.InsetRight)
+    or CharacterStatsPane
+    or CharacterFrame
+
+  local cb = CreateFrame("CheckButton", "SlackHacksInfoDisplayGearStatsToggle", parent, "UICheckButtonTemplate")
+  gearStatsCheckbox = cb
+
+  cb:SetSize(20, 20)
+  local statsLevel = (CharacterStatsPane and CharacterStatsPane:GetFrameLevel()) or 0
+  local parentLevel = (parent.GetFrameLevel and parent:GetFrameLevel()) or 0
+  cb:SetFrameLevel(math.max(statsLevel, parentLevel) + 15)
+
+  local text = cb.text or cb.Text or _G[cb:GetName() .. "Text"]
+  if text then
+    text:SetText("Show Gear Stats")
+    text:SetFontObject("GameFontHighlightSmall")
+    text:ClearAllPoints()
+    text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+  end
+
+  updateCheckboxPosition()
+  updateGearStatsCheckbox()
+
+  cb:SetScript("OnClick", function(self)
+    local isChecked = self:GetChecked() and true or false
+    if isChecked then
+      PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
+    else
+      PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857)
+    end
+    module:SetEnabled(isChecked)
+  end)
+
+  cb:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Show Gear Stats", 1, 1, 1)
+    GameTooltip:AddLine("Toggle equipment stat overlays on your character sheet.", nil, nil, nil, true)
+    GameTooltip:Show()
+  end)
+
+  cb:SetScript("OnLeave", function()
+    GameTooltip_Hide()
+  end)
+
+  if CharacterStatsPane then
+    CharacterStatsPane:HookScript("OnShow", function()
+      if gearStatsCheckbox then
+        gearStatsCheckbox:Show()
+        updateCheckboxPosition()
+        updateGearStatsCheckbox()
+      end
+    end)
+    CharacterStatsPane:HookScript("OnHide", function()
+      if gearStatsCheckbox then
+        gearStatsCheckbox:Hide()
+      end
+    end)
+  end
+
+  return cb
+end
+
 --- Refreshes all active character sheet equipment overlays.
 function module:Refresh()
+  updateGearStatsCheckbox()
   if not isModuleEnabled() then
     for _, overlay in ipairs(createdOverlays) do
       overlay:Hide()
@@ -1989,12 +2083,29 @@ function module:SetEnabled(enabled)
     self:Disable()
   end
   self:Refresh()
+  updateGearStatsCheckbox()
+  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if acr then
+    acr:NotifyChange("SlackHacks")
+  end
 end
 
 function module:OnInitialize()
+  getOrCreateGearStatsCheckbox()
+
   -- Hook CharacterFrame OnShow to ensure slots refresh immediately when opened
   if CharacterFrame then
     CharacterFrame:HookScript("OnShow", function()
+      local cb = getOrCreateGearStatsCheckbox()
+      if cb then
+        if CharacterStatsPane then
+          cb:SetShown(CharacterStatsPane:IsShown())
+        else
+          cb:Show()
+        end
+        updateCheckboxPosition()
+        updateGearStatsCheckbox()
+      end
       if isModuleEnabled() then
         updateAllSlots("player")
       end
