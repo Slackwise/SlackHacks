@@ -977,6 +977,7 @@ BINDINGS = {
       {"ALT-CTRL-BUTTON1",        "Redemption", BT.CLICKCAST},
       {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption", BT.CLICKCAST},
       {"BUTTON2",                 "Holy Light", BT.CLICKCAST},
+      {"ALT-CTRL-BUTTON1",        "Lay on Hands", BT.CLICKCAST},
       {"BUTTON4",                 "Blessing of Sacrifice",  BT.CLICKCAST},
       {"SHIFT-BUTTON4",           "Blessing of Freedom",    BT.CLICKCAST},
       {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
@@ -990,28 +991,33 @@ BINDINGS = {
       {"`",       "!STOP", BT.MACRO},
       {"ALT-Q",   "ToggleWeapons", BT.MACRO},
 
-      -- Core
-      {"SHIFT-V", "Divine Protection"},
-      {"ALT-Z",   "Perception"},
-
       -- Main Attacks 
       {"Q",       "Judgement"},
       {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
+      {"6",       "Exorcism"},
       {"C",       "Consecration"},
 
       -- Heals (Coming from left hand?)
-      {"2",                "Holy Light"},
+      {"2",                "Holy Light"}, -- Flash of Light later
+      {"SHIFT-2",          "Holy Light"},
       {"ALT-CTRL-Z",       "Redemption"},
       {"ALT-CTRL-SHIFT-Z", "Redemption"},
 
-      -- "OHSHIT" Buttons
-      {"G",       "Blessing of Protection"},
-      {"CTRL-V",  "Lay on Hands"},
+      -- Ultimates and "OHSHIT" Buttons
+      {"G",             ""},
+      {"SHIFT-G",       ""},
+      {"CTRL-G",        ""},
+      {"CTRL-SHIFT-G",  ""},
+      {"V",             ""},
+      {"SHIFT-V",       "Divine Protection"},
+      {"CTRL-V",        "Lay on Hands"},
+      {"CTRL-SHIFT-V",  ""},
 
-      -- CC
+      -- CC and Utility
       {"F",       "Hammer of Justice"},
+      {"ALT-Z",   "Perception"},
 
       -- Seals & Judgement
       {"R",                 "Seal of Fury"},
