@@ -38,6 +38,18 @@ dbDefaults = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
     },
+    graphics = {
+      enabled = false,
+      groundEffectDensity = 256,
+      groundEffectFade = 370,
+      groundEffectDist = 500,
+      lodObjectFadeScale = 200,
+      lodObjectCullSize = 8,
+      terrainLodDist = 1000,
+      resampleAlwaysSharpen = true,
+      reflectionMode = 3,
+      weatherDensity = 3
+    },
     mouseRing = {
       enabled = false,
       showOutOfCombat = false,
@@ -619,6 +631,238 @@ options = {
             Self.Controls:ApplyAll()
           end,
           order = 2
+        }
+      }
+    },
+    graphics = {
+      type = "group",
+      name = "Graphics",
+      desc = "Extra hidden graphical options to enhance visual fidelity beyond standard settings.",
+      order = 5.4,
+      args = {
+        enabled = {
+          name = "Enable",
+          desc = "Enable custom hidden graphical options. When disabled, standard game defaults are restored.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.graphics.enabled end,
+          set = function(_, value) Self.Graphics:SetEnabled(value) end,
+          order = 0
+        },
+        info = {
+          name = "Tweak hidden client CVars to push draw distances, foliage density, and visual clarity beyond standard in-game options. Higher values may impact performance.",
+          type = "description",
+          order = 0.5
+        },
+        groundEffectDensity = {
+          name = "Ground Effect Density",
+          desc = "Controls the density of ground foliage and clutter, such as grass, flowers, ferns, and small rocks.",
+          type = "range",
+          min = 16,
+          max = 256,
+          step = 1,
+          bigStep = 16,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.groundEffectDensity end,
+          set = function(_, value)
+            db.profile.graphics.groundEffectDensity = value
+            Self.Graphics:Apply("groundEffectDensity")
+          end,
+          order = 1
+        },
+        groundEffectDensityDesc = {
+          name = "|cff808080Controls the density of ground clutter such as grass, flowers, ferns, and small rocks (16 - 256). (CVar: groundEffectDensity)|r",
+          type = "description",
+          width = "full",
+          order = 1.1
+        },
+        groundEffectFade = {
+          name = "Ground Effect Fade Distance",
+          desc = "Controls the distance from the player at which ground clutter begins to fade into the distance.",
+          type = "range",
+          min = 50,
+          max = 500,
+          step = 1,
+          bigStep = 10,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.groundEffectFade end,
+          set = function(_, value)
+            db.profile.graphics.groundEffectFade = value
+            Self.Graphics:Apply("groundEffectFade")
+          end,
+          order = 2
+        },
+        groundEffectFadeDesc = {
+          name = "|cff808080Controls the distance at which ground clutter begins to fade into the background. (CVar: groundEffectFade)|r",
+          type = "description",
+          width = "full",
+          order = 2.1
+        },
+        groundEffectDist = {
+          name = "Ground Effect Render Distance",
+          desc = "Controls the maximum draw distance at which ground clutter (grass, plants, rocks) is rendered.",
+          type = "range",
+          min = 40,
+          max = 500,
+          step = 1,
+          bigStep = 10,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.groundEffectDist end,
+          set = function(_, value)
+            db.profile.graphics.groundEffectDist = value
+            Self.Graphics:Apply("groundEffectDist")
+          end,
+          order = 3
+        },
+        groundEffectDistDesc = {
+          name = "|cff808080Controls the maximum draw distance for ground clutter (grass, flowers, rocks) to minimize pop-in. (CVar: groundEffectDist)|r",
+          type = "description",
+          width = "full",
+          order = 3.1
+        },
+        lodObjectFadeScale = {
+          name = "LoD Object Fade Scale",
+          desc = "Scales the fade distance for level of detail (LoD) objects and doodads. Higher values keep distant structures and objects visible further away.",
+          type = "range",
+          min = 50,
+          max = 200,
+          step = 1,
+          bigStep = 5,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.lodObjectFadeScale end,
+          set = function(_, value)
+            db.profile.graphics.lodObjectFadeScale = value
+            Self.Graphics:Apply("lodObjectFadeScale")
+          end,
+          order = 4
+        },
+        lodObjectFadeScaleDesc = {
+          name = "|cff808080Scales the distance over which level of detail (LoD) objects fade out (50% - 200%). (CVar: lodObjectFadeScale)|r",
+          type = "description",
+          width = "full",
+          order = 4.1
+        },
+        lodObjectCullSize = {
+          name = "LoD Object Cull Size",
+          desc = "Screen-space pixel size threshold below which small objects and doodads are culled (not drawn). Lower values force smaller and more distant objects to render.",
+          type = "range",
+          min = 1,
+          max = 35,
+          step = 1,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.lodObjectCullSize end,
+          set = function(_, value)
+            db.profile.graphics.lodObjectCullSize = value
+            Self.Graphics:Apply("lodObjectCullSize")
+          end,
+          order = 5
+        },
+        lodObjectCullSizeDesc = {
+          name = "|cff808080Screen-space pixel threshold for culling small objects. Lower values render smaller/distant doodads. (CVar: lodObjectCullSize)|r",
+          type = "description",
+          width = "full",
+          order = 5.1
+        },
+        terrainLodDist = {
+          name = "Terrain LoD Distance",
+          desc = "Controls the draw distance for high-detail terrain mesh geometry, reducing visible terrain morphing and popping in the distance.",
+          type = "range",
+          min = 200,
+          max = 1000,
+          step = 10,
+          bigStep = 50,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.terrainLodDist end,
+          set = function(_, value)
+            db.profile.graphics.terrainLodDist = value
+            Self.Graphics:Apply("terrainLodDist")
+          end,
+          order = 6
+        },
+        terrainLodDistDesc = {
+          name = "|cff808080Controls the draw distance for high-detail terrain meshes, preventing terrain geometry popping. (CVar: terrainLodDist)|r",
+          type = "description",
+          width = "full",
+          order = 6.1
+        },
+        resampleAlwaysSharpen = {
+          name = "Always Run Resample Sharpening",
+          desc = "Runs the spatial sharpening filter pass (FSR / CAS) even when rendering at native resolution without upscaling, producing a sharper, clearer image.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.resampleAlwaysSharpen end,
+          set = function(_, value)
+            db.profile.graphics.resampleAlwaysSharpen = value
+            Self.Graphics:Apply("resampleAlwaysSharpen")
+          end,
+          order = 7
+        },
+        reflectionMode = {
+          name = "Water Reflection Mode",
+          desc = "Controls water reflection detail (0: Disabled, 1: Terrain, 2: Terrain and objects, 3: Full reflections including player models, NPCs, and sky).",
+          type = "select",
+          width = "full",
+          values = {
+            [0] = "0 - Disabled",
+            [1] = "1 - Terrain Only",
+            [2] = "2 - Terrain & Objects",
+            [3] = "3 - Full (All Entities & Sky)"
+          },
+          sorting = { 0, 1, 2, 3 },
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.reflectionMode end,
+          set = function(_, value)
+            db.profile.graphics.reflectionMode = value
+            Self.Graphics:Apply("reflectionMode")
+          end,
+          order = 8
+        },
+        reflectionModeDesc = {
+          name = "|cff808080Controls water reflection detail. Mode 3 enables complete reflections for terrain, doodads, characters, and sky. (CVar: reflectionMode)|r",
+          type = "description",
+          width = "full",
+          order = 8.1
+        },
+        weatherDensity = {
+          name = "Weather Density",
+          desc = "Controls the intensity and density of precipitation and weather effects such as rain, snow, and sandstorms (0: Off, 1: Light, 2: Medium, 3: Heavy / Maximum).",
+          type = "range",
+          min = 0,
+          max = 3,
+          step = 1,
+          width = "full",
+          disabled = function() return not db.profile.graphics.enabled end,
+          get = function() return db.profile.graphics.weatherDensity end,
+          set = function(_, value)
+            db.profile.graphics.weatherDensity = value
+            Self.Graphics:Apply("weatherDensity")
+          end,
+          order = 9
+        },
+        weatherDensityDesc = {
+          name = "|cff808080Controls the intensity of weather effects like rain, snow, and storms (0: Off, 1: Light, 2: Medium, 3: Heavy). (CVar: weatherDensity)|r",
+          type = "description",
+          width = "full",
+          order = 9.1
+        },
+        resetRecommended = {
+          name = "Reset to Recommended Values",
+          desc = "Resets all hidden graphics settings back to the recommended values.",
+          type = "execute",
+          disabled = function() return not db.profile.graphics.enabled end,
+          func = function()
+            Self.Graphics:ResetToRecommended()
+          end,
+          order = 10
         }
       }
     },
