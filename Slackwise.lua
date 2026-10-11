@@ -964,7 +964,15 @@ BINDINGS = {
           ]])
         },
         { 
-          "ToggleWeapons", "inv_misc_questionmark", multilineTrim([[
+          "ENGAGE_ASSIST", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Holy Strike
+            /assist party1
+            /startattack
+            /cast Holy Strike
+          ]])
+        },
+        { 
+          "TOGGLE_WEAPONS", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
             /equipset [mod:shift,ctrl] TwoHander; [mod:ctrl] HealShield; TankShield
           ]])
@@ -989,11 +997,12 @@ BINDINGS = {
       {"F11",     "SHAPESHIFTBUTTON3", BT.COMMAND},
       {"F12",     "SHAPESHIFTBUTTON4", BT.COMMAND},
       {"`",       "!STOP", BT.MACRO},
-      {"ALT-Q",   "ToggleWeapons", BT.MACRO},
+      {"ALT-Q",   "TOGGLE_WEAPONS", BT.MACRO},
 
       -- Main Attacks 
       {"Q",       "Judgement"},
       {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
+      {"CTRL-E",  "ENGAGE_ASSIST", BT.MACRO }, -- Holy Strike
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
       {"6",       "Exorcism"},
