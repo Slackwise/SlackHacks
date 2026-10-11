@@ -956,66 +956,80 @@ BINDINGS = {
   FOREVER = {
     PALADIN = {
       MACROS = {
-      { 
-        "!ENGAGE", "classicon_paladin", multilineTrim([[
-          #showtooltip Holy Strike
-          /startattack
-          /cast Holy Strike
-        ]])
-      },
+        { 
+          "ENGAGE", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Holy Strike
+            /startattack
+            /cast Holy Strike
+          ]])
+        },
+        { 
+          "ToggleWeapons", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /equipset [mod:shift,ctrl] TwoHander; [mod:ctrl] HealShield; TankShield
+          ]])
+        },
       },
       
       --Click-Casting
-      {"BUTTON1",         "Holy Light", BT.CLICKCAST},
-      {"SHIFT-BUTTON1",   "Holy Light", BT.CLICKCAST},
-      {"ALT-CTRL-BUTTON1","Redemption", BT.CLICKCAST},
-      {"BUTTON2",         "Holy Light", BT.CLICKCAST},
-      {"BUTTON4",         "Blessing of Sacrifice",  BT.CLICKCAST},
-      {"SHIFT-BUTTON4",   "Blessing of Freedom",    BT.CLICKCAST},
-      {"CTRL-BUTTON4",    "Blessing of Protection", BT.CLICKCAST},
-      {"BUTTON5",         "Purify",     BT.CLICKCAST},
+      {"BUTTON1",                 "Holy Light", BT.CLICKCAST},
+      {"SHIFT-BUTTON1",           "Holy Light", BT.CLICKCAST},
+      {"ALT-CTRL-BUTTON1",        "Redemption", BT.CLICKCAST},
+      {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption", BT.CLICKCAST},
+      {"BUTTON2",                 "Holy Light", BT.CLICKCAST},
+      {"BUTTON4",                 "Blessing of Sacrifice",  BT.CLICKCAST},
+      {"SHIFT-BUTTON4",           "Blessing of Freedom",    BT.CLICKCAST},
+      {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
+      {"BUTTON5",                 "Purify",     BT.CLICKCAST},
 
       -- General
-      {"E",       "!ENGAGE", BT.MACRO },
       {"F9",      "SHAPESHIFTBUTTON1", BT.COMMAND},
       {"F10",     "SHAPESHIFTBUTTON2", BT.COMMAND},
       {"F11",     "SHAPESHIFTBUTTON3", BT.COMMAND},
       {"F12",     "SHAPESHIFTBUTTON4", BT.COMMAND},
       {"`",       "!STOP", BT.MACRO},
+      {"ALT-Q",   "ToggleWeapons", BT.MACRO},
 
       -- Core
       {"SHIFT-V", "Divine Protection"},
       {"ALT-Z",   "Perception"},
 
-      -- Main Attacks and Runes?
-      {"4",       "Judgement"},
+      -- Main Attacks 
+      {"Q",       "Judgement"},
+      {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
+      {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
       {"C",       "Consecration"},
 
       -- Heals (Coming from left hand?)
-      {"2",       "Holy Light"},
-      {"ALT-CTRL-Z", "Redemption"},
+      {"2",                "Holy Light"},
+      {"ALT-CTRL-Z",       "Redemption"},
+      {"ALT-CTRL-SHIFT-Z", "Redemption"},
 
       -- "OHSHIT" Buttons
       {"G",       "Blessing of Protection"},
-      {"CTRL-BUTTON4", "Blessing of Protection", "CLICKCAST"},
-      {"SHIFT-G", "Lay on Hands"},
+      {"CTRL-V",  "Lay on Hands"},
 
       -- CC
       {"F",       "Hammer of Justice"},
 
-      -- Tanking
-      {"Q",       {"HealShield", "inv_misc_questionmark", "#showtooltip\n/equipset HealShield"}},
-      {"SHIFT-Q", {"TwoHander", "inv_misc_questionmark", "#showtooltip\n/equipset TwoHander"}},
+      -- Seals & Judgement
+      {"R",                 "Seal of Fury"},
+      {"SHIFT-R",           "Seal of Light"},
+      {"CTRL-R",            "Seal of Justice"},
+      {"ALT-R",             "Seal of Wisdom"},
+      {"ALT-SHIFT-R",       "Seal of the Crusader"},
+      {"CTRL-SHIFT-R",      "Seal of Righteousness"},
+      {"ALT-CTRL-SHIFT-R",  ""},
 
       -- Blessings
-      {"T",       "Blessing of Might"},
-      {"SHIFT-T", "Blessing of Wisdom"},
-
-      -- Seals & Judgement
-      {"R",       "Seal of Righteousness"},
-      {"SHIFT-R", "Seal of the Crusader"},
-      {"CTRL-R",  "Seal of Fury"},
+      {"T",                 "Blessing of Sacrifice"},
+      {"SHIFT-R",           "Blessing of Freedom"},
+      {"CTRL-T",            "Blessing of Protection"},
+      {"ALT-T",             "Blessing of Wisdom"},
+      {"ALT-SHIFT-T",       "Blessing of Salvation"},
+      {"CTRL-SHIFT-T",      "Blessing of Might"},
+      {"ALT-CTRL-SHIFT-T",  "Blessing of Kings"},
 
       -- Items
       {"ALT-Z", "Insignia of the Alliance", "ITEM"}, -- PvP Trinket
