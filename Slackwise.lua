@@ -954,62 +954,10 @@ BINDINGS = {
     },
   },
   FOREVER = {
-    DRUID = {
-      {"1",             "Rejuvenation"},
-      {"SHIFT-1",       "Healing Touch"},
-      {"2",             "Wrath"},
-      {"4",             "Moonfire"},
-      {"T",             "Growl"},
-      {"SHIFT-E",       "Maul"},
-      {"SHIFT-T",       "Demoralizing Roar"},
-      {"F",             "Entangling Roots"},
-      {"V",             {"BEAR", "Ability_Racial_BearForm", "/cast [form:1] Frenzied Regeneration; Bear Form"}},
-      {"B",             {"NOFORM", "Classicon_druid", "/cancelform"}},
-      {"CTRL-F",        "Nature's Grasp"},
-      {"ALT-CTRL-Z",    "Shadowmeld"},
-      {"CTRL-G",        "Elune's Light"},
-      {"CTRL-H",        "Teleport: Moonglade"},
-    },
-    HUNTER = {
-      {"1",             "Serpent Sting"},
-      {"E",             "Raptor Strike"},
-      {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
-      {"T",             "Aspect of the Monkey"},
-      {"CTRL-G",        "Elune's Light"},
-      {"SHIFT-Z",       "Shadowmeld"},
-      {"ALT-CTRL-Z",    "Shadowmeld"},
-    },
-    MAGE = {
-      MACROS = {
-        {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"},
-        {"FOOD", "134400",
-          multilineTrim([[
-            #showtooltip [mod] Conjure Food; Conjured Muffin
-            /use  [mod] !Conjure Food
-            /use Conjured Muffin
-          ]])
-        },
-        {"WATER", "134400",
-          multilineTrim([[
-            #showtooltip [mod] Conjure Water; Conjured Water
-            /use  [mod] !Conjure Water
-            /use Conjured Water
-          ]])
-        },
-      },
-      {"E",             {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"}},
-      {"2",             "Fireball"},
-      {"4",             "Fire Blast"},
-      {"SHIFT-2",       "Frostbolt"},
-      {"Z",             "Blink"},
-      {"CTRL-SPACE",    "Walk on Air"},
-    },
     PALADIN = {
       MACROS = {
       { 
-        "!ENGAGE",
-        "classicon_paladin",
-        multilineTrim([[
+        "!ENGAGE", "classicon_paladin", multilineTrim([[
           #showtooltip Holy Strike
           /startattack
           /cast Holy Strike
@@ -1071,6 +1019,56 @@ BINDINGS = {
 
       -- Items
       {"ALT-Z", "Insignia of the Alliance", "ITEM"}, -- PvP Trinket
+    },
+    DRUID = {
+      {"1",             "Rejuvenation"},
+      {"SHIFT-1",       "Healing Touch"},
+      {"2",             "Wrath"},
+      {"4",             "Moonfire"},
+      {"T",             "Growl"},
+      {"SHIFT-E",       "Maul"},
+      {"SHIFT-T",       "Demoralizing Roar"},
+      {"F",             "Entangling Roots"},
+      {"V",             {"BEAR", "Ability_Racial_BearForm", "/cast [form:1] Frenzied Regeneration; Bear Form"}},
+      {"B",             {"NOFORM", "Classicon_druid", "/cancelform"}},
+      {"CTRL-F",        "Nature's Grasp"},
+      {"ALT-CTRL-Z",    "Shadowmeld"},
+      {"CTRL-G",        "Elune's Light"},
+      {"CTRL-H",        "Teleport: Moonglade"},
+    },
+    HUNTER = {
+      {"1",             "Serpent Sting"},
+      {"E",             "Raptor Strike"},
+      {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
+      {"T",             "Aspect of the Monkey"},
+      {"CTRL-G",        "Elune's Light"},
+      {"SHIFT-Z",       "Shadowmeld"},
+      {"ALT-CTRL-Z",    "Shadowmeld"},
+    },
+    MAGE = {
+      MACROS = {
+        {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"},
+        {"FOOD", "134400",
+          multilineTrim([[
+            #showtooltip [mod] Conjure Food; Conjured Muffin
+            /use  [mod] !Conjure Food
+            /use Conjured Muffin
+          ]])
+        },
+        {"WATER", "134400",
+          multilineTrim([[
+            #showtooltip [mod] Conjure Water; Conjured Water
+            /use  [mod] !Conjure Water
+            /use Conjured Water
+          ]])
+        },
+      },
+      {"E",             {"!ENGAGE", "Ability_shootwand", "#showtooltip Shoot\n/startattack\n/cast !Shoot"}},
+      {"2",             "Fireball"},
+      {"4",             "Fire Blast"},
+      {"SHIFT-2",       "Frostbolt"},
+      {"Z",             "Blink"},
+      {"CTRL-SPACE",    "Walk on Air"},
     },
     PRIEST = {
       {"1",  "ACTIONBUTTON1", BT.COMMAND},
