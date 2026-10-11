@@ -83,6 +83,8 @@ local chatRequestModes = {
   augments = VendorMode.AUGMENTS,
 }
 
+local SELF_VENDOR_ALLOWED_WORDS = { "and", "need", "please" }
+
 function module:ParseChatRequest(message)
   if type(message) ~= "string" or not db.profile.selfVendor.enabled then return end
   local settings = db.profile.selfVendor
@@ -92,8 +94,9 @@ function module:ParseChatRequest(message)
   if settings.requirePrefix and not hasPrefix then return end
   if hasPrefix then message = message:sub(#prefix + 1) end
   local requested, previousWord = {}, nil
-  for word in message:lower():gmatch("[%w_]+") do
+  for word in message:lower():gmatch("%w+") do
     local mode = chatRequestModes[word]
+    if not mode and not tContains(SELF_VENDOR_ALLOWED_WORDS, word) then return end
     if (word == "rune" or word == "runes") and previousWord == "vantus" then
       mode = VendorMode.VANTUS_RUNE
     end
