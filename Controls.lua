@@ -14,7 +14,7 @@ end
 
 local function applyMaximumCameraZoom()
   if settings().maximumCameraZoom then
-    ensureCVar("cameraDistanceMaxZoomFactor", 2.6) -- Max out camera zoom
+    ensureCVar("cameraDistanceMaxZoomFactor", 4) -- Max out camera zoom
   else
     ensureCVar("cameraDistanceMaxZoomFactor", GetCVarDefault("cameraDistanceMaxZoomFactor"))
   end
