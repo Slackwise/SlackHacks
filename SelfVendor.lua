@@ -83,7 +83,7 @@ local chatRequestModes = {
   augments = VendorMode.AUGMENTS,
 }
 
-local SELF_VENDOR_ALLOWED_WORDS = { "and", "need", "please" }
+local SELF_VENDOR_ALLOWED_WORDS = { "and", "give", "need", "please" }
 
 function module:ParseChatRequest(message)
   if type(message) ~= "string" or not db.profile.selfVendor.enabled then return end
