@@ -53,7 +53,7 @@ CustomConfigs = {
     },
     setCvars = function() end,
     setOptions = function()
-      applyCustomConfig(CustomConfigs["blockspiders#1398"].config)
+      -- applyCustomConfig(CustomConfigs["blockspiders#1398"].config)
     end,
   },
 }
