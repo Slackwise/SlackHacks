@@ -3,16 +3,16 @@ setfenv(1, _G.SlackHacks)
 --=====================================================================
 -- Graphics
 --=====================================================================
--- Hidden graphical options and advanced rendering CVars beyond standard settings:
---   * groundEffectDensity (256): Foliage and clutter density (grass, ferns, rocks).
---   * groundEffectFade (370): Distance at which ground clutter begins fading out.
---   * groundEffectDist (500): Maximum draw distance for ground clutter rendering.
---   * lodObjectFadeScale (200): Fade distance scale for level of detail (LoD) doodads/objects.
---   * lodObjectCullSize (8): Pixel size threshold below which small objects are culled.
---   * terrainLodDist (1000): Maximum draw distance for high-detail terrain mesh geometry.
---   * ResampleAlwaysSharpen (1): Runs spatial sharpening filter pass even without FSR upscaling.
---   * reflectionMode (3): Water reflection quality mode (0: off, 1: terrain, 2: objects, 3: all/sky).
---   * weatherDensity (3): Precipitation and weather effect intensity (0: off, 1-3: density).
+-- Hidden graphical options and advanced rendering CVars:
+--   * groundEffectDensity: Foliage and clutter density (grass, ferns, rocks).
+--   * groundEffectFade: Distance at which ground clutter begins fading out.
+--   * groundEffectDist: Maximum draw distance for ground clutter rendering.
+--   * lodObjectFadeScale: Fade distance scale for level of detail (LoD) doodads/objects.
+--   * lodObjectCullSize: Pixel size threshold below which small objects are culled.
+--   * terrainLodDist: Maximum draw distance for high-detail terrain mesh geometry.
+--   * ResampleAlwaysSharpen: Runs spatial sharpening filter pass even without FSR upscaling.
+--   * reflectionMode: Water reflection quality mode (0: off, 1: terrain, 2: objects, 3: all/sky).
+--   * weatherDensity: Precipitation and weather effect intensity (0: off, 1-3: density).
 
 local module = Self:NewModule("Graphics", "AceEvent-3.0")
 Self.Graphics = module
@@ -20,19 +20,6 @@ Self.Graphics = module
 local function settings()
   return db.profile.graphics
 end
-
--- Recommended hidden graphics settings
-local RECOMMENDED_GRAPHICS = {
-  groundEffectDensity = 256,
-  groundEffectFade = 370,
-  groundEffectDist = 500,
-  lodObjectFadeScale = 200,
-  lodObjectCullSize = 8,
-  terrainLodDist = 1000,
-  resampleAlwaysSharpen = true,
-  reflectionMode = 3,
-  weatherDensity = 3,
-}
 
 -- Standard Blizzard defaults used as fallbacks when restoring game defaults
 local BLIZZARD_DEFAULTS = {
@@ -45,6 +32,18 @@ local BLIZZARD_DEFAULTS = {
   ResampleAlwaysSharpen = 0,
   reflectionMode = 0,
   weatherDensity = 2,
+}
+
+local CVAR_NAMES = {
+  groundEffectDensity = "groundEffectDensity",
+  groundEffectFade = "groundEffectFade",
+  groundEffectDist = "groundEffectDist",
+  lodObjectFadeScale = "lodObjectFadeScale",
+  lodObjectCullSize = "lodObjectCullSize",
+  terrainLodDist = "terrainLodDist",
+  resampleAlwaysSharpen = "ResampleAlwaysSharpen",
+  reflectionMode = "reflectionMode",
+  weatherDensity = "weatherDensity",
 }
 
 local function applyCVar(cvar, value)
@@ -63,27 +62,76 @@ local function revertCVar(cvar, fallbackDefault)
   end
 end
 
+--- Returns the game's default value for a given graphics CVar key.
+function module:GetDefault(key)
+  local cvarName = CVAR_NAMES[key] or key
+  if GetCVarDefault then
+    local def = GetCVarDefault(cvarName)
+    if def ~= nil and def ~= "" then
+      local num = tonumber(def)
+      if num then return num end
+    end
+  end
+  return BLIZZARD_DEFAULTS[cvarName] or BLIZZARD_DEFAULTS[key]
+end
+
 function module:Apply(key)
   if not settings().enabled then return end
 
   if key == "groundEffectDensity" then
-    applyCVar("groundEffectDensity", settings().groundEffectDensity)
+    if settings().enableGroundEffectDensity then
+      applyCVar("groundEffectDensity", settings().groundEffectDensity)
+    else
+      revertCVar("groundEffectDensity", BLIZZARD_DEFAULTS.groundEffectDensity)
+    end
   elseif key == "groundEffectFade" then
-    applyCVar("groundEffectFade", settings().groundEffectFade)
+    if settings().enableGroundEffectFade then
+      applyCVar("groundEffectFade", settings().groundEffectFade)
+    else
+      revertCVar("groundEffectFade", BLIZZARD_DEFAULTS.groundEffectFade)
+    end
   elseif key == "groundEffectDist" then
-    applyCVar("groundEffectDist", settings().groundEffectDist)
+    if settings().enableGroundEffectDist then
+      applyCVar("groundEffectDist", settings().groundEffectDist)
+    else
+      revertCVar("groundEffectDist", BLIZZARD_DEFAULTS.groundEffectDist)
+    end
   elseif key == "lodObjectFadeScale" then
-    applyCVar("lodObjectFadeScale", settings().lodObjectFadeScale)
+    if settings().enableLodObjectFadeScale then
+      applyCVar("lodObjectFadeScale", settings().lodObjectFadeScale)
+    else
+      revertCVar("lodObjectFadeScale", BLIZZARD_DEFAULTS.lodObjectFadeScale)
+    end
   elseif key == "lodObjectCullSize" then
-    applyCVar("lodObjectCullSize", settings().lodObjectCullSize)
+    if settings().enableLodObjectCullSize then
+      applyCVar("lodObjectCullSize", settings().lodObjectCullSize)
+    else
+      revertCVar("lodObjectCullSize", BLIZZARD_DEFAULTS.lodObjectCullSize)
+    end
   elseif key == "terrainLodDist" then
-    applyCVar("terrainLodDist", settings().terrainLodDist)
+    if settings().enableTerrainLodDist then
+      applyCVar("terrainLodDist", settings().terrainLodDist)
+    else
+      revertCVar("terrainLodDist", BLIZZARD_DEFAULTS.terrainLodDist)
+    end
   elseif key == "resampleAlwaysSharpen" then
-    applyCVar("ResampleAlwaysSharpen", settings().resampleAlwaysSharpen and 1 or 0)
+    if settings().resampleAlwaysSharpen then
+      applyCVar("ResampleAlwaysSharpen", 1)
+    else
+      revertCVar("ResampleAlwaysSharpen", BLIZZARD_DEFAULTS.ResampleAlwaysSharpen)
+    end
   elseif key == "reflectionMode" then
-    applyCVar("reflectionMode", settings().reflectionMode)
+    if settings().enableReflectionMode then
+      applyCVar("reflectionMode", settings().reflectionMode)
+    else
+      revertCVar("reflectionMode", BLIZZARD_DEFAULTS.reflectionMode)
+    end
   elseif key == "weatherDensity" then
-    applyCVar("weatherDensity", settings().weatherDensity)
+    if settings().enableWeatherDensity then
+      applyCVar("weatherDensity", settings().weatherDensity)
+    else
+      revertCVar("weatherDensity", BLIZZARD_DEFAULTS.weatherDensity)
+    end
   else
     self:ApplyAll()
   end
@@ -92,15 +140,15 @@ end
 function module:ApplyAll()
   if not settings().enabled then return end
 
-  applyCVar("groundEffectDensity", settings().groundEffectDensity)
-  applyCVar("groundEffectFade", settings().groundEffectFade)
-  applyCVar("groundEffectDist", settings().groundEffectDist)
-  applyCVar("lodObjectFadeScale", settings().lodObjectFadeScale)
-  applyCVar("lodObjectCullSize", settings().lodObjectCullSize)
-  applyCVar("terrainLodDist", settings().terrainLodDist)
-  applyCVar("ResampleAlwaysSharpen", settings().resampleAlwaysSharpen and 1 or 0)
-  applyCVar("reflectionMode", settings().reflectionMode)
-  applyCVar("weatherDensity", settings().weatherDensity)
+  self:Apply("groundEffectDensity")
+  self:Apply("groundEffectFade")
+  self:Apply("groundEffectDist")
+  self:Apply("lodObjectFadeScale")
+  self:Apply("lodObjectCullSize")
+  self:Apply("terrainLodDist")
+  self:Apply("resampleAlwaysSharpen")
+  self:Apply("reflectionMode")
+  self:Apply("weatherDensity")
 end
 
 function module:RestoreDefaults()
@@ -115,18 +163,33 @@ function module:RestoreDefaults()
   revertCVar("weatherDensity", BLIZZARD_DEFAULTS.weatherDensity)
 end
 
-function module:ResetToRecommended()
-  for k, v in pairs(RECOMMENDED_GRAPHICS) do
-    settings()[k] = v
-  end
-  if settings().enabled then
-    self:ApplyAll()
-  end
+function module:ResetToDefaults()
+  settings().enableGroundEffectDensity = false
+  settings().groundEffectDensity = self:GetDefault("groundEffectDensity")
+  settings().enableGroundEffectFade = false
+  settings().groundEffectFade = self:GetDefault("groundEffectFade")
+  settings().enableGroundEffectDist = false
+  settings().groundEffectDist = self:GetDefault("groundEffectDist")
+  settings().enableLodObjectFadeScale = false
+  settings().lodObjectFadeScale = self:GetDefault("lodObjectFadeScale")
+  settings().enableLodObjectCullSize = false
+  settings().lodObjectCullSize = self:GetDefault("lodObjectCullSize")
+  settings().enableTerrainLodDist = false
+  settings().terrainLodDist = self:GetDefault("terrainLodDist")
+  settings().resampleAlwaysSharpen = false
+  settings().enableReflectionMode = false
+  settings().reflectionMode = self:GetDefault("reflectionMode")
+  settings().enableWeatherDensity = false
+  settings().weatherDensity = self:GetDefault("weatherDensity")
+
+  self:RestoreDefaults()
+
   local acr = LibStub("AceConfigRegistry-3.0", true)
   if acr then
     acr:NotifyChange("SlackHacks")
   end
 end
+module.UnsetAll = module.ResetToDefaults
 
 function module:SetEnabled(enabled)
   settings().enabled = enabled
