@@ -124,7 +124,7 @@ dbDefaults = {
         nonLfrRaids = true
       },
       categories = {
-        wellFed = true,
+        food = true,
         flask = true,
         oil = true,
         rune = false
@@ -1787,14 +1787,14 @@ options = {
           inline = true,
           order = 2,
           args = {
-            wellFed = {
+            food = {
               name = "Food Buff",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.buffs.categories.wellFed end,
+              get = function() return db.profile.buffs.categories.food end,
               set = function(_, value)
-                db.profile.buffs.categories.wellFed = value
+                db.profile.buffs.categories.food = value
                 Self.Buffs:Refresh()
               end,
               order = 1

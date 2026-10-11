@@ -19,18 +19,18 @@ local RAID_DIFFICULTY_IDS = { [14] = true, [15] = true, [16] = true } -- Normal,
 local MYTHIC_DUNGEON_THRESHOLD_SECONDS = 40 * 60
 local RAID_THRESHOLD_SECONDS = 15 * 60
 local runeBuffIDSet = {}
-local wellFedBuffIDSet = { [1284617] = true }
+local foodBuffIDSet = { [1284617] = true }
 
 -- Buff categories, in display order. `itemNames` key into StaticData's ITEM_NAMES table.
 local BUFF_CATEGORIES = {
   {
-    dbKey = "wellFed",
+    dbKey = "food",
     label = "Food",
     icon = 133943,
     itemNames = FOOD_ITEM_NAMES,
     itemIDs = FOOD_ITEM_IDS,
     matchAura = function(auraName, spellID)
-      if wellFedBuffIDSet[spellID] then return true end
+      if foodBuffIDSet[spellID] then return true end
       return type(auraName) == "string" and auraName:find("Well Fed", 1, true) ~= nil
     end,
   },
@@ -527,7 +527,7 @@ local function createContainer()
   container:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   updatePosition()
   container:SetAttribute("_onstate-combat", [[
-    local food = self:GetFrameRef("wellFed")
+    local food = self:GetFrameRef("food")
     local flask = self:GetFrameRef("flask")
     local oil = self:GetFrameRef("oil")
     local rune = self:GetFrameRef("rune")
@@ -1142,8 +1142,8 @@ local function createEditModeDialog()
   curY = addDivider(curY - 2)
   curY = addHeader("Buffs to Track", curY)
   _, curY = addCheckbox("Food Buff",
-    function() return db.profile.buffs.categories.wellFed end,
-    function(v) db.profile.buffs.categories.wellFed = v end,
+    function() return db.profile.buffs.categories.food end,
+    function(v) db.profile.buffs.categories.food = v end,
     curY)
   _, curY = addCheckbox("Flask Buff",
     function() return db.profile.buffs.categories.flask end,
