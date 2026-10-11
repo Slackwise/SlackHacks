@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 6
+CONFIG_VERSION = 7
 
 Enum.SelfVendorMode = {
   CONSUMABLES_MISSING = 1,
@@ -183,6 +183,24 @@ CONFIG_MIGRATIONS = {
     g.errorLoggingEnabled = nil
     g.logPurgeEnabled = nil
     g.logPurgeHours = nil
+  end,
+  [7] = function()
+    local function migrateMinimap(p)
+      if p and p.minimap then
+        if p.minimap.showExpansionLandingPage == nil and p.minimap.showGarrison ~= nil then
+          p.minimap.showExpansionLandingPage = p.minimap.showGarrison
+        end
+        p.minimap.showGarrison = nil
+      end
+    end
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateMinimap(p)
+      end
+    end
+    if Self.db.profile then
+      migrateMinimap(Self.db.profile)
+    end
   end,
 }
 

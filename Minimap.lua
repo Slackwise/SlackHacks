@@ -36,7 +36,7 @@ local DEFAULT_VISUALS = {
   showTracking = true,
   showCalendar = true,
   showInstanceDifficulty = true,
-  showGarrison = true,
+  showExpansionLandingPage = true,
   showAddonCompartment = true,
   addonsInCompartment = false,
 }
@@ -53,6 +53,10 @@ end
 ---@return table - Minimap settings safe to read before the database exists.
 local function settings()
   if db and db.profile and db.profile.minimap then
+    if db.profile.minimap.showExpansionLandingPage == nil and db.profile.minimap.showGarrison ~= nil then
+      db.profile.minimap.showExpansionLandingPage = db.profile.minimap.showGarrison
+      db.profile.minimap.showGarrison = nil
+    end
     return db.profile.minimap
   end
   return DEFAULT_VISUALS
@@ -195,28 +199,28 @@ local function getInstanceDifficultyButton()
 end
 
 --- Resolves the current expansion landing-page button.
----@return Frame|nil - Retail or legacy garrison button.
-local function getGarrisonButton()
+---@return Frame|nil - Retail or legacy landing page button.
+local function getExpansionLandingPageButton()
   return ExpansionLandingPageMinimapButton or GarrisonLandingPageMinimapButton
 end
 
 --- Checks Blizzard's own landing-page visibility gate before exposing the button.
--- This avoids the legacy API's stale garrison type, which can provide a title even when its backing
+-- This avoids the legacy API's stale type, which can provide a title even when its backing
 -- covenant/expansion data is nil; making that button clickable then crashes Blizzard tooltip/toggle
 -- code. `pcall` also makes this probe harmless across API versions.
 ---@return boolean - True only when the button is valid and should be shown.
-local function isGarrisonLandingPageAvailable()
+local function isExpansionLandingPageAvailable()
   if not isRetail() then return false end
-  local btn = getGarrisonButton()
+  local btn = getExpansionLandingPageButton()
   if not btn then return false end
 
-  -- Newer expansions route through ExpansionOverlay mode (not the legacy Garrison type system) --
+  -- Newer expansions route through ExpansionOverlay mode (not the legacy type system) --
   -- trust Blizzard's own resolved title/description as the availability signal there.
   if btn.IsExpansionOverlayMode and btn:IsExpansionOverlayMode() then
     return btn.title ~= nil and btn.title ~= ""
   end
 
-  -- Legacy Garrison mode: mirror Blizzard's own RefreshButton() visibility gate
+  -- Legacy mode: mirror Blizzard's own RefreshButton() visibility gate
   -- (C_Garrison.IsLandingPageMinimapButtonVisible) instead of re-deriving availability ourselves.
   -- GetLandingPageGarrisonType() can resolve to a stale/inapplicable type (e.g. Shadowlands Covenant
   -- with no active covenant chosen) whose title Blizzard still populates -- forcing the button
@@ -231,7 +235,7 @@ local function isGarrisonLandingPageAvailable()
     return false
   end
 
-  -- Fallback for clients without the modern Garrison API (shouldn't normally be reached on retail).
+  -- Fallback for clients without the modern landing page API (shouldn't normally be reached on retail).
   if C_PlayerInfo and C_PlayerInfo.CanPlayerUseExpansionLandingPage then
     local ok, canUse = pcall(C_PlayerInfo.CanPlayerUseExpansionLandingPage)
     if ok and canUse then return true end
@@ -256,8 +260,8 @@ local function getStandardMinimapIcons()
   if crafting then table.insert(list, crafting) end
   local diff = getInstanceDifficultyButton()
   if diff then table.insert(list, diff) end
-  local garrison = getGarrisonButton()
-  if garrison then table.insert(list, garrison) end
+  local landingPage = getExpansionLandingPageButton()
+  if landingPage then table.insert(list, landingPage) end
   if AddonCompartmentFrame then table.insert(list, AddonCompartmentFrame) end
   if MinimapCluster and MinimapCluster.DielFrame then table.insert(list, MinimapCluster.DielFrame) end
   return list
@@ -269,12 +273,12 @@ local function extraButtons()
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
   local diff = getInstanceDifficultyButton()
-  local garrison = getGarrisonButton()
+  local landingPage = getExpansionLandingPageButton()
   return {
     mail,
     crafting,
     diff,
-    garrison,
+    landingPage,
     AddonCompartmentFrame,
     MiniMapBattlefieldFrame,
     MiniMapMeetingStoneFrame,
@@ -878,7 +882,7 @@ end
 local TITLE_BAR_HEIGHT = 18
 local TITLE_BAR_ICON_SCALE = 0.7
 local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
-local TITLE_BAR_GARRISON_SCALE = 0.7
+local TITLE_BAR_EXPANSION_LANDING_PAGE_SCALE = 0.7
 local TITLE_BAR_CALENDAR_TRACKING_SCALE = 1.05
 local TITLE_BAR_CALENDAR_Y_OFFSET = -1 -- calendar icon/date art sits slightly higher within its frame than other icons
 local TITLE_BAR_TRACKING_Y_OFFSET = 2 -- lifts tracking to vertically align with title bar
@@ -2140,7 +2144,7 @@ isButtonShown = function(button)
   local mail = getMailButton()
   local crafting = getCraftingOrderButton()
   local diff = getInstanceDifficultyButton()
-  local garrison = getGarrisonButton()
+  local landingPage = getExpansionLandingPageButton()
 
   if settings().shape == "square" then
     if button == mail then
@@ -2153,8 +2157,8 @@ isButtonShown = function(button)
     if button == diff then
       return settings().showInstanceDifficulty and true or false
     end
-    if button == garrison then
-      return settings().showGarrison and isGarrisonLandingPageAvailable()
+    if button == landingPage then
+      return settings().showExpansionLandingPage and isExpansionLandingPageAvailable()
     end
     if button == TimeManagerClockButton then
       return settings().showClock and true or false
@@ -2170,7 +2174,7 @@ isButtonShown = function(button)
     end
   end
 
-  if not isRetail() and (button == crafting or button == garrison) then
+  if not isRetail() and (button == crafting or button == landingPage) then
     return false
   end
 
@@ -2214,8 +2218,8 @@ local function getButtonScaledWidth(button)
   local scale = TITLE_BAR_ICON_SCALE
   if button == TimeManagerClockButton then
     scale = TITLE_BAR_CLOCK_SCALE
-  elseif button == getGarrisonButton() then
-    scale = TITLE_BAR_GARRISON_SCALE
+  elseif button == getExpansionLandingPageButton() then
+    scale = TITLE_BAR_EXPANSION_LANDING_PAGE_SCALE
   elseif button == AddonCompartmentFrame or button == GameTimeFrame or button == (MinimapCluster and MinimapCluster.Tracking) then
     scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
   end
@@ -2244,7 +2248,7 @@ end
 
 --- Builds the list of buttons for the permanent title bar flow.
 --- Right-to-left layout order: Clock, Mail, Crafting Orders, standard icons (if not hover-only),
---- and Addon Compartment / Garrison (if not hover-only).
+--- and Addon Compartment / Expansion Landing Page (if not hover-only).
 ---@return table - Buttons in right-to-left flow order.
 local function getTitleBarFlowButtons()
   local mm = settings()
@@ -2295,7 +2299,7 @@ local function getHoverButtons()
     if mm.showTracking and MinimapCluster and MinimapCluster.Tracking then
       table.insert(list, MinimapCluster.Tracking)
     end
-    -- Second from the left, right after the Campaign/Garrison icon appended below -- it's a Blizzard
+    -- Second from the left, right after the Expansion Landing Page icon appended below -- it's a Blizzard
     -- icon, not a 3rd-party addon icon, so it's governed by showIconsOnHover like Calendar/Tracking.
     if mm.showAddonCompartment and AddonCompartmentFrame then
       table.insert(list, AddonCompartmentFrame)
@@ -2304,9 +2308,9 @@ local function getHoverButtons()
 
   -- Keep the expansion button in the hover container even when Blizzard icons are otherwise persistent.
   -- Appending it last makes it the far-left item because the list is laid out right-to-left.
-  local garrison = getGarrisonButton()
-  if mm.showGarrison and garrison then
-    table.insert(list, garrison)
+  local landingPage = getExpansionLandingPageButton()
+  if mm.showExpansionLandingPage and landingPage then
+    table.insert(list, landingPage)
   end
 
   return list
@@ -2398,7 +2402,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
       -- Real Show() here (not alpha) -- the button genuinely belongs in the flow; visibility of the
       -- hidden-until-hover group itself is driven purely by SetAlpha in updateHoverVisibility, same
       -- proven technique already used for the corner Instance Difficulty icon -- never SetShown,
-      -- which is what broke Calendar/AddonCompartment/Garrison clicks previously.
+      -- which is what broke Calendar/AddonCompartment/Expansion Landing Page clicks previously.
       setShownSafely(button, true)
       local scaledW, scale = getButtonScaledWidth(button)
       button:SetScale(scale)
@@ -2789,9 +2793,9 @@ local function createOptionsDialog()
     function(v) db.profile.minimap.showInstanceDifficulty = v end,
     curY)
   table.insert(squareDependents, cb)
-  cb, curY = addCheckbox("Show Garrison/Expansion Landing Page",
-    function() return db.profile.minimap.showGarrison end,
-    function(v) db.profile.minimap.showGarrison = v end,
+  cb, curY = addCheckbox("Show Expansion Landing Page",
+    function() return db.profile.minimap.showExpansionLandingPage end,
+    function(v) db.profile.minimap.showExpansionLandingPage = v end,
     curY)
   table.insert(squareDependents, cb)
   cb, curY = addCheckbox("Show Addon Compartment",

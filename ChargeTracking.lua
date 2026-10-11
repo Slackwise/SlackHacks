@@ -5,10 +5,10 @@ Self.ChargeTracking = module
 
 local HOLY_SHOCK_SPELL_ID = 20473
 local CHARGE_ICON_SIZE = 36
-local CHARGE_ICON_ANCHOR_GAP = 6
 
 local container
-local anchorVisibilityHooked = false
+local isEditing = false
+local selection
 local trackedCharges
 local maxCharges = 2 -- static fact about Holy Shock; used whenever the real value isn't safely readable
 local rechargeDuration -- cached seconds; refreshed opportunistically whenever it's a clean number
@@ -34,6 +34,9 @@ local function createChargeTrackingFrame()
 
   container = CreateFrame("Frame", "SlackHacksHolyShockChargeTracker", UIParent)
   container:SetSize(CHARGE_ICON_SIZE, CHARGE_ICON_SIZE)
+  container:SetMovable(true)
+  container:SetClampedToScreen(true)
+  container:SetDontSavePosition(true)
   container:Hide()
 
   -- The TotemFrame ring art bakes its thickness in as a fixed ~13% of its own size, so scaling it never
@@ -75,30 +78,142 @@ local function createChargeTrackingFrame()
   container.count = count
 end
 
-local function hookAnchorVisibility(anchorFrame)
-  if anchorVisibilityHooked or not anchorFrame then return end
-  anchorVisibilityHooked = true
-  anchorFrame:HookScript("OnShow", function() module:Refresh() end)
-  anchorFrame:HookScript("OnHide", function() module:Refresh() end)
+local function getPaladinDb()
+  if not db.profile.combat then db.profile.combat = {} end
+  if not db.profile.combat.paladin then db.profile.combat.paladin = {} end
+  return db.profile.combat.paladin
 end
 
 local function updatePosition()
   if not container then return end
 
+  local p = getPaladinDb()
+  local point = p.point or "CENTER"
+  local relativePoint = p.relativePoint or "CENTER"
+  local x = p.x or 0
+  local y = p.y or 0
+
   container:ClearAllPoints()
-  local anchorFrame = _G.PersonalResourceDisplayFrame
-  if anchorFrame then
-    if db.profile.combat.paladin.holyShockChargesPosition == "above" then
-      container:SetPoint("BOTTOM", anchorFrame, "TOP", 0, CHARGE_ICON_ANCHOR_GAP)
-    else
-      container:SetPoint("TOP", anchorFrame, "BOTTOM", 0, -CHARGE_ICON_ANCHOR_GAP)
-    end
-  else
-    container:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
+  container:SetPoint(point, UIParent, relativePoint, x, y)
+end
+
+local function onDragStart()
+  if InCombatLockdown() then return end
+  if container then
+    container:StartMoving()
   end
 end
 
+local function onDragStop()
+  if not container then return end
+  container:StopMovingOrSizing()
+  if InCombatLockdown() then return end
+
+  local point, relativeTo, relativePoint, x, y = container:GetPoint(1)
+  if point then
+    local p = getPaladinDb()
+    p.point = point
+    p.relativePoint = relativePoint or point
+    p.x = math.floor(x + 0.5)
+    p.y = math.floor(y + 0.5)
+  end
+  updatePosition()
+end
+
+local function createSelection()
+  if selection then return selection end
+  if not container then createChargeTrackingFrame() end
+
+  local success, sel = pcall(CreateFrame, "Frame", "SlackHacksHolyShockEditModeSelection", container, "EditModeSystemSelectionTemplate")
+  if success and sel then
+    selection = sel
+    selection:SetAllPoints(container)
+    selection:SetFrameStrata(container:GetFrameStrata())
+    selection:SetFrameLevel(container:GetFrameLevel() + 20)
+    selection:EnableMouse(true)
+    selection:RegisterForDrag("LeftButton")
+    selection:SetScript("OnDragStart", onDragStart)
+    selection:SetScript("OnDragStop", onDragStop)
+    selection.system = {
+      GetSystemName = function()
+        return "Holy Shock Charges"
+      end
+    }
+    if selection.SetSelectionText then
+      selection:SetSelectionText("Holy Shock Charges")
+    elseif selection.Label then
+      selection.Label:SetText("Holy Shock Charges")
+    end
+    selection:SetScript("OnMouseDown", function(self)
+      if InCombatLockdown() then return end
+      if EditModeManagerFrame and EditModeManagerFrame.ClearSelectedSystem then
+        EditModeManagerFrame:ClearSelectedSystem()
+      end
+      if self.ShowSelected then
+        self:ShowSelected(true)
+      end
+    end)
+  else
+    local f = CreateFrame("Frame", "SlackHacksHolyShockEditModeSelection", container, "BackdropTemplate")
+    f:SetAllPoints(container)
+    f:SetFrameStrata(container:GetFrameStrata())
+    f:SetFrameLevel(container:GetFrameLevel() + 20)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetBackdrop({
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      edgeSize = 12,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    f:SetBackdropBorderColor(0.2, 0.6, 1.0, 0.8)
+    local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    label:SetPoint("CENTER", f, "CENTER", 0, 0)
+    label:SetText("Holy Shock Charges")
+    f.Label = label
+    f.ShowHighlighted = function(self)
+      self:SetBackdropBorderColor(0.2, 0.6, 1.0, 0.8)
+      self:Show()
+    end
+    f.ShowSelected = function(self)
+      self:SetBackdropBorderColor(1.0, 0.82, 0.0, 1.0)
+      self:Show()
+    end
+    f:SetScript("OnDragStart", onDragStart)
+    f:SetScript("OnDragStop", onDragStop)
+    f:SetScript("OnMouseDown", function(self)
+      self:ShowSelected()
+    end)
+    selection = f
+  end
+
+  return selection
+end
+
+local function shouldTrack(inCombat)
+  if inCombat == nil then
+    inCombat = InCombatLockdown()
+  end
+  local p = getPaladinDb()
+  return isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and p.trackHolyShockCharges and (not p.onlyInCombat or inCombat)
+end
+
+local function enterEditMode()
+  if isEditing or InCombatLockdown() then return end
+  isEditing = true
+  module:Refresh()
+end
+
+local function exitEditMode()
+  if not isEditing then return end
+  isEditing = false
+  if selection then
+    selection:Hide()
+  end
+  module:Refresh()
+end
+
 function module:RefreshDisplay(chargeInfo)
+  if isEditing then return end
   if not container or not container:IsShown() or trackedCharges == nil then return end
   chargeInfo = chargeInfo or C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
   if not chargeInfo then return end
@@ -133,6 +248,7 @@ end
 -- resyncs our local simulation to the real charge count/remaining time whenever THAT is clean too.
 -- Neither is guaranteed to be readable in combat, so this is opportunistic, not combat-gated.
 function module:UpdateHolyShockCharges()
+  if isEditing then return end
   if not container or not container:IsShown() then return end
 
   local chargeInfo = C_Spell.GetSpellCharges(HOLY_SHOCK_SPELL_ID)
@@ -171,6 +287,7 @@ function module:UpdateHolyShockCharges()
 end
 
 function module:OnHolyShockCast(_, unitTarget, _, spellID)
+  if isEditing then return end
   if unitTarget ~= "player" or spellID ~= HOLY_SHOCK_SPELL_ID then return end
   if trackedCharges == nil then trackedCharges = maxCharges end
   trackedCharges = math.max(trackedCharges - 1, 0)
@@ -178,26 +295,97 @@ function module:OnHolyShockCast(_, unitTarget, _, spellID)
   self:RefreshDisplay()
 end
 
-function module:Refresh()
-  createChargeTrackingFrame()
-  hookAnchorVisibility(_G.PersonalResourceDisplayFrame)
-  stopRechargeTimer()
-  trackedCharges = nil -- resync from scratch
+local function updateVisibility(inCombat)
+  if not container then return end
 
-  local shouldShow = isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and db.profile.combat.paladin.trackHolyShockCharges
-  local anchorFrame = _G.PersonalResourceDisplayFrame
-  shouldShow = shouldShow and anchorFrame and anchorFrame:IsShown()
-  if shouldShow then
+  if isEditing then
+    local p = getPaladinDb()
+    local isHolyPaladin = isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and p.trackHolyShockCharges
+    if isHolyPaladin then
+      updatePosition()
+      container:Show()
+      container.count:SetText(maxCharges)
+      container.cooldown:Clear()
+      container.icon:SetDesaturated(false)
+      container.icon:SetAlpha(1)
+      local sel = createSelection()
+      if sel then
+        sel:Show()
+        if sel.ShowHighlighted then
+          sel:ShowHighlighted()
+        end
+      end
+    else
+      if selection then selection:Hide() end
+      container:Hide()
+    end
+    return
+  end
+
+  if shouldTrack(inCombat) then
+    if selection then selection:Hide() end
     updatePosition()
     container:Show()
-    self:UpdateHolyShockCharges()
+    module:UpdateHolyShockCharges()
   else
+    if selection then selection:Hide() end
     container:Hide()
+    stopRechargeTimer()
   end
+end
+
+function module:Refresh(inCombat)
+  createChargeTrackingFrame()
+  stopRechargeTimer()
+  trackedCharges = nil -- resync from scratch
+  updateVisibility(inCombat)
+end
+
+function module:OnDatabaseReset()
+  isEditing = false
+  if selection then selection:Hide() end
+  self:Refresh()
+end
+
+function module:PLAYER_REGEN_DISABLED()
+  if isEditing then
+    exitEditMode()
+  end
+  updateVisibility(true)
+end
+
+function module:PLAYER_REGEN_ENABLED()
+  updateVisibility(false)
 end
 
 function module:OnInitialize()
   createChargeTrackingFrame()
+  db:RegisterCallback("OnDatabaseReset", module.OnDatabaseReset, module)
+
+  if EventRegistry and EventRegistry.RegisterCallback then
+    EventRegistry:RegisterCallback("EditMode.Enter", enterEditMode, module)
+    EventRegistry:RegisterCallback("EditMode.Exit", exitEditMode, module)
+  end
+
+  if EditModeManagerFrame then
+    hooksecurefunc(EditModeManagerFrame, "EnterEditMode", enterEditMode)
+    hooksecurefunc(EditModeManagerFrame, "ExitEditMode", exitEditMode)
+    if EditModeManagerFrame.SelectSystem then
+      hooksecurefunc(EditModeManagerFrame, "SelectSystem", function()
+        if selection and selection.ShowHighlighted then
+          selection:ShowHighlighted()
+        end
+      end)
+    end
+  end
+
+  if EditModeSystemSettingsDialog then
+    EditModeSystemSettingsDialog:HookScript("OnShow", function()
+      if selection and selection.ShowHighlighted then
+        selection:ShowHighlighted()
+      end
+    end)
+  end
 end
 
 function module:OnEnable()
@@ -205,12 +393,21 @@ function module:OnEnable()
   self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "Refresh")
   self:RegisterEvent("SPELL_UPDATE_CHARGES", "UpdateHolyShockCharges")
   self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", "OnHolyShockCast")
-  self:Refresh()
+  self:RegisterEvent("PLAYER_REGEN_DISABLED")
+  self:RegisterEvent("PLAYER_REGEN_ENABLED")
+  if EditModeManagerFrame and EditModeManagerFrame.IsEditModeActive and EditModeManagerFrame:IsEditModeActive() then
+    enterEditMode()
+  else
+    self:Refresh()
+  end
 end
 
 function module:OnDisable()
   self:UnregisterAllEvents()
   stopRechargeTimer()
+  if isEditing then
+    exitEditMode()
+  end
   if container then container:Hide() end
 end
 

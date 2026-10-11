@@ -69,7 +69,11 @@ dbDefaults = {
       raiseCastingNameplates = false,
       paladin = {
         trackHolyShockCharges = false,
-        holyShockChargesPosition = "below"
+        onlyInCombat = false,
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = 0
       }
     },
     movableWindows = {
@@ -99,7 +103,7 @@ dbDefaults = {
       showTracking = true,
       showCalendar = true,
       showInstanceDifficulty = true,
-      showGarrison = true,
+      showExpansionLandingPage = true,
       showAddonCompartment = true,
       addonsInCompartment = false
     },
@@ -1318,7 +1322,7 @@ options = {
           args = {
             trackHolyShockCharges = {
               name = "Track Holy Shock Charges",
-              desc = "Show two circular charge trackers next to the Holy Power bar for Holy Shock.",
+              desc = "Show a circular charge tracker for Holy Shock. Can be repositioned anywhere in Edit Mode.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -1329,23 +1333,35 @@ options = {
               end,
               order = 1
             },
-            holyShockChargesPosition = {
-              name = "Position",
-              desc = "Where to anchor the Holy Shock charge trackers relative to the Holy Power bar.",
-              type = "select",
+            onlyInCombat = {
+              name = "Only Show in Combat",
+              desc = "Only display the Holy Shock charge tracker while in combat.",
+              type = "toggle",
+              descStyle = "inline",
               width = "full",
-              values = {
-                above = "Above Holy Power Bar",
-                below = "Below Holy Power Bar"
-              },
-              sorting = { "above", "below" },
-              get = function() return db.profile.combat.paladin.holyShockChargesPosition end,
+              get = function() return db.profile.combat.paladin.onlyInCombat end,
               set = function(_, value)
-                db.profile.combat.paladin.holyShockChargesPosition = value
+                db.profile.combat.paladin.onlyInCombat = value
                 Self.ChargeTracking:Refresh()
               end,
               disabled = function() return not db.profile.combat.paladin.trackHolyShockCharges end,
               order = 2
+            },
+            openEditMode = {
+              name = "Position Charge Tracker via Edit Mode",
+              desc = "Open Blizzard's Edit Mode to position the Holy Shock charge tracker.",
+              type = "execute",
+              func = function()
+                if InCombatLockdown() then return end
+                if SettingsPanel and SettingsPanel:IsShown() then
+                  HideUIPanel(SettingsPanel)
+                end
+                if EditModeManagerFrame then
+                  ShowUIPanel(EditModeManagerFrame)
+                end
+              end,
+              disabled = function() return not db.profile.combat.paladin.trackHolyShockCharges end,
+              order = 3
             }
           }
         }
@@ -1614,15 +1630,15 @@ options = {
               end,
               order = 8
             },
-            showGarrison = {
-              name = "Show Garrison/Expansion Landing Page",
+            showExpansionLandingPage = {
+              name = "Show Expansion Landing Page",
               type = "toggle",
               descStyle = "inline",
               width = "full",
               disabled = function() return not db.profile.minimap.enabled or db.profile.minimap.shape ~= "square" end,
-              get = function() return db.profile.minimap.showGarrison end,
+              get = function() return db.profile.minimap.showExpansionLandingPage end,
               set = function(_, value)
-                db.profile.minimap.showGarrison = value
+                db.profile.minimap.showExpansionLandingPage = value
                 Self.Minimap:Refresh()
               end,
               order = 9
