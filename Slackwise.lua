@@ -58,12 +58,14 @@ SLACKWISE_CONFIG = {
 function setSlackwiseCvars()
   if not isSlackwise() then return end
 
+  local enableRetail = bool2int(isRetail())
+
   -- Logging:
   ensureCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
   ensureLogging()
 
   -- Nameplates:
-  ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", 1) -- Enable name-only nameplates for friendlies
+  ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", enableRetail) -- Enable name-only nameplates for friendlies
   ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
   ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
 
@@ -71,11 +73,10 @@ function setSlackwiseCvars()
   ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Periodic Damage (DoTs)
   ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Pet Melee Damage
   ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Pet Spell Damage
-  local shouldBeEnabled = bool2int(not isRetail())
-  ensureCVar("floatingCombatTextCombatDamage",      shouldBeEnabled)  -- Direct Damage (White/Yellow Hits)
-  ensureCVar("floatingCombatTextCombatDamage_v2",   shouldBeEnabled)  -- Direct Damage (White/Yellow Hits) v2 ?
-  ensureCVar("floatingCombatTextCombatHealing",     shouldBeEnabled)  -- All Healing
-  ensureCVar("floatingCombatTextCombatHealing_v2",  shouldBeEnabled)  -- All Healing v2 ?
+  ensureCVar("floatingCombatTextCombatDamage",      not enableRetail)  -- Direct Damage (White/Yellow Hits)
+  ensureCVar("floatingCombatTextCombatDamage_v2",   not enableRetail)  -- Direct Damage (White/Yellow Hits) v2 ?
+  ensureCVar("floatingCombatTextCombatHealing",     not enableRetail)  -- All Healing
+  ensureCVar("floatingCombatTextCombatHealing_v2",  not enableRetail)  -- All Healing v2 ?
 end
 
 --- Merge personal configuration overrides from `SLACKWISE_CONFIG` into the addon DB.
