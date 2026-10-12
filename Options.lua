@@ -411,6 +411,7 @@ local function selfVendorModeOptions()
   args.requestDescription = {
     type = "description",
     name = "|cffffd100Let group members request buff items by saying phrases like 'crit oil rune' to be auto-traded a crit flask, oil, and x runes from your inventory. Any combination of the below selected enabled options will work.|r",
+    fontSize = "medium",
     width = "full",
     order = 0,
   }
@@ -480,6 +481,16 @@ local function selfVendorModeOptions()
   return args
 end
 
+local function goldModuleOverview(text)
+  return {
+    type = "description",
+    name = "|cffffd100" .. text .. "|r",
+    fontSize = "medium",
+    width = "full",
+    order = 0,
+  }
+end
+
 options = {
   type = "group",
   icon = SLACKHACKS_ICON,
@@ -499,6 +510,7 @@ options = {
       desc = "Small quality-of-life features.",
       order = 5,
       args = {
+        overview = goldModuleOverview("Small quality-of-life features for managing your inventory."),
         autoSellGreyItems = {
           name = "Auto Sell Grey Items",
           desc = "Automatically sell grey-quality items when visiting a merchant.",
@@ -570,6 +582,7 @@ options = {
           desc = "A sortable list-view alternative to the default grid bag window.",
           order = 5,
           args = {
+            overview = goldModuleOverview("A sortable list-view alternative to the default grid bag window."),
             enabled = {
               name = "Enable",
               desc = "Adds a toggle button to the bag window's title bar that switches between the default " ..
@@ -628,13 +641,14 @@ options = {
       desc = "Camera behavior and keybinding options.",
       order = 5.2,
       args = {
+        overview = goldModuleOverview("Camera behavior and keybinding options."),
         openKeybindings = {
           name = "Open Keybindings",
           desc = "Open the Blizzard Key Bindings menu, expanded to the SlackHacks section.",
           descStyle = "inline",
           type = "execute",
           func = function() openKeybindings() end,
-          order = 0
+          order = 0.1
         },
         maximumCameraZoom = {
           name = "Maximum Camera Zoom",
@@ -667,9 +681,15 @@ options = {
     graphics = {
       type = "group",
       name = "Graphics",
-      desc = "Extra hidden graphical options to enhance visual fidelity beyond standard settings.",
       order = 5.4,
       args = {
+        overview = {
+          type = "description",
+          name = "|cffffd100Tweak hidden client CVars to push draw distances, foliage density, and visual clarity beyond standard in-game options. Each option can be individually enabled or unset back to game defaults.|r",
+          fontSize = "medium",
+          width = "full",
+          order = 0
+        },
         enabled = {
           name = "Enable",
           desc = "Enable custom hidden graphical options. When disabled, standard game defaults are restored.",
@@ -678,12 +698,7 @@ options = {
           width = "full",
           get = function() return db.profile.graphics.enabled end,
           set = function(_, value) Self.Graphics:SetEnabled(value) end,
-          order = 0
-        },
-        info = {
-          name = "Tweak hidden client CVars to push draw distances, foliage density, and visual clarity beyond standard in-game options. Each option can be individually enabled or unset back to game defaults.",
-          type = "description",
-          order = 0.5
+          order = 0.1
         },
         resetToDefaults = {
           name = "Reset to Defaults",
@@ -1106,6 +1121,7 @@ options = {
       desc = "Shows a ring around your mouse cursor.",
       order = 6.5,
       args = {
+        overview = goldModuleOverview("Shows a ring around your mouse cursor, with controls for when it appears and how it looks."),
         enabled = {
           name = "Enable",
           desc = "Show a ring around your mouse cursor.",
@@ -1114,7 +1130,7 @@ options = {
           width = "full",
           get = function() return db.profile.mouseRing.enabled end,
           set = function(_, value) Self.MouseRing:SetEnabled(value) end,
-          order = 0
+          order = 0.1
         },
         showOutOfCombat = {
           name = "Show Out of Combat",
@@ -1187,6 +1203,7 @@ options = {
       desc = "Debugging, error logging, and reporting options.",
       order = 2,
       args = {
+        overview = goldModuleOverview("Configure error capture, debug output, reporting, and automatic log cleanup."),
         errorReportingGroup = {
           type = "group",
           name = "Error Logging and Reporting",
@@ -1318,6 +1335,7 @@ options = {
       desc = "Combat-related features.",
       order = 98,
       args = {
+        overview = goldModuleOverview("Combat-related features and class-specific trackers."),
         raiseCastingNameplates = {
           name = "Raise Casting Nameplates",
           desc = "Raise enemy nameplates while they are casting.",
@@ -1338,6 +1356,7 @@ options = {
           desc = "Combat features specific to Paladins.",
           order = 2,
           args = {
+            overview = goldModuleOverview("Track Holy Shock charges and position the tracker in Edit Mode."),
             trackHolyShockCharges = {
               name = "Track Holy Shock Charges",
               desc = "Show a circular charge tracker for Holy Shock. Can be repositioned anywhere in Edit Mode.",
@@ -1391,6 +1410,7 @@ options = {
       desc = "Minimap shape, opacity, and button visibility.",
       order = 7.5,
       args = {
+        overview = goldModuleOverview("Customize the minimap's shape, appearance, opacity, and visible buttons."),
         enabled = {
           name = "Enable",
           desc = "Enable minimap enhancements. When disabled, the minimap looks and behaves exactly like " ..
@@ -1408,7 +1428,7 @@ options = {
             end
             Self.Minimap:Refresh()
           end,
-          order = 0
+          order = 0.05
         },
         openEditMode = {
           name = "Open Visual Settings via Edit Mode",
@@ -1684,6 +1704,7 @@ options = {
       desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
       order = 99,
       args = {
+        overview = goldModuleOverview("Get clickable reminders for food, flask, oil, and augment rune buffs in Mythic dungeons and raids."),
         enabled = {
           name = "Enable",
           desc = "Show consumable buff reminders.",
@@ -1695,7 +1716,7 @@ options = {
             db.profile.buffs.enabled = value
             Self.Buffs:Refresh()
           end,
-          order = 0
+          order = 0.05
         },
         openEditMode = {
           name = "Position Buff Icons via Edit Mode",
@@ -1891,6 +1912,7 @@ options = {
       desc = "Displays equipment information overlays on your character sheet.",
       order = 8,
       args = {
+        overview = goldModuleOverview("Display item levels, upgrade tracks, stats, enchants, and gems directly on equipment icons."),
         enabled = {
           name = "Enable",
           desc = "Enable Info Display overlays on equipment slots.",
@@ -1899,7 +1921,7 @@ options = {
           width = "full",
           get = function() return db.profile.infoDisplay.enabled end,
           set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
-          order = 0
+          order = 0.05
         },
         description = {
           type = "description",
@@ -2075,6 +2097,7 @@ options = {
         "mouse wheel.",
       order = 9,
       args = {
+        overview = goldModuleOverview("Move Blizzard windows by dragging their title bars and resize them with modifier keys and the mouse wheel."),
         enabled = {
           name = "Enable",
           desc = "Make registered Blizzard windows draggable and mouse-wheel scalable.",
@@ -2083,7 +2106,7 @@ options = {
           width = "full",
           get = function() return db.profile.movableWindows.enabled end,
           set = function(_, value) Self.MovableWindows:SetEnabled(value) end,
-          order = 0
+          order = 0.01
         },
         moveToasts = {
           name = "Make Toasts Movable in Edit Mode",
@@ -2227,6 +2250,7 @@ options = {
       desc = "Track weekly quest completions and activities.",
       order = 11,
       args = {
+        overview = goldModuleOverview("Track weekly activities and show their progress in the Objective Tracker."),
         enabled = {
           name = "Enable",
           desc = "Track weekly quest completions and activities.",
@@ -2235,7 +2259,7 @@ options = {
           width = "full",
           get = function() return db.profile.weeklies.enabled end,
           set = function(_, value) Self.Weeklies:SetEnabled(value) end,
-          order = 0
+          order = 0.05
         },
         trackDelves = {
           name = "Track Delves",
