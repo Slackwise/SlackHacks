@@ -681,8 +681,8 @@ function module:HandleSlash(input)
 end
 
 function module:OnInitialize()
-  if not enhancementSourceKey(db.profile.selfVendor.source) then
-    db.profile.selfVendor.source = DEFAULT_ENHANCEMENT_SOURCE
+  if db.profile.selfVendor.source ~= "wowhead" and db.profile.selfVendor.source ~= "icyveins" then
+    db.profile.selfVendor.source = "icyveins"
   end
   log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled))
   if not db.profile.selfVendor.enabled then self:Disable() end

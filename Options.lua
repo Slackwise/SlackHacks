@@ -132,7 +132,7 @@ dbDefaults = {
     },
     selfVendor = {
       enabled = false,
-      source = "murlok",
+      source = "icyveins",
       requirePrefix = false,
       chatPrefix = "!",
       modes = {
@@ -412,7 +412,7 @@ local function selfVendorModeOptions()
   local args = {}
   args.enabled = {
     name = "Enable Self Vendor",
-    desc = "Accept item requests in party, raid, and instance chat.",
+    desc = "Accept Self Vendor requests in party, raid, and instance chat. Requests may also include 'and', 'give', 'need', or 'please'.",
     type = "toggle",
     descStyle = "inline",
     width = "full",
@@ -420,9 +420,21 @@ local function selfVendorModeOptions()
     set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
     order = 0,
   }
+  args.source = {
+    name = "Flask and Augments Source",
+    desc = "Select Wowhead or Icy Veins for optimal flask selection and Augments recommendations.",
+    type = "select",
+    values = { wowhead = "Wowhead", icyveins = "Icy Veins" },
+    get = function() return db.profile.selfVendor.source end,
+    set = function(_, value) Self.SelfVendor:SetSource(value) end,
+    order = 3,
+  }
   args.requirePrefix = {
     name = "Require Chat Prefix",
+    desc = "Only process requests that begin with the configured prefix.",
     type = "toggle",
+    descStyle = "inline",
+    width = "full",
     get = function() return db.profile.selfVendor.requirePrefix end,
     set = function(_, value) db.profile.selfVendor.requirePrefix = value end,
     order = 1,
@@ -443,19 +455,21 @@ local function selfVendorModeOptions()
       type = "toggle",
       name = details.name,
       desc = details.description,
+      descStyle = "inline",
+      width = "full",
       get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
       set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
-      order = order + 2,
+      order = order + 3,
     }
     if mode == Enum.SelfVendorMode.AUGMENT_RUNES then
       args.runeQuantity = {
-        name = "Rune Stack Size",
+        name = "Augment Rune Stack Size",
         type = "input",
         width = 0.7,
         get = function() return tostring(db.profile.selfVendor.modes[configuredMode].runeQuantity) end,
         set = function(_, value) Self.SelfVendor:SetRuneQuantity(value) end,
         validate = function(_, value) return tonumber(value) and tonumber(value) >= 1 and tonumber(value) <= 100 end,
-        order = order + 2.5,
+        order = order + 3.5,
       }
     end
   end
@@ -2200,8 +2214,7 @@ options = {
     vendor = {
       type = "group",
       name = "Self Vendor",
-      desc = "Trade recommended enchants, gems, and consumables to nearby group or guild members using " ..
-        "targeted emotes.",
+      desc = "Let group members request buff items by saying phrases like 'crit oil rune' to be auto-traded a crit flask, oil, and x runes from your inventory. Any combination of the below selected enabled options will work.",
       order = 10,
       args = selfVendorModeOptions()
     },

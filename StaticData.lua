@@ -379,18 +379,18 @@ SELF_VENDOR_TRIGGER_EMOTES = {
 }
 
 SELF_VENDOR_MODES = {
-  [Enum.SelfVendorMode.FLASK] = { key = "flask", name = "Flask", description = "Always trades one flask.", command = "flask" },
+  [Enum.SelfVendorMode.FLASK] = { key = "flask", name = "Flask", description = "Say 'flask' or 'flasks' to auto-detect the optimal flask using the selected source. Specific flask triggers: 'crit'/'criticalstrike' (also 'critflask'/'criticalstrikeflask'), 'mast'/'mastery' (also 'mastflask'/'masteryflask'), 'haste'/'hasteflask', and 'vers'/'versatility'/'versability' (also 'versflask'/'versatilityflask'/'versabilityflask').", command = "flask" },
   [Enum.SelfVendorMode.CRIT_FLASK] = { key = "critflask", name = "Critical Strike Flask", description = "Trades one Flask of the Shattered Sun.", command = "critflask", flaskItemName = "Flask of the Shattered Sun" },
   [Enum.SelfVendorMode.MASTERY_FLASK] = { key = "masteryflask", name = "Mastery Flask", description = "Trades one Flask of the Magisters.", command = "masteryflask", flaskItemName = "Flask of the Magisters" },
   [Enum.SelfVendorMode.HASTE_FLASK] = { key = "hasteflask", name = "Haste Flask", description = "Trades one Flask of the Blood Knights.", command = "hasteflask", flaskItemName = "Flask of the Blood Knights" },
   [Enum.SelfVendorMode.VERSATILITY_FLASK] = { key = "versflask", name = "Versatility Flask", description = "Trades one Flask of Thalassian Resistance.", command = "versflask", flaskItemName = "Flask of Thalassian Resistance" },
   [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { key = "consumablesmissing", name = "Consumables (Missing Only)", description = "Trades a flask, oil, and five runes only when the target is missing the flask or runes.", command = "consumablesmissing" },
-  [Enum.SelfVendorMode.CONSUMABLES_ALL] = { key = "consumables", name = "Consumables", description = "Always trades a flask, oil, and five runes.", command = "consumables" },
+  [Enum.SelfVendorMode.CONSUMABLES_ALL] = { key = "consumables", name = "Consumables", description = "Say 'consumables' to request a flask, oil, and your configured augment rune stack.", command = "consumables" },
   [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { key = "flaskandoil", name = "Flask and Oil", description = "Always trades one flask and one oil.", command = "flaskandoil" },
-  [Enum.SelfVendorMode.OIL] = { key = "oil", name = "Oil", description = "Always trades one oil.", command = "oil" },
-  [Enum.SelfVendorMode.AUGMENT_RUNES] = { key = "augmentrunes", name = "Augment Runes", description = "Always trades the selected number of augment runes as one stack.", command = "augmentrunes" },
-  [Enum.SelfVendorMode.AUGMENTS] = { key = "augments", name = "Augments", description = "Trades the target's missing recommended enchants, gems, and armor kits.", command = "augments" },
-  [Enum.SelfVendorMode.VANTUS_RUNE] = { key = "vantusrune", name = "Vantus Rune", description = "Always trades a single Vantus Rune (a per-raid versatility rune, not an Augment Rune).", command = "vantusrune" },
+  [Enum.SelfVendorMode.OIL] = { key = "oil", name = "Oil", description = "Say 'oil' or 'oils' to request oil.", command = "oil" },
+  [Enum.SelfVendorMode.AUGMENT_RUNES] = { key = "augmentrunes", name = "Augment Runes", description = "Say 'rune', 'runes', 'augmentrune', or 'augmentrunes' to request your configured stack of augment runes.", command = "augmentrunes" },
+  [Enum.SelfVendorMode.AUGMENTS] = { key = "augments", name = "Augments", description = "Say 'augments' to request missing recommended enchants, gems, and armor kits using the selected source.", command = "augments" },
+  [Enum.SelfVendorMode.VANTUS_RUNE] = { key = "vantusrune", name = "Vantus Rune", description = "Say 'vantus', 'vantusrune', 'vantusrunes', 'vantus rune', or 'vantus runes' to request a Vantus Rune, not an Augment Rune.", command = "vantusrune" },
 }
 
 ENHANCEMENTS_BIS = {
