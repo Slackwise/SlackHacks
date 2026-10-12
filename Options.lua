@@ -152,7 +152,7 @@ dbDefaults = {
       },
       charSheet = {
         enabled = true,
-        gearStats = false,
+        gearStats = true,
         itemLevel = true,
         upgradeTrack = true,
         maxUpgradeStar = false,
@@ -1926,6 +1926,17 @@ options = {
               get = function() return db.profile.infoDisplay.charSheet.enabled end,
               set = function(_, value) Self.CharSheet:SetCharSheetEnabled(value) end,
               order = 1
+            },
+            gearStats = {
+              name = "Show Gear Stats",
+              desc = "Show or hide equipment overlays on your character sheet. This stays in sync with the in-game Gear Stats checkbox.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.infoDisplay.charSheet.gearStats end,
+              set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
+              disabled = function() return not db.profile.infoDisplay.charSheet.enabled end,
+              order = 1.5
             },
             itemLevel = {
               name = "Item Level",
