@@ -17,7 +17,7 @@ setfenv(1, Self) -- Namespace local to addon
 
 addonName, addonTable = ...
 
-SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
+SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
 CONFIG_VERSION = 11
 
