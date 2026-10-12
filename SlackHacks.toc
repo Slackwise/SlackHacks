@@ -24,8 +24,8 @@ MovableWindows.lua
 Controls.lua
 Graphics.lua
 MouseRing.lua
-InfoDisplay.lua
 CharSheet.lua
+InfoDisplay.lua
 Options.lua
 Mount.lua
 CustomConfigs.lua

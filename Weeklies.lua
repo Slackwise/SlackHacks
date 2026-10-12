@@ -522,7 +522,7 @@ function module:Refresh()
   createButton()
   if not button then return end
 
-  local shouldShow = db.profile.weeklies.enabled and db.profile.weeklies.trackDelves
+  local shouldShow = db.profile.infoDisplay.weeklies.enabled and db.profile.infoDisplay.weeklies.trackDelves
   if not shouldShow then
     button:Hide()
     return
@@ -551,21 +551,21 @@ end
 --- Updates the global Weeklies module setting and enables or disables its event handlers.
 ---@param enabled boolean Whether weekly tracking is enabled.
 function module:SetEnabled(enabled)
-  db.profile.weeklies.enabled = enabled
+  db.profile.infoDisplay.weeklies.enabled = enabled
   if enabled then self:Enable() else self:Disable() end
 end
 
 --- Updates the Delves tracker preference and immediately refreshes its button.
 ---@param enabled boolean Whether the Delves tracker should be shown.
 function module:SetTrackDelves(enabled)
-  db.profile.weeklies.trackDelves = enabled
+  db.profile.infoDisplay.weeklies.trackDelves = enabled
   self:Refresh()
 end
 
 --- AceAddon initialization hook; creates the button when its Objective Tracker anchor exists.
 function module:OnInitialize()
   createButton()
-  if not db.profile.weeklies.enabled then self:Disable() end
+  if not db.profile.infoDisplay.weeklies.enabled then self:Disable() end
 end
 
 --- Registers events that can change stash progress or bounty status, then performs an initial refresh.

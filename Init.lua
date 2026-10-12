@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 10
+CONFIG_VERSION = 11
 
 Enum.SelfVendorMode = {
   CONSUMABLES = 1,
@@ -261,6 +261,29 @@ CONFIG_MIGRATIONS = {
     end
     if Self.db.profile then
       migrateInfoDisplay(Self.db.profile)
+    end
+  end,
+  [11] = function()
+    local function migrateWeeklies(profile)
+      local oldWeeklies = profile and profile.weeklies
+      if not oldWeeklies then return end
+      profile.infoDisplay = profile.infoDisplay or {}
+      profile.infoDisplay.weeklies = profile.infoDisplay.weeklies or {}
+      if oldWeeklies.enabled ~= nil then
+        profile.infoDisplay.weeklies.enabled = oldWeeklies.enabled
+      end
+      if oldWeeklies.trackDelves ~= nil then
+        profile.infoDisplay.weeklies.trackDelves = oldWeeklies.trackDelves
+      end
+      profile.weeklies = nil
+    end
+    if Self.db.profiles then
+      for _, profile in pairs(Self.db.profiles) do
+        migrateWeeklies(profile)
+      end
+    end
+    if Self.db.profile then
+      migrateWeeklies(Self.db.profile)
     end
   end,
 }

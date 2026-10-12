@@ -144,12 +144,12 @@ dbDefaults = {
         [Enum.SelfVendorMode.VANTUS_RUNE] = { enabled = false },
       }
     },
-    weeklies = {
-      enabled = false,
-      trackDelves = false
-    },
     infoDisplay = {
       enabled = false,
+      weeklies = {
+        enabled = false,
+        trackDelves = false
+      },
       charSheet = {
         enabled = true,
         gearStats = false,
@@ -2093,7 +2093,7 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.weeklies.enabled end,
+              get = function() return db.profile.infoDisplay.weeklies.enabled end,
               set = function(_, value) Self.Weeklies:SetEnabled(value) end,
               order = 0.05
             },
@@ -2104,9 +2104,9 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.weeklies.trackDelves end,
+              get = function() return db.profile.infoDisplay.weeklies.trackDelves end,
               set = function(_, value) Self.Weeklies:SetTrackDelves(value) end,
-              disabled = function() return not db.profile.weeklies.enabled end,
+              disabled = function() return not db.profile.infoDisplay.weeklies.enabled end,
               order = 1
             }
           }

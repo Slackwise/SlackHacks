@@ -45,9 +45,11 @@ CustomConfigs = {
           shape = "square",
           showAllMinimapTracking = true,
         },
-        weeklies = {
-          enabled = true,
-          trackDelves = true,
+        infoDisplay = {
+          weeklies = {
+            enabled = true,
+            trackDelves = true,
+          },
         },
       },
     },
