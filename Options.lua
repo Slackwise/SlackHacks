@@ -136,9 +136,7 @@ dbDefaults = {
       requirePrefix = false,
       chatPrefix = "!",
       modes = {
-        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = false },
-        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = false },
-        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = false },
+        [Enum.SelfVendorMode.CONSUMABLES] = { enabled = false },
         [Enum.SelfVendorMode.FLASK] = { enabled = false },
         [Enum.SelfVendorMode.OIL] = { enabled = false },
         [Enum.SelfVendorMode.AUGMENT_RUNES] = { enabled = false, runeQuantity = 5 },
@@ -148,7 +146,7 @@ dbDefaults = {
     },
     weeklies = {
       enabled = false,
-      trackDelves = true
+      trackDelves = false
     },
     infoDisplay = {
       enabled = false,
@@ -386,9 +384,9 @@ end
 local selfVendorModeSorting = {
   Enum.SelfVendorMode.FLASK,
   Enum.SelfVendorMode.OIL,
-  Enum.SelfVendorMode.CONSUMABLES_ALL,
   Enum.SelfVendorMode.AUGMENT_RUNES,
   Enum.SelfVendorMode.VANTUS_RUNE,
+  Enum.SelfVendorMode.CONSUMABLES,
   Enum.SelfVendorMode.AUGMENTS,
 }
 
@@ -410,6 +408,12 @@ end
 
 local function selfVendorModeOptions()
   local args = {}
+  args.requestDescription = {
+    type = "description",
+    name = "|cffffd100Let group members request buff items by saying phrases like 'crit oil rune' to be auto-traded a crit flask, oil, and x runes from your inventory. Any combination of the below selected enabled options will work.|r",
+    width = "full",
+    order = 0,
+  }
   args.enabled = {
     name = "Enable Self Vendor",
     desc = "Accept Self Vendor requests in party, raid, and instance chat. Requests may also include 'and', 'give', 'need', or 'please'.",
@@ -418,7 +422,7 @@ local function selfVendorModeOptions()
     width = "full",
     get = function() return db.profile.selfVendor.enabled end,
     set = function(_, value) Self.SelfVendor:SetEnabled(value) end,
-    order = 0,
+    order = 2,
   }
   args.source = {
     name = "Flask and Augments Source",
@@ -427,7 +431,7 @@ local function selfVendorModeOptions()
     values = { wowhead = "Wowhead", icyveins = "Icy Veins" },
     get = function() return db.profile.selfVendor.source end,
     set = function(_, value) Self.SelfVendor:SetSource(value) end,
-    order = 3,
+    order = 5,
   }
   args.requirePrefix = {
     name = "Require Chat Prefix",
@@ -437,7 +441,7 @@ local function selfVendorModeOptions()
     width = "full",
     get = function() return db.profile.selfVendor.requirePrefix end,
     set = function(_, value) db.profile.selfVendor.requirePrefix = value end,
-    order = 1,
+    order = 3,
   }
   args.chatPrefix = {
     name = "Chat Prefix",
@@ -446,7 +450,7 @@ local function selfVendorModeOptions()
     set = function(_, value) db.profile.selfVendor.chatPrefix = value end,
     validate = function(_, value) return #value > 0 and not value:find("%s") end,
     disabled = function() return not db.profile.selfVendor.requirePrefix end,
-    order = 2,
+    order = 4,
   }
   for order, mode in ipairs(selfVendorModeSorting) do
     local configuredMode = mode
@@ -459,7 +463,7 @@ local function selfVendorModeOptions()
       width = "full",
       get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
       set = function(_, value) Self.SelfVendor:SetModeEnabled(configuredMode, value) end,
-      order = order + 3,
+      order = order + 5,
     }
     if mode == Enum.SelfVendorMode.AUGMENT_RUNES then
       args.runeQuantity = {
@@ -469,7 +473,7 @@ local function selfVendorModeOptions()
         get = function() return tostring(db.profile.selfVendor.modes[configuredMode].runeQuantity) end,
         set = function(_, value) Self.SelfVendor:SetRuneQuantity(value) end,
         validate = function(_, value) return tonumber(value) and tonumber(value) >= 1 and tonumber(value) <= 100 end,
-        order = order + 3.5,
+        order = order + 5.5,
       }
     end
   end
@@ -2214,7 +2218,6 @@ options = {
     vendor = {
       type = "group",
       name = "Self Vendor",
-      desc = "Let group members request buff items by saying phrases like 'crit oil rune' to be auto-traded a crit flask, oil, and x runes from your inventory. Any combination of the below selected enabled options will work.",
       order = 10,
       args = selfVendorModeOptions()
     },

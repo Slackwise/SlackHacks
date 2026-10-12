@@ -22,9 +22,7 @@ SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmiths
 CONFIG_VERSION = 8
 
 Enum.SelfVendorMode = {
-  CONSUMABLES_MISSING = 1,
-  CONSUMABLES_ALL = 2,
-  CONSUMABLES_PERSISTENT = 3,
+  CONSUMABLES = 1,
   OIL = 4,
   AUGMENT_RUNES = 5,
   VANTUS_RUNE = 6,

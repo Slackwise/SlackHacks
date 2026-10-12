@@ -15,8 +15,8 @@
   - Item quantities are handled via C_Container.SplitContainerItem + polling rather than trusting
     an immediate stack read, because the client updates container info asynchronously after a
     split; polling with backoff (see PollPreparedStack) avoids racing the game's own item move.
-  - Vantus Runes are intentionally excluded from the "Consumables" bundles (CONSUMABLES_MISSING /
-    CONSUMABLES_ALL) because they are per-raid-instance items you may not want handed out by
+  - Vantus Runes are intentionally excluded from the buffs/consumables bundle because they are
+    per-raid-instance items you may not want handed out by
     default, unlike flasks/oils/augment runes which are always useful. They get their own mode
     instead.
 ]]
@@ -79,7 +79,8 @@ local chatRequestModes = {
   augmentrune = VendorMode.AUGMENT_RUNES, augmentrunes = VendorMode.AUGMENT_RUNES,
   vantus = VendorMode.VANTUS_RUNE, vantusrune = VendorMode.VANTUS_RUNE,
   vantusrunes = VendorMode.VANTUS_RUNE,
-  consumables = VendorMode.CONSUMABLES_ALL,
+  buffs = VendorMode.CONSUMABLES,
+  consumables = VendorMode.CONSUMABLES,
   augments = VendorMode.AUGMENTS,
 }
 
@@ -452,7 +453,7 @@ end
 -- API because we need to match on a partial/lower-cased name (buff tooltip text can vary
 -- slightly, e.g. rank suffixes) and, for oils, an exact spell ID is more reliable than name
 -- matching since temporary weapon enchants don't always surface a clean aura name.
--- Used only for the CONSUMABLES_MISSING mode, to decide whether an already-buffed target
+-- Used only for the CONSUMABLES mode, to decide whether an already-buffed target
 -- still needs that particular consumable traded to them.
 -- @param unit string|nil unit token to inspect; returns false immediately if nil (can't inspect,
 --   e.g. no unit token available for the target of a manual request).
@@ -669,14 +670,14 @@ function module:HandleSlash(input)
     end
     self:BeginChatTrade(targetName, mode)
   elseif command == "mode" then
-    print("Usage: /slack vendor [consumablesmissing|consumables|flaskandoil|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [buffs|flask|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins]")
   elseif command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   elseif command == "clearqueue" then
     self:ClearQueue()
   else
-    print("Usage: /slack vendor [toggle|clearqueue|consumablesmissing|consumables|flaskandoil|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins|murlok]")
+    print("Usage: /slack vendor [toggle|clearqueue|buffs|flask|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins]")
   end
 end
 
@@ -973,9 +974,7 @@ local function modeIncludesConsumable(mode, kind)
     return false
   end
   -- Vantus Runes are situational/per-raid, not part of the general "consumables" bundle.
-  return mode == VendorMode.CONSUMABLES_MISSING and kind ~= "vantusRune"
-    or mode == VendorMode.CONSUMABLES_ALL and kind ~= "vantusRune"
-    or mode == VendorMode.CONSUMABLES_PERSISTENT and (kind == "flask" or kind == "oil")
+  return mode == VendorMode.CONSUMABLES and kind ~= "vantusRune"
     or mode == VendorMode.AUGMENT_RUNES and kind == "augmentRune"
     or mode == VendorMode.OIL and kind == "oil"
     or mode == VendorMode.FLASK and kind == "flask"
@@ -1045,7 +1044,7 @@ function module:GetRequiredItems()
       if item.kind == "augmentRune" and requestIncludesMode(mode, VendorMode.AUGMENT_RUNES) then
         quantity = modeConfiguration(VendorMode.AUGMENT_RUNES).runeQuantity
       end
-      local hasBuff = mode == VendorMode.CONSUMABLES_MISSING
+      local hasBuff = requestIncludesMode(mode, VendorMode.CONSUMABLES)
         and item.kind ~= "oil" and hasConsumableBuff(self.pendingUnit, item.buffName, item.auraSpellID)
       if item.kind == "oil" then
         log("Cannot verify Phoenix Oil on another player; temporary weapon enchant data is player-only")

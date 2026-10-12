@@ -42,9 +42,7 @@ SLACKWISE_CONFIG = {
     selfVendor = {
       enabled = true,
       modes = {
-        [Enum.SelfVendorMode.CONSUMABLES_MISSING] = { enabled = true },
-        [Enum.SelfVendorMode.CONSUMABLES_ALL] = { enabled = true },
-        [Enum.SelfVendorMode.CONSUMABLES_PERSISTENT] = { enabled = true },
+        [Enum.SelfVendorMode.CONSUMABLES] = { enabled = true },
         [Enum.SelfVendorMode.OIL] = { enabled = true },
         [Enum.SelfVendorMode.AUGMENT_RUNES] = { enabled = true },
         [Enum.SelfVendorMode.AUGMENTS] = { enabled = true },
