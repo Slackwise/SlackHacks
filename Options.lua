@@ -151,6 +151,8 @@ dbDefaults = {
     infoDisplay = {
       enabled = false,
       charSheet = {
+        enabled = true,
+        gearStats = false,
         itemLevel = true,
         upgradeTrack = true,
         maxUpgradeStar = false,
@@ -162,22 +164,6 @@ dbDefaults = {
         enchants = true,
         gemSockets = true,
       }
-    },
-    mounts = {
-      ["ground"] = nil,
-      ["ground-showoff"] = nil,
-      ["skyriding"] = nil,
-      ["skyriding-showoff"] = nil,
-      ["steadyflight"] = nil,
-      ["steadyflight-showoff"] = nil,
-      ["water"] = nil,
-      ["water-showoff"] = nil,
-      ["ground-passenger"] = nil,
-      ["ground-passenger-showoff"] = nil,
-      ["skyriding-passenger"] = nil,
-      ["skyriding-passenger-showoff"] = nil,
-      ["steadyflight-passenger"] = nil,
-      ["steadyflight-passenger-showoff"] = nil,
     }
   }
 }
@@ -232,7 +218,7 @@ RETAIL_MODULES = {
   { key = "buffs", name = "Consumable Buff Reminders" },
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
-  { key = "weeklies", name = "Weeklies" },
+  { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
 }
 
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
@@ -491,6 +477,10 @@ local function goldModuleOverview(text)
   }
 end
 
+local function infoDisplayCharSheetDisabled()
+  return not db.profile.infoDisplay.enabled or not db.profile.infoDisplay.charSheet.enabled
+end
+
 options = {
   type = "group",
   icon = SLACKHACKS_ICON,
@@ -642,7 +632,7 @@ options = {
               order = 4
             }
           }
-        }
+        },
       }
     },
     controls = {
@@ -1933,31 +1923,36 @@ options = {
           set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
           order = 0.05
         },
-        description = {
-          type = "description",
-          name = "Displays item levels, upgrade tracks, stats, enchants, and gems on equipment icons.",
-          order = 0.5
-        },
         charSheet = {
           type = "group",
           name = "Char Sheet",
           desc = "Character Sheet equipment overlay options.",
-          inline = true,
           order = 1,
           args = {
+            overview = goldModuleOverview("Display Gear Stats on the character sheet with configurable item-level, upgrade, stat, enchant, and gem details."),
+            enabled = {
+              name = "Enable Char Sheet Module",
+              desc = "Inject the Gear Stats checkbox into the character sheet and enable its overlays.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.infoDisplay.charSheet.enabled end,
+              set = function(_, value) Self.CharSheet:SetCharSheetEnabled(value) end,
+              order = 1
+            },
             itemLevel = {
               name = "Item Level",
               desc = "Show item level on equipment icons.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.itemLevel end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.itemLevel = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 1
+              order = 2
             },
             upgradeTrack = {
               name = "Upgrade Track",
@@ -1966,13 +1961,13 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return not isRetail() end,
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.upgradeTrack end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.upgradeTrack = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 2
+              order = 3
             },
             maxUpgradeStar = {
               name = "Star for Max Upgrade",
@@ -1981,13 +1976,13 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return not isRetail() end,
-              disabled = function() return not db.profile.infoDisplay.enabled or not db.profile.infoDisplay.charSheet.upgradeTrack end,
+              disabled = function() return infoDisplayCharSheetDisabled() or not db.profile.infoDisplay.charSheet.upgradeTrack end,
               get = function() return db.profile.infoDisplay.charSheet.maxUpgradeStar end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.maxUpgradeStar = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 2.1
+              order = 3.1
             },
             slotWatermark = {
               name = "Slot Watermark Item Level",
@@ -1996,13 +1991,13 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return not isRetail() end,
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.slotWatermark ~= false end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.slotWatermark = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 2.5
+              order = 3.5
             },
             highWatermarkColoring = {
               name = function() return isRetail() and "High Watermark Coloring" or "Item Quality Coloring" end,
@@ -2014,13 +2009,13 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.highWatermarkColoring end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.highWatermarkColoring = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 3
+              order = 4
             },
             secondaryStats = {
               name = "Secondary Stats",
@@ -2029,13 +2024,13 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return not isRetail() end,
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.secondaryStats end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.secondaryStats = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 4
+              order = 5
             },
             tertiaryStats = {
               name = "Tertiary Stats",
@@ -2044,13 +2039,13 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return true end,
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.tertiaryStats end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.tertiaryStats = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 5
+              order = 6
             },
             itemStats = {
               name = "Item Stats",
@@ -2059,13 +2054,13 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return isRetail() end,
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.itemStats end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.itemStats = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 5.5
+              order = 6.5
             },
             enchants = {
               name = "Enchants",
@@ -2073,13 +2068,13 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.enchants end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.enchants = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 6
+              order = 7
             },
             gemSockets = {
               name = "Gem Sockets",
@@ -2088,13 +2083,44 @@ options = {
               descStyle = "inline",
               width = "full",
               hidden = function() return not isRetail() end,
-              disabled = function() return not db.profile.infoDisplay.enabled end,
+              disabled = infoDisplayCharSheetDisabled,
               get = function() return db.profile.infoDisplay.charSheet.gemSockets end,
               set = function(_, value)
                 db.profile.infoDisplay.charSheet.gemSockets = value
                 Self.InfoDisplay:Refresh()
               end,
-              order = 7
+              order = 8
+            }
+          }
+        },
+        weeklies = {
+          type = "group",
+          name = "Weeklies",
+          desc = "Track weekly quest completions and activities.",
+          order = 2,
+          args = {
+            overview = goldModuleOverview("Track weekly activities and show their progress in the Objective Tracker."),
+            enabled = {
+              name = "Enable Weeklies Module",
+              desc = "Track weekly quest completions and activities.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.weeklies.enabled end,
+              set = function(_, value) Self.Weeklies:SetEnabled(value) end,
+              order = 0.05
+            },
+            trackDelves = {
+              name = "Track Delves",
+              desc = "Show a Delves button on the Objective Tracker with the weekly Gilded Stash, Trovehunter's " ..
+                "Bounty, Valeera's level, and Delve Renown.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.weeklies.trackDelves end,
+              set = function(_, value) Self.Weeklies:SetTrackDelves(value) end,
+              disabled = function() return not db.profile.weeklies.enabled end,
+              order = 1
             }
           }
         }
@@ -2253,37 +2279,6 @@ options = {
       name = "Self Vendor",
       order = 10,
       args = selfVendorModeOptions()
-    },
-    weeklies = {
-      type = "group",
-      name = "Weeklies",
-      desc = "Track weekly quest completions and activities.",
-      order = 11,
-      args = {
-        overview = goldModuleOverview("Track weekly activities and show their progress in the Objective Tracker."),
-        enabled = {
-          name = "Enable Weeklies Module",
-          desc = "Track weekly quest completions and activities.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.weeklies.enabled end,
-          set = function(_, value) Self.Weeklies:SetEnabled(value) end,
-          order = 0.05
-        },
-        trackDelves = {
-          name = "Track Delves",
-          desc = "Show a Delves button on the Objective Tracker with the weekly Gilded Stash, Trovehunter's " ..
-            "Bounty, Valeera's level, and Delve Renown.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.weeklies.trackDelves end,
-          set = function(_, value) Self.Weeklies:SetTrackDelves(value) end,
-          disabled = function() return not db.profile.weeklies.enabled end,
-          order = 1
-        }
-      }
     },
     bind = {
       type = "execute",

@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\Icons\\inv_12_profession_blacksmithing_blacksmithstoolkit_green"
 
-CONFIG_VERSION = 9
+CONFIG_VERSION = 10
 
 Enum.SelfVendorMode = {
   CONSUMABLES = 1,
@@ -244,6 +244,23 @@ CONFIG_MIGRATIONS = {
     end
     if Self.db.profile then
       migrateListviewBag(Self.db.profile)
+    end
+  end,
+  [10] = function()
+    local function migrateInfoDisplay(profile)
+      local infoDisplay = profile and profile.infoDisplay
+      if not infoDisplay then return end
+      infoDisplay.charSheet = infoDisplay.charSheet or {}
+      infoDisplay.charSheet.enabled = true
+      infoDisplay.charSheet.gearStats = infoDisplay.enabled == true
+    end
+    if Self.db.profiles then
+      for _, profile in pairs(Self.db.profiles) do
+        migrateInfoDisplay(profile)
+      end
+    end
+    if Self.db.profile then
+      migrateInfoDisplay(Self.db.profile)
     end
   end,
 }

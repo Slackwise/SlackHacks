@@ -236,6 +236,8 @@ local function charSheetSettings()
     return db.profile.infoDisplay.charSheet
   end
   return {
+    enabled = true,
+    gearStats = false,
     itemLevel = true,
     upgradeTrack = true,
     maxUpgradeStar = false,
@@ -1087,7 +1089,8 @@ local function updateSlot(unitId, slotId)
   if slotOverlay.SetMouseClickEnabled then pcall(slotOverlay.SetMouseClickEnabled, slotOverlay, false) end
   if slotOverlay.SetMouseMotionEnabled then pcall(slotOverlay.SetMouseMotionEnabled, slotOverlay, false) end
 
-  if not isModuleEnabled() then
+  local charSheet = charSheetSettings()
+  if not isModuleEnabled() or (unitId == "player" and (not charSheet.enabled or not charSheet.gearStats)) then
     slotOverlay:Hide()
     return
   end
@@ -1962,169 +1965,9 @@ end
 -- AceAddon Module Lifecycle & Events
 -- ============================================================================
 
--- Character Sheet "Show Gear Stats" Checkbox
-local gearStatsCheckbox
-
-local function getForeverScrollArea()
-  local sb = _G["CharacterStatsPaneScrollBox"]
-  if sb then
-    return (sb.ScrollBox or sb)
-  end
-  if CharacterStatsPane then
-    if CharacterStatsPane.ScrollBox then
-      return CharacterStatsPane.ScrollBox
-    end
-    if CharacterStatsPane.ScrollBar then
-      return CharacterStatsPane.ScrollBar
-    end
-  end
-  if _G["CharacterStatsPaneScrollBar"] then
-    return _G["CharacterStatsPaneScrollBar"]
-  end
-  if PaperDollFrame then
-    if PaperDollFrame.ScrollBox then
-      return PaperDollFrame.ScrollBox
-    end
-    if PaperDollFrame.StatsPane then
-      return PaperDollFrame.StatsPane.ScrollBox or PaperDollFrame.StatsPane
-    end
-  end
-  if CharacterFrame and CharacterFrame.ScrollBox then
-    return CharacterFrame.ScrollBox
-  end
-  return CharacterAttributesFrame or PaperDollFrame or CharacterFrame
-end
-
-local function getCheckboxParentAndAnchor(textWidth)
-  textWidth = textWidth or 58
-  if isRetail() then
-    local relText = CharacterLevelText
-      or (CharacterFrame and (CharacterFrame.LevelText or CharacterFrame.TitleText))
-      or CharacterNameText
-    local parent = (relText and relText.GetParent and relText:GetParent())
-      or PaperDollFrame
-      or CharacterFrame
-    if relText then
-      return parent, "RIGHT", relText, "LEFT", -(textWidth + 8), 0
-    else
-      return parent, "TOPLEFT", parent, "TOPLEFT", 60, -30
-    end
-  else
-    local scrollArea = getForeverScrollArea()
-    local parent = PaperDollFrame or (scrollArea and scrollArea:GetParent()) or CharacterFrame
-    local offsetX = -math.floor((textWidth + 4) / 2)
-    if scrollArea and scrollArea ~= PaperDollFrame and scrollArea ~= CharacterFrame then
-      return parent, "TOP", scrollArea, "BOTTOM", offsetX, -5
-    else
-      return parent, "BOTTOM", parent, "BOTTOM", offsetX, 72
-    end
-  end
-end
-
-local function updateGearStatsCheckbox()
-  if not gearStatsCheckbox then return end
-  local enabled = (db and db.profile and db.profile.infoDisplay and db.profile.infoDisplay.enabled) and true or false
-  gearStatsCheckbox:SetChecked(enabled)
-end
-
-local function updateCheckboxPosition()
-  if not gearStatsCheckbox then return end
-
-  local text = gearStatsCheckbox.text or gearStatsCheckbox.Text or _G[gearStatsCheckbox:GetName() .. "Text"]
-  local textWidth = (text and text:GetStringWidth()) or 0
-  if not textWidth or textWidth == 0 then
-    textWidth = 58
-  end
-
-  local parent, point, relFrame, relPoint, xOffset, yOffset = getCheckboxParentAndAnchor(textWidth)
-  if not parent or not relFrame then return end
-
-  if gearStatsCheckbox:GetParent() ~= parent then
-    gearStatsCheckbox:SetParent(parent)
-    local statsLevel = (relFrame.GetFrameLevel and relFrame:GetFrameLevel()) or 0
-    local parentLevel = (parent.GetFrameLevel and parent:GetFrameLevel()) or 0
-    gearStatsCheckbox:SetFrameLevel(math.max(statsLevel, parentLevel) + 15)
-  end
-
-  gearStatsCheckbox:SetSize(18, 18)
-  gearStatsCheckbox:ClearAllPoints()
-  gearStatsCheckbox:SetPoint(point, relFrame, relPoint, xOffset, yOffset)
-  gearStatsCheckbox:SetHitRectInsets(0, -textWidth - 4, 0, 0)
-end
-
-local function getOrCreateGearStatsCheckbox()
-  if gearStatsCheckbox then return gearStatsCheckbox end
-  if not CharacterFrame then return nil end
-
-  local parent, point, relFrame, relPoint, xOffset, yOffset = getCheckboxParentAndAnchor(58)
-  if not parent or not relFrame then return nil end
-
-  local cb = CreateFrame("CheckButton", "SlackHacksInfoDisplayGearStatsToggle", parent, "UICheckButtonTemplate")
-  gearStatsCheckbox = cb
-
-  cb:SetSize(18, 18)
-  local statsLevel = (relFrame.GetFrameLevel and relFrame:GetFrameLevel()) or 0
-  local parentLevel = (parent.GetFrameLevel and parent:GetFrameLevel()) or 0
-  cb:SetFrameLevel(math.max(statsLevel, parentLevel) + 15)
-
-  local text = cb.text or cb.Text or _G[cb:GetName() .. "Text"]
-  if text then
-    text:SetText("Gear Stats")
-    text:SetFontObject("GameFontHighlightSmall")
-    text:ClearAllPoints()
-    text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-  end
-
-  updateCheckboxPosition()
-  updateGearStatsCheckbox()
-
-  cb:SetScript("OnClick", function(self)
-    local isChecked = self:GetChecked() and true or false
-    if isChecked then
-      PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or 856)
-    else
-      PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or 857)
-    end
-    module:SetEnabled(isChecked)
-  end)
-
-  cb:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText("Gear Stats", 1, 1, 1)
-    GameTooltip:AddLine("Toggle equipment stat overlays on your character sheet.", nil, nil, nil, true)
-    GameTooltip:Show()
-  end)
-
-  cb:SetScript("OnLeave", function()
-    GameTooltip_Hide()
-  end)
-
-  if CharacterStatsPane and not isRetail() then
-    CharacterStatsPane:HookScript("OnShow", function()
-      if gearStatsCheckbox then
-        gearStatsCheckbox:Show()
-        updateCheckboxPosition()
-        updateGearStatsCheckbox()
-      end
-    end)
-  end
-
-  if PaperDollFrame then
-    PaperDollFrame:HookScript("OnShow", function()
-      if gearStatsCheckbox then
-        gearStatsCheckbox:Show()
-        updateCheckboxPosition()
-        updateGearStatsCheckbox()
-      end
-    end)
-  end
-
-  return cb
-end
-
 --- Refreshes all active character sheet equipment overlays.
 function module:Refresh()
-  updateGearStatsCheckbox()
+  if Self.CharSheet then Self.CharSheet:UpdateCheckbox() end
   if not isModuleEnabled() then
     for _, overlay in ipairs(createdOverlays) do
       overlay:Hide()
@@ -2144,13 +1987,13 @@ end
 ---@param enabled boolean
 function module:SetEnabled(enabled)
   db.profile.infoDisplay.enabled = enabled
+  db.profile.infoDisplay.charSheet.gearStats = enabled
   if enabled then
     self:Enable()
   else
     self:Disable()
   end
   self:Refresh()
-  updateGearStatsCheckbox()
   local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
   if acr then
     acr:NotifyChange("SlackHacks")
@@ -2158,17 +2001,9 @@ function module:SetEnabled(enabled)
 end
 
 function module:OnInitialize()
-  getOrCreateGearStatsCheckbox()
-
   -- Hook CharacterFrame OnShow to ensure slots refresh immediately when opened
   if CharacterFrame then
     CharacterFrame:HookScript("OnShow", function()
-      local cb = getOrCreateGearStatsCheckbox()
-      if cb then
-        cb:Show()
-        updateCheckboxPosition()
-        updateGearStatsCheckbox()
-      end
       if isModuleEnabled() then
         updateAllSlots("player")
       end
