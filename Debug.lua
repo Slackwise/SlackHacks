@@ -642,7 +642,7 @@ function module:BuildMarkdown()
   local lines = {}
   table.insert(lines, "### SlackHacks Error Report")
   table.insert(lines, "")
-  table.insert(lines, "- **Addon Version**: " .. tostring(GetAddOnMetadata and (GetAddOnMetadata("SlackHacks", "Version") or "") or "0.5"))
+  table.insert(lines, "- **Addon Version**: " .. tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version")) or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version")) or "1"))
   table.insert(lines, "- **Client Flavor**: " .. tostring(gameClientFlavor and gameClientFlavor() or "unknown"))
   table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
   table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))

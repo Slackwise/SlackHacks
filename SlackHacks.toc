@@ -3,7 +3,7 @@
 ## Notes: A compilation of small feature hacks and minimalistic tweaks to the default UI.
 ## IconTexture: Interface\AddOns\SlackHacks\Assets\SlackHacks.png
 ## Author: Slack — Moon Guard
-## Version: 0.5
+## Version: 1
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
