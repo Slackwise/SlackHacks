@@ -1,4 +1,4 @@
-# Slackhacks --  Essential Quality of Life Tweaks to Native Blizzard UIs
+# SlackHacks --  Essential Quality of Life Tweaks to Native Blizzard UIs
 
 This is *yet another* "Quality of Life" addon with various small features and tweaks, but my focus is on making my changes look like they're part of the native Blizzard UI.
 
