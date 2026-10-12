@@ -199,19 +199,6 @@ WIP_MODULES = {
       end
     end
   },
-  {
-    -- Nested under the "Inventory" group instead of a top-level options.args entry.
-    key = { "inventory", "listviewBag" },
-    name = "Listview Bag",
-    disable = function()
-      if Self.db and Self.db.profile and Self.db.profile.listviewBag then
-        Self.db.profile.listviewBag.enabled = false
-      end
-      if Self.ListviewBag then
-        Self.ListviewBag:Disable()
-      end
-    end
-  }
 }
 
 RETAIL_MODULES = {
