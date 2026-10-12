@@ -802,12 +802,12 @@ local function showDefaultBags()
   setDefaultBagsSuppressed(false)
 end
 
-local function setListViewActive(active)
-  settings().listViewActive = active
+local function setShowListviewBag(show)
+  settings().showListviewBag = show
   if viewToggleButton then
-    viewToggleButton:SetChecked(active)
+    viewToggleButton:SetChecked(show)
   end
-  if active then
+  if show then
     hideDefaultBags()
     module:UpdateListViewBindings()
     frame:Show()
@@ -818,10 +818,15 @@ local function setListViewActive(active)
   end
 end
 
+function module:SetShowListviewBag(show)
+  if not isModuleEnabled() then return end
+  setShowListviewBag(show)
+end
+
 local function updateListViewBindings()
   if not bagKeyBindingButton or InCombatLockdown() then return end
   ClearOverrideBindings(bagKeyBindingButton)
-  if not isModuleEnabled() or not settings().listViewActive then return end
+  if not isModuleEnabled() or not settings().showListviewBag then return end
   for _, command in ipairs({ "TOGGLEBACKPACK", "OPENALLBAGS" }) do
     for _, key in ipairs({ GetBindingKey(command) }) do
       if key then
@@ -833,7 +838,7 @@ end
 
 local lastNativeBagToggle = 0
 local function toggleListViewFromNativeBagAction()
-  if not frame or not isModuleEnabled() or not settings().listViewActive then return end
+  if not frame or not isModuleEnabled() or not settings().showListviewBag then return end
   if MerchantFrame and MerchantFrame:IsShown() then
     hideDefaultBags()
     frame:Show()
@@ -852,16 +857,17 @@ end
 
 local bagMenuHooksInstalled = false
 local function installBagMenuOptions()
-  if bagMenuHooksInstalled or not Menu or not Menu.ModifyMenu then return end
+  if bagMenuHooksInstalled or not isModuleEnabled() or not Menu or not Menu.ModifyMenu then return end
   bagMenuHooksInstalled = true
   for _, menuTag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }) do
     Menu.ModifyMenu(menuTag, function(_, rootDescription)
+      if not isModuleEnabled() then return end
       rootDescription:CreateDivider()
       rootDescription:CreateButton("Show SlackHacks's Listview Bag", function()
         settings().enabled = true
-        settings().listViewActive = true
+        settings().showListviewBag = true
         if module:IsEnabled() then
-          setListViewActive(true)
+          setShowListviewBag(true)
         else
           module:Enable()
         end
@@ -881,7 +887,7 @@ local function hookDefaultBagToggles()
   if _G.CloseBackpack and not hookedBagToggleFuncs.CloseBackpack then
     hookedBagToggleFuncs.CloseBackpack = true
     hooksecurefunc("CloseBackpack", function()
-      if frame and isModuleEnabled() and settings().listViewActive then
+      if frame and isModuleEnabled() and settings().showListviewBag then
         frame:Hide()
       end
     end)
@@ -951,7 +957,7 @@ local function buildFrame()
   -- portrait icon underneath (see portraitContainer above) is what's visually framed by the border ring.
   viewToggleButton = CreateFrame("CheckButton", nil, content)
   viewToggleButton:SetAllPoints(content.portrait)
-  viewToggleButton:SetScript("OnClick", function(self) setListViewActive(self:GetChecked()) end)
+  viewToggleButton:SetScript("OnClick", function(self) setShowListviewBag(self:GetChecked()) end)
   viewToggleButton:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText("Toggle List View")
@@ -991,7 +997,7 @@ local function buildFrame()
   content.openBagsButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, -32)
   content.openBagsButton:SetText("Open Bags")
   content.openBagsButton:SetScript("OnClick", function()
-    setListViewActive(false)
+    setShowListviewBag(false)
     settings().enabled = false
     module:Disable()
   end)
@@ -1001,7 +1007,7 @@ local function buildFrame()
   bagKeyBindingButton:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10, 10)
   bagKeyBindingButton:SetAlpha(0)
   bagKeyBindingButton:SetScript("OnClick", function()
-    if isModuleEnabled() and settings().listViewActive then
+    if isModuleEnabled() and settings().showListviewBag then
       if frame:IsShown() then frame:Hide() else frame:Show() end
     end
   end)
@@ -1135,8 +1141,8 @@ function module:OnEnable()
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("MERCHANT_CLOSED")
   EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.RefreshFooter, self)
-  if settings().listViewActive then
-    setListViewActive(true)
+  if settings().showListviewBag then
+    setShowListviewBag(true)
   end
 end
 
@@ -1148,7 +1154,7 @@ function module:OnDisable()
 end
 
 function module:MERCHANT_SHOW()
-  if settings().listViewActive then
+  if settings().showListviewBag then
     hideDefaultBags()
     frame:Show()
   end
@@ -1169,7 +1175,7 @@ function module:MERCHANT_CLOSED()
 end
 
 function module:OnNativeBagOpen()
-  if isModuleEnabled() and settings().listViewActive then
+  if isModuleEnabled() and settings().showListviewBag then
     hideDefaultBags()
     frame:Show()
   end

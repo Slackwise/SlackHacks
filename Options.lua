@@ -27,7 +27,7 @@ dbDefaults = {
     },
     listviewBag = {
       enabled = false,
-      listViewActive = false,
+      showListviewBag = false,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
@@ -416,7 +416,7 @@ local function selfVendorModeOptions()
     order = 0,
   }
   args.enabled = {
-    name = "Enable Self Vendor",
+    name = "Enable Self Vendor Module",
     desc = "Accept Self Vendor requests in party, raid, and instance chat. Requests may also include 'and', 'give', 'need', or 'please'.",
     type = "toggle",
     descStyle = "inline",
@@ -584,9 +584,8 @@ options = {
           args = {
             overview = goldModuleOverview("A sortable list-view alternative to the default grid bag window."),
             enabled = {
-              name = "Enable",
-              desc = "Adds a toggle button to the bag window's title bar that switches between the default " ..
-                "grid view and a sortable list view of your inventory.",
+              name = "Enable Listview Bag Module",
+              desc = "Enables Listview Bag features and adds its option to the Blizzard backpack menu.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -594,15 +593,26 @@ options = {
               set = function(_, value)
                 db.profile.listviewBag.enabled = value
                 if value then
-                  -- Otherwise there'd be no way to reach the in-window toggle button the first time,
-                  -- since it lives inside a window that only shows once list view is already active.
-                  db.profile.listviewBag.listViewActive = true
                   Self.ListviewBag:Enable()
                 else
                   Self.ListviewBag:Disable()
                 end
               end,
               order = 1
+            },
+            showListviewBag = {
+              name = "Switch Backpack with Listview Bag",
+              desc = "Use Listview Bag instead of Blizzard's grid bags when opening the backpack. Turn this off to return to the standard bags.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.listviewBag.showListviewBag end,
+              set = function(_, value)
+                db.profile.listviewBag.showListviewBag = value
+                Self.ListviewBag:SetShowListviewBag(value)
+              end,
+              disabled = function() return not db.profile.listviewBag.enabled end,
+              order = 2
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Items Marked for Vendoring",
@@ -612,7 +622,7 @@ options = {
               get = function() return db.profile.listviewBag.autoSellMarkedItems end,
               set = function(_, value) db.profile.listviewBag.autoSellMarkedItems = value end,
               width = "full",
-              order = 2
+              order = 3
             },
             autoVendorItems = {
               name = "Auto-Vendor Items",
@@ -629,7 +639,7 @@ options = {
                 end
               end,
               width = "full",
-              order = 3
+              order = 4
             }
           }
         }
@@ -691,7 +701,7 @@ options = {
           order = 0
         },
         enabled = {
-          name = "Enable",
+          name = "Enable Graphics Module",
           desc = "Enable custom hidden graphical options. When disabled, standard game defaults are restored.",
           type = "toggle",
           descStyle = "inline",
@@ -1123,7 +1133,7 @@ options = {
       args = {
         overview = goldModuleOverview("Shows a ring around your mouse cursor, with controls for when it appears and how it looks."),
         enabled = {
-          name = "Enable",
+          name = "Enable Mouse Ring Module",
           desc = "Show a ring around your mouse cursor.",
           type = "toggle",
           descStyle = "inline",
@@ -1412,7 +1422,7 @@ options = {
       args = {
         overview = goldModuleOverview("Customize the minimap's shape, appearance, opacity, and visible buttons."),
         enabled = {
-          name = "Enable",
+          name = "Enable Minimap Module",
           desc = "Enable minimap enhancements. When disabled, the minimap looks and behaves exactly like " ..
             "stock Blizzard UI.",
           type = "toggle",
@@ -1706,7 +1716,7 @@ options = {
       args = {
         overview = goldModuleOverview("Get clickable reminders for food, flask, oil, and augment rune buffs in Mythic dungeons and raids."),
         enabled = {
-          name = "Enable",
+          name = "Enable Consumable Buff Reminders Module",
           desc = "Show consumable buff reminders.",
           type = "toggle",
           descStyle = "inline",
@@ -1914,7 +1924,7 @@ options = {
       args = {
         overview = goldModuleOverview("Display item levels, upgrade tracks, stats, enchants, and gems directly on equipment icons."),
         enabled = {
-          name = "Enable",
+          name = "Enable Info Display Module",
           desc = "Enable Info Display overlays on equipment slots.",
           type = "toggle",
           descStyle = "inline",
@@ -2099,7 +2109,7 @@ options = {
       args = {
         overview = goldModuleOverview("Move Blizzard windows by dragging their title bars and resize them with modifier keys and the mouse wheel."),
         enabled = {
-          name = "Enable",
+          name = "Enable Movable Windows Module",
           desc = "Make registered Blizzard windows draggable and mouse-wheel scalable.",
           type = "toggle",
           descStyle = "inline",
@@ -2252,7 +2262,7 @@ options = {
       args = {
         overview = goldModuleOverview("Track weekly activities and show their progress in the Objective Tracker."),
         enabled = {
-          name = "Enable",
+          name = "Enable Weeklies Module",
           desc = "Track weekly quest completions and activities.",
           type = "toggle",
           descStyle = "inline",
