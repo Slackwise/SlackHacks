@@ -145,13 +145,13 @@ CONFIG_MIGRATIONS = {
       g.errorMinimap = nil
       g.logs = g.logs or {}
       g.logs.errorLoggingEnabled = true
-      if Self.Debug then
-        if Self.Debug.RefreshErrorLogging then
-          Self.Debug:RefreshErrorLogging()
-        end
-        if Self.Debug.UpdateMinimapIcon then
-          Self.Debug:UpdateMinimapIcon()
-        end
+      if Self.Debug and Self.Debug.RefreshErrorLogging then
+        Self.Debug:RefreshErrorLogging()
+      end
+      if updateMinimapIcon then
+        updateMinimapIcon()
+      elseif Self.UpdateMinimapIcon then
+        Self.UpdateMinimapIcon()
       end
     end
   end,
