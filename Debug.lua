@@ -882,7 +882,9 @@ local function openMinimapContextMenu(anchor)
       rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
       rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
       rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
-      rootDescription:CreateCheckbox("Track Delve Weeklies", isTrackDelvesActive, toggleTrackDelves)
+      if isRetail and isRetail() then
+        rootDescription:CreateCheckbox("Track Delve Weeklies", isTrackDelvesActive, toggleTrackDelves)
+      end
     end)
     return
   end
@@ -895,8 +897,16 @@ local function openMinimapContextMenu(anchor)
     { text = "Square Minimap", checked = isSquareMinimapActive, func = toggleSquareMinimap, isNotRadio = true, keepShownOnClick = true },
     { text = "Display Gear Stats", checked = isGearStatsActive, func = toggleGearStats, isNotRadio = true, keepShownOnClick = true },
     { text = "Mouse Ring", checked = isMouseRingActive, func = toggleMouseRing, isNotRadio = true, keepShownOnClick = true },
-    { text = "Track Delve Weeklies", checked = isTrackDelvesActive, func = toggleTrackDelves, isNotRadio = true, keepShownOnClick = true },
   }
+  if isRetail and isRetail() then
+    table.insert(menuList, {
+      text = "Track Delve Weeklies",
+      checked = isTrackDelvesActive,
+      func = toggleTrackDelves,
+      isNotRadio = true,
+      keepShownOnClick = true,
+    })
+  end
   local menuFrame = CreateFrame("Frame", "SlackHacksMinimapContextMenu", UIParent, "UIDropDownMenuTemplate")
   EasyMenu(menuList, menuFrame, "cursor", 0, 0, "MENU")
 end
