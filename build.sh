@@ -27,10 +27,10 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-FOLDER_NAME="SlackHacks-v${VERSION#v}"
+FOLDER_NAME="SlackHacks"
 DIST_DIR="dist"
 TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
-ZIP_NAME="${FOLDER_NAME}.zip"
+ZIP_NAME="SlackHacks-v${VERSION#v}.zip"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
 echo "Building ${FOLDER_NAME} (version: ${VERSION})..."
@@ -100,8 +100,8 @@ if [[ -d "Libs" ]]; then
   done
 fi
 
-# 4. Compress created folder into a zip named after the folder inside dist
-echo "Compressing ${FOLDER_NAME} into ${ZIP_PATH}..."
+# 4. Compress created folder into a zip named after the versioned addon inside dist
+echo "Compressing ${TARGET_DIR} into ${ZIP_PATH}..."
 
 (
   cd "$DIST_DIR"
