@@ -1,4 +1,4 @@
-# SlackHacks Release v2
+# SlackHacks v2
 
 ## Listview Bag
 - Resized gold display width
