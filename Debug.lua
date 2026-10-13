@@ -764,10 +764,11 @@ function module:ShowWindow()
     if SetPortraitToAsset then
       SetPortraitToAsset(portrait, SLACKHACKS_ICON)
     end
-    -- SetPortraitToAsset resets points to (0,0); reapply the visual center offset for the wrench logo
+    -- SetPortraitToAsset resets points to (0,0); scale and reapply the visual center offset
+    -- so the entire icon is exposed cleanly inside the frame's circular aperture without clipping
     portrait:ClearAllPoints()
-    portrait:SetSize(60, 60)
-    portrait:SetPoint("CENTER", portraitContainer or frame, "CENTER", 0, -2.5)
+    portrait:SetSize(48, 48)
+    portrait:SetPoint("CENTER", portraitContainer or frame, "CENTER", 0, -1.8)
 
     if portraitContainer and portraitContainer.CreateMaskTexture and not portraitContainer.mask then
       local mask = portraitContainer:CreateMaskTexture()
@@ -783,8 +784,8 @@ function module:ShowWindow()
     container:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
 
     portrait = container:CreateTexture(nil, "OVERLAY")
-    portrait:SetSize(60, 60)
-    portrait:SetPoint("CENTER", container, "CENTER", 0, -2.5)
+    portrait:SetSize(48, 48)
+    portrait:SetPoint("CENTER", container, "CENTER", 0, -1.8)
     portrait:SetTexture(SLACKHACKS_ICON)
 
     if container.CreateMaskTexture then
