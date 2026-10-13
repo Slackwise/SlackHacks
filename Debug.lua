@@ -743,27 +743,54 @@ function module:ShowWindow()
     frame.TitleText:SetText("SlackHacks Error Log")
   end
 
-  local portrait = frame.portrait or (frame.PortraitContainer and frame.PortraitContainer.portrait)
-  if frame.SetPortraitToAsset then
-    pcall(frame.SetPortraitToAsset, frame, SLACKHACKS_ICON)
+  -- Align the portrait frame and icon inside the top-left circle
+  if frame.portrait and frame.PortraitContainer then
+    frame.portrait:Hide()
   end
+
+  local portraitContainer = frame.PortraitContainer
+  if portraitContainer then
+    portraitContainer:ClearAllPoints()
+    portraitContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
+    portraitContainer:SetSize(60, 60)
+  end
+
+  local portrait = (frame.GetPortrait and frame:GetPortrait())
+    or (portraitContainer and portraitContainer.portrait)
+    or frame.portrait
+
   if portrait then
+    portrait:SetTexture(SLACKHACKS_ICON)
     if SetPortraitToAsset then
       SetPortraitToAsset(portrait, SLACKHACKS_ICON)
-    else
-      portrait:SetTexture(SLACKHACKS_ICON)
+    end
+    -- SetPortraitToAsset resets points to (0,0); reapply the visual center offset for the wrench logo
+    portrait:ClearAllPoints()
+    portrait:SetSize(60, 60)
+    portrait:SetPoint("CENTER", portraitContainer or frame, "CENTER", 0, -2.5)
+
+    if portraitContainer and portraitContainer.CreateMaskTexture and not portraitContainer.mask then
+      local mask = portraitContainer:CreateMaskTexture()
+      mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+      mask:SetAllPoints(portraitContainer)
+      portrait:AddMaskTexture(mask)
+      portraitContainer.mask = mask
     end
   else
-    local portraitFrame = CreateFrame("Frame", nil, frame)
-    portraitFrame:SetFrameLevel(frame:GetFrameLevel() + 2)
-    portrait = portraitFrame:CreateTexture(nil, "OVERLAY")
+    local container = CreateFrame("Frame", nil, frame)
+    container:SetFrameLevel(frame:GetFrameLevel() + 2)
+    container:SetSize(60, 60)
+    container:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
+
+    portrait = container:CreateTexture(nil, "OVERLAY")
     portrait:SetSize(60, 60)
-    portrait:SetPoint("TOPLEFT", frame, "TOPLEFT", -6, 7)
+    portrait:SetPoint("CENTER", container, "CENTER", 0, -2.5)
     portrait:SetTexture(SLACKHACKS_ICON)
-    if portraitFrame.CreateMaskTexture then
-      local mask = portraitFrame:CreateMaskTexture()
+
+    if container.CreateMaskTexture then
+      local mask = container:CreateMaskTexture()
       mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-      mask:SetAllPoints(portrait)
+      mask:SetAllPoints(container)
       portrait:AddMaskTexture(mask)
     end
     frame.portrait = portrait
@@ -814,7 +841,7 @@ function module:ShowWindow()
   dragHandle:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
 
   local linkLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  linkLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, -32)
+  linkLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, -56)
   linkLabel:SetText("New issue link (copy into your browser):")
 
   local linkBox = CreateFrame("EditBox", nil, content, "InputBoxTemplate")
