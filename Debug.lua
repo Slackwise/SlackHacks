@@ -643,7 +643,9 @@ function module:BuildMarkdown()
   table.insert(lines, "### SlackHacks Error Report")
   table.insert(lines, "")
   table.insert(lines, "- **Addon Version**: " .. tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version")) or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version")) or "1"))
-  table.insert(lines, "- **Client Flavor**: " .. tostring(gameClientFlavor and gameClientFlavor() or "unknown"))
+  local clientVersion = (GetBuildInfo and select(1, GetBuildInfo())) or (GetBuildInfo and GetBuildInfo()) or "unknown"
+  local projectID = tostring(WOW_PROJECT_ID or "unknown")
+  table.insert(lines, "- **Client Version**: " .. tostring(clientVersion) .. " (WOW_PROJECT_ID: " .. projectID .. ")")
   table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
   table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
   table.insert(lines, "")
@@ -675,52 +677,232 @@ function module:BuildMarkdown()
   return table.concat(lines, "\n")
 end
 
---- Displays or refreshes the AceGUI error-log window.
-function module:ShowWindow()
-  local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
-  if not AceGUI then
-    print("SlackHacks: AceGUI-3.0 not available to display error log.")
-    return
-  end
+CLEAR_ERRORS_CONFIRM_POPUP = "SLACKHACKS_CLEAR_ERRORS_CONFIRM"
+StaticPopupDialogs[CLEAR_ERRORS_CONFIRM_POPUP] = {
+  text = "Are you sure you want to clear the SlackHacks Error Log?",
+  button1 = YES,
+  button2 = NO,
+  OnAccept = function()
+    clearErrorLogs()
+    if module.RefreshMarkdown then
+      module:RefreshMarkdown()
+    end
+    print("SlackHacks: SlackHacks Error Log cleared.")
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+  showAlert = true,
+}
 
-  if self.frame then
+local function promptClearErrors()
+  local list = errorLogTable()
+  if list and #list > 0 then
+    StaticPopup_Show(CLEAR_ERRORS_CONFIRM_POPUP)
+  else
+    print("SlackHacks: SlackHacks Error Log is already empty.")
+  end
+end
+
+local FRAME_NAME = "SlackHacksBugReportFrame"
+local WINDOW_WIDTH = 640
+local WINDOW_HEIGHT = 520
+
+--- Refreshes the markdown text and status in the error-log window.
+function module:RefreshMarkdown()
+  if self.markdownBox then
     self.markdownBox:SetText(self:BuildMarkdown())
+  end
+  if self.statusText then
+    local list = errorLogTable() or {}
+    self.statusText:SetText(("%d unique error(s) recorded"):format(#list))
+  end
+end
+
+--- Displays or refreshes the standard Blizzard portrait error-log window.
+function module:ShowWindow()
+  if self.frame then
+    self:RefreshMarkdown()
     self.frame:Show()
     return
   end
 
-  local frame = AceGUI:Create("Frame")
-  frame:SetTitle("SlackHacks Error Log")
-  frame:SetStatusText("Copy the markdown below and paste it into a new GitHub issue.")
-  frame:SetLayout("Flow")
-  frame:SetWidth(650)
-  frame:SetHeight(500)
-  frame:EnableResize(true)
-  frame:SetCallback("OnClose", function(widget)
-    widget:Hide()
+  local frame = CreateFrame("Frame", FRAME_NAME, UIParent, "PortraitFrameTemplate")
+  frame:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+  frame:SetPoint("CENTER")
+  frame:SetFrameStrata("HIGH")
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:SetClampedToScreen(true)
+
+  if frame.SetTitle then
+    frame:SetTitle("SlackHacks Error Log")
+  elseif frame.TitleContainer and frame.TitleContainer.TitleText then
+    frame.TitleContainer.TitleText:SetText("SlackHacks Error Log")
+  elseif frame.TitleText then
+    frame.TitleText:SetText("SlackHacks Error Log")
+  end
+
+  local portrait = frame.portrait or (frame.PortraitContainer and frame.PortraitContainer.portrait)
+  if frame.SetPortraitToAsset then
+    pcall(frame.SetPortraitToAsset, frame, SLACKHACKS_ICON)
+  end
+  if portrait then
+    if SetPortraitToAsset then
+      SetPortraitToAsset(portrait, SLACKHACKS_ICON)
+    else
+      portrait:SetTexture(SLACKHACKS_ICON)
+    end
+  else
+    local portraitFrame = CreateFrame("Frame", nil, frame)
+    portraitFrame:SetFrameLevel(frame:GetFrameLevel() + 2)
+    portrait = portraitFrame:CreateTexture(nil, "OVERLAY")
+    portrait:SetSize(60, 60)
+    portrait:SetPoint("TOPLEFT", frame, "TOPLEFT", -6, 7)
+    portrait:SetTexture(SLACKHACKS_ICON)
+    if portraitFrame.CreateMaskTexture then
+      local mask = portraitFrame:CreateMaskTexture()
+      mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+      mask:SetAllPoints(portrait)
+      portrait:AddMaskTexture(mask)
+    end
+    frame.portrait = portrait
+  end
+
+  if frame.CloseButton then
+    frame.CloseButton:SetScript("OnClick", function()
+      frame:Hide()
+    end)
+  else
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    close:SetScript("OnClick", function()
+      frame:Hide()
+    end)
+    frame.CloseButton = close
+  end
+
+  local inSpecial = false
+  for _, name in ipairs(UISpecialFrames) do
+    if name == FRAME_NAME then
+      inSpecial = true
+      break
+    end
+  end
+  if not inSpecial then
+    table.insert(UISpecialFrames, FRAME_NAME)
+  end
+
+  frame:SetScript("OnHide", function()
+    local list = errorLogTable()
+    if list and #list > 0 and not (StaticPopup_Visible and StaticPopup_Visible(CLEAR_ERRORS_CONFIRM_POPUP)) then
+      StaticPopup_Show(CLEAR_ERRORS_CONFIRM_POPUP)
+    end
   end)
-  self.frame = frame
 
-  local linkLabel = AceGUI:Create("Label")
+  local content = CreateFrame("Frame", nil, frame)
+  content:SetAllPoints()
+  content:SetFrameLevel(frame:GetFrameLevel() + 500)
+
+  local dragHandle = CreateFrame("Frame", nil, content)
+  dragHandle:SetPoint("TOPLEFT", content, "TOPLEFT", 58, 0)
+  dragHandle:SetPoint("TOPRIGHT", content, "TOPRIGHT", -30, 0)
+  dragHandle:SetHeight(28)
+  dragHandle:EnableMouse(true)
+  dragHandle:RegisterForDrag("LeftButton")
+  dragHandle:SetScript("OnDragStart", function() frame:StartMoving() end)
+  dragHandle:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
+
+  local linkLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  linkLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, -32)
   linkLabel:SetText("New issue link (copy into your browser):")
-  linkLabel:SetFullWidth(true)
-  frame:AddChild(linkLabel)
 
-  local linkBox = AceGUI:Create("EditBox")
-  linkBox:SetFullWidth(true)
+  local linkBox = CreateFrame("EditBox", nil, content, "InputBoxTemplate")
+  linkBox:SetPoint("TOPLEFT", linkLabel, "BOTTOMLEFT", 4, -4)
+  linkBox:SetPoint("RIGHT", content, "RIGHT", -24, 0)
+  linkBox:SetHeight(20)
+  linkBox:SetAutoFocus(false)
+  linkBox:SetFontObject(ChatFontNormal or GameFontHighlight)
   linkBox:SetText(GITHUB_NEW_ISSUE_URL)
-  linkBox:DisableButton(true)
-  frame:AddChild(linkBox)
+  linkBox:SetScript("OnEditFocusGained", function(s) s:HighlightText() end)
+  linkBox:SetScript("OnMouseUp", function(s) s:HighlightText() end)
+  linkBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
 
-  local markdownBox = AceGUI:Create("MultiLineEditBox")
-  markdownBox:SetLabel("Error Log (Markdown)")
-  markdownBox:SetFullWidth(true)
-  markdownBox:SetNumLines(22)
-  markdownBox:DisableButton(true)
-  frame:AddChild(markdownBox)
-  self.markdownBox = markdownBox
+  local markdownLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  markdownLabel:SetPoint("TOPLEFT", linkBox, "BOTTOMLEFT", -4, -10)
+  markdownLabel:SetText("Error Log (Markdown):")
 
-  markdownBox:SetText(self:BuildMarkdown())
+  local hintLabel = content:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  hintLabel:SetPoint("LEFT", markdownLabel, "RIGHT", 8, 0)
+  hintLabel:SetText("(Click below and press Ctrl+A, then Ctrl+C to copy)")
+
+  local scrollFrame = CreateFrame("ScrollFrame", "SlackHacksBugReportScrollFrame", content, "UIPanelScrollFrameTemplate")
+  scrollFrame:SetPoint("TOPLEFT", markdownLabel, "BOTTOMLEFT", 4, -6)
+  scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -32, 36)
+
+  local scrollBg = CreateFrame("Frame", nil, scrollFrame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  scrollBg:SetPoint("TOPLEFT", -4, 4)
+  scrollBg:SetPoint("BOTTOMRIGHT", 24, -4)
+  if scrollBg.SetBackdrop then
+    scrollBg:SetBackdrop({
+      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    scrollBg:SetBackdropColor(0, 0, 0, 0.6)
+    scrollBg:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.8)
+  end
+
+  local editBox = CreateFrame("EditBox", "SlackHacksBugReportEditBox", scrollFrame)
+  editBox:SetMultiLine(true)
+  editBox:SetAutoFocus(false)
+  editBox:SetFontObject(ChatFontNormal or GameFontHighlightSmall)
+  editBox:SetWidth(WINDOW_WIDTH - 68)
+  editBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
+  editBox:SetScript("OnEditFocusGained", function(s) s:HighlightText() end)
+  editBox:SetScript("OnCursorChanged", function(s, _, y, _, cursorHeight)
+    y = -y
+    local offset = scrollFrame:GetVerticalScroll()
+    if y < offset then
+      scrollFrame:SetVerticalScroll(y)
+    else
+      y = y + cursorHeight - scrollFrame:GetHeight()
+      if y > offset then
+        scrollFrame:SetVerticalScroll(y)
+      end
+    end
+  end)
+  scrollFrame:SetScrollChild(editBox)
+
+  scrollFrame:SetScript("OnMouseDown", function()
+    editBox:SetFocus()
+  end)
+
+  scrollFrame:SetScript("OnSizeChanged", function(_, width)
+    if width and width > 0 then
+      editBox:SetWidth(width)
+    end
+  end)
+
+  local statusText = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  statusText:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 20, 10)
+  self.statusText = statusText
+
+  local clearButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+  clearButton:SetSize(110, 22)
+  clearButton:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -16, 6)
+  clearButton:SetText("Clear Errors")
+  clearButton:SetScript("OnClick", function()
+    promptClearErrors()
+  end)
+  self.clearButton = clearButton
+
+  self.frame = frame
+  self.markdownBox = editBox
+
+  self:RefreshMarkdown()
+  frame:Show()
 end
 
 --- Reports captured errors when possible, otherwise opens the local report window.

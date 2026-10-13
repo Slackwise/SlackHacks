@@ -1222,11 +1222,14 @@ options = {
             },
             clearErrorLog = {
               name = "Clear Error Log",
-              desc = "Clear all SlackHacks error logs stored in SlackHacksDB.",
+              desc = "Clear the SlackHacks Error Log.",
               type = "execute",
               func = function()
                 clearErrorLogs()
-                print("SlackHacks: error logs cleared")
+                if Self.Debug and Self.Debug.RefreshMarkdown then
+                  Self.Debug:RefreshMarkdown()
+                end
+                print("SlackHacks: SlackHacks Error Log cleared")
               end,
               confirm = true,
               order = 3
