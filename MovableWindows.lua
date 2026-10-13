@@ -142,6 +142,19 @@ local function addToCombatLockdownQueue(func, ...)
     func(...)
     return
   end
+  local numArgs = select("#", ...)
+  for _, item in ipairs(combatLockdownQueue) do
+    if item.func == func and #item.args == numArgs then
+      local match = true
+      for i = 1, numArgs do
+        if item.args[i] ~= select(i, ...) then
+          match = false
+          break
+        end
+      end
+      if match then return end
+    end
+  end
   if #combatLockdownQueue == 0 then
     module:RegisterEvent("PLAYER_REGEN_ENABLED")
   end
@@ -977,14 +990,6 @@ local function makeMoveHandle(frame, rootFrame, titleBarHeight, titleBarRaise, i
   handle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, titleBarRaise)
   handle:SetHeight(titleBarHeight + titleBarRaise)
   handle:SetFrameLevel(frame:GetFrameLevel() + TITLE_BAR_HANDLE_LEVEL_OFFSET)
-  -- SetPropagateMouseMotion/Clicks are protected once the handle is parented under a protected frame
-  -- (e.g. CharacterFrame) -- guard with IsProtected()+pcall so it just silently no-ops there instead of
-  -- throwing ADDON_ACTION_BLOCKED; harmless to skip, it only affects click/tooltip passthrough under the
-  -- handle's own small title-bar strip.
-  if not frame:IsProtected() then
-    pcall(handle.SetPropagateMouseMotion, handle, true)
-    pcall(handle.SetPropagateMouseClicks, handle, true)
-  end
   handle.onDragStartCallback = function() return false end
   handle:HookScript("OnMouseDown", onMouseDown)
   handle:HookScript("OnMouseUp", onMouseUp)
@@ -1189,6 +1194,10 @@ end
 --- OnEnable() to cover anything already loaded at that point.
 function module:ApplyAll()
   if not isModuleEnabled() then return end
+  if InCombatLockdown() then
+    addToCombatLockdownQueue(self.ApplyAll, self)
+    return
+  end
   for frameName, frameData in pairs(registeredFrames) do
     if not (frameData.storage and frameData.storage.hooked) then
       processFrame(frameName, frameData)
