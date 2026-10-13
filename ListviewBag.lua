@@ -769,7 +769,6 @@ local function createFooter()
   footer.tokenFrame:SetIsCombinedInventory(true)
   footer.tokenFrame:SetWidth(150)
   footer.tokenFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
-  footer.tokenFrame.Border:Hide()
 end
 
 --=====================================================================
