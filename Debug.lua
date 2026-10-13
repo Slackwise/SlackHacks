@@ -713,6 +713,36 @@ local function promptClearErrors()
   end
 end
 
+REPORT_BUG_POPUP = "SLACKHACKS_REPORT_BUG_POPUP"
+StaticPopupDialogs[REPORT_BUG_POPUP] = {
+  text = "Copy this URL into your browser to report bugs:\n(Press Ctrl+C to copy)",
+  button1 = OKAY,
+  hasEditBox = 1,
+  editBoxWidth = 280,
+  OnShow = function(self)
+    local editBox = self.editBox or _G[self:GetName() .. "EditBox"]
+    if editBox then
+      editBox:SetText(GITHUB_NEW_ISSUE_URL)
+      editBox:SetFocus()
+      editBox:HighlightText()
+    end
+  end,
+  EditBoxOnEnterPressed = function(self)
+    self:GetParent():Hide()
+  end,
+  EditBoxOnEscapePressed = function(self)
+    self:GetParent():Hide()
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+}
+
+function promptReportBug()
+  StaticPopup_Show(REPORT_BUG_POPUP)
+end
+module.PromptReportBug = promptReportBug
+
 -----------------------------------------------------------------------
 -- Minimap Error Icon (LibDBIcon)
 -----------------------------------------------------------------------
@@ -845,6 +875,9 @@ local function openMinimapContextMenu(anchor)
       rootDescription:CreateButton("Options", function()
         openOptions()
       end)
+      rootDescription:CreateButton("Report Bugs", function()
+        promptReportBug()
+      end)
       rootDescription:CreateCheckbox("Listview Bag", isListviewBagActive, toggleListviewBag)
       rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
       rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
@@ -857,6 +890,7 @@ local function openMinimapContextMenu(anchor)
   local menuList = {
     { text = "SlackHacks", isTitle = true, notCheckable = true },
     { text = "Options", func = function() openOptions() end, notCheckable = true },
+    { text = "Report Bugs", func = function() promptReportBug() end, notCheckable = true },
     { text = "Listview Bag", checked = isListviewBagActive, func = toggleListviewBag, isNotRadio = true, keepShownOnClick = true },
     { text = "Square Minimap", checked = isSquareMinimapActive, func = toggleSquareMinimap, isNotRadio = true, keepShownOnClick = true },
     { text = "Display Gear Stats", checked = isGearStatsActive, func = toggleGearStats, isNotRadio = true, keepShownOnClick = true },

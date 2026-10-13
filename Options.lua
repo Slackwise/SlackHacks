@@ -345,7 +345,7 @@ function handleSlashCommand(input)
     printSlashHelp()
   elseif command == "debug" then
     toggleDebugging()
-  elseif command == "bugs" then
+  elseif command == "bugs" or command == "bug" or command == "bugreport" or command == "error" or command == "errors" or command == "errorlog" then
     Self.Debug:ReportErrors()
   elseif command == "reset" then
     promptResetProfile()
@@ -502,13 +502,14 @@ options = {
       end,
       order = 0.5
     },
-    website = {
-      name = "Website",
-      desc = "Visit the website to report bugs or request features. (Press Ctrl+C to copy)",
-      type = "input",
+    reportBug = {
+      name = "Report Bugs",
+      desc = "Open the bug report link to copy and submit an issue on GitHub.",
+      type = "execute",
       width = "normal",
-      get = function() return "https://github.com/Slackwise/SlackHacks" end,
-      set = function() end,
+      func = function()
+        promptReportBug()
+      end,
       order = 0.8
     },
     inventory = {
