@@ -1081,19 +1081,19 @@ function module:ShowWindow()
   if portraitContainer then
     portraitContainer:ClearAllPoints()
     portraitContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
-    portraitContainer:SetSize(60, 60)
+    portraitContainer:SetSize(62, 62)
   end
 
   local container = portraitContainer
   if not container then
     container = CreateFrame("Frame", nil, frame)
     container:SetFrameLevel(frame:GetFrameLevel() + 2)
-    container:SetSize(60, 60)
+    container:SetSize(62, 62)
     container:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
     frame.portraitContainer = container
   end
 
-  -- Black circular background just behind the icon
+  -- Circular black background filling the icon area behind the icon
   if not container.blackBg then
     local blackBg = container:CreateTexture(nil, "BACKGROUND", nil, -1)
     blackBg:SetPoint("CENTER", container, "CENTER", 0, 0)
@@ -1101,6 +1101,12 @@ function module:ShowWindow()
     blackBg:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
     blackBg:SetVertexColor(0, 0, 0, 1)
     container.blackBg = blackBg
+  else
+    container.blackBg:SetSize(58, 58)
+    container.blackBg:SetPoint("CENTER", container, "CENTER", 0, 0)
+    container.blackBg:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    container.blackBg:SetVertexColor(0, 0, 0, 1)
+    container.blackBg:Show()
   end
 
   local portrait = (frame.GetPortrait and frame:GetPortrait())
@@ -1114,24 +1120,40 @@ function module:ShowWindow()
   end
 
   portrait:SetTexture(SLACKHACKS_ICON)
-  if SetPortraitToAsset then
-    SetPortraitToAsset(portrait, SLACKHACKS_ICON)
-  end
-  -- SetPortraitToAsset resets points to (0,0); scale and reapply the visual center offset
-  portrait:ClearAllPoints()
-  portrait:SetSize(40, 40)
-  portrait:SetPoint("CENTER", container, "CENTER", 0, -1.5)
+  portrait:SetTexCoord(0, 1, 0, 1)
 
-  if container.CreateMaskTexture and not container.mask then
-    local mask = container:CreateMaskTexture()
-    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    mask:SetAllPoints(container)
-    portrait:AddMaskTexture(mask)
-    if container.blackBg then
-      container.blackBg:AddMaskTexture(mask)
+  -- Strip any and all masks from the portrait texture and hide container masks
+  if portrait.GetNumMaskTextures and portrait.GetMaskTexture and portrait.RemoveMaskTexture then
+    for i = portrait:GetNumMaskTextures(), 1, -1 do
+      local m = portrait:GetMaskTexture(i)
+      if m then
+        portrait:RemoveMaskTexture(m)
+      end
     end
-    container.mask = mask
   end
+  if container.portraitMask then
+    container.portraitMask:Hide()
+    if portrait.RemoveMaskTexture then
+      portrait:RemoveMaskTexture(container.portraitMask)
+    end
+  end
+  if container.mask then
+    container.mask:Hide()
+    if portrait.RemoveMaskTexture then
+      portrait:RemoveMaskTexture(container.mask)
+    end
+  end
+  if container.Mask then
+    container.Mask:Hide()
+    if portrait.RemoveMaskTexture then
+      portrait:RemoveMaskTexture(container.Mask)
+    end
+  end
+
+  -- Sized and positioned (43x43, offset -1, 3.32)
+  portrait:ClearAllPoints()
+  portrait:SetSize(43, 43)
+  portrait:SetPoint("CENTER", container, "CENTER", -1, 3.32)
 
   if frame.CloseButton then
     frame.CloseButton:SetScript("OnClick", function()
