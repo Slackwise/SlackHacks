@@ -32,6 +32,7 @@ dbDefaults = {
     listviewBag = {
       enabled = false,
       showListviewBag = false,
+      trackCrestCurrencies = true,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
@@ -934,6 +935,20 @@ options = {
               end,
               disabled = function() return not db.profile.listviewBag.enabled end,
               order = 2
+            },
+            trackCrestCurrencies = {
+              name = "Track Crest Currencies",
+              desc = "Display a strip of your current season crest currencies in the bottom status bar of the Listview Bag.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.listviewBag.trackCrestCurrencies end,
+              set = function(_, value)
+                db.profile.listviewBag.trackCrestCurrencies = value
+                if Self.ListviewBag then Self.ListviewBag:RefreshFooter() end
+              end,
+              disabled = function() return not db.profile.listviewBag.enabled or not isRetail() end,
+              order = 2.5
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Items Marked for Vendoring",

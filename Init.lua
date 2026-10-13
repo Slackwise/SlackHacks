@@ -110,6 +110,11 @@ CONFIG_MIGRATIONS = {
     local function migrateProfile(p)
       if not p or type(p) ~= "table" then return end
 
+      p.listviewBag = p.listviewBag or {}
+      if p.listviewBag.trackCrestCurrencies == nil then
+        p.listviewBag.trackCrestCurrencies = true
+      end
+
       if type(p.minimapIcon) == "boolean" then
         p.minimapIcon = {
           enabled = p.minimapIcon,

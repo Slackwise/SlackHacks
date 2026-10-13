@@ -56,6 +56,7 @@ local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
 local VENDOR_ICON_ATLAS = "bags-junkcoin"
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
+local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
 
 --=====================================================================
 -- Small helpers
@@ -701,21 +702,75 @@ end
 -- Footer: gold + tracked currencies + a shortcut to open the Currency panel
 --=====================================================================
 
+local function crestTokenOnEnter(self)
+  GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+  GameTooltip:SetCurrencyByID(self.currencyID)
+  GameTooltip:Show()
+end
+
+local function crestTokenOnClick(self)
+  if IsModifiedClick("CHATLINK") and HandleModifiedItemClick(C_CurrencyInfo.GetCurrencyLink(self.currencyID)) then
+    return
+  end
+  ToggleCharacter("TokenFrame")
+end
+
+local function updateCrestFrame(self)
+  self.tokenPool:ReleaseAll()
+  self.Tokens = {}
+  self.numWatchedTokens = 0
+  if not isRetail() or not settings().trackCrestCurrencies then return end
+  for _, currencyID in ipairs(CREST_CURRENCY_IDS) do
+    local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
+    if info then
+      local token = self.tokenPool:Acquire()
+      token.currencyID = currencyID
+      token.Icon:SetTexture(info.iconFileID)
+      local quantity = info.quantity or 0
+      local text = BreakUpLargeNumbers(quantity)
+      if strlenutf8(text) > 5 then text = AbbreviateNumbers(quantity) end
+      token.Count:SetText(text)
+      token:SetScript("OnEnter", crestTokenOnEnter)
+      token:SetScript("OnClick", crestTokenOnClick)
+      token:ClearAllPoints()
+      token:SetPoint("LEFT", self, "LEFT", 13 + #self.Tokens * token:GetWidth(), -1)
+      token:Show()
+      self.Tokens[#self.Tokens + 1] = token
+    end
+  end
+  self.numWatchedTokens = #self.Tokens
+end
+
+local function sizeCurrencyFrame(currencyFrame)
+  local width = 26
+  for _, token in ipairs(currencyFrame.Tokens or {}) do
+    width = width + token:GetWidth()
+  end
+  currencyFrame:SetWidth(width)
+  local shown = currencyFrame:ShouldShow()
+  currencyFrame:SetShown(shown)
+  return shown and width or 0
+end
+
 local function updateFooter()
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
-  footer.tokenFrame:Show()
   footer.tokenFrame:Update()
-  local showTokens = footer.tokenFrame:ShouldShow()
-  footer.tokenFrame:SetShown(showTokens)
-  local tokenWidth = 0
-  if showTokens then
-    for _, token in ipairs(footer.tokenFrame.Tokens) do
-      tokenWidth = tokenWidth + token:GetWidth()
-    end
-    tokenWidth = tokenWidth + 17
+  local tokenWidth = sizeCurrencyFrame(footer.tokenFrame)
+  footer.crestFrame:Update()
+  local crestWidth = sizeCurrencyFrame(footer.crestFrame)
+  local width = footer.moneyFrame:GetWidth()
+  footer.tokenFrame:ClearAllPoints()
+  footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
+  if tokenWidth > 0 then width = width + tokenWidth + 4 end
+  footer.crestFrame:ClearAllPoints()
+  if tokenWidth > 0 then
+    footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
+  else
+    footer.crestFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
   end
-  footer.balances:SetWidth(footer.moneyFrame:GetWidth() + (showTokens and tokenWidth + 4 or 0))
+  if crestWidth > 0 then width = width + crestWidth + 4 end
+  footer.balances:SetWidth(width)
 end
 
 local function createFooter()
@@ -736,7 +791,7 @@ local function createFooter()
 
   footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer.balances, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetSize(168, 16)
-  footer.moneyFrame:SetPoint("LEFT", footer.balances, "LEFT", 0, 0)
+  footer.moneyFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
   footer.sellTrashButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
@@ -767,8 +822,15 @@ local function createFooter()
   end
   footer.tokenFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
   footer.tokenFrame:SetIsCombinedInventory(true)
+  footer.tokenFrame.GetMaxTokensWatched = function() return 3 end
   footer.tokenFrame:SetWidth(150)
-  footer.tokenFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
+  footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
+
+  footer.crestFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
+  footer.crestFrame:SetIsCombinedInventory(true)
+  footer.crestFrame.Update = updateCrestFrame
+  footer.crestFrame:SetWidth(276)
+  footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
 end
 
 --=====================================================================
@@ -815,6 +877,20 @@ local function showDefaultBags()
   setDefaultBagsSuppressed(false)
 end
 
+local openingDefaultBags = false
+local function openDefaultBagsTemporarily()
+  frame:Hide()
+  showDefaultBags()
+  openingDefaultBags = true
+  local success, message = pcall(function()
+    for _, bagID in ipairs(bagIDs()) do
+      OpenBag(bagID)
+    end
+  end)
+  openingDefaultBags = false
+  if not success then error(message, 0) end
+end
+
 local function setShowListviewBag(show)
   settings().showListviewBag = show
   if viewToggleButton then
@@ -851,6 +927,7 @@ end
 
 local lastNativeBagToggle = 0
 local function toggleListViewFromNativeBagAction()
+  if openingDefaultBags then return end
   if not frame or not isModuleEnabled() or not settings().showListviewBag then return end
   if MerchantFrame and MerchantFrame:IsShown() then
     hideDefaultBags()
@@ -1010,9 +1087,7 @@ local function buildFrame()
   content.openBagsButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, -32)
   content.openBagsButton:SetText("Open Bags")
   content.openBagsButton:SetScript("OnClick", function()
-    setShowListviewBag(false)
-    settings().enabled = false
-    module:Disable()
+    openDefaultBagsTemporarily()
   end)
 
   bagKeyBindingButton = CreateFrame("Button", "SlackHacksListviewBagToggleButton", UIParent)
@@ -1021,6 +1096,7 @@ local function buildFrame()
   bagKeyBindingButton:SetAlpha(0)
   bagKeyBindingButton:SetScript("OnClick", function()
     if isModuleEnabled() and settings().showListviewBag then
+      hideDefaultBags()
       if frame:IsShown() then frame:Hide() else frame:Show() end
     end
   end)
@@ -1188,6 +1264,7 @@ function module:MERCHANT_CLOSED()
 end
 
 function module:OnNativeBagOpen()
+  if openingDefaultBags then return end
   if isModuleEnabled() and settings().showListviewBag then
     hideDefaultBags()
     frame:Show()
