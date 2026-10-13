@@ -56,6 +56,7 @@ local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
 local VENDOR_ICON_ATLAS = "bags-junkcoin"
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
+local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
 
 --=====================================================================
 -- Small helpers
@@ -190,7 +191,7 @@ local function collectGroups()
     local numSlots = C_Container.GetContainerNumSlots(bagID)
     for slot = 1, numSlots do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID then
+      if info and info.itemID and not info.isFiltered then
         local key = info.hyperlink or info.itemID
         local group = groups[key]
         if not group then
@@ -283,7 +284,6 @@ local rowPool = {}
 local expandedGroups = {}
 local viewToggleButton
 local bagKeyBindingButton
-local searchText = ""
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
 local sellMarkedTrashItems
 
@@ -560,41 +560,38 @@ end
 
 -- Flattens grouped items into the final display list: one row per group, plus (when expanded) one
 -- child row per underlying bag slot so a specific stack can be dragged/split/locked individually.
--- Groups not matching the search box's text (an item-name substring match) are dropped entirely.
 local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
   for _, group in ipairs(groups) do
-    if searchText == "" or (group.itemName and group.itemName:lower():find(searchText, 1, true)) then
-      group.isGroupHeader = #group.entries > 1
-      rows[#rows + 1] = group
-      if group.isGroupHeader and expandedGroups[group.key] then
-        for _, entry in ipairs(group.entries) do
-          rows[#rows + 1] = {
-            isChild = true,
-            groupKey = group.key,
-            itemID = group.itemID,
-            hyperlink = group.hyperlink,
-            itemName = group.itemName,
-            icon = group.icon,
-            quality = group.quality,
-            craftedQuality = group.craftedQuality,
-            qualityAtlas = group.qualityAtlas,
-            count = entry.count,
-            entries = { entry },
-            isArmor = group.isArmor,
-            itemLevel = group.itemLevel,
-            upgradeTrack = group.upgradeTrack,
-            armorType = group.armorType,
-            armorSlot = group.armorSlot,
-            bindLabel = group.bindLabel,
-            bindType = group.bindType,
-            accountBound = group.accountBound,
-            isBound = entry.isBound,
-            statusKey = group.statusKey,
-            statusInfo = group.statusInfo,
-          }
-        end
+    group.isGroupHeader = #group.entries > 1
+    rows[#rows + 1] = group
+    if group.isGroupHeader and expandedGroups[group.key] then
+      for _, entry in ipairs(group.entries) do
+        rows[#rows + 1] = {
+          isChild = true,
+          groupKey = group.key,
+          itemID = group.itemID,
+          hyperlink = group.hyperlink,
+          itemName = group.itemName,
+          icon = group.icon,
+          quality = group.quality,
+          craftedQuality = group.craftedQuality,
+          qualityAtlas = group.qualityAtlas,
+          count = entry.count,
+          entries = { entry },
+          isArmor = group.isArmor,
+          itemLevel = group.itemLevel,
+          upgradeTrack = group.upgradeTrack,
+          armorType = group.armorType,
+          armorSlot = group.armorSlot,
+          bindLabel = group.bindLabel,
+          bindType = group.bindType,
+          accountBound = group.accountBound,
+          isBound = entry.isBound,
+          statusKey = group.statusKey,
+          statusInfo = group.statusInfo,
+        }
       end
     end
   end
@@ -701,11 +698,75 @@ end
 -- Footer: gold + tracked currencies + a shortcut to open the Currency panel
 --=====================================================================
 
+local function crestTokenOnEnter(self)
+  GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+  GameTooltip:SetCurrencyByID(self.currencyID)
+  GameTooltip:Show()
+end
+
+local function crestTokenOnClick(self)
+  if IsModifiedClick("CHATLINK") and HandleModifiedItemClick(C_CurrencyInfo.GetCurrencyLink(self.currencyID)) then
+    return
+  end
+  ToggleCharacter("TokenFrame")
+end
+
+local function updateCrestFrame(self)
+  self.tokenPool:ReleaseAll()
+  self.Tokens = {}
+  self.numWatchedTokens = 0
+  if not isRetail() or not settings().trackCrestCurrencies then return end
+  for _, currencyID in ipairs(CREST_CURRENCY_IDS) do
+    local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
+    if info then
+      local token = self.tokenPool:Acquire()
+      token.currencyID = currencyID
+      token.Icon:SetTexture(info.iconFileID)
+      local quantity = info.quantity or 0
+      local text = BreakUpLargeNumbers(quantity)
+      if strlenutf8(text) > 5 then text = AbbreviateNumbers(quantity) end
+      token.Count:SetText(text)
+      token:SetScript("OnEnter", crestTokenOnEnter)
+      token:SetScript("OnClick", crestTokenOnClick)
+      token:ClearAllPoints()
+      token:SetPoint("LEFT", self, "LEFT", 13 + #self.Tokens * token:GetWidth(), -1)
+      token:Show()
+      self.Tokens[#self.Tokens + 1] = token
+    end
+  end
+  self.numWatchedTokens = #self.Tokens
+end
+
+local function sizeCurrencyFrame(currencyFrame)
+  local width = 26
+  for _, token in ipairs(currencyFrame.Tokens or {}) do
+    width = width + token:GetWidth()
+  end
+  currencyFrame:SetWidth(width)
+  local shown = currencyFrame:ShouldShow()
+  currencyFrame:SetShown(shown)
+  return shown and width or 0
+end
+
 local function updateFooter()
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
-  footer.tokenFrame:Show()
+  footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Update()
-  footer.tokenFrame:SetShown(footer.tokenFrame:ShouldShow())
+  local tokenWidth = sizeCurrencyFrame(footer.tokenFrame)
+  footer.crestFrame:Update()
+  local crestWidth = sizeCurrencyFrame(footer.crestFrame)
+  local width = footer.moneyFrame:GetWidth()
+  footer.tokenFrame:ClearAllPoints()
+  footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
+  if tokenWidth > 0 then width = width + tokenWidth + 4 end
+  footer.crestFrame:ClearAllPoints()
+  if tokenWidth > 0 then
+    footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
+  else
+    footer.crestFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
+  end
+  if crestWidth > 0 then width = width + crestWidth + 4 end
+  footer.balances:SetWidth(width)
 end
 
 local function createFooter()
@@ -720,14 +781,18 @@ local function createFooter()
   footer.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock", true, true)
   footer.Bg:SetAllPoints()
 
-  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "ContainerMoneyFrameTemplate")
+  footer.balances = CreateFrame("Frame", nil, footer)
+  footer.balances:SetSize(168, 20)
+  footer.balances:SetPoint("RIGHT", footer, "RIGHT", -24, 0)
+
+  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer.balances, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetSize(168, 16)
-  footer.moneyFrame:SetPoint("LEFT", footer, "LEFT", 88, 0)
+  footer.moneyFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
-  footer.sellTrashButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
+  footer.sellTrashButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
   footer.sellTrashButton:SetSize(80, 20)
-  footer.sellTrashButton:SetPoint("LEFT", footer, "LEFT", 0, 0)
+  footer.sellTrashButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
   footer.sellTrashButton:SetText("Sell Trash")
   footer.sellTrashButton:SetEnabled(MerchantFrame and MerchantFrame:IsShown())
   footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
@@ -751,11 +816,17 @@ local function createFooter()
   else
     UIParentLoadAddOn("Blizzard_TokenUI")
   end
-  footer.tokenFrame = CreateFrame("Frame", nil, footer, "BackpackTokenFrameTemplate")
+  footer.tokenFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
   footer.tokenFrame:SetIsCombinedInventory(true)
+  footer.tokenFrame.GetMaxTokensWatched = function() return 3 end
   footer.tokenFrame:SetWidth(150)
-  footer.tokenFrame:SetPoint("RIGHT", footer.currencyButton, "LEFT", -4, 0)
-  footer.moneyFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
+  footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
+
+  footer.crestFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
+  footer.crestFrame:SetIsCombinedInventory(true)
+  footer.crestFrame.Update = updateCrestFrame
+  footer.crestFrame:SetWidth(276)
+  footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
 end
 
 --=====================================================================
@@ -802,6 +873,20 @@ local function showDefaultBags()
   setDefaultBagsSuppressed(false)
 end
 
+local openingDefaultBags = false
+local function openDefaultBagsTemporarily()
+  frame:Hide()
+  showDefaultBags()
+  openingDefaultBags = true
+  local success, message = pcall(function()
+    for _, bagID in ipairs(bagIDs()) do
+      OpenBag(bagID)
+    end
+  end)
+  openingDefaultBags = false
+  if not success then error(message, 0) end
+end
+
 local function setShowListviewBag(show)
   settings().showListviewBag = show
   if viewToggleButton then
@@ -838,6 +923,7 @@ end
 
 local lastNativeBagToggle = 0
 local function toggleListViewFromNativeBagAction()
+  if openingDefaultBags then return end
   if not frame or not isModuleEnabled() or not settings().showListviewBag then return end
   if MerchantFrame and MerchantFrame:IsShown() then
     hideDefaultBags()
@@ -997,9 +1083,7 @@ local function buildFrame()
   content.openBagsButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, -32)
   content.openBagsButton:SetText("Open Bags")
   content.openBagsButton:SetScript("OnClick", function()
-    setShowListviewBag(false)
-    settings().enabled = false
-    module:Disable()
+    openDefaultBagsTemporarily()
   end)
 
   bagKeyBindingButton = CreateFrame("Button", "SlackHacksListviewBagToggleButton", UIParent)
@@ -1008,19 +1092,15 @@ local function buildFrame()
   bagKeyBindingButton:SetAlpha(0)
   bagKeyBindingButton:SetScript("OnClick", function()
     if isModuleEnabled() and settings().showListviewBag then
+      hideDefaultBags()
       if frame:IsShown() then frame:Hide() else frame:Show() end
     end
   end)
 
-  -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
-  searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
+  searchBox = CreateFrame("EditBox", "SlackHacksListviewBagSearchBox", content, "BagSearchBoxTemplate")
+  table.insert(ITEM_SEARCHBAR_LIST, searchBox:GetName())
   searchBox:SetSize(200, 20)
   searchBox:SetPoint("TOPLEFT", content, "TOPLEFT", 62, -32)
-  searchBox:SetScript("OnTextChanged", function(self)
-    SearchBoxTemplate_OnTextChanged(self)
-    searchText = self:GetText():lower()
-    renderRows()
-  end)
 
   -- Keep the native column buttons, but let the window's own header texture show behind them.
   -- Inset by COLLAPSE_WIDTH so its first column aligns with the row cells after the pinned expand cell.
@@ -1135,6 +1215,7 @@ function module:OnEnable()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
+  self:RegisterEvent("INVENTORY_SEARCH_UPDATE", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
@@ -1175,6 +1256,7 @@ function module:MERCHANT_CLOSED()
 end
 
 function module:OnNativeBagOpen()
+  if openingDefaultBags then return end
   if isModuleEnabled() and settings().showListviewBag then
     hideDefaultBags()
     frame:Show()

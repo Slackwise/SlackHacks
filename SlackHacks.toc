@@ -1,9 +1,12 @@
-## Interface: 16001, 120100
+## Interface: 16001, 120105
 ## Title: SlackHacks
 ## Notes: A compilation of small feature hacks and minimalistic tweaks to the default UI.
 ## IconTexture: Interface\AddOns\SlackHacks\Assets\SlackHacks.png
+## AddonCompartmentFunc: SlackHacks_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: SlackHacks_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: SlackHacks_OnAddonCompartmentLeave
 ## Author: Slack — Moon Guard
-## Version: 1
+## Version: 2
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB

@@ -105,7 +105,7 @@ end
 
 --- Returns the persistent error-log array, creating its containers when necessary.
 ---@return table|nil - The error entries, or nil before addon initialization.
-local function errorLogTable()
+function errorLogTable()
   if not isInitialized() then return nil end
   if not db.global.logs then
     db.global.logs = { debug = {}, error = {} }
@@ -114,6 +114,11 @@ local function errorLogTable()
     db.global.logs.error = {}
   end
   return db.global.logs.error
+end
+module.GetErrorLog = function(self) return errorLogTable() end
+module.UpdateMinimapIcon = function(self)
+  if updateMinimapIcon then updateMinimapIcon()
+  elseif Self.UpdateMinimapIcon then Self.UpdateMinimapIcon() end
 end
 
 --- Shared by debug logs (`{timestamp, message}` array-form entries) and error logs (`{timestamp = ...}`
@@ -146,6 +151,7 @@ function purgeOldLogs()
   end
   if Self.db.global.logs.error then
     Self.db.global.logs.error = purgeLogTable(Self.db.global.logs.error, cutoff)
+    module:UpdateMinimapIcon()
   end
 end
 
@@ -187,6 +193,7 @@ function clearErrorLogs()
   if Self.db.global.logs and Self.db.global.logs.error then
     wipe(Self.db.global.logs.error)
   end
+  module:UpdateMinimapIcon()
 end
 
 -----------------------------------------------------------------------
@@ -223,6 +230,7 @@ local function recordError(message, stack)
     if entry.message == message and entry.senderName == senderName then
       entry.timestamp = timestamp
       entry.count = (entry.count or 1) + 1
+      module:UpdateMinimapIcon()
       return
     end
   end
@@ -234,6 +242,7 @@ local function recordError(message, stack)
     count = 1,
     senderName = senderName, -- the character/player this error happened to
   })
+  module:UpdateMinimapIcon()
 
   if module:IsEnabled() then
     module:AttemptReport()
@@ -621,6 +630,11 @@ end
 --- Ace3 lifecycle entry point that enables configured error logging.
 function module:OnEnable()
   self:RefreshErrorLogging()
+  if updateMinimapIcon then
+    updateMinimapIcon()
+  elseif Self.UpdateMinimapIcon then
+    Self.UpdateMinimapIcon()
+  end
 end
 
 --- Ace3 lifecycle entry point that removes all error hooks and communication handlers.
@@ -643,7 +657,9 @@ function module:BuildMarkdown()
   table.insert(lines, "### SlackHacks Error Report")
   table.insert(lines, "")
   table.insert(lines, "- **Addon Version**: " .. tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version")) or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version")) or "1"))
-  table.insert(lines, "- **Client Flavor**: " .. tostring(gameClientFlavor and gameClientFlavor() or "unknown"))
+  local clientVersion = (GetBuildInfo and select(1, GetBuildInfo())) or (GetBuildInfo and GetBuildInfo()) or "unknown"
+  local gameType = (isRetail and isRetail()) and "RETAIL" or "FOREVER"
+  table.insert(lines, "- **Client Version**: " .. tostring(clientVersion) .. " (" .. gameType .. ")")
   table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
   table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
   table.insert(lines, "")
@@ -675,52 +691,326 @@ function module:BuildMarkdown()
   return table.concat(lines, "\n")
 end
 
---- Displays or refreshes the AceGUI error-log window.
-function module:ShowWindow()
-  local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
-  if not AceGUI then
-    print("SlackHacks: AceGUI-3.0 not available to display error log.")
-    return
-  end
+CLEAR_ERRORS_CONFIRM_POPUP = "SLACKHACKS_CLEAR_ERRORS_CONFIRM"
+StaticPopupDialogs[CLEAR_ERRORS_CONFIRM_POPUP] = {
+  text = "Clear current SlackHacks error log?",
+  button1 = YES,
+  button2 = NO,
+  OnAccept = function()
+    clearErrorLogs()
+    if module.RefreshMarkdown then
+      module:RefreshMarkdown()
+    end
+    print("SlackHacks: SlackHacks Error Log cleared.")
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+  showAlert = true,
+}
 
-  if self.frame then
+local function promptClearErrors()
+  local list = errorLogTable()
+  if list and #list > 0 then
+    StaticPopup_Show(CLEAR_ERRORS_CONFIRM_POPUP)
+  else
+    print("SlackHacks: SlackHacks Error Log is already empty.")
+  end
+end
+
+REPORT_BUG_POPUP = "SLACKHACKS_REPORT_BUG_POPUP"
+StaticPopupDialogs[REPORT_BUG_POPUP] = {
+  text = "Copy this URL into your browser to report bugs:\n(Press Ctrl+C to copy)",
+  button1 = OKAY,
+  hasEditBox = 1,
+  editBoxWidth = 280,
+  OnShow = function(self)
+    local editBox = self.editBox or _G[self:GetName() .. "EditBox"]
+    if editBox then
+      editBox:SetText(GITHUB_NEW_ISSUE_URL)
+      editBox:SetFocus()
+      editBox:HighlightText()
+    end
+  end,
+  EditBoxOnEnterPressed = function(self)
+    self:GetParent():Hide()
+  end,
+  EditBoxOnEscapePressed = function(self)
+    self:GetParent():Hide()
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+}
+
+function promptReportBug()
+  StaticPopup_Show(REPORT_BUG_POPUP)
+end
+module.PromptReportBug = promptReportBug
+
+local FRAME_NAME = "SlackHacksBugReportFrame"
+local WINDOW_WIDTH = 640
+local WINDOW_HEIGHT = 540
+
+--- Refreshes the markdown text and status in the error-log window.
+function module:RefreshMarkdown()
+  if self.markdownBox then
     self.markdownBox:SetText(self:BuildMarkdown())
+  end
+  if self.statusText then
+    local list = errorLogTable() or {}
+    self.statusText:SetText(("%d unique error(s) recorded"):format(#list))
+  end
+end
+
+--- Displays or refreshes the standard Blizzard portrait error-log window.
+function module:ShowWindow()
+  if self.frame then
+    self:RefreshMarkdown()
     self.frame:Show()
     return
   end
 
-  local frame = AceGUI:Create("Frame")
-  frame:SetTitle("SlackHacks Error Log")
-  frame:SetStatusText("Copy the markdown below and paste it into a new GitHub issue.")
-  frame:SetLayout("Flow")
-  frame:SetWidth(650)
-  frame:SetHeight(500)
-  frame:EnableResize(true)
-  frame:SetCallback("OnClose", function(widget)
-    widget:Hide()
+  local frame = CreateFrame("Frame", FRAME_NAME, UIParent, "PortraitFrameTemplate")
+  frame:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+  frame:SetPoint("CENTER")
+  frame:SetFrameStrata("HIGH")
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:SetClampedToScreen(true)
+
+  if frame.SetTitle then
+    frame:SetTitle("SlackHacks Error Reporting")
+  elseif frame.TitleContainer and frame.TitleContainer.TitleText then
+    frame.TitleContainer.TitleText:SetText("SlackHacks Error Reporting")
+  elseif frame.TitleText then
+    frame.TitleText:SetText("SlackHacks Error Reporting")
+  end
+
+  -- Align the portrait frame and icon inside the top-left circle
+  if frame.portrait and frame.PortraitContainer then
+    frame.portrait:Hide()
+  end
+
+  local portraitContainer = frame.PortraitContainer
+  if portraitContainer then
+    portraitContainer:ClearAllPoints()
+    portraitContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
+    portraitContainer:SetSize(62, 62)
+  end
+
+  local container = portraitContainer
+  if not container then
+    container = CreateFrame("Frame", nil, frame)
+    container:SetFrameLevel(frame:GetFrameLevel() + 2)
+    container:SetSize(62, 62)
+    container:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
+    frame.portraitContainer = container
+  end
+
+  -- Circular black background filling the icon area behind the icon
+  if not container.blackBg then
+    local blackBg = container:CreateTexture(nil, "BACKGROUND", nil, -1)
+    blackBg:SetPoint("CENTER", container, "CENTER", 0, 0)
+    blackBg:SetSize(58, 58)
+    blackBg:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    blackBg:SetVertexColor(0, 0, 0, 1)
+    container.blackBg = blackBg
+  else
+    container.blackBg:SetSize(58, 58)
+    container.blackBg:SetPoint("CENTER", container, "CENTER", 0, 0)
+    container.blackBg:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    container.blackBg:SetVertexColor(0, 0, 0, 1)
+    container.blackBg:Show()
+  end
+
+  local portrait = (frame.GetPortrait and frame:GetPortrait())
+    or (container and container.portrait)
+    or frame.portrait
+
+  if not portrait then
+    portrait = container:CreateTexture(nil, "OVERLAY")
+    container.portrait = portrait
+    frame.portrait = portrait
+  end
+
+  portrait:SetTexture(SLACKHACKS_ICON)
+  portrait:SetTexCoord(0, 1, 0, 1)
+
+  -- Strip any and all masks from the portrait texture and hide container masks
+  if portrait.GetNumMaskTextures and portrait.GetMaskTexture and portrait.RemoveMaskTexture then
+    for i = portrait:GetNumMaskTextures(), 1, -1 do
+      local m = portrait:GetMaskTexture(i)
+      if m then
+        portrait:RemoveMaskTexture(m)
+      end
+    end
+  end
+  if container.portraitMask then
+    container.portraitMask:Hide()
+    if portrait.RemoveMaskTexture then
+      portrait:RemoveMaskTexture(container.portraitMask)
+    end
+  end
+  if container.mask then
+    container.mask:Hide()
+    if portrait.RemoveMaskTexture then
+      portrait:RemoveMaskTexture(container.mask)
+    end
+  end
+  if container.Mask then
+    container.Mask:Hide()
+    if portrait.RemoveMaskTexture then
+      portrait:RemoveMaskTexture(container.Mask)
+    end
+  end
+
+  -- Sized and positioned (43x43, offset -1, 3.32)
+  portrait:ClearAllPoints()
+  portrait:SetSize(43, 43)
+  portrait:SetPoint("CENTER", container, "CENTER", -1, 3.32)
+
+  if frame.CloseButton then
+    frame.CloseButton:SetScript("OnClick", function()
+      frame:Hide()
+    end)
+  else
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    close:SetScript("OnClick", function()
+      frame:Hide()
+    end)
+    frame.CloseButton = close
+  end
+
+  local inSpecial = false
+  for _, name in ipairs(UISpecialFrames) do
+    if name == FRAME_NAME then
+      inSpecial = true
+      break
+    end
+  end
+  if not inSpecial then
+    table.insert(UISpecialFrames, FRAME_NAME)
+  end
+
+  frame:SetScript("OnHide", function()
+    local list = errorLogTable()
+    if list and #list > 0 and not (StaticPopup_Visible and StaticPopup_Visible(CLEAR_ERRORS_CONFIRM_POPUP)) then
+      StaticPopup_Show(CLEAR_ERRORS_CONFIRM_POPUP)
+    end
   end)
-  self.frame = frame
 
-  local linkLabel = AceGUI:Create("Label")
+  local content = CreateFrame("Frame", nil, frame)
+  content:SetAllPoints()
+  content:SetFrameLevel(frame:GetFrameLevel() + 500)
+
+  local dragHandle = CreateFrame("Frame", nil, content)
+  dragHandle:SetPoint("TOPLEFT", content, "TOPLEFT", 58, 0)
+  dragHandle:SetPoint("TOPRIGHT", content, "TOPRIGHT", -30, 0)
+  dragHandle:SetHeight(28)
+  dragHandle:EnableMouse(true)
+  dragHandle:RegisterForDrag("LeftButton")
+  dragHandle:SetScript("OnDragStart", function() frame:StartMoving() end)
+  dragHandle:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
+
+  local descLabel = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  descLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, -56)
+  descLabel:SetPoint("RIGHT", content, "RIGHT", -24, 0)
+  descLabel:SetJustifyH("LEFT")
+  descLabel:SetWordWrap(true)
+  descLabel:SetText("To report errors, please visit the below website and paste the ENTIRE text from the box below and just hit submit. Thanks!")
+
+  local linkLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  linkLabel:SetPoint("TOPLEFT", descLabel, "BOTTOMLEFT", 0, -10)
   linkLabel:SetText("New issue link (copy into your browser):")
-  linkLabel:SetFullWidth(true)
-  frame:AddChild(linkLabel)
 
-  local linkBox = AceGUI:Create("EditBox")
-  linkBox:SetFullWidth(true)
+  local linkBox = CreateFrame("EditBox", nil, content, "InputBoxTemplate")
+  linkBox:SetPoint("TOPLEFT", linkLabel, "BOTTOMLEFT", 4, -4)
+  linkBox:SetPoint("RIGHT", content, "RIGHT", -24, 0)
+  linkBox:SetHeight(20)
+  linkBox:SetAutoFocus(false)
+  linkBox:SetFontObject(ChatFontNormal or GameFontHighlight)
   linkBox:SetText(GITHUB_NEW_ISSUE_URL)
-  linkBox:DisableButton(true)
-  frame:AddChild(linkBox)
+  linkBox:SetScript("OnEditFocusGained", function(s) s:HighlightText() end)
+  linkBox:SetScript("OnMouseUp", function(s) s:HighlightText() end)
+  linkBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
 
-  local markdownBox = AceGUI:Create("MultiLineEditBox")
-  markdownBox:SetLabel("Error Log (Markdown)")
-  markdownBox:SetFullWidth(true)
-  markdownBox:SetNumLines(22)
-  markdownBox:DisableButton(true)
-  frame:AddChild(markdownBox)
-  self.markdownBox = markdownBox
+  local markdownLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  markdownLabel:SetPoint("TOPLEFT", linkBox, "BOTTOMLEFT", -4, -10)
+  markdownLabel:SetText("Error Log (Markdown):")
 
-  markdownBox:SetText(self:BuildMarkdown())
+  local hintLabel = content:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  hintLabel:SetPoint("LEFT", markdownLabel, "RIGHT", 8, 0)
+  hintLabel:SetText("(Click below and press Ctrl+A, then Ctrl+C to copy)")
+
+  local scrollFrame = CreateFrame("ScrollFrame", "SlackHacksBugReportScrollFrame", content, "UIPanelScrollFrameTemplate")
+  scrollFrame:SetPoint("TOPLEFT", markdownLabel, "BOTTOMLEFT", 4, -6)
+  scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -32, 36)
+
+  local scrollBg = CreateFrame("Frame", nil, scrollFrame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  scrollBg:SetPoint("TOPLEFT", -4, 4)
+  scrollBg:SetPoint("BOTTOMRIGHT", 24, -4)
+  if scrollBg.SetBackdrop then
+    scrollBg:SetBackdrop({
+      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    scrollBg:SetBackdropColor(0, 0, 0, 0.6)
+    scrollBg:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.8)
+  end
+
+  local editBox = CreateFrame("EditBox", "SlackHacksBugReportEditBox", scrollFrame)
+  editBox:SetMultiLine(true)
+  editBox:SetAutoFocus(false)
+  editBox:SetFontObject(ChatFontNormal or GameFontHighlightSmall)
+  editBox:SetWidth(WINDOW_WIDTH - 68)
+  editBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
+  editBox:SetScript("OnEditFocusGained", function(s) s:HighlightText() end)
+  editBox:SetScript("OnCursorChanged", function(s, _, y, _, cursorHeight)
+    y = -y
+    local offset = scrollFrame:GetVerticalScroll()
+    if y < offset then
+      scrollFrame:SetVerticalScroll(y)
+    else
+      y = y + cursorHeight - scrollFrame:GetHeight()
+      if y > offset then
+        scrollFrame:SetVerticalScroll(y)
+      end
+    end
+  end)
+  scrollFrame:SetScrollChild(editBox)
+
+  scrollFrame:SetScript("OnMouseDown", function()
+    editBox:SetFocus()
+  end)
+
+  scrollFrame:SetScript("OnSizeChanged", function(_, width)
+    if width and width > 0 then
+      editBox:SetWidth(width)
+    end
+  end)
+
+  local statusText = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  statusText:SetPoint("BOTTOMLEFT", content, "BOTTOMLEFT", 20, 10)
+  self.statusText = statusText
+
+  local clearButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+  clearButton:SetSize(110, 22)
+  clearButton:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -16, 6)
+  clearButton:SetText("Clear Errors")
+  clearButton:SetScript("OnClick", function()
+    promptClearErrors()
+  end)
+  self.clearButton = clearButton
+
+  self.frame = frame
+  self.markdownBox = editBox
+
+  self:RefreshMarkdown()
+  frame:Show()
 end
 
 --- Reports captured errors when possible, otherwise opens the local report window.
@@ -728,20 +1018,14 @@ function module:ReportErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
     print("SlackHacks: no errors recorded.")
-    module:ShowWindow()
+    promptReportBug()
     return
   end
 
+  module:ShowWindow()
   module:AttemptReport(function(success, reason)
     if success then
       print("SlackHacks: bug logs successfully reported to Slack!")
-    else
-      if reason == "target_offline" then
-        print("SlackHacks: Slack is not currently online to receive reported logs directly.")
-      elseif reason == "in_combat" then
-        print("SlackHacks: in combat; queued to report after combat.")
-      end
-      module:ShowWindow()
     end
   end)
 end

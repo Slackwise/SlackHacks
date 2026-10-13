@@ -972,7 +972,7 @@ BINDINGS = {
         { 
           "TOGGLE_WEAPONS", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
-            /equipset [mod:shift,ctrl] TwoHander; [mod:ctrl] HealShield; TankShield
+            /equipset [mod:shift,mod:ctrl] TwoHander; [mod:ctrl] HealShield; TankShield
           ]])
         },
       },
