@@ -191,7 +191,7 @@ local function collectGroups()
     local numSlots = C_Container.GetContainerNumSlots(bagID)
     for slot = 1, numSlots do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID then
+      if info and info.itemID and not info.isFiltered then
         local key = info.hyperlink or info.itemID
         local group = groups[key]
         if not group then
@@ -284,7 +284,6 @@ local rowPool = {}
 local expandedGroups = {}
 local viewToggleButton
 local bagKeyBindingButton
-local searchText = ""
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
 local sellMarkedTrashItems
 
@@ -561,41 +560,38 @@ end
 
 -- Flattens grouped items into the final display list: one row per group, plus (when expanded) one
 -- child row per underlying bag slot so a specific stack can be dragged/split/locked individually.
--- Groups not matching the search box's text (an item-name substring match) are dropped entirely.
 local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
   for _, group in ipairs(groups) do
-    if searchText == "" or (group.itemName and group.itemName:lower():find(searchText, 1, true)) then
-      group.isGroupHeader = #group.entries > 1
-      rows[#rows + 1] = group
-      if group.isGroupHeader and expandedGroups[group.key] then
-        for _, entry in ipairs(group.entries) do
-          rows[#rows + 1] = {
-            isChild = true,
-            groupKey = group.key,
-            itemID = group.itemID,
-            hyperlink = group.hyperlink,
-            itemName = group.itemName,
-            icon = group.icon,
-            quality = group.quality,
-            craftedQuality = group.craftedQuality,
-            qualityAtlas = group.qualityAtlas,
-            count = entry.count,
-            entries = { entry },
-            isArmor = group.isArmor,
-            itemLevel = group.itemLevel,
-            upgradeTrack = group.upgradeTrack,
-            armorType = group.armorType,
-            armorSlot = group.armorSlot,
-            bindLabel = group.bindLabel,
-            bindType = group.bindType,
-            accountBound = group.accountBound,
-            isBound = entry.isBound,
-            statusKey = group.statusKey,
-            statusInfo = group.statusInfo,
-          }
-        end
+    group.isGroupHeader = #group.entries > 1
+    rows[#rows + 1] = group
+    if group.isGroupHeader and expandedGroups[group.key] then
+      for _, entry in ipairs(group.entries) do
+        rows[#rows + 1] = {
+          isChild = true,
+          groupKey = group.key,
+          itemID = group.itemID,
+          hyperlink = group.hyperlink,
+          itemName = group.itemName,
+          icon = group.icon,
+          quality = group.quality,
+          craftedQuality = group.craftedQuality,
+          qualityAtlas = group.qualityAtlas,
+          count = entry.count,
+          entries = { entry },
+          isArmor = group.isArmor,
+          itemLevel = group.itemLevel,
+          upgradeTrack = group.upgradeTrack,
+          armorType = group.armorType,
+          armorSlot = group.armorSlot,
+          bindLabel = group.bindLabel,
+          bindType = group.bindType,
+          accountBound = group.accountBound,
+          isBound = entry.isBound,
+          statusKey = group.statusKey,
+          statusInfo = group.statusInfo,
+        }
       end
     end
   end
@@ -1101,15 +1097,10 @@ local function buildFrame()
     end
   end)
 
-  -- Same search box Blizzard's own combined bags window has, filtering rows by item name substring.
-  searchBox = CreateFrame("EditBox", nil, content, "SearchBoxTemplate")
+  searchBox = CreateFrame("EditBox", "SlackHacksListviewBagSearchBox", content, "BagSearchBoxTemplate")
+  table.insert(ITEM_SEARCHBAR_LIST, searchBox:GetName())
   searchBox:SetSize(200, 20)
   searchBox:SetPoint("TOPLEFT", content, "TOPLEFT", 62, -32)
-  searchBox:SetScript("OnTextChanged", function(self)
-    SearchBoxTemplate_OnTextChanged(self)
-    searchText = self:GetText():lower()
-    renderRows()
-  end)
 
   -- Keep the native column buttons, but let the window's own header texture show behind them.
   -- Inset by COLLAPSE_WIDTH so its first column aligns with the row cells after the pinned expand cell.
@@ -1224,6 +1215,7 @@ function module:OnEnable()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
+  self:RegisterEvent("INVENTORY_SEARCH_UPDATE", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
