@@ -703,9 +703,19 @@ end
 
 local function updateFooter()
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
+  footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Show()
   footer.tokenFrame:Update()
-  footer.tokenFrame:SetShown(footer.tokenFrame:ShouldShow())
+  local showTokens = footer.tokenFrame:ShouldShow()
+  footer.tokenFrame:SetShown(showTokens)
+  local tokenWidth = 0
+  if showTokens then
+    for _, token in ipairs(footer.tokenFrame.Tokens) do
+      tokenWidth = tokenWidth + token:GetWidth()
+    end
+    tokenWidth = tokenWidth + 17
+  end
+  footer.balances:SetWidth(footer.moneyFrame:GetWidth() + (showTokens and tokenWidth + 4 or 0))
 end
 
 local function createFooter()
@@ -720,14 +730,18 @@ local function createFooter()
   footer.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock", true, true)
   footer.Bg:SetAllPoints()
 
-  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer, "ContainerMoneyFrameTemplate")
+  footer.balances = CreateFrame("Frame", nil, footer)
+  footer.balances:SetSize(168, 20)
+  footer.balances:SetPoint("RIGHT", footer, "RIGHT", -24, 0)
+
+  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer.balances, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetSize(168, 16)
-  footer.moneyFrame:SetPoint("LEFT", footer, "LEFT", 88, 0)
+  footer.moneyFrame:SetPoint("LEFT", footer.balances, "LEFT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
-  footer.sellTrashButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
+  footer.sellTrashButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
   footer.sellTrashButton:SetSize(80, 20)
-  footer.sellTrashButton:SetPoint("LEFT", footer, "LEFT", 0, 0)
+  footer.sellTrashButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
   footer.sellTrashButton:SetText("Sell Trash")
   footer.sellTrashButton:SetEnabled(MerchantFrame and MerchantFrame:IsShown())
   footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
@@ -751,11 +765,11 @@ local function createFooter()
   else
     UIParentLoadAddOn("Blizzard_TokenUI")
   end
-  footer.tokenFrame = CreateFrame("Frame", nil, footer, "BackpackTokenFrameTemplate")
+  footer.tokenFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
   footer.tokenFrame:SetIsCombinedInventory(true)
   footer.tokenFrame:SetWidth(150)
-  footer.tokenFrame:SetPoint("RIGHT", footer.currencyButton, "LEFT", -4, 0)
-  footer.moneyFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
+  footer.tokenFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
+  footer.tokenFrame.Border:Hide()
 end
 
 --=====================================================================
