@@ -200,16 +200,91 @@ end
 -- Error recording
 -----------------------------------------------------------------------
 
---- Tests whether an error message or stack trace points into SlackHacks.
----@param message string|nil - Error text.
----@param stack string|nil - Captured stack trace.
----@return boolean - True when either value contains a known addon path marker.
-local function isOurAddonError(message, stack)
-  for _, marker in ipairs(ERROR_LOG_ADDON_PATH_MARKERS) do
-    if (message and message:find(marker, 1, true)) or (stack and stack:find(marker, 1, true)) then
+--- Checks whether a line in an error message or stack trace points to a shared library/dependency.
+---@param line string - A single line or path.
+---@return boolean - True if the path is inside a shared library directory or known library package.
+local function isLibraryPath(line)
+  if not line or type(line) ~= "string" then return false end
+  local normalized = line:gsub("\\", "/"):lower()
+
+  -- If it's inside any addon's /libs/ directory, it's a shared library dependency
+  if normalized:find("/libs/", 1, true) then
+    return true
+  end
+
+  -- Known standalone library folder names in Interface/AddOns/
+  local KNOWN_LIBS = {
+    "ace3", "libstub", "callbackhandler%-1%.0", "libdatabroker%-1%.1",
+    "libdbicon%-1%.0", "chatthrottlelib"
+  }
+  for _, libPattern in ipairs(KNOWN_LIBS) do
+    if normalized:find("addons/" .. libPattern .. "/", 1) then
       return true
     end
   end
+
+  return false
+end
+
+--- Checks whether an error message or stack trace contains a path from another addon's private code.
+--- Shared libraries (e.g. Ace3, LibDBIcon) loaded by other addons are treated as shared dependencies.
+---@param text string|nil - Error message or stack trace.
+---@return boolean - True if any foreign/third-party addon private code is found.
+local function hasForeignAddonPath(text)
+  if not text or type(text) ~= "string" then return false end
+  local normalized = text:gsub("\\", "/"):lower()
+
+  for line in normalized:gmatch("[^\r\n]+") do
+    -- Shared library paths (e.g. Interface/AddOns/Details/Libs/Ace3/...) are dependencies, not foreign private code
+    if not isLibraryPath(line) then
+      for addonName in line:gmatch("addons/([^/:]+)[/:]") do
+        local clean = addonName:gsub("^%!", ""):gsub("^%[", ""):gsub("%]$", "")
+        if clean ~= "" and clean ~= "slackhacks" and not clean:find("^blizzard_") and clean ~= "buggrabber" and clean ~= "bugsack" then
+          return true
+        end
+      end
+    end
+  end
+
+  return false
+end
+
+--- Checks whether a string contains a SlackHacks path outside the global error handler.
+---@param text string|nil - Error message or stack trace.
+---@return boolean - True if a genuine SlackHacks code location is referenced.
+local function hasSlackHacksPath(text)
+  if not text or type(text) ~= "string" then return false end
+  local normalized = text:gsub("\\", "/"):lower()
+  if not normalized:find("addons/slackhacks/", 1, true) then
+    return false
+  end
+  -- If the ONLY mention is ourErrorHandler at Debug.lua:ourErrorHandler, it's not our error
+  for line in text:gmatch("[^\r\n]+") do
+    local normLine = line:gsub("\\", "/"):lower()
+    if normLine:find("addons/slackhacks/", 1, true) then
+      if not normLine:find("debug%.lua%]:%d+: in function <.*debug%.lua") and not normLine:find("ourerrorhandler") then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+--- Tests whether an error message or stack trace points into SlackHacks and does NOT originate from another addon.
+---@param message string|nil - Error text.
+---@param stack string|nil - Captured stack trace.
+---@return boolean - True only when the error belongs to SlackHacks and not a third-party addon.
+local function isOurAddonError(message, stack)
+  -- Filter out any error where the message or stack points to a third-party addon
+  if hasForeignAddonPath(message) or hasForeignAddonPath(stack) then
+    return false
+  end
+
+  -- Must reference genuine SlackHacks code
+  if hasSlackHacksPath(message) or hasSlackHacksPath(stack) then
+    return true
+  end
+
   return false
 end
 
@@ -293,7 +368,10 @@ local listeningToBugGrabber = false
 ---@return any - Whatever the chained handler returns.
 local function ourErrorHandler(message)
   if isErrorLoggingEnabled() then
-    local ok, stack = pcall(debugstack, 2)
+    local ok, stack = pcall(debugstack, 3)
+    if not ok or not stack or stack == "" then
+      ok, stack = pcall(debugstack, 2)
+    end
     recordError(tostring(message), ok and stack or nil)
   end
   if chainedErrorHandler then
