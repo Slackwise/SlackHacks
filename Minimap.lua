@@ -16,9 +16,32 @@ local SQUARE_MASK_TEXTURE = "Interface\\BUTTONS\\WHITE8X8"
 local SQUARE_CLUSTER_WIDTH_EXTRA = 8
 local SQUARE_CLUSTER_HEIGHT_EXTRA = 23
 local SQUARE_FOREVER_CLUSTER_HEIGHT_EXTRA = 0
-local SQUARE_SELECTION_LEFT_INSET = 4
-local SQUARE_SELECTION_TOP_EXTENSION = 0
-local SQUARE_FOREVER_SELECTION_TOP_EXTENSION = 3
+
+-- Edit Mode square selection highlight ("blue box") offsets relative to MinimapCluster.
+-- Fine-tunes the Edit Mode selection boundary to align pixel-perfect with our square border.
+-- Positive 'top' extends upward; positive 'bottom' insets upward (shortening the box).
+-- Positive 'left' insets rightward; positive 'right' extends rightward.
+local SQUARE_SELECTION_OFFSETS = {
+  RETAIL = {
+    left = 4,
+    top = 0,
+    right = 0,
+    bottom = 1, -- 1px shorter in Retail
+  },
+  FOREVER = {
+    left = 4,
+    top = 3,
+    right = 0,
+    bottom = -1, -- 1px longer in Forever
+  },
+  DEFAULT = {
+    left = 4,
+    top = 0,
+    right = 0,
+    bottom = 0,
+  },
+}
+module.selectionOffsets = SQUARE_SELECTION_OFFSETS
 
 -- Falls back to Blizzard's untouched defaults whenever the module is disabled.
 local DEFAULT_VISUALS = {
@@ -665,6 +688,32 @@ local function getSquareMinimapDimensions()
   return visualW, visualH, scale
 end
 
+--- Returns the active square Edit Mode selection offsets (left, top, right, bottom) for the current (or specified) game client.
+---@param clientKey string|nil - "RETAIL", "FOREVER", "CLASSIC", or current client if nil.
+---@return number, number, number, number - left, top, right, bottom offsets
+local function getSquareSelectionOffsets(clientKey)
+  local offsets = module.selectionOffsets or SQUARE_SELECTION_OFFSETS
+  local key = clientKey
+    or (isRetail and isRetail() and "RETAIL")
+    or (isForever and isForever() and "FOREVER")
+    or (isClassic and isClassic() and "CLASSIC")
+    or "DEFAULT"
+  local cfg = offsets[key] or offsets.DEFAULT or SQUARE_SELECTION_OFFSETS.DEFAULT
+  return cfg.left or 0, cfg.top or 0, cfg.right or 0, cfg.bottom or 0
+end
+
+--- Snaps Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match.
+local function applySquareSelectionBounds()
+  if not (MinimapCluster and MinimapCluster.Selection) then return end
+  local selLeft, selTop, selRight, selBottom = getSquareSelectionOffsets()
+  MinimapCluster.Selection:ClearAllPoints()
+  MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", selLeft, selTop)
+  MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", selRight, selBottom)
+  if MinimapCluster.Selection.SetClipsChildren then
+    MinimapCluster.Selection:SetClipsChildren(true)
+  end
+end
+
 --- Replaces Blizzard's round cluster layout with the square border/title-bar geometry.
 -- This is skipped in combat because cluster sizing and anchoring are protected; the regen event calls
 -- `ApplyAll` to catch up. Blizzard's layout method is temporarily neutralized so it cannot immediately
@@ -721,14 +770,7 @@ local function applySquareMinimapCluster()
   end
 
   -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
-  if MinimapCluster.Selection then
-    MinimapCluster.Selection:ClearAllPoints()
-    MinimapCluster.Selection:SetPoint("TOPLEFT", MinimapCluster, "TOPLEFT", SQUARE_SELECTION_LEFT_INSET, SQUARE_SELECTION_TOP_EXTENSION + (isForever() and SQUARE_FOREVER_SELECTION_TOP_EXTENSION or 0))
-    MinimapCluster.Selection:SetPoint("BOTTOMRIGHT", MinimapCluster, "BOTTOMRIGHT", 0, 0)
-    if MinimapCluster.Selection.SetClipsChildren then
-      MinimapCluster.Selection:SetClipsChildren(true)
-    end
-  end
+  applySquareSelectionBounds()
 
   if MinimapCluster.UpdateClampOffsets then
     MinimapCluster:UpdateClampOffsets()
@@ -853,6 +895,7 @@ local function updateEditModeSelectionBounds()
   local mm = settings()
   if mm.shape == "square" then
     applySquareMinimapCluster()
+    applySquareSelectionBounds()
   else
     restoreRoundMinimapCluster()
   end
@@ -2555,6 +2598,48 @@ function module:ApplyAll()
   end
 end
 module.Refresh = module.ApplyAll
+
+--- Adjusts the square Edit Mode selection ("blue box") offsets at runtime for testing/tweaking.
+--- Can accept either individual values (top, bottom, left, right) or a table { top=..., bottom=..., left=..., right=... }.
+--- Example in-game: `/run SlackHacks.Minimap:SetSelectionOffsets({ bottom = 0 })`
+---@param topOrTable number|table|nil
+---@param bottom number|nil
+---@param left number|nil
+---@param right number|nil
+---@param clientKey string|nil - "RETAIL", "FOREVER", "CLASSIC", or current client if nil.
+function module:SetSelectionOffsets(topOrTable, bottom, left, right, clientKey)
+  local top = topOrTable
+  if type(topOrTable) == "table" then
+    top = topOrTable.top
+    bottom = topOrTable.bottom
+    left = topOrTable.left
+    right = topOrTable.right
+    clientKey = clientKey or topOrTable.clientKey
+  end
+  local key = clientKey
+    or (isRetail and isRetail() and "RETAIL")
+    or (isForever and isForever() and "FOREVER")
+    or (isClassic and isClassic() and "CLASSIC")
+    or "DEFAULT"
+  self.selectionOffsets = self.selectionOffsets or SQUARE_SELECTION_OFFSETS
+  local cfg = self.selectionOffsets[key]
+  if not cfg then
+    cfg = {}
+    self.selectionOffsets[key] = cfg
+  end
+  if top ~= nil then cfg.top = top end
+  if bottom ~= nil then cfg.bottom = bottom end
+  if left ~= nil then cfg.left = left end
+  if right ~= nil then cfg.right = right end
+  applySquareSelectionBounds()
+end
+
+--- Returns the current square Edit Mode selection ("blue box") offsets (left, top, right, bottom).
+---@param clientKey string|nil
+---@return number, number, number, number - left, top, right, bottom offsets
+function module:GetSelectionOffsets(clientKey)
+  return getSquareSelectionOffsets(clientKey)
+end
 
 --=====================================================================
 -- "SlackHacks Minimap Options" window, opened via Blizzard's Edit Mode
