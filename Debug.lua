@@ -1084,46 +1084,53 @@ function module:ShowWindow()
     portraitContainer:SetSize(60, 60)
   end
 
-  local portrait = (frame.GetPortrait and frame:GetPortrait())
-    or (portraitContainer and portraitContainer.portrait)
-    or frame.portrait
-
-  if portrait then
-    portrait:SetTexture(SLACKHACKS_ICON)
-    if SetPortraitToAsset then
-      SetPortraitToAsset(portrait, SLACKHACKS_ICON)
-    end
-    -- SetPortraitToAsset resets points to (0,0); scale and reapply the visual center offset
-    -- so the entire icon is exposed cleanly inside the frame's circular aperture without clipping
-    portrait:ClearAllPoints()
-    portrait:SetSize(48, 48)
-    portrait:SetPoint("CENTER", portraitContainer or frame, "CENTER", 0, -1.8)
-
-    if portraitContainer and portraitContainer.CreateMaskTexture and not portraitContainer.mask then
-      local mask = portraitContainer:CreateMaskTexture()
-      mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-      mask:SetAllPoints(portraitContainer)
-      portrait:AddMaskTexture(mask)
-      portraitContainer.mask = mask
-    end
-  else
-    local container = CreateFrame("Frame", nil, frame)
+  local container = portraitContainer
+  if not container then
+    container = CreateFrame("Frame", nil, frame)
     container:SetFrameLevel(frame:GetFrameLevel() + 2)
     container:SetSize(60, 60)
     container:SetPoint("TOPLEFT", frame, "TOPLEFT", -5, 7)
+    frame.portraitContainer = container
+  end
 
+  -- Black circular background just behind the icon
+  if not container.blackBg then
+    local blackBg = container:CreateTexture(nil, "BACKGROUND", nil, -1)
+    blackBg:SetPoint("CENTER", container, "CENTER", 0, 0)
+    blackBg:SetSize(58, 58)
+    blackBg:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+    blackBg:SetVertexColor(0, 0, 0, 1)
+    container.blackBg = blackBg
+  end
+
+  local portrait = (frame.GetPortrait and frame:GetPortrait())
+    or (container and container.portrait)
+    or frame.portrait
+
+  if not portrait then
     portrait = container:CreateTexture(nil, "OVERLAY")
-    portrait:SetSize(48, 48)
-    portrait:SetPoint("CENTER", container, "CENTER", 0, -1.8)
-    portrait:SetTexture(SLACKHACKS_ICON)
-
-    if container.CreateMaskTexture then
-      local mask = container:CreateMaskTexture()
-      mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-      mask:SetAllPoints(container)
-      portrait:AddMaskTexture(mask)
-    end
+    container.portrait = portrait
     frame.portrait = portrait
+  end
+
+  portrait:SetTexture(SLACKHACKS_ICON)
+  if SetPortraitToAsset then
+    SetPortraitToAsset(portrait, SLACKHACKS_ICON)
+  end
+  -- SetPortraitToAsset resets points to (0,0); scale and reapply the visual center offset
+  portrait:ClearAllPoints()
+  portrait:SetSize(40, 40)
+  portrait:SetPoint("CENTER", container, "CENTER", 0, -1.5)
+
+  if container.CreateMaskTexture and not container.mask then
+    local mask = container:CreateMaskTexture()
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    mask:SetAllPoints(container)
+    portrait:AddMaskTexture(mask)
+    if container.blackBg then
+      container.blackBg:AddMaskTexture(mask)
+    end
+    container.mask = mask
   end
 
   if frame.CloseButton then
@@ -1274,20 +1281,14 @@ function module:ReportErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
     print("SlackHacks: no errors recorded.")
-    module:ShowWindow()
+    promptReportBug()
     return
   end
 
+  module:ShowWindow()
   module:AttemptReport(function(success, reason)
     if success then
       print("SlackHacks: bug logs successfully reported to Slack!")
-    else
-      if reason == "target_offline" then
-        print("SlackHacks: Slack is not currently online to receive reported logs directly.")
-      elseif reason == "in_combat" then
-        print("SlackHacks: in combat; queued to report after combat.")
-      end
-      module:ShowWindow()
     end
   end)
 end
