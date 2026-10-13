@@ -919,7 +919,7 @@ function module:ShowWindow()
   descLabel:SetPoint("RIGHT", content, "RIGHT", -24, 0)
   descLabel:SetJustifyH("LEFT")
   descLabel:SetWordWrap(true)
-  descLabel:SetText("To report errors, please visit the below website and paste the *entire* text in the box below and just hit submit. Thanks!")
+  descLabel:SetText("To report errors, please visit the below website and paste the ENTIRE text from the box below and just hit submit. Thanks!")
 
   local linkLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
   linkLabel:SetPoint("TOPLEFT", descLabel, "BOTTOMLEFT", 0, -10)
