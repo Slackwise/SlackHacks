@@ -341,7 +341,7 @@ function handleSlashCommand(input)
     printSlashHelp()
   elseif command == "debug" then
     toggleDebugging()
-  elseif command == "bugs" then
+  elseif command == "bugs" or command == "bug" or command == "bugreport" then
     Self.Debug:ReportErrors()
   elseif command == "reset" then
     promptResetProfile()
