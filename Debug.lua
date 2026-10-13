@@ -146,6 +146,7 @@ function purgeOldLogs()
   end
   if Self.db.global.logs.error then
     Self.db.global.logs.error = purgeLogTable(Self.db.global.logs.error, cutoff)
+    module:UpdateMinimapIcon()
   end
 end
 
@@ -187,6 +188,7 @@ function clearErrorLogs()
   if Self.db.global.logs and Self.db.global.logs.error then
     wipe(Self.db.global.logs.error)
   end
+  module:UpdateMinimapIcon()
 end
 
 -----------------------------------------------------------------------
@@ -223,6 +225,7 @@ local function recordError(message, stack)
     if entry.message == message and entry.senderName == senderName then
       entry.timestamp = timestamp
       entry.count = (entry.count or 1) + 1
+      module:UpdateMinimapIcon()
       return
     end
   end
@@ -234,6 +237,7 @@ local function recordError(message, stack)
     count = 1,
     senderName = senderName, -- the character/player this error happened to
   })
+  module:UpdateMinimapIcon()
 
   if module:IsEnabled() then
     module:AttemptReport()
@@ -621,6 +625,7 @@ end
 --- Ace3 lifecycle entry point that enables configured error logging.
 function module:OnEnable()
   self:RefreshErrorLogging()
+  self:UpdateMinimapIcon()
 end
 
 --- Ace3 lifecycle entry point that removes all error hooks and communication handlers.
@@ -628,6 +633,10 @@ function module:OnDisable()
   uninstallErrorCapture()
   self:UnregisterAllEvents()
   Self:UnregisterComm(ERROR_LOG_COMM_PREFIX)
+  local ldbi = LibStub and LibStub("LibDBIcon-1.0", true)
+  if ldbi and ldbi:IsRegistered(ERROR_MINIMAP_NAME) then
+    ldbi:Hide(ERROR_MINIMAP_NAME)
+  end
 end
 
 -----------------------------------------------------------------------
@@ -644,8 +653,8 @@ function module:BuildMarkdown()
   table.insert(lines, "")
   table.insert(lines, "- **Addon Version**: " .. tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version")) or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version")) or "1"))
   local clientVersion = (GetBuildInfo and select(1, GetBuildInfo())) or (GetBuildInfo and GetBuildInfo()) or "unknown"
-  local projectID = tostring(WOW_PROJECT_ID or "unknown")
-  table.insert(lines, "- **Client Version**: " .. tostring(clientVersion) .. " (WOW_PROJECT_ID: " .. projectID .. ")")
+  local gameType = (isRetail and isRetail()) and "RETAIL" or "FOREVER"
+  table.insert(lines, "- **Client Version**: " .. tostring(clientVersion) .. " (" .. gameType .. ")")
   table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
   table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
   table.insert(lines, "")
@@ -679,7 +688,7 @@ end
 
 CLEAR_ERRORS_CONFIRM_POPUP = "SLACKHACKS_CLEAR_ERRORS_CONFIRM"
 StaticPopupDialogs[CLEAR_ERRORS_CONFIRM_POPUP] = {
-  text = "Are you sure you want to clear the SlackHacks Error Log?",
+  text = "Do you want to clear the current error log?",
   button1 = YES,
   button2 = NO,
   OnAccept = function()
@@ -704,9 +713,295 @@ local function promptClearErrors()
   end
 end
 
+-----------------------------------------------------------------------
+-- Minimap Error Icon (LibDBIcon)
+-----------------------------------------------------------------------
+
+local ERROR_MINIMAP_NAME = "SlackHacksErrorLog"
+local errorLDBObj = nil
+
+local function isListviewBagActive()
+  local profile = Self.db and Self.db.profile
+  return profile and profile.listviewBag and profile.listviewBag.enabled
+end
+
+local function toggleListviewBag()
+  local profile = Self.db and Self.db.profile
+  if not profile then return end
+  if not profile.listviewBag then profile.listviewBag = {} end
+  local newState = not profile.listviewBag.enabled
+  profile.listviewBag.enabled = newState
+  profile.listviewBag.showListviewBag = newState
+  if newState then
+    if Self.ListviewBag then Self.ListviewBag:Enable() end
+    if Self.ListviewBag and Self.ListviewBag.SetShowListviewBag then Self.ListviewBag:SetShowListviewBag(true) end
+  else
+    if Self.ListviewBag and Self.ListviewBag.SetShowListviewBag then Self.ListviewBag:SetShowListviewBag(false) end
+    if Self.ListviewBag then Self.ListviewBag:Disable() end
+  end
+  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if acr then acr:NotifyChange("SlackHacks") end
+end
+
+local function isSquareMinimapActive()
+  local profile = Self.db and Self.db.profile
+  return profile and profile.minimap and profile.minimap.enabled and profile.minimap.shape == "square"
+end
+
+local function toggleSquareMinimap()
+  local profile = Self.db and Self.db.profile
+  if not profile then return end
+  if not profile.minimap then profile.minimap = {} end
+  local isSquare = profile.minimap.enabled and profile.minimap.shape == "square"
+  if isSquare then
+    profile.minimap.shape = "circle"
+    if Self.Minimap then Self.Minimap:Refresh() end
+  else
+    profile.minimap.enabled = true
+    profile.minimap.shape = "square"
+    if Self.Minimap then
+      Self.Minimap:Enable()
+      Self.Minimap:Refresh()
+    end
+  end
+  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if acr then acr:NotifyChange("SlackHacks") end
+end
+
+local function isGearStatsActive()
+  local profile = Self.db and Self.db.profile
+  return profile and profile.infoDisplay and profile.infoDisplay.enabled
+    and profile.infoDisplay.charSheet and profile.infoDisplay.charSheet.gearStats
+end
+
+local function toggleGearStats()
+  local profile = Self.db and Self.db.profile
+  if not profile then return end
+  if not profile.infoDisplay then profile.infoDisplay = {} end
+  if not profile.infoDisplay.charSheet then profile.infoDisplay.charSheet = {} end
+  local isGearStats = profile.infoDisplay.enabled and profile.infoDisplay.charSheet.gearStats
+  local newState = not isGearStats
+  profile.infoDisplay.enabled = newState
+  profile.infoDisplay.charSheet.enabled = newState
+  profile.infoDisplay.charSheet.gearStats = newState
+  if newState then
+    if Self.CharSheet and not Self.CharSheet:IsEnabled() then Self.CharSheet:Enable() end
+    if Self.CharSheet and Self.CharSheet.SetCharSheetEnabled then Self.CharSheet:SetCharSheetEnabled(true) end
+    if Self.InfoDisplay then Self.InfoDisplay:SetEnabled(true) end
+  else
+    if Self.InfoDisplay then Self.InfoDisplay:SetEnabled(false) end
+    if Self.CharSheet and Self.CharSheet.SetCharSheetEnabled then Self.CharSheet:SetCharSheetEnabled(false) end
+  end
+  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if acr then acr:NotifyChange("SlackHacks") end
+end
+
+local function isMouseRingActive()
+  local profile = Self.db and Self.db.profile
+  return profile and profile.mouseRing and profile.mouseRing.enabled
+end
+
+local function toggleMouseRing()
+  local profile = Self.db and Self.db.profile
+  if not profile then return end
+  if not profile.mouseRing then profile.mouseRing = {} end
+  local newState = not profile.mouseRing.enabled
+  profile.mouseRing.enabled = newState
+  if Self.MouseRing then Self.MouseRing:SetEnabled(newState) end
+  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if acr then acr:NotifyChange("SlackHacks") end
+end
+
+local function isTrackDelvesActive()
+  local profile = Self.db and Self.db.profile
+  return profile and profile.infoDisplay and profile.infoDisplay.weeklies
+    and profile.infoDisplay.weeklies.enabled and profile.infoDisplay.weeklies.trackDelves
+end
+
+local function toggleTrackDelves()
+  local profile = Self.db and Self.db.profile
+  if not profile then return end
+  if not profile.infoDisplay then profile.infoDisplay = {} end
+  if not profile.infoDisplay.weeklies then profile.infoDisplay.weeklies = {} end
+  local isTracking = profile.infoDisplay.weeklies.enabled and profile.infoDisplay.weeklies.trackDelves
+  local newState = not isTracking
+  profile.infoDisplay.weeklies.enabled = newState
+  profile.infoDisplay.weeklies.trackDelves = newState
+  if Self.Weeklies then
+    Self.Weeklies:SetEnabled(newState)
+    Self.Weeklies:SetTrackDelves(newState)
+  end
+  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if acr then acr:NotifyChange("SlackHacks") end
+end
+
+local function openMinimapContextMenu(anchor)
+  if InCombatLockdown() then return end
+  if GameTooltip then GameTooltip:Hide() end
+
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    MenuUtil.CreateContextMenu(anchor, function(owner, rootDescription)
+      rootDescription:CreateTitle("SlackHacks")
+      rootDescription:CreateButton("Options", function()
+        openOptions()
+      end)
+      rootDescription:CreateCheckbox("Listview Bag", isListviewBagActive, toggleListviewBag)
+      rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
+      rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
+      rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
+      rootDescription:CreateCheckbox("Track Delve Weeklies", isTrackDelvesActive, toggleTrackDelves)
+    end)
+    return
+  end
+
+  local menuList = {
+    { text = "SlackHacks", isTitle = true, notCheckable = true },
+    { text = "Options", func = function() openOptions() end, notCheckable = true },
+    { text = "Listview Bag", checked = isListviewBagActive, func = toggleListviewBag, isNotRadio = true, keepShownOnClick = true },
+    { text = "Square Minimap", checked = isSquareMinimapActive, func = toggleSquareMinimap, isNotRadio = true, keepShownOnClick = true },
+    { text = "Display Gear Stats", checked = isGearStatsActive, func = toggleGearStats, isNotRadio = true, keepShownOnClick = true },
+    { text = "Mouse Ring", checked = isMouseRingActive, func = toggleMouseRing, isNotRadio = true, keepShownOnClick = true },
+    { text = "Track Delve Weeklies", checked = isTrackDelvesActive, func = toggleTrackDelves, isNotRadio = true, keepShownOnClick = true },
+  }
+  local menuFrame = CreateFrame("Frame", "SlackHacksMinimapContextMenu", UIParent, "UIDropDownMenuTemplate")
+  EasyMenu(menuList, menuFrame, "cursor", 0, 0, "MENU")
+end
+
+local function ensureMinimapBadge(button)
+  if button.errorBadge then return button.errorBadge end
+
+  local badge = CreateFrame("Frame", nil, button)
+  badge:SetFrameLevel(button:GetFrameLevel() + 5)
+  badge:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2)
+  badge:SetSize(16, 16)
+
+  local bg = badge:CreateTexture(nil, "BACKGROUND")
+  bg:SetAllPoints(badge)
+  bg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+  bg:SetVertexColor(0.85, 0.08, 0.08, 0.95)
+  badge.bg = bg
+
+  local countText = badge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  countText:SetFontObject(NumberFontNormalSmall or GameFontHighlightSmall)
+  countText:SetPoint("CENTER", badge, "CENTER", 0, 0)
+  countText:SetTextColor(1, 1, 1, 1)
+  badge.countText = countText
+
+  button.errorBadge = badge
+  return badge
+end
+
+local function initMinimapIcon()
+  local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
+  local ldbi = LibStub and LibStub("LibDBIcon-1.0", true)
+  if not ldb or not ldbi then return end
+
+  if not errorLDBObj then
+    errorLDBObj = ldb:NewDataObject(ERROR_MINIMAP_NAME, {
+      type = "data source",
+      text = "SlackHacks",
+      icon = SLACKHACKS_ICON,
+      OnClick = function(clickedButton, mouseButton)
+        if mouseButton == "RightButton" then
+          openMinimapContextMenu(clickedButton)
+        else
+          local list = errorLogTable() or {}
+          if #list > 0 then
+            module:ShowWindow()
+          else
+            openOptions()
+          end
+        end
+      end,
+      OnTooltipShow = function(tooltip)
+        local list = errorLogTable() or {}
+        local count = #list
+        tooltip:AddLine("SlackHacks", 1, 0.82, 0)
+        if count > 0 then
+          tooltip:AddLine(" ")
+          if count == 1 then
+            tooltip:AddLine("You have 1 un-reported error in SlackHacks.", 1, 0.3, 0.3, true)
+          else
+            tooltip:AddLine(("You have %d un-reported errors in SlackHacks."):format(count), 1, 0.3, 0.3, true)
+          end
+          tooltip:AddLine("Left-click: Open error report window", 0.8, 0.8, 0.8)
+        else
+          tooltip:AddLine("Left-click: Open options", 0.8, 0.8, 0.8)
+        end
+        tooltip:AddLine("Right-click: Quick toggle menu", 0.8, 0.8, 0.8)
+      end,
+      OnEnter = function(button)
+        GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT")
+        if errorLDBObj.OnTooltipShow then
+          errorLDBObj.OnTooltipShow(GameTooltip)
+        end
+        GameTooltip:Show()
+      end,
+      OnLeave = function()
+        GameTooltip:Hide()
+      end,
+    })
+  end
+
+  if not ldbi:IsRegistered(ERROR_MINIMAP_NAME) then
+    local db = (Self.db and Self.db.profile and Self.db.profile.minimapIcon) or { enabled = true, minimapPos = 220 }
+    ldbi:Register(ERROR_MINIMAP_NAME, errorLDBObj, db)
+  end
+end
+
+--- Updates the visibility, badge, and tooltip of the error minimap icon.
+function module:UpdateMinimapIcon()
+  local ldbi = LibStub and LibStub("LibDBIcon-1.0", true)
+  if not ldbi then return end
+
+  if not ldbi:IsRegistered(ERROR_MINIMAP_NAME) then
+    initMinimapIcon()
+  end
+
+  local list = errorLogTable() or {}
+  local count = #list
+  local button = ldbi:GetMinimapButton(ERROR_MINIMAP_NAME)
+
+  local isIconEnabled = true
+  if Self.db and Self.db.profile and Self.db.profile.minimapIcon then
+    if Self.db.profile.minimapIcon.enabled ~= nil then
+      isIconEnabled = Self.db.profile.minimapIcon.enabled
+    end
+  end
+
+  local shouldShow = count > 0 or isIconEnabled
+
+  if shouldShow then
+    if button then
+      if count > 0 then
+        local badge = ensureMinimapBadge(button)
+        if count > 99 then
+          badge.countText:SetText("99+")
+          badge:SetSize(22, 16)
+        elseif count >= 10 then
+          badge.countText:SetText(tostring(count))
+          badge:SetSize(18, 16)
+        else
+          badge.countText:SetText(tostring(count))
+          badge:SetSize(16, 16)
+        end
+        badge:Show()
+      elseif button.errorBadge then
+        button.errorBadge:Hide()
+      end
+    end
+    ldbi:Show(ERROR_MINIMAP_NAME)
+  else
+    if button and button.errorBadge then
+      button.errorBadge:Hide()
+    end
+    ldbi:Hide(ERROR_MINIMAP_NAME)
+  end
+end
+
 local FRAME_NAME = "SlackHacksBugReportFrame"
 local WINDOW_WIDTH = 640
-local WINDOW_HEIGHT = 520
+local WINDOW_HEIGHT = 540
 
 --- Refreshes the markdown text and status in the error-log window.
 function module:RefreshMarkdown()
@@ -736,11 +1031,11 @@ function module:ShowWindow()
   frame:SetClampedToScreen(true)
 
   if frame.SetTitle then
-    frame:SetTitle("SlackHacks Error Log")
+    frame:SetTitle("SlackHacks Error Reporting")
   elseif frame.TitleContainer and frame.TitleContainer.TitleText then
-    frame.TitleContainer.TitleText:SetText("SlackHacks Error Log")
+    frame.TitleContainer.TitleText:SetText("SlackHacks Error Reporting")
   elseif frame.TitleText then
-    frame.TitleText:SetText("SlackHacks Error Log")
+    frame.TitleText:SetText("SlackHacks Error Reporting")
   end
 
   -- Align the portrait frame and icon inside the top-left circle
@@ -841,8 +1136,15 @@ function module:ShowWindow()
   dragHandle:SetScript("OnDragStart", function() frame:StartMoving() end)
   dragHandle:SetScript("OnDragStop", function() frame:StopMovingOrSizing() end)
 
+  local descLabel = content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  descLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, -56)
+  descLabel:SetPoint("RIGHT", content, "RIGHT", -24, 0)
+  descLabel:SetJustifyH("LEFT")
+  descLabel:SetWordWrap(true)
+  descLabel:SetText("To report errors, please visit the below website and paste the *entire* text in the box below and just hit submit. Thanks!")
+
   local linkLabel = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  linkLabel:SetPoint("TOPLEFT", content, "TOPLEFT", 20, -56)
+  linkLabel:SetPoint("TOPLEFT", descLabel, "BOTTOMLEFT", 0, -10)
   linkLabel:SetText("New issue link (copy into your browser):")
 
   local linkBox = CreateFrame("EditBox", nil, content, "InputBoxTemplate")

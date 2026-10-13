@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 
 Enum.SelfVendorMode = {
   CONSUMABLES = 1,
@@ -105,7 +105,36 @@ function icon(size)
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
-CONFIG_MIGRATIONS = {}
+CONFIG_MIGRATIONS = {
+  [2] = function()
+    local function migrateProfile(p)
+      if not p or type(p) ~= "table" then return end
+
+      if p.minimapIcon == nil then
+        p.minimapIcon = {
+          enabled = true,
+          minimapPos = 220,
+        }
+      elseif type(p.minimapIcon) == "table" then
+        if p.minimapIcon.enabled == nil then
+          p.minimapIcon.enabled = true
+        end
+        if p.minimapIcon.minimapPos == nil then
+          p.minimapIcon.minimapPos = 220
+        end
+      end
+    end
+
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+      end
+    end
+    if Self.db.profile then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+}
 
 -- Version 1 predates this migration system entirely (no data shape changed getting to it), so it's the
 -- only version allowed to have no migration function without being treated as unrecoverable.

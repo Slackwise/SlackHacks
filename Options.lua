@@ -19,6 +19,10 @@ dbDefaults = {
     }
   },
   profile = {
+    minimapIcon = {
+      enabled = true,
+      minimapPos = 220,
+    },
     inventory = {
       autoSellGreyItems = false,
       autoRepair = false,
@@ -341,7 +345,7 @@ function handleSlashCommand(input)
     printSlashHelp()
   elseif command == "debug" then
     toggleDebugging()
-  elseif command == "bugs" or command == "bug" or command == "bugreport" then
+  elseif command == "bugs" then
     Self.Debug:ReportErrors()
   elseif command == "reset" then
     promptResetProfile()
@@ -476,10 +480,36 @@ options = {
       name = "Enable Addon",
       desc = "Fully enables/disables the entire addon",
       type = "toggle",
-      width = "full",
+      width = "normal",
       get = function() return Self:IsEnabled() end,
       set = function() if Self:IsEnabled() then Self:Disable() else Self:Enable() end end,
       order = 0 -- first
+    },
+    minimapIcon = {
+      name = "Minimap Icon",
+      desc = "Show the SlackHacks minimap icon. (Always appears when un-reported errors occur)",
+      type = "toggle",
+      width = "normal",
+      get = function()
+        return db and db.profile and db.profile.minimapIcon and db.profile.minimapIcon.enabled ~= false
+      end,
+      set = function(_, value)
+        if not db.profile.minimapIcon then db.profile.minimapIcon = { minimapPos = 220 } end
+        db.profile.minimapIcon.enabled = value
+        if Self.Debug and Self.Debug.UpdateMinimapIcon then
+          Self.Debug:UpdateMinimapIcon()
+        end
+      end,
+      order = 0.5
+    },
+    website = {
+      name = "Website",
+      desc = "Visit the website to report bugs or request features. (Press Ctrl+C to copy)",
+      type = "input",
+      width = "normal",
+      get = function() return "https://github.com/Slackwise/SlackHacks" end,
+      set = function() end,
+      order = 0.8
     },
     inventory = {
       type = "group",
@@ -1222,14 +1252,11 @@ options = {
             },
             clearErrorLog = {
               name = "Clear Error Log",
-              desc = "Clear the SlackHacks Error Log.",
+              desc = "Clear all SlackHacks error logs stored in SlackHacksDB.",
               type = "execute",
               func = function()
                 clearErrorLogs()
-                if Self.Debug and Self.Debug.RefreshMarkdown then
-                  Self.Debug:RefreshMarkdown()
-                end
-                print("SlackHacks: SlackHacks Error Log cleared")
+                print("SlackHacks: error logs cleared")
               end,
               confirm = true,
               order = 3
