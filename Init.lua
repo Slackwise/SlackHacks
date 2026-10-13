@@ -110,7 +110,12 @@ CONFIG_MIGRATIONS = {
     local function migrateProfile(p)
       if not p or type(p) ~= "table" then return end
 
-      if p.minimapIcon == nil then
+      if type(p.minimapIcon) == "boolean" then
+        p.minimapIcon = {
+          enabled = p.minimapIcon,
+          minimapPos = 220,
+        }
+      elseif p.minimapIcon == nil then
         p.minimapIcon = {
           enabled = true,
           minimapPos = 220,
@@ -137,10 +142,16 @@ CONFIG_MIGRATIONS = {
     -- Default error logging to true in version 2
     local g = Self.db.global
     if g then
+      g.errorMinimap = nil
       g.logs = g.logs or {}
       g.logs.errorLoggingEnabled = true
-      if Self.Debug and Self.Debug.RefreshErrorLogging then
-        Self.Debug:RefreshErrorLogging()
+      if Self.Debug then
+        if Self.Debug.RefreshErrorLogging then
+          Self.Debug:RefreshErrorLogging()
+        end
+        if Self.Debug.UpdateMinimapIcon then
+          Self.Debug:UpdateMinimapIcon()
+        end
       end
     end
   end,
