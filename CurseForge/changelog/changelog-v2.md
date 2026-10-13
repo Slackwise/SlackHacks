@@ -4,6 +4,7 @@
 - Resized gold display width
 - Added current season crest tracking
 - Moved "Sell Trash" to header with "Open Bags"
+- Search now functions same as default Backpack
 
 ## Minimap Icon
 - Added optional minimap icon
