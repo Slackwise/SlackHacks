@@ -8,7 +8,7 @@ dbDefaults = {
       debug = {},
       error = {},
       isDebugging = false,
-      errorLoggingEnabled = false,
+      errorLoggingEnabled = true,
       logPurgeEnabled = true,
       logPurgeHours = 48,
     },

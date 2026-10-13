@@ -133,6 +133,16 @@ CONFIG_MIGRATIONS = {
     if Self.db.profile then
       migrateProfile(Self.db.profile)
     end
+
+    -- Default error logging to true in version 2
+    local g = Self.db.global
+    if g then
+      g.logs = g.logs or {}
+      g.logs.errorLoggingEnabled = true
+      if Self.Debug and Self.Debug.RefreshErrorLogging then
+        Self.Debug:RefreshErrorLogging()
+      end
+    end
   end,
 }
 
