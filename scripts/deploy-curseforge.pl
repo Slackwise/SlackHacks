@@ -31,9 +31,9 @@ my $changelog_file        = $ENV{CHANGELOG_FILE}        || "";
 my $game_version_ids_raw  = $ENV{CURSEFORGE_GAME_VERSION_IDS} || "";
 
 # Proton Pass CLI settings
-my $proton_pass_item      = $ENV{PROTON_PASS_ITEM}      || "CurseForge API Token";
-my $proton_pass_vault     = $ENV{PROTON_PASS_VAULT}     || "";
-my $proton_pass_attribute = $ENV{PROTON_PASS_ATTRIBUTE} || "password";
+my $proton_pass_item      = $ENV{PROTON_PASS_ITEM}      || "CurseForge: SlackHacksDeploy API Token";
+my $proton_pass_vault     = $ENV{PROTON_PASS_VAULT}     || "Personal";
+my $proton_pass_attribute = $ENV{PROTON_PASS_ATTRIBUTE} || "Secret";
 my $proton_pass_cli_bin   = $ENV{PROTON_PASS_CLI_BIN}   || "pass-cli";
 
 # Dry run flag: --dry-run
@@ -69,10 +69,16 @@ sub fetch_secret_from_proton_pass {
 
     if (defined $secret) {
         $secret =~ s/^\s+|\s+$//g;
+        # If pass-cli prints a label such as "Secret: <token>", extract the token
+        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $secret = $1;
+            $secret =~ s/^\s+|\s+$//g;
+        }
     }
 
     if (!defined $secret || $secret eq "") {
         warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
+        warn "Please ensure you are logged in ('pass-cli login') and the item/field exists.\n";
         return undef;
     }
 
@@ -83,7 +89,7 @@ sub fetch_secret_from_proton_pass {
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
 my $toc_file = "SlackHacks.toc";
-die "Error: $toc_file not found in $script_dir\n" unless -f $toc_file;
+die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
 my $version;

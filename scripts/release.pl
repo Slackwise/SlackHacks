@@ -84,7 +84,7 @@ if (defined $status_out && $status_out =~ /\S/ && !$dry_run && !$force) {
 # Step 2: Extract Addon Version from SlackHacks.toc
 # ------------------------------------------------------------------------------
 my $toc_file = "SlackHacks.toc";
-die "Error: $toc_file not found in $script_dir\n" unless -f $toc_file;
+die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
 my $version;

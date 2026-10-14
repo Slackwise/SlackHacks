@@ -70,7 +70,7 @@ HELP
 # Step 1: Read and Parse SlackHacks.toc
 # ------------------------------------------------------------------------------
 my $toc_file = "SlackHacks.toc";
-die "Error: $toc_file not found in $script_dir\n" unless -f $toc_file;
+die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $rfh, "<:encoding(UTF-8)", $toc_file or die "Cannot read $toc_file: $!\n";
 my @lines = <$rfh>;
@@ -185,9 +185,9 @@ sub get_github_token {
     return $ENV{GITHUB_TOKEN} if ($ENV{GITHUB_TOKEN} && $ENV{GITHUB_TOKEN} =~ /\S/);
 
     my $pass_cli = $ENV{PROTON_PASS_CLI_BIN} || "pass-cli";
-    my $item     = $ENV{PROTON_PASS_ITEM}    || "GitHub";
-    my $vault    = $ENV{PROTON_PASS_VAULT}   || "";
-    my $attr     = $ENV{PROTON_PASS_ATTRIBUTE} || "password";
+    my $item     = $ENV{PROTON_PASS_ITEM}    || "GitHub: SlackHacksDeploy API Token";
+    my $vault    = $ENV{PROTON_PASS_VAULT}   || "Personal";
+    my $attr     = $ENV{PROTON_PASS_ATTRIBUTE} || "Secret";
 
     my @cmd = ($pass_cli, "item", "view", "--item-title", $item, "--field", $attr);
     push @cmd, "--vault-name", $vault if ($vault ne "");
@@ -198,6 +198,10 @@ sub get_github_token {
 
     if (defined $secret) {
         $secret =~ s/^\s+|\s+$//g;
+        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $secret = $1;
+            $secret =~ s/^\s+|\s+$//g;
+        }
     }
     return $secret;
 }
