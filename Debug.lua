@@ -840,24 +840,24 @@ function module:BuildMarkdown()
   local lines = {}
   table.insert(lines, "### SlackHacks Error Report")
   table.insert(lines, "")
-  table.insert(lines, "- **Addon Version**: " .. tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version")) or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version")) or "1"))
+  table.insert(lines, ("- **Addon Version**: `%s`"):format(tostring(getAddonVersion())))
   local clientVersion = (GetBuildInfo and select(1, GetBuildInfo())) or (GetBuildInfo and GetBuildInfo()) or "unknown"
   local gameType = (isRetail and isRetail()) and "RETAIL" or "FOREVER"
-  table.insert(lines, "- **Client Version**: " .. tostring(clientVersion) .. " (" .. gameType .. ")")
-  table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
-  table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
+  table.insert(lines, ("- **Client Version**: `%s` (`%s`)"):format(tostring(clientVersion), gameType))
+  table.insert(lines, ("- **Date**: `%s`"):format(date("%Y-%m-%d %H:%M:%S")))
+  table.insert(lines, ("- **Player**: `%s`"):format(characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
   table.insert(lines, "")
 
   if #list == 0 then
     table.insert(lines, "_No errors currently recorded in SlackHacks._")
   else
-    table.insert(lines, ("**Total unique errors**: %d"):format(#list))
+    table.insert(lines, ("**Total unique errors**: `%d`"):format(#list))
     table.insert(lines, "")
     for index, entry in ipairs(list) do
       table.insert(lines, ("#### %d. %s"):format(index, (entry.message or "Unknown error"):gsub("[\r\n].*", "")))
-      table.insert(lines, ("- **Occurred**: %s"):format(entry.timestamp or "Unknown"))
-      table.insert(lines, ("- **Addon Version**: %s"):format(entry.addonVersion or getAddonVersion()))
-      table.insert(lines, ("- **Count**: %d"):format(entry.count or 1))
+      table.insert(lines, ("- **Occurred**: `%s`"):format(entry.timestamp or "Unknown"))
+      table.insert(lines, ("- **Addon Version**: `%s`"):format(entry.addonVersion or getAddonVersion()))
+      table.insert(lines, ("- **Count**: `%d`"):format(entry.count or 1))
       table.insert(lines, "")
       table.insert(lines, "```text")
       table.insert(lines, entry.message or "")
