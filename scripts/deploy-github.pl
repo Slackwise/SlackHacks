@@ -27,10 +27,14 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
 my $github_repo            = $ENV{GITHUB_REPO}            || "Slackwise/SlackHacks";
-my $target_commitish       = $ENV{TARGET_COMMITISH}       || "main";
+my $target_commitish       = $ENV{TARGET_COMMITISH}       || "";
+if ($target_commitish eq "") {
+    my $has_prod = `git rev-parse --verify prod 2>/dev/null`;
+    $target_commitish = ($? == 0 && defined $has_prod && $has_prod =~ /\S/) ? "prod" : "main";
+}
+
 my $is_draft               = ($ENV{IS_DRAFT} && $ENV{IS_DRAFT} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
 my $is_prerelease          = ($ENV{IS_PRERELEASE} && $ENV{IS_PRERELEASE} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-my $generate_release_notes = (!defined $ENV{GENERATE_RELEASE_NOTES} || $ENV{GENERATE_RELEASE_NOTES} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
 my $changelog_file         = $ENV{CHANGELOG_FILE}         || "";
 
 # Proton Pass CLI settings
@@ -158,6 +162,14 @@ if ($changelog_file ne "" && -f $changelog_file) {
     }
 }
 
+my $generate_release_notes;
+if (defined $ENV{GENERATE_RELEASE_NOTES}) {
+    $generate_release_notes = ($ENV{GENERATE_RELEASE_NOTES} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
+} else {
+    # If a changelog file exists, default to false so GitHub doesn't append raw commit logs; otherwise true
+    $generate_release_notes = ($release_body =~ /\S/) ? JSON::PP::false : JSON::PP::true;
+}
+
 # ------------------------------------------------------------------------------
 # Step 4: Create GitHub Release
 # ------------------------------------------------------------------------------
@@ -181,6 +193,7 @@ print "Repository:          $github_repo\n";
 print "Tag Name:            $tag_name\n";
 print "Target Commit/Branch:$target_commitish\n";
 print "Release Title:       $release_title\n";
+print "Changelog File:      " . ($changelog_file ne "" ? $changelog_file : "(none)") . "\n";
 print "Draft:               " . ($is_draft ? "true" : "false") . "\n";
 print "Prerelease:          " . ($is_prerelease ? "true" : "false") . "\n";
 print "Auto Release Notes:  " . ($generate_release_notes ? "true" : "false") . "\n";
@@ -189,6 +202,12 @@ print "==============================\n";
 
 if ($dry_run) {
     print "[Dry Run] Release simulation complete. No GitHub release created.\n";
+    if ($release_body =~ /\S/) {
+        print "\n[Dry Run] Release Notes Body Preview:\n";
+        print "----------------------------------------\n";
+        print $release_body;
+        print "----------------------------------------\n";
+    }
     exit 0;
 }
 
