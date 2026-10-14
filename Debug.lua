@@ -270,11 +270,83 @@ local function hasSlackHacksPath(text)
   return false
 end
 
+-----------------------------------------------------------------------
+-- Ignored Error Fingerprints
+-- Table of known unfixable Blizzard engine bugs, taint barriers, or third-party conflicts
+-- that cannot be resolved in addon code and should never be captured, reported, or stored.
+--
+-- Each entry can be:
+--   - A string: substring match against message or stack.
+--   - A table:
+--       desc: human-readable reason for ignoring this error.
+--       message: substring (or Lua pattern if pattern=true) matched against error message.
+--       stack: substring (or Lua pattern if pattern=true) matched against call stack.
+--       pattern: boolean (optional, true to treat message/stack as Lua regex patterns).
+--   - A function: function(message, stack) return true to ignore end
+-----------------------------------------------------------------------
+
+IGNORED_ERROR_FINGERPRINTS = {
+  {
+    desc = "Blizzard Menu / ScrollBox secret number comparison taint",
+    message = "a secret number value, while execution tainted by 'SlackHacks'",
+    stack = "MathUtil.lua",
+  },
+}
+
+--- Checks whether an error matches a single fingerprint entry.
+---@param message string|nil - Error text.
+---@param stack string|nil - Stack trace.
+---@param fp table|string|function - Fingerprint rule.
+---@return boolean - True if the error matches the fingerprint.
+local function matchesFingerprint(message, stack, fp)
+  if type(fp) == "string" then
+    return (message and message:find(fp, 1, true) ~= nil)
+      or (stack and stack:find(fp, 1, true) ~= nil)
+  elseif type(fp) == "function" then
+    local ok, res = pcall(fp, message, stack)
+    return ok and res == true
+  elseif type(fp) == "table" then
+    local messageMatch = true
+    if fp.message then
+      local isPattern = fp.pattern or false
+      messageMatch = message and (isPattern and message:find(fp.message) or message:find(fp.message, 1, true)) ~= nil
+    end
+
+    local stackMatch = true
+    if fp.stack then
+      local isPattern = fp.pattern or false
+      stackMatch = stack and (isPattern and stack:find(fp.stack) or stack:find(fp.stack, 1, true)) ~= nil
+    end
+
+    return (messageMatch and stackMatch) == true
+  end
+  return false
+end
+
+--- Checks whether an error matches any registered ignored-error fingerprint.
+---@param message string|nil - Error text.
+---@param stack string|nil - Stack trace.
+---@return boolean - True if the error should be ignored.
+function isIgnoredError(message, stack)
+  if not message and not stack then return false end
+  for _, fp in ipairs(IGNORED_ERROR_FINGERPRINTS) do
+    if matchesFingerprint(message, stack, fp) then
+      return true
+    end
+  end
+  return false
+end
+
 --- Tests whether an error message or stack trace points into SlackHacks and does NOT originate from another addon.
 ---@param message string|nil - Error text.
 ---@param stack string|nil - Captured stack trace.
 ---@return boolean - True only when the error belongs to SlackHacks and not a third-party addon.
 function isOurAddonError(message, stack)
+  -- Filter out known unfixable errors matching ignored fingerprints
+  if isIgnoredError(message, stack) then
+    return false
+  end
+
   -- Filter out any error where the message or stack points to a third-party addon
   if hasForeignAddonPath(message) or hasForeignAddonPath(stack) then
     return false
