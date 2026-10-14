@@ -392,6 +392,7 @@ print "=== CurseForge Deployment Summary ===\n";
 print "Project ID:       $curseforge_project_id\n";
 print "Display Name:     $display_name\n";
 print "Release Type:     $release_type\n";
+print "Changelog File:   " . ($changelog_file ne "" ? $changelog_file : "(none)") . "\n";
 print "Archive:          $zip_path\n";
 print "Upload URL:       $upload_url\n";
 print "TOC Interfaces:   " . join(", ", @toc_interfaces) . "\n";
