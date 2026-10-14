@@ -270,11 +270,83 @@ local function hasSlackHacksPath(text)
   return false
 end
 
+-----------------------------------------------------------------------
+-- Ignored Error Fingerprints
+-- Table of known unfixable Blizzard engine bugs, taint barriers, or third-party conflicts
+-- that cannot be resolved in addon code and should never be captured, reported, or stored.
+--
+-- Each entry can be:
+--   - A string: substring match against message or stack.
+--   - A table:
+--       desc: human-readable reason for ignoring this error.
+--       message: substring (or Lua pattern if pattern=true) matched against error message.
+--       stack: substring (or Lua pattern if pattern=true) matched against call stack.
+--       pattern: boolean (optional, true to treat message/stack as Lua regex patterns).
+--   - A function: function(message, stack) return true to ignore end
+-----------------------------------------------------------------------
+
+IGNORED_ERROR_FINGERPRINTS = {
+  {
+    desc = "Blizzard Menu / ScrollBox secret number comparison taint",
+    message = "a secret number value, while execution tainted by 'SlackHacks'",
+    stack = "MathUtil.lua",
+  },
+}
+
+--- Checks whether an error matches a single fingerprint entry.
+---@param message string|nil - Error text.
+---@param stack string|nil - Stack trace.
+---@param fp table|string|function - Fingerprint rule.
+---@return boolean - True if the error matches the fingerprint.
+local function matchesFingerprint(message, stack, fp)
+  if type(fp) == "string" then
+    return (message and message:find(fp, 1, true) ~= nil)
+      or (stack and stack:find(fp, 1, true) ~= nil)
+  elseif type(fp) == "function" then
+    local ok, res = pcall(fp, message, stack)
+    return ok and res == true
+  elseif type(fp) == "table" then
+    local messageMatch = true
+    if fp.message then
+      local isPattern = fp.pattern or false
+      messageMatch = message and (isPattern and message:find(fp.message) or message:find(fp.message, 1, true)) ~= nil
+    end
+
+    local stackMatch = true
+    if fp.stack then
+      local isPattern = fp.pattern or false
+      stackMatch = stack and (isPattern and stack:find(fp.stack) or stack:find(fp.stack, 1, true)) ~= nil
+    end
+
+    return (messageMatch and stackMatch) == true
+  end
+  return false
+end
+
+--- Checks whether an error matches any registered ignored-error fingerprint.
+---@param message string|nil - Error text.
+---@param stack string|nil - Stack trace.
+---@return boolean - True if the error should be ignored.
+function isIgnoredError(message, stack)
+  if not message and not stack then return false end
+  for _, fp in ipairs(IGNORED_ERROR_FINGERPRINTS) do
+    if matchesFingerprint(message, stack, fp) then
+      return true
+    end
+  end
+  return false
+end
+
 --- Tests whether an error message or stack trace points into SlackHacks and does NOT originate from another addon.
 ---@param message string|nil - Error text.
 ---@param stack string|nil - Captured stack trace.
 ---@return boolean - True only when the error belongs to SlackHacks and not a third-party addon.
-local function isOurAddonError(message, stack)
+function isOurAddonError(message, stack)
+  -- Filter out known unfixable errors matching ignored fingerprints
+  if isIgnoredError(message, stack) then
+    return false
+  end
+
   -- Filter out any error where the message or stack points to a third-party addon
   if hasForeignAddonPath(message) or hasForeignAddonPath(stack) then
     return false
@@ -288,7 +360,30 @@ local function isOurAddonError(message, stack)
   return false
 end
 
---- Records one local SlackHacks error, coalescing repeated message/character pairs.
+--- Purges any foreign/third-party errors that were saved into the database before filtering was active.
+function purgeForeignErrors()
+  local list = errorLogTable()
+  if not list then return end
+  local changed = false
+  for i = #list, 1, -1 do
+    local entry = list[i]
+    if type(entry) == "table" and not isOurAddonError(entry.message, entry.stack) then
+      table.remove(list, i)
+      changed = true
+    end
+  end
+  if changed and updateMinimapIcon then
+    updateMinimapIcon()
+  end
+end
+
+local function getAddonVersion()
+  return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
+    or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version"))
+    or "1")
+end
+
+--- Records one local SlackHacks error, coalescing repeated messages.
 ---@param message string - Error text.
 ---@param stack string|nil - Stack trace, when available.
 local function recordError(message, stack)
@@ -299,52 +394,62 @@ local function recordError(message, stack)
   if not list then return end
 
   local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form, matches the regular debug logs
-  local senderName = characterFullName(UnitName("player"), GetRealmName()) or UnitName("player")
+  local addonVersion = getAddonVersion()
 
   for _, entry in ipairs(list) do
-    if entry.message == message and entry.senderName == senderName then
+    if entry.message == message then
       entry.timestamp = timestamp
+      entry.addonVersion = addonVersion
       entry.count = (entry.count or 1) + 1
-      module:UpdateMinimapIcon()
+      if updateMinimapIcon then
+        updateMinimapIcon()
+      elseif Self.UpdateMinimapIcon then
+        Self.UpdateMinimapIcon()
+      end
       return
     end
   end
 
   table.insert(list, {
     timestamp = timestamp,
+    addonVersion = addonVersion,
     message = message,
     stack = stack,
     count = 1,
-    senderName = senderName, -- the character/player this error happened to
   })
-  module:UpdateMinimapIcon()
+  if updateMinimapIcon then
+    updateMinimapIcon()
+  elseif Self.UpdateMinimapIcon then
+    Self.UpdateMinimapIcon()
+  end
 
   if module:IsEnabled() then
     module:AttemptReport()
   end
 end
 
---- Merges an error entry received from another player, de-duplicated the same way as `recordError`.
+--- Merges an error entry received from another player, de-duplicated by message.
 ---@param entry table - Serialized remote error entry.
----@param senderName string - Character name used as the de-duplication owner.
+---@param senderName string - Character name (unused in entry).
 ---@return boolean - True if this was a new entry (not just a counter bump on an existing one).
 local function recordReceivedEntry(entry, senderName)
   local list = errorLogTable()
   if not list then return false end
 
   for _, existing in ipairs(list) do
-    if existing.message == entry.message and existing.senderName == senderName then
+    if existing.message == entry.message then
       existing.timestamp = entry.timestamp or existing.timestamp
+      existing.addonVersion = entry.addonVersion or existing.addonVersion or getAddonVersion()
       existing.count = math.max(existing.count or 1, entry.count or 1)
       return false
     end
   end
   table.insert(list, {
     timestamp = entry.timestamp,
+    addonVersion = entry.addonVersion or getAddonVersion(),
     message = entry.message,
     stack = entry.stack,
     count = entry.count or 1,
-    senderName = senderName,
   })
   return true
 end
@@ -708,6 +813,7 @@ end
 --- Ace3 lifecycle entry point that enables configured error logging.
 function module:OnEnable()
   self:RefreshErrorLogging()
+  purgeForeignErrors()
   if updateMinimapIcon then
     updateMinimapIcon()
   elseif Self.UpdateMinimapIcon then
@@ -734,26 +840,24 @@ function module:BuildMarkdown()
   local lines = {}
   table.insert(lines, "### SlackHacks Error Report")
   table.insert(lines, "")
-  table.insert(lines, "- **Addon Version**: " .. tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version")) or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version")) or "1"))
+  table.insert(lines, ("- **Addon Version**: `%s`"):format(tostring(getAddonVersion())))
   local clientVersion = (GetBuildInfo and select(1, GetBuildInfo())) or (GetBuildInfo and GetBuildInfo()) or "unknown"
   local gameType = (isRetail and isRetail()) and "RETAIL" or "FOREVER"
-  table.insert(lines, "- **Client Version**: " .. tostring(clientVersion) .. " (" .. gameType .. ")")
-  table.insert(lines, "- **Date**: " .. date("%Y-%m-%d %H:%M:%S"))
-  table.insert(lines, "- **Player**: " .. (characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
+  table.insert(lines, ("- **Client Version**: `%s` (`%s`)"):format(tostring(clientVersion), gameType))
+  table.insert(lines, ("- **Date**: `%s`"):format(date("%Y-%m-%d %H:%M:%S")))
+  table.insert(lines, ("- **Player**: `%s`"):format(characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
   table.insert(lines, "")
 
   if #list == 0 then
     table.insert(lines, "_No errors currently recorded in SlackHacks._")
   else
-    table.insert(lines, ("**Total unique errors**: %d"):format(#list))
+    table.insert(lines, ("**Total unique errors**: `%d`"):format(#list))
     table.insert(lines, "")
     for index, entry in ipairs(list) do
       table.insert(lines, ("#### %d. %s"):format(index, (entry.message or "Unknown error"):gsub("[\r\n].*", "")))
-      table.insert(lines, ("- **Occurred**: %s"):format(entry.timestamp or "Unknown"))
-      table.insert(lines, ("- **Count**: %d"):format(entry.count or 1))
-      if entry.senderName then
-        table.insert(lines, ("- **Reporter**: %s"):format(entry.senderName))
-      end
+      table.insert(lines, ("- **Occurred**: `%s`"):format(entry.timestamp or "Unknown"))
+      table.insert(lines, ("- **Addon Version**: `%s`"):format(entry.addonVersion or getAddonVersion()))
+      table.insert(lines, ("- **Count**: `%d`"):format(entry.count or 1))
       table.insert(lines, "")
       table.insert(lines, "```text")
       table.insert(lines, entry.message or "")
@@ -843,6 +947,7 @@ end
 
 --- Displays or refreshes the standard Blizzard portrait error-log window.
 function module:ShowWindow()
+  purgeForeignErrors()
   if self.frame then
     self:RefreshMarkdown()
     self.frame:Show()
@@ -1093,6 +1198,7 @@ end
 
 --- Reports captured errors when possible, otherwise opens the local report window.
 function module:ReportErrors()
+  purgeForeignErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
     print("SlackHacks: no errors recorded.")

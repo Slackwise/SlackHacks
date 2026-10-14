@@ -19,7 +19,13 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
+
+function getAddonVersion()
+  return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
+    or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version"))
+    or "1")
+end
 
 Enum.SelfVendorMode = {
   CONSUMABLES = 1,
@@ -160,6 +166,13 @@ CONFIG_MIGRATIONS = {
       end
     end
   end,
+  [3] = function()
+    -- Purge previous error logs for version 3
+    local g = Self.db.global
+    if g and g.logs and g.logs.error then
+      wipe(g.logs.error)
+    end
+  end,
 }
 
 -- Version 1 predates this migration system entirely (no data shape changed getting to it), so it's the
@@ -203,6 +216,7 @@ function resetCurrentProfileAndAddon()
     if Self.db then
       Self.db:ResetProfile()
       Self.db.global.configVersion = CONFIG_VERSION
+      Self.db.global.addonVersion = getAddonVersion()
     end
 
     -- Reset addon state by disabling and re-enabling the addon and its modules
@@ -243,6 +257,7 @@ function resetConfig(reason)
   if Self.db then
     Self.db:ResetProfile()
     Self.db.global.configVersion = CONFIG_VERSION
+    Self.db.global.addonVersion = getAddonVersion()
   end
   notifyConfigReset()
 end
@@ -268,10 +283,40 @@ function migrateConfig()
       end
       Self.db.global.configVersion = version
     end
+    -- Purge all previous errors during a config migration
+    if Self.db.global and Self.db.global.logs and Self.db.global.logs.error then
+      wipe(Self.db.global.logs.error)
+    end
+    if updateMinimapIcon then
+      updateMinimapIcon()
+    elseif Self.UpdateMinimapIcon then
+      Self.UpdateMinimapIcon()
+    end
   end)
   if not ok then
     resetConfig(err)
   end
+end
+
+-- Checks if the addon version has changed since the last load.
+-- If updated, purges all previous errors and updates the stored addon version for maintenance.
+function checkAddonVersionUpdate()
+  if not Self.db or not Self.db.global then return end
+  local currentVersion = getAddonVersion()
+  local lastVersion = Self.db.global.addonVersion
+
+  if lastVersion ~= currentVersion then
+    if Self.db.global.logs and Self.db.global.logs.error then
+      wipe(Self.db.global.logs.error)
+    end
+    if updateMinimapIcon then
+      updateMinimapIcon()
+    elseif Self.UpdateMinimapIcon then
+      Self.UpdateMinimapIcon()
+    end
+  end
+
+  Self.db.global.addonVersion = currentVersion
 end
 
 --Event Handlers
