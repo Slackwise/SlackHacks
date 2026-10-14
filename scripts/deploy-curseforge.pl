@@ -24,7 +24,7 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
-my $curseforge_project_id = $ENV{CURSEFORGE_PROJECT_ID} || "REPLACE_WITH_CURSEFORGE_PROJECT_ID";
+my $curseforge_project_id = $ENV{CURSEFORGE_PROJECT_ID} || "1740483";
 my $release_type          = $ENV{RELEASE_TYPE}          || "release";   # release, beta, alpha
 my $changelog_type        = $ENV{CHANGELOG_TYPE}        || "markdown";  # markdown, text, html
 my $changelog_file        = $ENV{CHANGELOG_FILE}        || "";
@@ -215,6 +215,12 @@ print "=====================================\n";
 
 if ($dry_run) {
     print "[Dry Run] Deployment simulation complete. No files were uploaded.\n";
+    if ($changelog_text =~ /\S/) {
+        print "\n[Dry Run] Changelog Preview:\n";
+        print "----------------------------------------\n";
+        print $changelog_text;
+        print "----------------------------------------\n";
+    }
     exit 0;
 }
 
