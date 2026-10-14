@@ -18,6 +18,25 @@ my $script_dir = $FindBin::Bin;
 my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
 chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
+# Helper to load .env file if present
+sub load_dotenv {
+    my ($file) = @_;
+    return unless -f $file;
+    open my $fh, "<:encoding(UTF-8)", $file or return;
+    while (my $line = <$fh>) {
+        $line =~ s/^\s+|\s+$//g;
+        next if $line eq "" || $line =~ /^#/;
+        if ($line =~ /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/) {
+            my ($key, $val) = ($1, $2);
+            $val =~ s/^['"]|['"]$//g;
+            $ENV{$key} = $val unless defined $ENV{$key};
+        }
+    }
+    close $fh;
+}
+
+load_dotenv(File::Spec->catfile($repo_root, ".env"));
+
 # ------------------------------------------------------------------------------
 # Options
 # ------------------------------------------------------------------------------
@@ -25,7 +44,7 @@ my $dry_run       = 0;
 my $push          = 0;
 my $force         = 0;
 my $source_branch = "";
-my $target_branch = "prod";
+my $target_branch = $ENV{TARGET_COMMITISH} || "prod";
 my $help          = 0;
 
 GetOptions(

@@ -21,6 +21,25 @@ my $script_dir = $FindBin::Bin;
 my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
 chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
+# Helper to load .env file if present
+sub load_dotenv {
+    my ($file) = @_;
+    return unless -f $file;
+    open my $fh, "<:encoding(UTF-8)", $file or return;
+    while (my $line = <$fh>) {
+        $line =~ s/^\s+|\s+$//g;
+        next if $line eq "" || $line =~ /^#/;
+        if ($line =~ /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/) {
+            my ($key, $val) = ($1, $2);
+            $val =~ s/^['"]|['"]$//g;
+            $ENV{$key} = $val unless defined $ENV{$key};
+        }
+    }
+    close $fh;
+}
+
+load_dotenv(File::Spec->catfile($repo_root, ".env"));
+
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
@@ -31,10 +50,10 @@ my $changelog_file        = $ENV{CHANGELOG_FILE}        || "";
 my $game_version_ids_raw  = $ENV{CURSEFORGE_GAME_VERSION_IDS} || "";
 
 # Proton Pass CLI settings
-my $proton_pass_item      = $ENV{PROTON_PASS_ITEM}      || "CurseForge: SlackHacksDeploy API Token";
-my $proton_pass_vault     = $ENV{PROTON_PASS_VAULT}     || "Personal";
-my $proton_pass_attribute = $ENV{PROTON_PASS_ATTRIBUTE} || "Secret";
-my $proton_pass_cli_bin   = $ENV{PROTON_PASS_CLI_BIN}   || "pass-cli";
+my $proton_pass_item      = $ENV{PROTON_PASS_ITEM_CURSEFORGE} || $ENV{PROTON_PASS_ITEM} || "CurseForge: SlackHacksDeploy API Token";
+my $proton_pass_vault     = $ENV{PROTON_PASS_VAULT}           || "Personal";
+my $proton_pass_attribute = $ENV{PROTON_PASS_ATTRIBUTE}       || "Secret";
+my $proton_pass_cli_bin   = $ENV{PROTON_PASS_CLI_BIN}         || "pass-cli";
 
 # Dry run flag: --dry-run
 my $dry_run = 0;

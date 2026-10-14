@@ -21,6 +21,25 @@ my $script_dir = $FindBin::Bin;
 my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
 chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
+# Helper to load .env file if present
+sub load_dotenv {
+    my ($file) = @_;
+    return unless -f $file;
+    open my $fh, "<:encoding(UTF-8)", $file or return;
+    while (my $line = <$fh>) {
+        $line =~ s/^\s+|\s+$//g;
+        next if $line eq "" || $line =~ /^#/;
+        if ($line =~ /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/) {
+            my ($key, $val) = ($1, $2);
+            $val =~ s/^['"]|['"]$//g;
+            $ENV{$key} = $val unless defined $ENV{$key};
+        }
+    }
+    close $fh;
+}
+
+load_dotenv(File::Spec->catfile($repo_root, ".env"));
+
 # Ensure standard Windows tool paths (PowerShell / System32) are in PATH on Windows
 if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
     for my $extra_path ('/c/Windows/System32', '/c/Windows/System32/WindowsPowerShell/v1.0',
@@ -184,10 +203,10 @@ print "Found $commit_count commit(s) since tag '$prev_tag'.\n";
 sub get_github_token {
     return $ENV{GITHUB_TOKEN} if ($ENV{GITHUB_TOKEN} && $ENV{GITHUB_TOKEN} =~ /\S/);
 
-    my $pass_cli = $ENV{PROTON_PASS_CLI_BIN} || "pass-cli";
-    my $item     = $ENV{PROTON_PASS_ITEM}    || "GitHub: SlackHacksDeploy API Token";
-    my $vault    = $ENV{PROTON_PASS_VAULT}   || "Personal";
-    my $attr     = $ENV{PROTON_PASS_ATTRIBUTE} || "Secret";
+    my $pass_cli = $ENV{PROTON_PASS_CLI_BIN}       || "pass-cli";
+    my $item     = $ENV{PROTON_PASS_ITEM_GITHUB}   || $ENV{PROTON_PASS_ITEM} || "GitHub: SlackHacksDeploy API Token";
+    my $vault    = $ENV{PROTON_PASS_VAULT}         || "Personal";
+    my $attr     = $ENV{PROTON_PASS_ATTRIBUTE}     || "Secret";
 
     my @cmd = ($pass_cli, "item", "view", "--item-title", $item, "--field", $attr);
     push @cmd, "--vault-name", $vault if ($vault ne "");

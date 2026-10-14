@@ -1,5 +1,8 @@
 {
 	"version": "2.0.0",
+	"options": {
+		"envFile": "${workspaceFolder}/.env"
+	},
 	"tasks": [
 		{
 			"label": "Build SlackHacks",
