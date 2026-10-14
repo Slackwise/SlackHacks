@@ -164,9 +164,10 @@ run_cmd("git", "checkout", $target_branch);
 # ------------------------------------------------------------------------------
 # Step 5: Merge Source Branch into Target Branch
 # ------------------------------------------------------------------------------
-my $merge_msg = "Merge branch '$source_branch' into $target_branch";
+my $merge_subject = "Release v$version";
+my $merge_body    = "Merge branch '$source_branch' into $target_branch";
 print "Merging '$source_branch' into '$target_branch'...\n";
-run_cmd("git", "merge", $source_branch, "-m", $merge_msg);
+run_cmd("git", "merge", $source_branch, "-m", $merge_subject, "-m", $merge_body);
 
 # ------------------------------------------------------------------------------
 # Step 6: Create Release Tag
