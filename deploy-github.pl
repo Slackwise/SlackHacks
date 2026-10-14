@@ -56,11 +56,10 @@ sub fetch_secret_from_proton_pass {
         return $ENV{GITHUB_TOKEN};
     }
 
-    my @cmd = ($proton_pass_cli_bin, "item", "get", $item);
+    my @cmd = ($proton_pass_cli_bin, "item", "view", "--item-title", $item, "--field", $attr);
     if ($vault ne "") {
-        push @cmd, "--vault", $vault;
+        push @cmd, "--vault-name", $vault;
     }
-    push @cmd, "--attribute", $attr;
 
     open my $pipe, "-|", @cmd or do {
         warn "Error: Failed to execute '$proton_pass_cli_bin': $!\n";
@@ -136,6 +135,13 @@ if ($dry_run) {
 # Step 3: Prepare Release Notes / Body
 # ------------------------------------------------------------------------------
 my $release_body = "";
+if ($changelog_file eq "") {
+    my $default_changelog = File::Spec->catfile("changelog", "changelog-v$version.md");
+    if (-f $default_changelog) {
+        $changelog_file = $default_changelog;
+    }
+}
+
 if ($changelog_file ne "" && -f $changelog_file) {
     open my $cfh, "<:encoding(UTF-8)", $changelog_file or warn "Cannot open changelog file '$changelog_file': $!\n";
     if ($cfh) {

@@ -28,6 +28,18 @@
 			"type": "shell",
 			"command": "perl deploy-curseforge.pl",
 			"problemMatcher": []
+		},
+		{
+			"label": "Bump Version (Blank Release)",
+			"type": "shell",
+			"command": "perl bump.pl --blank",
+			"problemMatcher": []
+		},
+		{
+			"label": "Bump Version (Copilot Summary)",
+			"type": "shell",
+			"command": "perl bump.pl",
+			"problemMatcher": []
 		}
 	]
 }
