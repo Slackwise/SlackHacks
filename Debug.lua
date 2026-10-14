@@ -274,7 +274,7 @@ end
 ---@param message string|nil - Error text.
 ---@param stack string|nil - Captured stack trace.
 ---@return boolean - True only when the error belongs to SlackHacks and not a third-party addon.
-local function isOurAddonError(message, stack)
+function isOurAddonError(message, stack)
   -- Filter out any error where the message or stack points to a third-party addon
   if hasForeignAddonPath(message) or hasForeignAddonPath(stack) then
     return false
@@ -288,7 +288,30 @@ local function isOurAddonError(message, stack)
   return false
 end
 
---- Records one local SlackHacks error, coalescing repeated message/character pairs.
+--- Purges any foreign/third-party errors that were saved into the database before filtering was active.
+function purgeForeignErrors()
+  local list = errorLogTable()
+  if not list then return end
+  local changed = false
+  for i = #list, 1, -1 do
+    local entry = list[i]
+    if type(entry) == "table" and not isOurAddonError(entry.message, entry.stack) then
+      table.remove(list, i)
+      changed = true
+    end
+  end
+  if changed and updateMinimapIcon then
+    updateMinimapIcon()
+  end
+end
+
+local function getAddonVersion()
+  return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
+    or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version"))
+    or "1")
+end
+
+--- Records one local SlackHacks error, coalescing repeated messages.
 ---@param message string - Error text.
 ---@param stack string|nil - Stack trace, when available.
 local function recordError(message, stack)
@@ -299,52 +322,62 @@ local function recordError(message, stack)
   if not list then return end
 
   local timestamp = date("%Y-%m-%dT%H:%M:%S") -- ISO form, matches the regular debug logs
-  local senderName = characterFullName(UnitName("player"), GetRealmName()) or UnitName("player")
+  local addonVersion = getAddonVersion()
 
   for _, entry in ipairs(list) do
-    if entry.message == message and entry.senderName == senderName then
+    if entry.message == message then
       entry.timestamp = timestamp
+      entry.addonVersion = addonVersion
       entry.count = (entry.count or 1) + 1
-      module:UpdateMinimapIcon()
+      if updateMinimapIcon then
+        updateMinimapIcon()
+      elseif Self.UpdateMinimapIcon then
+        Self.UpdateMinimapIcon()
+      end
       return
     end
   end
 
   table.insert(list, {
     timestamp = timestamp,
+    addonVersion = addonVersion,
     message = message,
     stack = stack,
     count = 1,
-    senderName = senderName, -- the character/player this error happened to
   })
-  module:UpdateMinimapIcon()
+  if updateMinimapIcon then
+    updateMinimapIcon()
+  elseif Self.UpdateMinimapIcon then
+    Self.UpdateMinimapIcon()
+  end
 
   if module:IsEnabled() then
     module:AttemptReport()
   end
 end
 
---- Merges an error entry received from another player, de-duplicated the same way as `recordError`.
+--- Merges an error entry received from another player, de-duplicated by message.
 ---@param entry table - Serialized remote error entry.
----@param senderName string - Character name used as the de-duplication owner.
+---@param senderName string - Character name (unused in entry).
 ---@return boolean - True if this was a new entry (not just a counter bump on an existing one).
 local function recordReceivedEntry(entry, senderName)
   local list = errorLogTable()
   if not list then return false end
 
   for _, existing in ipairs(list) do
-    if existing.message == entry.message and existing.senderName == senderName then
+    if existing.message == entry.message then
       existing.timestamp = entry.timestamp or existing.timestamp
+      existing.addonVersion = entry.addonVersion or existing.addonVersion or getAddonVersion()
       existing.count = math.max(existing.count or 1, entry.count or 1)
       return false
     end
   end
   table.insert(list, {
     timestamp = entry.timestamp,
+    addonVersion = entry.addonVersion or getAddonVersion(),
     message = entry.message,
     stack = entry.stack,
     count = entry.count or 1,
-    senderName = senderName,
   })
   return true
 end
@@ -708,6 +741,7 @@ end
 --- Ace3 lifecycle entry point that enables configured error logging.
 function module:OnEnable()
   self:RefreshErrorLogging()
+  purgeForeignErrors()
   if updateMinimapIcon then
     updateMinimapIcon()
   elseif Self.UpdateMinimapIcon then
@@ -750,10 +784,8 @@ function module:BuildMarkdown()
     for index, entry in ipairs(list) do
       table.insert(lines, ("#### %d. %s"):format(index, (entry.message or "Unknown error"):gsub("[\r\n].*", "")))
       table.insert(lines, ("- **Occurred**: %s"):format(entry.timestamp or "Unknown"))
+      table.insert(lines, ("- **Addon Version**: %s"):format(entry.addonVersion or getAddonVersion()))
       table.insert(lines, ("- **Count**: %d"):format(entry.count or 1))
-      if entry.senderName then
-        table.insert(lines, ("- **Reporter**: %s"):format(entry.senderName))
-      end
       table.insert(lines, "")
       table.insert(lines, "```text")
       table.insert(lines, entry.message or "")
@@ -843,6 +875,7 @@ end
 
 --- Displays or refreshes the standard Blizzard portrait error-log window.
 function module:ShowWindow()
+  purgeForeignErrors()
   if self.frame then
     self:RefreshMarkdown()
     self.frame:Show()
@@ -1093,6 +1126,7 @@ end
 
 --- Reports captured errors when possible, otherwise opens the local report window.
 function module:ReportErrors()
+  purgeForeignErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
     print("SlackHacks: no errors recorded.")

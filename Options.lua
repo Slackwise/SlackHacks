@@ -4,6 +4,7 @@ setfenv(1, _G.SlackHacks)
 dbDefaults = {
   global = {
     configVersion = CONFIG_VERSION,
+    addonVersion = nil,
     logs = {
       debug = {},
       error = {},
@@ -2670,6 +2671,9 @@ function registerOptions()
   applyWIPOptionsDecoration()
   hideNonRetailOptions()
   migrateConfig()
+  if checkAddonVersionUpdate then
+    checkAddonVersionUpdate()
+  end
   local customConfig = CustomConfigs and CustomConfigs[getBattletag()]
   if customConfig and customConfig.setOptions then
     customConfig.setOptions()
