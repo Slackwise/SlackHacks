@@ -3,6 +3,8 @@ use strict;
 use warnings;
 use utf8;
 use FindBin;
+use Cwd qw(abs_path);
+use File::Spec;
 use Getopt::Long qw(GetOptions);
 
 # ==============================================================================
@@ -13,7 +15,8 @@ use Getopt::Long qw(GetOptions);
 # ==============================================================================
 
 my $script_dir = $FindBin::Bin;
-chdir($script_dir) or die "Cannot change directory to $script_dir: $!\n";
+my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
+chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
 # ------------------------------------------------------------------------------
 # Options

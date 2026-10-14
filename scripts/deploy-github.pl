@@ -20,7 +20,8 @@ use JSON::PP;
 # ==============================================================================
 
 my $script_dir = $FindBin::Bin;
-chdir($script_dir) or die "Cannot change directory to $script_dir: $!\n";
+my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
+chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
@@ -108,7 +109,8 @@ my $zip_path      = File::Spec->catfile("dist", $zip_name);
 
 if (!-f $zip_path) {
     print "Zip archive '$zip_path' not found. Running build.sh first...\n";
-    my $build_status = system("bash", "build.sh");
+    my $build_script = File::Spec->catfile($script_dir, "build.sh");
+    my $build_status = system("bash", $build_script);
     if ($build_status != 0) {
         die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
     }

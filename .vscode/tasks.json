@@ -4,7 +4,7 @@
 		{
 			"label": "Build SlackHacks",
 			"type": "shell",
-			"command": "bash build.sh",
+			"command": "bash scripts/build.sh",
 			"problemMatcher": [],
 			"group": {
 				"kind": "build",
@@ -14,37 +14,37 @@
 		{
 			"label": "Deploy",
 			"type": "shell",
-			"command": "bash deploy.sh",
+			"command": "bash scripts/deploy.sh",
 			"problemMatcher": []
 		},
 		{
 			"label": "Deploy to GitHub",
 			"type": "shell",
-			"command": "perl deploy-github.pl",
+			"command": "perl scripts/deploy-github.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Deploy to CurseForge",
 			"type": "shell",
-			"command": "perl deploy-curseforge.pl",
+			"command": "perl scripts/deploy-curseforge.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Bump Version (Blank Release)",
 			"type": "shell",
-			"command": "perl bump.pl --blank",
+			"command": "perl scripts/bump.pl --blank",
 			"problemMatcher": []
 		},
 		{
 			"label": "Bump Version (Copilot Summary)",
 			"type": "shell",
-			"command": "perl bump.pl",
+			"command": "perl scripts/bump.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Release",
 			"type": "shell",
-			"command": "perl release.pl",
+			"command": "perl scripts/release.pl",
 			"problemMatcher": []
 		}
 	]

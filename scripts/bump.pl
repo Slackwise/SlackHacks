@@ -4,6 +4,7 @@ use warnings;
 use utf8;
 use FindBin;
 use File::Spec;
+use Cwd qw(abs_path);
 use Getopt::Long qw(GetOptions);
 
 # ==============================================================================
@@ -17,7 +18,8 @@ use Getopt::Long qw(GetOptions);
 # ==============================================================================
 
 my $script_dir = $FindBin::Bin;
-chdir($script_dir) or die "Cannot change directory to $script_dir: $!\n";
+my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
+chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
 # Ensure standard Windows tool paths (PowerShell / System32) are in PATH on Windows
 if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
