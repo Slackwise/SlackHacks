@@ -40,6 +40,12 @@
 			"type": "shell",
 			"command": "perl bump.pl",
 			"problemMatcher": []
+		},
+		{
+			"label": "Release",
+			"type": "shell",
+			"command": "perl release.pl",
+			"problemMatcher": []
 		}
 	]
 }
