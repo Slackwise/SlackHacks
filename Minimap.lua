@@ -930,8 +930,10 @@ local TITLE_BAR_CALENDAR_TRACKING_SCALE = 1.05
 local TITLE_BAR_CALENDAR_Y_OFFSET = -1 -- calendar icon/date art sits slightly higher within its frame than other icons
 local TITLE_BAR_TRACKING_Y_OFFSET = 2 -- lifts tracking to vertically align with title bar
 local TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET = 0 -- addon compartment baseline to visually match tracking height
-local TITLE_BAR_CLOCK_Y_OFFSET = -1 -- lowers clock to vertically center in title bar
-local TITLE_BAR_CLOCK_X_OFFSET = 3 -- shifts clock to the right
+local TITLE_BAR_CLOCK_Y_OFFSET = isRetail() and -2 or -1 -- Retail: shifts clock down one additional pixel
+local TITLE_BAR_CLOCK_X_OFFSET = isRetail() and 6 or 3 -- Retail: shifts clock 3 pixels farther right; preserve Forever
+local TITLE_BAR_ZONE_X_OFFSET = isRetail() and -2 or 0 -- Retail: shifts zone text three pixels left from its previous position
+local TITLE_BAR_ZONE_Y_OFFSET = isRetail() and -1 or 0 -- Retail: shifts zone text down one pixel
 local TITLE_BAR_CLOCK_WIDTH_DELTA = -10 -- shorten clock width by 10 pixels
 
 --- Sits in the visual banner area of the square border, hosting the zone text (left) and shrunk
@@ -2397,9 +2399,9 @@ local function layoutTitleBarZoneButton(previous)
   end
 
   zoneButton.slackHacksRealClearAllPoints(zoneButton)
-  zoneButton.slackHacksRealSetPoint(zoneButton, "LEFT", titleBarFrame, "LEFT", 0, 0)
-  zoneButton.slackHacksRealSetPoint(zoneButton, "TOP", titleBarFrame, "TOP", 0, 0)
-  zoneButton.slackHacksRealSetPoint(zoneButton, "BOTTOM", titleBarFrame, "BOTTOM", 0, 0)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "LEFT", titleBarFrame, "LEFT", TITLE_BAR_ZONE_X_OFFSET, 0)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "TOP", titleBarFrame, "TOP", 0, TITLE_BAR_ZONE_Y_OFFSET)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "BOTTOM", titleBarFrame, "BOTTOM", 0, TITLE_BAR_ZONE_Y_OFFSET)
   if previous then
     zoneButton.slackHacksRealSetPoint(zoneButton, "RIGHT", previous, "LEFT", -4, 0)
   else
