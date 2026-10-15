@@ -435,12 +435,11 @@ if (!defined $changelog_text || $changelog_text !~ /\S/) {
 # ------------------------------------------------------------------------------
 # Step 6: Construct Metadata JSON & Upload
 # ------------------------------------------------------------------------------
-my $display_name = "SlackHacks-v$version";
+my $display_name = "SlackHacks v$version";
 my $metadata = {
     changelog     => $changelog_text,
     changelogType => $changelog_type,
     displayName   => $display_name,
-    parentFileID  => JSON::PP::null,
     releaseType   => $release_type,
     gameVersions  => \@game_version_ids,
 };
