@@ -344,13 +344,11 @@ die "Error: Could not extract version from $toc_file\n" unless defined $version 
 my $zip_name = "SlackHacks-v$version.zip";
 my $zip_path = File::Spec->catfile("dist", $zip_name);
 
-if (!-f $zip_path) {
-    print "Zip archive '$zip_path' not found. Running build.sh first...\n";
-    my $build_script = File::Spec->catfile($script_dir, "build.sh");
-    my $build_status = system("bash", $build_script);
-    if ($build_status != 0) {
-        die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
-    }
+print "Building latest addon package...\n";
+my $build_script = File::Spec->catfile($script_dir, "build.sh");
+my $build_status = system("bash", $build_script);
+if ($build_status != 0) {
+    die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
 }
 
 die "Error: Build output '$zip_path' not found after build.\n" unless -f $zip_path;

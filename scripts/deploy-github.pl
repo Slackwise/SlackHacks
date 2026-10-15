@@ -198,13 +198,11 @@ my $release_title = "SlackHacks v$version";
 my $zip_name      = "SlackHacks-v$version.zip";
 my $zip_path      = File::Spec->catfile("dist", $zip_name);
 
-if (!-f $zip_path) {
-    print "Zip archive '$zip_path' not found. Running build.sh first...\n";
-    my $build_script = File::Spec->catfile($script_dir, "build.sh");
-    my $build_status = system("bash", $build_script);
-    if ($build_status != 0) {
-        die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
-    }
+print "Building latest addon package...\n";
+my $build_script = File::Spec->catfile($script_dir, "build.sh");
+my $build_status = system("bash", $build_script);
+if ($build_status != 0) {
+    die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
 }
 
 die "Error: Build output '$zip_path' not found after build.\n" unless -f $zip_path;
@@ -314,19 +312,46 @@ if ($create_resp =~ /HTTP_STATUS:(\d+)/) {
     $create_resp =~ s/\n?HTTP_STATUS:\d+//;
 }
 
-if ($http_status < 200 || $http_status >= 300) {
+if ($http_status == 422 && $create_resp =~ /already_exists/i) {
+    print "Release for tag '$tag_name' already exists on GitHub. Locating existing release...\n";
+    my $tag_url = "https://api.github.com/repos/$github_repo/releases/tags/$tag_name";
+    my $get_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: 2022-11-28" "$tag_url"`;
+    my $existing = eval { $json_codec->decode($get_resp) };
+    if ($existing && $existing->{id}) {
+        $release_id  = $existing->{id};
+        $release_url = $existing->{html_url} || "";
+        print "Found existing release (ID: $release_id): $release_url\n";
+    } else {
+        die "Error: Tag '$tag_name' already exists, but could not retrieve release details.\nResponse: $get_resp\n";
+    }
+} elsif ($http_status < 200 || $http_status >= 300) {
     die "Error: Failed to create GitHub Release (HTTP $http_status).\nResponse: $create_resp\n";
+} else {
+    my $release_data = eval { $json_codec->decode($create_resp) };
+    if (!$release_data || !$release_data->{id}) {
+        die "Error: Could not parse release response from GitHub.\nResponse: $create_resp\n";
+    }
+    $release_id  = $release_data->{id};
+    $release_url = $release_data->{html_url} || "";
+    print "Created release successfully (ID: $release_id): $release_url\n";
 }
 
-my $release_data = eval { $json_codec->decode($create_resp) };
-if (!$release_data || !$release_data->{id}) {
-    die "Error: Could not parse release response from GitHub.\nResponse: $create_resp\n";
+# If asset already exists on this release, remove it first so re-running replaces it
+my $assets_url = "https://api.github.com/repos/$github_repo/releases/$release_id/assets";
+my $assets_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: 2022-11-28" "$assets_url"`;
+my $assets_list = eval { $json_codec->decode($assets_resp) };
+if ($assets_list && ref($assets_list) eq 'ARRAY') {
+    for my $asset (@$assets_list) {
+        if ($asset->{name} eq $zip_name) {
+            print "Asset '$zip_name' already exists on release (ID: $asset->{id}). Replacing...\n";
+            system("curl", "-s", "-X", "DELETE",
+                   "-H", "Accept: application/vnd.github+json",
+                   "-H", "Authorization: Bearer $github_token",
+                   "-H", "X-GitHub-Api-Version: 2022-11-28",
+                   "https://api.github.com/repos/$github_repo/releases/assets/$asset->{id}");
+        }
+    }
 }
-
-my $release_id  = $release_data->{id};
-my $release_url = $release_data->{html_url} || "";
-
-print "Created release successfully (ID: $release_id): $release_url\n";
 
 # ------------------------------------------------------------------------------
 # Step 5: Upload Zip Asset
