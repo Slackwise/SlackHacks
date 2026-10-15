@@ -659,6 +659,7 @@ function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "" then
     openOptions()
+    printSlashHelp()
   elseif command == "help" then
     printSlashHelp()
   elseif command == "debug" then
