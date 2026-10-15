@@ -49,20 +49,32 @@ local function delvesSeasonFactionID()
   return C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason and C_DelvesUI.GetDelvesFactionForSeason()
 end
 
+--- Returns the per-character cache table, replacing it if saved data left a non-table there.
+---@return table cache
+local function charCache()
+  if type(db.char.cache) ~= "table" then db.char.cache = {} end
+  return db.char.cache
+end
+
 --- Returns the last Gilded Stash progress read from the live widget.
 ---@return table|nil info Contains `current`, `max`, and `completed`; nil when nothing has been cached yet.
 local function cachedGildedStashInfo()
-  local remaining = db.char.cache.lastKnownGildedStashesRemaining
-  if remaining == nil then return nil end
+  local cache = charCache()
+  local remaining = cache.lastKnownGildedStashesRemaining
+  if type(remaining) ~= "number" then return nil end
+  local resetAt = cache.lastKnownGildedStashesResetAt
+  if type(resetAt) == "number" and time() >= resetAt then
+    remaining = GILDED_STASH_REQUIRED
+  end
   local current = GILDED_STASH_REQUIRED - remaining
   return { current = current, max = GILDED_STASH_REQUIRED, completed = remaining <= 0 }
 end
 
 --- Reads weekly Gilded Stash progress from the Delver's Journey widget.
---- Falls back to the cached count because Blizzard blanks the widget in delves, raids, and other instances.
+--- Uses the cached count inside any instance, where Blizzard blanks or misreports the widget.
 ---@return table|nil info Contains `current`, `max`, and `completed`; nil when progress cannot be determined.
 local function gildedStashInfo()
-  if C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve() then
+  if IsInInstance() or (C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve()) then
     return cachedGildedStashInfo()
   end
 
@@ -86,7 +98,11 @@ local function gildedStashInfo()
   max = max or GILDED_STASH_REQUIRED
 
   if not current then return cachedGildedStashInfo() end
-  db.char.cache.lastKnownGildedStashesRemaining = max - current
+  local cache = charCache()
+  cache.lastKnownGildedStashesRemaining = max - current
+  if C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset then
+    cache.lastKnownGildedStashesResetAt = time() + C_DateAndTime.GetSecondsUntilWeeklyReset()
+  end
 
   return {
     current = current,
