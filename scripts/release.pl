@@ -100,9 +100,11 @@ if (defined $status_out && $status_out =~ /\S/ && !$dry_run && !$force) {
 }
 
 # ------------------------------------------------------------------------------
-# Step 2: Extract Addon Version from SlackHacks.toc
+# Step 2: Extract Addon Version from TOC
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $addon_name = $ENV{ADDON_NAME} || "SlackHacks";
+my $toc_file   = $ENV{TOC_FILE}   || "$addon_name.toc";
+my $tag_prefix = $ENV{TAG_PREFIX} // "v";
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -119,7 +121,7 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $tag_name = "v$version";
+my $tag_name = "$tag_prefix$version";
 
 # ------------------------------------------------------------------------------
 # Step 3: Check if Tag Already Exists

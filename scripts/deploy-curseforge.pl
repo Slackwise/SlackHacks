@@ -44,10 +44,18 @@ load_dotenv(File::Spec->catfile($repo_root, ".env"));
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
-my $curseforge_project_id   = $ENV{CURSEFORGE_PROJECT_ID} || "1740483";
-my $release_type            = $ENV{RELEASE_TYPE}          || "release";   # release, beta, alpha
-my $changelog_type          = $ENV{CHANGELOG_TYPE}        || "markdown";  # markdown, text, html
-my $changelog_file          = $ENV{CHANGELOG_FILE}        || "";
+my $addon_name                 = $ENV{ADDON_NAME}                 || "SlackHacks";
+my $toc_file                   = $ENV{TOC_FILE}                   || "$addon_name.toc";
+my $dist_dir                   = $ENV{DIST_DIR}                   || "dist";
+my $zip_name                   = $ENV{ZIP_NAME}                   || "$addon_name.zip";
+my $tag_prefix                 = $ENV{TAG_PREFIX}                 // "v";
+my $changelog_dir              = $ENV{CHANGELOG_DIR}              || "changelog";
+my $curseforge_display_name_prefix = $ENV{CURSEFORGE_DISPLAY_NAME_PREFIX} || "$addon_name v";
+
+my $curseforge_project_id      = $ENV{CURSEFORGE_PROJECT_ID}      || "1740483";
+my $release_type               = $ENV{RELEASE_TYPE}               || "release";   # release, beta, alpha
+my $changelog_type             = $ENV{CHANGELOG_TYPE}             || "markdown";  # markdown, text, html
+my $changelog_file             = $ENV{CHANGELOG_FILE}             || "";
 
 # Proton Pass CLI settings
 my $proton_pass_item      = $ENV{PROTON_PASS_ITEM_CURSEFORGE} || $ENV{PROTON_PASS_ITEM} || "CurseForge: SlackHacksDeploy API Token";
@@ -341,8 +349,7 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $zip_name = "SlackHacks.zip";
-my $zip_path = File::Spec->catfile("dist", $zip_name);
+my $zip_path = File::Spec->catfile($dist_dir, $zip_name);
 
 print "Building latest addon package...\n";
 my $build_script = File::Spec->catfile($script_dir, "build.sh");
@@ -404,7 +411,7 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 my $changelog_text = "";
 if ($changelog_file eq "") {
-    my $default_changelog = File::Spec->catfile("changelog", "changelog-v$version.md");
+    my $default_changelog = File::Spec->catfile($changelog_dir, "changelog-$tag_prefix$version.md");
     if (-f $default_changelog) {
         $changelog_file = $default_changelog;
     }
@@ -427,13 +434,13 @@ if ($changelog_file ne "" && -f $changelog_file) {
 }
 
 if (!defined $changelog_text || $changelog_text !~ /\S/) {
-    $changelog_text = "Release SlackHacks v$version";
+    $changelog_text = "Release $curseforge_display_name_prefix$version";
 }
 
 # ------------------------------------------------------------------------------
 # Step 6: Construct Metadata JSON & Upload
 # ------------------------------------------------------------------------------
-my $display_name = "SlackHacks v$version";
+my $display_name = "$curseforge_display_name_prefix$version";
 my $metadata = {
     changelog     => $changelog_text,
     changelogType => $changelog_type,

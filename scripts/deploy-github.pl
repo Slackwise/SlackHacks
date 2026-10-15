@@ -45,6 +45,15 @@ load_dotenv(File::Spec->catfile($repo_root, ".env"));
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
+my $addon_name             = $ENV{ADDON_NAME}             || "SlackHacks";
+my $toc_file               = $ENV{TOC_FILE}               || "$addon_name.toc";
+my $dist_dir               = $ENV{DIST_DIR}               || "dist";
+my $zip_name               = $ENV{ZIP_NAME}               || "$addon_name.zip";
+my $tag_prefix             = $ENV{TAG_PREFIX}             // "v";
+my $changelog_dir          = $ENV{CHANGELOG_DIR}          || "changelog";
+my $release_title_prefix   = $ENV{RELEASE_TITLE_PREFIX}   || "$addon_name v";
+my $github_api_version     = $ENV{GITHUB_API_VERSION}     || "2022-11-28";
+
 my $github_repo            = $ENV{GITHUB_REPO}            || "Slackwise/SlackHacks";
 my $target_commitish       = $ENV{TARGET_COMMITISH}       || "";
 if ($target_commitish eq "") {
@@ -193,10 +202,9 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $tag_name      = "v$version";
-my $release_title = "SlackHacks v$version";
-my $zip_name      = "SlackHacks.zip";
-my $zip_path      = File::Spec->catfile("dist", $zip_name);
+my $tag_name      = "$tag_prefix$version";
+my $release_title = "$release_title_prefix$version";
+my $zip_path      = File::Spec->catfile($dist_dir, $zip_name);
 
 print "Building latest addon package...\n";
 my $build_script = File::Spec->catfile($script_dir, "build.sh");
@@ -227,7 +235,7 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 my $release_body = "";
 if ($changelog_file eq "") {
-    my $default_changelog = File::Spec->catfile("changelog", "changelog-v$version.md");
+    my $default_changelog = File::Spec->catfile($changelog_dir, "changelog-$tag_prefix$version.md");
     if (-f $default_changelog) {
         $changelog_file = $default_changelog;
     }
@@ -297,7 +305,7 @@ my @create_cmd = (
     "-X", "POST",
     "-H", "Accept: application/vnd.github+json",
     "-H", "Authorization: Bearer $github_token",
-    "-H", "X-GitHub-Api-Version: 2022-11-28",
+    "-H", "X-GitHub-Api-Version: $github_api_version",
     "-d", $payload_json,
     $api_url
 );
@@ -315,7 +323,7 @@ if ($create_resp =~ /HTTP_STATUS:(\d+)/) {
 if ($http_status == 422 && $create_resp =~ /already_exists/i) {
     print "Release for tag '$tag_name' already exists on GitHub. Locating existing release...\n";
     my $tag_url = "https://api.github.com/repos/$github_repo/releases/tags/$tag_name";
-    my $get_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: 2022-11-28" "$tag_url"`;
+    my $get_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: $github_api_version" "$tag_url"`;
     my $existing = eval { $json_codec->decode($get_resp) };
     if ($existing && $existing->{id}) {
         $release_id  = $existing->{id};
@@ -338,7 +346,7 @@ if ($http_status == 422 && $create_resp =~ /already_exists/i) {
 
 # If asset already exists on this release, remove it first so re-running replaces it
 my $assets_url = "https://api.github.com/repos/$github_repo/releases/$release_id/assets";
-my $assets_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: 2022-11-28" "$assets_url"`;
+my $assets_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: $github_api_version" "$assets_url"`;
 my $assets_list = eval { $json_codec->decode($assets_resp) };
 if ($assets_list && ref($assets_list) eq 'ARRAY') {
     for my $asset (@$assets_list) {
@@ -347,7 +355,7 @@ if ($assets_list && ref($assets_list) eq 'ARRAY') {
             system("curl", "-s", "-X", "DELETE",
                    "-H", "Accept: application/vnd.github+json",
                    "-H", "Authorization: Bearer $github_token",
-                   "-H", "X-GitHub-Api-Version: 2022-11-28",
+                   "-H", "X-GitHub-Api-Version: $github_api_version",
                    "https://api.github.com/repos/$github_repo/releases/assets/$asset->{id}");
         }
     }
@@ -366,7 +374,7 @@ my @upload_cmd = (
     "-H", "Accept: application/vnd.github+json",
     "-H", "Authorization: Bearer $github_token",
     "-H", "Content-Type: application/zip",
-    "-H", "X-GitHub-Api-Version: 2022-11-28",
+    "-H", "X-GitHub-Api-Version: $github_api_version",
     "--data-binary", "\@$zip_path",
     $upload_url
 );

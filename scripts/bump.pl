@@ -86,9 +86,12 @@ HELP
 }
 
 # ------------------------------------------------------------------------------
-# Step 1: Read and Parse SlackHacks.toc
+# Step 1: Read and Parse TOC
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $addon_name    = $ENV{ADDON_NAME}    || "SlackHacks";
+my $toc_file      = $ENV{TOC_FILE}      || "$addon_name.toc";
+my $changelog_dir = $ENV{CHANGELOG_DIR} || "changelog";
+my $tag_prefix    = $ENV{TAG_PREFIX}    // "v";
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $rfh, "<:encoding(UTF-8)", $toc_file or die "Cannot read $toc_file: $!\n";
@@ -140,12 +143,11 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 # Step 3: Check Changelog Directory and File
 # ------------------------------------------------------------------------------
-my $changelog_dir = "changelog";
 if (!-d $changelog_dir && !$dry_run) {
     mkdir $changelog_dir or die "Cannot create directory '$changelog_dir': $!\n";
 }
 
-my $changelog_filename = "changelog-v${new_version_num}.md";
+my $changelog_filename = "changelog-$tag_prefix${new_version_num}.md";
 my $changelog_path = File::Spec->catfile($changelog_dir, $changelog_filename);
 
 if (-f $changelog_path && !$force) {
@@ -161,7 +163,7 @@ if (-f $changelog_path && $force) {
 # ------------------------------------------------------------------------------
 # Step 4: Gather Git Commits Since Previous Version Tag
 # ------------------------------------------------------------------------------
-my $prev_tag = "v$old_version_num";
+my $prev_tag = "$tag_prefix$old_version_num";
 my $tag_check = `git tag -l "$prev_tag" 2>/dev/null`;
 $tag_check =~ s/^\s+|\s+$//g if defined $tag_check;
 
