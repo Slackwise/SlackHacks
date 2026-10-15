@@ -16,7 +16,8 @@ dbDefaults = {
   },
   char = {
     cache = {
-      lastKnownGildedStashesRemaining = nil
+      lastKnownGildedStashesRemaining = nil,
+      lastKnownGildedStashesResetAt = nil
     }
   },
   profile = {

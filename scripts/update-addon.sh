@@ -186,7 +186,7 @@ done
 
 if [[ -z "$repo_path" ]]; then
   echo "No repo path provided. Re-running the script from the current addon directory..." >&2
-  script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+  script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
   temp_script="$(mktemp "${TMPDIR:-/tmp}/$(basename "$0").XXXXXX")"
   cp "$0" "$temp_script"
   chmod +x "$temp_script"
@@ -207,7 +207,7 @@ assert_git_installed
 invoke_git_wipe "$repo_path"
 invoke_git_pull "$repo_path"
 
-script_name="update-addon.sh"
+script_name="scripts/update-addon.sh"
 pulled_script="$repo_path/$script_name"
 if [[ -f "$pulled_script" ]]; then
   # git doesn't preserve the executable bit reliably across pulls on all platforms.
@@ -221,7 +221,7 @@ if [[ "$rerun" != true && -f "$pulled_script" ]]; then
 
   if [[ "$running_hash" != "$pulled_hash" ]]; then
     echo "A newer version of the updater was found. Re-running with the updated script..." >&2
-    temp_script="$(mktemp "${TMPDIR:-/tmp}/${script_name}.XXXXXX")"
+    temp_script="$(mktemp "${TMPDIR:-/tmp}/update-addon.XXXXXX")"
     cp "$pulled_script" "$temp_script"
     chmod +x "$temp_script"
     "$temp_script" --repo-path "$repo_path" --rerun

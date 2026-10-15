@@ -386,7 +386,7 @@ SELF_VENDOR_MODES = {
   [Enum.SelfVendorMode.VERSATILITY_FLASK] = { key = "versflask", name = "Versatility Flask", description = "Trades one Flask of Thalassian Resistance.", command = "versflask", flaskItemName = "Flask of Thalassian Resistance" },
   [Enum.SelfVendorMode.CONSUMABLES] = { key = "buffs", name = "Missing Consumables", description = "Say 'buffs' or 'consumables' to request missing buff consumables. Oil is always included; the optimal flask and your configured augment rune stack are included only when the target is missing their buffs.", command = "buffs" },
   [Enum.SelfVendorMode.OIL] = { key = "oil", name = "Oil", description = "Say 'oil' or 'oils' to request oil.", command = "oil" },
-  [Enum.SelfVendorMode.AUGMENT_RUNES] = { key = "augmentrunes", name = "Augment Runes", description = "Say 'rune', 'runes', 'augmentrune', or 'augmentrunes' to request your configured stack of augment runes.", command = "augmentrunes" },
+  [Enum.SelfVendorMode.AUGMENT_RUNES] = { key = "augmentrunes", name = "Augment Runes", description = "Say 'rune', 'runes', 'augment rune', 'augment runes', 'augmentrune', or 'augmentrunes' to request your configured stack of augment runes.", command = "augmentrunes" },
   [Enum.SelfVendorMode.AUGMENTS] = { key = "augments", name = "Missing Augments (Enchants, Gems, etc)", description = "Say 'augments' to request missing recommended enchants, gems, and armor kits using the selected source.", command = "augments" },
   [Enum.SelfVendorMode.VANTUS_RUNE] = { key = "vantusrune", name = "Vantus Rune", description = "Say 'vantus', 'vantusrune', 'vantusrunes', 'vantus rune', or 'vantus runes' to request a Vantus Rune, not an Augment Rune.", command = "vantusrune" },
 }

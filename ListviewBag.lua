@@ -925,7 +925,7 @@ local lastNativeBagToggle = 0
 local function toggleListViewFromNativeBagAction()
   if openingDefaultBags then return end
   if not frame or not isModuleEnabled() or not settings().showListviewBag then return end
-  if MerchantFrame and MerchantFrame:IsShown() then
+  if (MerchantFrame and MerchantFrame:IsShown()) or (MailFrame and MailFrame:IsShown()) then
     hideDefaultBags()
     frame:Show()
     return

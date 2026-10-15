@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
 # 1. Git checkout the submodules
 echo "Updating git submodules..."
@@ -69,7 +70,7 @@ find . -type f \( -name "*.lua" -o -name "*.toc" -o -name "*.xml" \) | while IFS
   if is_hidden "$rel"; then
     continue
   fi
-  if [[ "$rel" =~ ^(dist|Libs|Assets)/ ]]; then
+  if [[ "$rel" =~ ^(dist|Libs|Assets|scripts)/ ]]; then
     continue
   fi
   copy_file "$file" "$rel"

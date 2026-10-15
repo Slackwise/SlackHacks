@@ -1,4 +1,4 @@
-$sourceDir    = "$PSScriptRoot" # Resolves to the script's own folder regardless of the caller's working directory, so double-clicking works.
+$sourceDir    = Split-Path -Parent $PSScriptRoot # Resolves to the addon's root folder regardless of the caller's working directory, so double-clicking works.
 
 # Blizzard/Battle.net don't reliably write a WoW "InstallPath" key anymore, so we
 # derive the shared parent folder (which holds _retail_/_classic_era_/etc.) from

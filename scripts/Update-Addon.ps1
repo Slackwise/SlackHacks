@@ -122,14 +122,22 @@ function Get-LatestCommitInfo {
 }
 
 try {
+    $shellPath = (Get-Process -Id $PID).Path
+    if (-not $shellPath) {
+        $shellPath = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+    }
+    if (-not $shellPath) {
+        $shellPath = 'powershell.exe'
+    }
+
     if (-not $PSBoundParameters.ContainsKey('RepoPath')) {
         # Running from inside the repo; git can't overwrite this file while it's executing, so
         # copy ourselves to temp and re-run from there, passing along where the repo actually lives.
         $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) (Split-Path -Path $PSCommandPath -Leaf)
         Copy-Item -Path $PSCommandPath -Destination $tempScript -Force
 
-        $shellPath = (Get-Process -Id $PID).Path
-        & $shellPath -NoProfile -ExecutionPolicy Bypass -File $tempScript -RepoPath $PSScriptRoot
+        $repoRoot = Split-Path -Parent $PSScriptRoot
+        & $shellPath -NoProfile -ExecutionPolicy Bypass -File $tempScript -RepoPath $repoRoot
         exit $LASTEXITCODE
     }
 
@@ -140,7 +148,7 @@ try {
     Invoke-GitPull -Path $RepoPath
 
     $scriptName = Split-Path -Path $PSCommandPath -Leaf
-    $pulledScript = Join-Path -Path $RepoPath -ChildPath $scriptName
+    $pulledScript = Join-Path -Path $RepoPath -ChildPath "scripts\$scriptName"
     if (-not $Rerun -and (Test-Path -Path $pulledScript)) {
         $runningHash = (Get-FileHash -Path $PSCommandPath -Algorithm SHA256).Hash
         $pulledHash = (Get-FileHash -Path $pulledScript -Algorithm SHA256).Hash

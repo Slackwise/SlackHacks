@@ -1,12 +1,14 @@
 @echo off
+pushd "%~dp0.."
 
 rem Check if the icon already exists
 if exist "%USERPROFILE%\Desktop\SlackHacks Update.lnk" (
-    rem If the icon exists, execute "git pull" in the current directory
+    rem If the icon exists, execute "git pull" in the repo root directory
     rem Check if Git is installed
     if not exist "%PATH%\git.exe" (
         echo Git is not installed. Please install git first.
         pause
+        popd
         exit /b
     )
 
@@ -21,3 +23,4 @@ if exist "%USERPROFILE%\Desktop\SlackHacks Update.lnk" (
     mklink /j "%USERPROFILE%\Desktop\SlackHacks Update.lnk" "%~f0"
     start "SlackHacks Update" "%~f0"
 )
+popd

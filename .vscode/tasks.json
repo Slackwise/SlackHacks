@@ -1,15 +1,54 @@
 {
 	"version": "2.0.0",
+	"options": {
+		"envFile": "${workspaceFolder}/.env"
+	},
 	"tasks": [
 		{
 			"label": "Build SlackHacks",
 			"type": "shell",
-			"command": "bash build.sh",
+			"command": "bash scripts/build.sh",
 			"problemMatcher": [],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "Deploy",
+			"type": "shell",
+			"command": "bash scripts/deploy.sh",
+			"problemMatcher": []
+		},
+		{
+			"label": "Deploy to GitHub",
+			"type": "shell",
+			"command": "perl scripts/deploy-github.pl",
+			"problemMatcher": []
+		},
+		{
+			"label": "Deploy to CurseForge",
+			"type": "shell",
+			"command": "perl scripts/deploy-curseforge.pl",
+			"problemMatcher": []
+		},
+		{
+			"label": "Bump Version (Blank Release)",
+			"type": "shell",
+			"command": "perl scripts/bump.pl --blank",
+			"problemMatcher": []
+		},
+		{
+			"label": "Bump Version (Copilot Summary)",
+			"type": "shell",
+			"command": "perl scripts/bump.pl",
+			"problemMatcher": []
+		},
+		{
+			"label": "Release",
+			"type": "shell",
+			"command": "perl scripts/release.pl",
+			"problemMatcher": []
 		}
 	]
 }
