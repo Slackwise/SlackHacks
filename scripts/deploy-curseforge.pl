@@ -40,6 +40,7 @@ sub load_dotenv {
 }
 
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv(File::Spec->catfile($script_dir, "defaults.env"));
 
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)

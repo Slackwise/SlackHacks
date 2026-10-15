@@ -39,6 +39,7 @@ sub load_dotenv {
 }
 
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv(File::Spec->catfile($script_dir, "defaults.env"));
 
 # Ensure standard Windows tool paths (PowerShell / System32) are in PATH on Windows
 if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
