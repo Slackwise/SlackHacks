@@ -1,6 +1,8 @@
 local addonName, addonTable = ...
 setfenv(1, _G.SlackHacks)
 
+local ADDON_DISPLAY_NAME = "SlackHacks v" .. getAddonVersion()
+
 dbDefaults = {
   global = {
     configVersion = CONFIG_VERSION,
@@ -434,7 +436,7 @@ local function openMinimapContextMenu(anchor)
 
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(owner, rootDescription)
-      rootDescription:CreateTitle("SlackHacks")
+      rootDescription:CreateTitle(ADDON_DISPLAY_NAME)
       rootDescription:CreateButton("Options", function()
         openOptions()
       end)
@@ -453,7 +455,7 @@ local function openMinimapContextMenu(anchor)
   end
 
   local menuList = {
-    { text = "SlackHacks", isTitle = true, notCheckable = true },
+    { text = ADDON_DISPLAY_NAME, isTitle = true, notCheckable = true },
     { text = "Options", func = function() openOptions() end, notCheckable = true },
     { text = "Report Bugs", func = function() reportBugs() end, notCheckable = true },
     { text = "Listview Bag", checked = isListviewBagActive, func = toggleListviewBag, isNotRadio = true, keepShownOnClick = true },
@@ -506,7 +508,7 @@ local function initMinimapIcon()
   if not minimapLDBObj then
     minimapLDBObj = ldb:NewDataObject(MINIMAP_ICON_NAME, {
       type = "data source",
-      text = "SlackHacks",
+      text = ADDON_DISPLAY_NAME,
       icon = SLACKHACKS_ICON,
       OnClick = function(clickedButton, mouseButton)
         if mouseButton == "RightButton" then
@@ -525,7 +527,7 @@ local function initMinimapIcon()
         local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
           or (errorLogTable and errorLogTable()) or {}
         local count = #list
-        tooltip:AddLine("SlackHacks", 1, 0.82, 0)
+        tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
         if count > 0 then
           tooltip:AddLine(" ")
           if count == 1 then
@@ -624,7 +626,7 @@ local function getWIPModuleNames()
 end
 
 local function printSlashHelp()
-  print(grey(icon(16)) .. " " .. color("FFD100")("SlackHacks Slash Commands:") .. "")
+  print(grey(icon(16)) .. " " .. color("FFD100")(ADDON_DISPLAY_NAME .. " Slash Commands:") .. "")
   print("  " .. color("FFFFFF")("/slack") .. " - Open the SlackHacks config window")
   print("  " .. color("FFFFFF")("/slack help") .. " - Show this list of slash commands")
   print("  " .. color("FFFFFF")("/slack debug") .. " - Toggle debug mode on/off")
@@ -793,6 +795,7 @@ end
 
 options = {
   type = "group",
+  name = ADDON_DISPLAY_NAME,
   icon = SLACKHACKS_ICON,
   args = {
     enable = {
@@ -2684,4 +2687,3 @@ function registerOptions()
   Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
   updateMinimapIcon()
 end
-
