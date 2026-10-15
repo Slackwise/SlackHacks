@@ -759,7 +759,9 @@ local function applySquareMinimapCluster()
     MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
   end
 
-  -- Snap the square border to MinimapCluster
+  applySquareSelectionBounds()
+
+  -- Keep the square border anchored to MinimapCluster; Edit Mode selection offsets match its bounds.
   local border = createSquareBorder()
   if border then
     border:ClearAllPoints()
@@ -768,9 +770,6 @@ local function applySquareMinimapCluster()
     border:Show()
     border:EnableMouse(false) -- OnShow only refires the hook on hidden->shown transitions, not repeat Show() calls while already shown
   end
-
-  -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
-  applySquareSelectionBounds()
 
   if MinimapCluster.UpdateClampOffsets then
     MinimapCluster:UpdateClampOffsets()
