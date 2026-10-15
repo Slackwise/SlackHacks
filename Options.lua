@@ -652,7 +652,7 @@ function disableWIPModules()
     acr:NotifyChange("SlackHacks")
   end
 
-  print("SlackHacks: disabled all WIP modules (" .. getWIPModuleNames() .. ").")
+    prn("disabled all WIP modules (" .. getWIPModuleNames() .. ").")
 end
 
 function handleSlashCommand(input)
@@ -672,7 +672,7 @@ function handleSlashCommand(input)
   elseif command == "induce-error" then
     Self.Debug:InduceError()
   else
-    print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
+      prn("unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
   end
 end
 
@@ -1590,7 +1590,7 @@ options = {
                 if Self.Debug and Self.Debug.RefreshMarkdown then
                   Self.Debug:RefreshMarkdown()
                 end
-                print("SlackHacks: SlackHacks Error Log cleared")
+                prn("SlackHacks Error Log cleared")
               end,
               confirm = true,
               order = 3
@@ -1622,7 +1622,7 @@ options = {
               type = "execute",
               func = function()
                 clearDebugLogs()
-                print("SlackHacks: debug logs cleared")
+                prn("debug logs cleared")
               end,
               confirm = true,
               order = 2
@@ -1672,7 +1672,7 @@ options = {
               type = "execute",
               func = function()
                 purgeOldLogs()
-                print("SlackHacks: old logs purged")
+                prn("old logs purged")
               end,
               order = 3
             }
@@ -2656,7 +2656,7 @@ options = {
   --   desc = "Mount binding configuration",
   --   func = function()
   --     -- mount()
-  --     print("SlackHacks: mounting...")
+  --     prn("mounting...")
   --   end,
   --   args = {
   --   }

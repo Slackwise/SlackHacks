@@ -74,6 +74,17 @@ function toggleDebugging()
   return Self.db.global.logs.isDebugging
 end
 
+--- Prints a message prefixed by the SlackHacks icon.
+---@param message string - The message to print.
+---@param ... any - Additional arguments forwarded to print.
+function prn(message, ...)
+  if select("#", ...) > 0 then
+    print(icon() .. " " .. tostring(message), ...)
+  else
+    print(icon() .. " " .. tostring(message))
+  end
+end
+
 --- Prints a timestamped debug message and optionally persists it with its varargs.
 ---@param message string - The message to print and store.
 ---@param ... any - Values written as separate argument records while debugging.
@@ -169,7 +180,7 @@ function processLogs(shouldProcess, delay)
       if not success and not isSlackwise() then
         local list = errorLogTable()
         if list and #list > 0 then
-          print(grey(icon(14)) .. " SlackHacks: you have " .. #list .. " un-reported error(s). Use " .. grey("/slack bugs") .. " to view and report them.")
+          prn("you have " .. #list .. " un-reported error(s). Use " .. grey("/slack bugs") .. " to view and report them.")
         end
       end
     end)
@@ -740,11 +751,11 @@ function module:ProcessReceivedPayload(text, via)
   end
 
   if newCount > 0 then
-    print(("SlackHacks: received %d error log %s from %s (via %s)."):format(
+    prn(("received %d error log %s from %s (via %s)."):format(
       newCount, newCount == 1 and "entry" or "entries", senderName, via))
     showToast("SlackHacks Error Received", ("%d new error(s) from %s"):format(newCount, senderName))
     if RaidNotice_AddMessage and RaidWarningFrame then
-      RaidNotice_AddMessage(RaidWarningFrame, "SlackHacks: Error log received from " .. senderName .. "!",
+      RaidNotice_AddMessage(RaidWarningFrame, icon() .. " Error log received from " .. senderName .. "!",
         { r = 1, g = 0.3, b = 0.1 })
     end
   end
@@ -883,7 +894,7 @@ StaticPopupDialogs[CLEAR_ERRORS_CONFIRM_POPUP] = {
     if module.RefreshMarkdown then
       module:RefreshMarkdown()
     end
-    print("SlackHacks: SlackHacks Error Log cleared.")
+    prn("SlackHacks Error Log cleared.")
   end,
   timeout = 0,
   whileDead = true,
@@ -896,7 +907,7 @@ local function promptClearErrors()
   if list and #list > 0 then
     StaticPopup_Show(CLEAR_ERRORS_CONFIRM_POPUP)
   else
-    print("SlackHacks: SlackHacks Error Log is already empty.")
+    prn("SlackHacks Error Log is already empty.")
   end
 end
 
@@ -1201,7 +1212,7 @@ function module:ReportErrors()
   purgeForeignErrors()
   local list = errorLogTable()
   if not list or #list == 0 then
-    print("SlackHacks: no errors recorded.")
+    prn("no errors recorded.")
     promptReportBug()
     return
   end
@@ -1209,7 +1220,7 @@ function module:ReportErrors()
   module:ShowWindow()
   module:AttemptReport(function(success, reason)
     if success then
-      print("SlackHacks: bug logs successfully reported to Slack!")
+      prn("bug logs successfully reported to Slack!")
     end
   end)
 end

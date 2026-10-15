@@ -299,7 +299,7 @@ end
 local function finishTradePopulation(module, added)
   if added == 0 then
     log("Trade population found no items to add")
-    print("SlackHacks: no Self Vendor items found in your bags.")
+    prn("no Self Vendor items found in your bags.")
   else
     log("Added " .. added .. " item entries to the trade window")
   end
@@ -498,7 +498,7 @@ end
 --   "Charname Realmname" for a personal override lookup.
 function module:SendAugsForClassSpec(input)
   if not isSlackwise() then
-    print("SlackHacks: unknown command.")
+    prn("unknown command.")
     return
   end
   local tokens = {}
@@ -516,31 +516,31 @@ function module:SendAugsForClassSpec(input)
       local required = buildRequiredForRecommendation(recommendationData)
       local shortages = missingListForRequired(required)
       if not mailFrameOpen() then
-        print("SlackHacks: open the mail compose window first.")
+        prn("open the mail compose window first.")
         for itemID, quantity in pairs(shortages) do print(shoppingListItem(itemID, quantity)) end
         return
       end
       if next(shortages) then
-        print("SlackHacks: missing items for " .. resolvedOverrideKey .. ":")
+        prn("missing items for " .. resolvedOverrideKey .. ":")
         for itemID, quantity in pairs(shortages) do print(shoppingListItem(itemID, quantity)) end
         return
       end
       local orderedIDs = sortedItemIDs(required)
       for mailIndex, itemID in ipairs(orderedIDs) do
         if mailIndex > 12 or not attachItemToMail(itemID, required[itemID], mailIndex) then
-          print("SlackHacks: failed to attach items for " .. resolvedOverrideKey .. ".")
+          prn("failed to attach items for " .. resolvedOverrideKey .. ".")
           return
         end
       end
-      print("SlackHacks: BIS enchants and gems for " .. resolvedOverrideKey .. " have been added to the letter.")
+      prn("BIS enchants and gems for " .. resolvedOverrideKey .. " have been added to the letter.")
       return
     end
   end
   local classKey, resolvedSpec = parseClassAndSpec(table.concat(tokens, " "))
   if not classKey or not resolvedSpec then
-    print("SlackHacks: unknown class/spec for sendaugs: " .. strtrim(input or ""))
+    prn("unknown class/spec for sendaugs: " .. strtrim(input or ""))
     print("Usage: /slack sendaugs <class> <spec> [wowhead|icyveins|murlok]")
-    if isSlackwise() then print("SlackHacks: personal overrides use /slack sendaugs <character> <realm> [wowhead|icyveins|murlok]") end
+    if isSlackwise() then prn("personal overrides use /slack sendaugs <character> <realm> [wowhead|icyveins|murlok]") end
     return
   end
 
@@ -548,7 +548,7 @@ function module:SendAugsForClassSpec(input)
   local classData = sourceData and sourceData[classKey]
   local specData = classData and classData[resolvedSpec]
   if not specData then
-    print("SlackHacks: no " .. displayEnhancementSource(sourceKey) .. " BIS data found for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
+    prn("no " .. displayEnhancementSource(sourceKey) .. " BIS data found for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
     return
   end
 
@@ -557,24 +557,24 @@ function module:SendAugsForClassSpec(input)
   local shortages = missingListForRequired(required)
 
   if not mailFrameOpen() then
-    print("SlackHacks: open the mail compose window first.")
+    prn("open the mail compose window first.")
     if next(shortages) then
-      print("SlackHacks: buy these items from the auction house for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
+      prn("buy these items from the auction house for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
       for itemID, quantity in pairs(shortages) do
         print(shoppingListItem(itemID, quantity))
       end
     else
-      print("SlackHacks: you already have everything needed for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
+      prn("you already have everything needed for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ".")
     end
     return
   end
 
   if next(shortages) then
-    print("SlackHacks: missing items for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
+    prn("missing items for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. ":")
     for itemID, quantity in pairs(shortages) do
       print(shoppingListItem(itemID, quantity))
     end
-    print("SlackHacks: buy the missing items from the auction house, then reopen the mail compose window.")
+    prn("buy the missing items from the auction house, then reopen the mail compose window.")
     return
   end
 
@@ -585,23 +585,23 @@ function module:SendAugsForClassSpec(input)
     local quantity = required[itemID]
     local bag, slot = findBagItem(itemID, quantity)
     if not bag or not slot then
-      print("SlackHacks: unable to find " .. itemName(itemID) .. " x" .. quantity .. " in your bags.")
+      prn("unable to find " .. itemName(itemID) .. " x" .. quantity .. " in your bags.")
       return
     end
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local stackCount = info and info.stackCount or 0
     if stackCount < quantity then
-      print("SlackHacks: not enough " .. itemName(itemID) .. " in a single stack for mail.")
+      prn("not enough " .. itemName(itemID) .. " in a single stack for mail.")
       return
     end
     if not attachItemToMail(itemID, quantity, mailCount + 1) then
-      print("SlackHacks: failed to attach " .. itemName(itemID) .. " x" .. quantity .. " to the mail.")
+      prn("failed to attach " .. itemName(itemID) .. " x" .. quantity .. " to the mail.")
       return
     end
     mailCount = mailCount + 1
   end
 
-  print("SlackHacks: BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
+  prn("BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
 end
 
 --- Toggle the entire Self Vendor module on/off (persisted setting + Ace3 Enable/Disable).
@@ -654,7 +654,7 @@ function module:ClearQueue()
   self.tradeQueue = {}
   self:RefreshQueueWindow()
   log("Self Vendor queue manually cleared; removed " .. count .. " entries")
-  print("SlackHacks: cleared " .. count .. " player(s) from the Self Vendor queue.")
+  prn("cleared " .. count .. " player(s) from the Self Vendor queue.")
 end
 
 function module:HandleSlash(input)
@@ -668,16 +668,16 @@ function module:HandleSlash(input)
   local mode = modeForCommand(command)
   if mode then
     if not db.profile.selfVendor.enabled then
-      print("SlackHacks: Self Vendor is disabled.")
+      prn("Self Vendor is disabled.")
       return
     end
     local targetName = UnitName("target")
     if not targetName or not senderIsEligible(targetName) then
-      print("SlackHacks: target an eligible group, raid, or guild member first.")
+      prn("target an eligible group, raid, or guild member first.")
       return
     end
     if not modeConfiguration(mode).enabled then
-      print("SlackHacks: " .. SELF_VENDOR_MODES[mode].name .. " is disabled.")
+      prn(SELF_VENDOR_MODES[mode].name .. " is disabled.")
       return
     end
     self:BeginChatTrade(targetName, mode)
@@ -685,7 +685,7 @@ function module:HandleSlash(input)
     print("Usage: /slack vendor [buffs|flask|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins]")
   elseif command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
-    print("SlackHacks Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
+    prn("Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   elseif command == "clearqueue" then
     self:ClearQueue()
   else
@@ -772,7 +772,7 @@ end
 function module:FailPendingTrade(message)
   self:NotifyTradeUnavailable(self.pendingName)
   log("Self Vendor failed: " .. message)
-  if message then print("SlackHacks: " .. message) end
+  if message then prn(message) end
   self.pendingName = nil
   self.pendingUnit = nil
   self.pendingRequired = nil
@@ -825,14 +825,14 @@ function module:BeginChatTrade(sender, mode)
   local label = requestLabel(mode)
   if sameName(self.pendingName, sender) or sameName(self.activeTradeName, sender) then
     removeQueueEntries(self.tradeQueue, sender)
-    print("SlackHacks: " .. sender .. " is already being serviced.")
+    prn(sender .. " is already being serviced.")
     log(tostring(sender) .. " requested again (" .. label .. ") while already being serviced; ignoring duplicate")
     return
   end
   local existingPosition = queuePositionFor(self.tradeQueue, sender)
   if existingPosition then
     SendChatMessage("You're already in the queue at position #" .. existingPosition .. ". Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
-    print("SlackHacks: " .. sender .. " is already in the Self Vendor queue (position #" .. existingPosition .. ").")
+    prn(sender .. " is already in the Self Vendor queue (position #" .. existingPosition .. ").")
     log(tostring(sender) .. " requested again (" .. label .. ") while already queued at position " .. existingPosition)
     return
   end
@@ -842,7 +842,7 @@ function module:BeginChatTrade(sender, mode)
     local currentName = self.activeTradeName or self.pendingName
     local position = #self.tradeQueue
     SendChatMessage("I'm busy servicing " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
-    print("SlackHacks: " .. sender .. " joined the Self Vendor queue requesting " .. label .. " (" .. position .. " in queue).")
+    prn(sender .. " joined the Self Vendor queue requesting " .. label .. " (" .. position .. " in queue).")
     log("Added " .. sender .. " to the Self Vendor queue requesting " .. label .. "; queue size=" .. position)
     return
   end
@@ -966,20 +966,20 @@ function module:FinishClosedTrade()
   self.tradeCanceled = nil
   self.tradeClosing = nil
   if successful then
-    print("SlackHacks: finished servicing " .. servicedName .. " (" .. servicedLabel .. ").")
+    prn("finished servicing " .. servicedName .. " (" .. servicedLabel .. ").")
     log("Finished servicing " .. servicedName .. " (" .. servicedLabel .. ")")
   else
-    print("SlackHacks: trade with " .. servicedName .. " (" .. servicedLabel .. ") did not complete.")
+    prn("trade with " .. servicedName .. " (" .. servicedLabel .. ") did not complete.")
     log("Trade with " .. servicedName .. " did not complete; moving to next queued player")
   end
   -- Whether the trade succeeded or not, the rest of the queue is unaffected and should keep moving.
   self:StartNextQueuedTrade()
   local remaining = self.tradeQueue and #self.tradeQueue or 0
   if remaining > 0 then
-    print("SlackHacks: " .. remaining .. " still in the Self Vendor queue.")
+    prn(remaining .. " still in the Self Vendor queue.")
     log("Self Vendor queue has " .. remaining .. " remaining")
   else
-    print("SlackHacks: Self Vendor queue is cleared.")
+    prn("Self Vendor queue is cleared.")
     log("Self Vendor queue cleared")
   end
 end
@@ -1102,7 +1102,7 @@ function module:CheckAndInitiateTrade()
   log("Checking inventory for pending player " .. self.pendingName)
   local required, sourceKey = self:GetRequiredItems()
   if not required then
-    print("SlackHacks: no " .. displayEnhancementSource(sourceKey or db.profile.selfVendor.source) .. " BIS data found for your current class/spec.")
+    prn("no " .. displayEnhancementSource(sourceKey or db.profile.selfVendor.source) .. " BIS data found for your current class/spec.")
     log("No BIS data found for pending player " .. self.pendingName .. "; clearing pending trade")
     self.pendingName = nil
     self.pendingUnit = nil
@@ -1237,7 +1237,7 @@ function module:OpenPendingTrade()
     end
     if tradeSlot > maxTradeSlots then
       self.pendingTradeIndex = itemIndex
-      print("SlackHacks: trade again to continue with the remaining Self Vendor items.")
+      prn("trade again to continue with the remaining Self Vendor items.")
       log("Trade window reached its six-slot limit; waiting for another trade")
       return
     end
@@ -1360,7 +1360,7 @@ function module:RemoveFromQueue(name)
   if not self.tradeQueue or not queuePositionFor(self.tradeQueue, name) then return end
   removeQueueEntries(self.tradeQueue, name)
   SendChatMessage("You've been removed from the Self Vendor queue.", "WHISPER", nil, name)
-  print("SlackHacks: removed " .. name .. " from the Self Vendor queue.")
+  prn("removed " .. name .. " from the Self Vendor queue.")
   log("Manually removed " .. name .. " from the Self Vendor queue via the queue window")
   self:RefreshQueueWindow()
 end
