@@ -41,7 +41,7 @@ load_dotenv(File::Spec->catfile($repo_root, ".env"));
 # Options
 # ------------------------------------------------------------------------------
 my $dry_run       = 0;
-my $push          = 0;
+my $push          = (!defined $ENV{RELEASE_PUSH} || $ENV{RELEASE_PUSH} !~ /^(0|false|no)$/i) ? 1 : 0;
 my $force         = 0;
 my $source_branch = "";
 my $target_branch = $ENV{TARGET_COMMITISH} || "prod";
@@ -49,12 +49,12 @@ my $help          = 0;
 
 GetOptions(
     'dry-run|n'   => \$dry_run,
-    'push|p'      => \$push,
+    'push!'       => \$push,
     'force|f'     => \$force,
     'source=s'    => \$source_branch,
     'target=s'    => \$target_branch,
     'help|h'      => \$help,
-) or die "Usage: $0 [--dry-run] [--push] [--force] [--source <branch>] [--target <branch>]\n";
+) or die "Usage: $0 [--dry-run] [--no-push] [--force] [--source <branch>] [--target <branch>]\n";
 
 if ($help) {
     print <<"HELP";
@@ -64,7 +64,8 @@ Merges the working branch into 'prod' and applies a version tag (e.g. 'v5').
 
 Options:
   -n, --dry-run        Show commands that would be executed without running them
-  -p, --push           Push target branch and new tag to origin after merge
+      --push           Push branches and new tag to origin after merge (default: true)
+      --no-push        Skip pushing to origin
   -f, --force          Force tag creation if tag already exists
       --source <name>  Source branch to merge from (default: current branch)
       --target <name>  Target production branch (default: prod)
@@ -178,10 +179,11 @@ push @tag_cmd, "-f" if $force;
 run_cmd(@tag_cmd);
 
 # ------------------------------------------------------------------------------
-# Step 7: Push if Requested
+# Step 7: Push Branches and Tag
 # ------------------------------------------------------------------------------
 if ($push) {
-    print "Pushing '$target_branch' and tag '$tag_name' to origin...\n";
+    print "\nPushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
+    run_cmd("git", "push", "origin", $source_branch);
     run_cmd("git", "push", "origin", $target_branch, $tag_name);
 }
 
@@ -192,6 +194,8 @@ print "Returning to branch '$source_branch'...\n";
 run_cmd("git", "checkout", $source_branch);
 
 print "\nRelease complete! Successfully merged '$source_branch' into '$target_branch' and tagged '$tag_name'.\n";
-if (!$push) {
-    print "Tip: Run 'git push origin $target_branch $tag_name' when you're ready to publish upstream.\n";
+if ($push) {
+    print "Pushed '$source_branch', '$target_branch', and '$tag_name' to origin successfully.\n";
+} else {
+    print "Tip: Run 'git push origin $source_branch && git push origin $target_branch $tag_name' when you're ready to publish upstream.\n";
 }
