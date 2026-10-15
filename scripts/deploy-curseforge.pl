@@ -363,14 +363,16 @@ die "Error: Could not extract version from $toc_file\n" unless defined $version 
 
 my $zip_path = File::Spec->catfile($dist_dir, $zip_name);
 
-print "Building latest addon package...\n";
-my $build_script = File::Spec->catfile($script_dir, "build.sh");
-my $build_status = system("bash", $build_script);
-if ($build_status != 0) {
-    die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
+unless (-f $zip_path) {
+    print "Release archive not found. Building addon package...\n";
+    my $build_script = File::Spec->catfile($script_dir, "build.sh");
+    my $build_status = system("bash", $build_script);
+    if ($build_status != 0) {
+        die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
+    }
 }
 
-die "Error: Build output '$zip_path' not found after build.\n" unless -f $zip_path;
+die "Error: Build output '$zip_path' not found.\n" unless -f $zip_path;
 print "Found release archive: $zip_path\n";
 
 # ------------------------------------------------------------------------------
