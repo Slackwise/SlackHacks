@@ -193,7 +193,6 @@ sub fetch_secret_from_proton_pass {
 # ------------------------------------------------------------------------------
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
-my $toc_file = require_config("TOC_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -324,6 +323,7 @@ my $create_resp = do { local $/; <$create_pipe> };
 close $create_pipe;
 
 my $http_status = 0;
+my ($release_id, $release_url);
 if ($create_resp =~ /HTTP_STATUS:(\d+)/) {
     $http_status = int($1);
     $create_resp =~ s/\n?HTTP_STATUS:\d+//;
