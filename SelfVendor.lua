@@ -87,25 +87,37 @@ local chatRequestModes = {
 local SELF_VENDOR_ALLOWED_WORDS = { "and", "give", "need", "please" }
 
 function module:ParseChatRequest(message)
-  if type(message) ~= "string" or not db.profile.selfVendor.enabled then return end
+  if type(message) ~= "string" then return nil, "message is not text" end
+  if not db.profile.selfVendor.enabled then return nil, "Self Vendor is disabled" end
   local settings = db.profile.selfVendor
   local prefix = settings.chatPrefix
   if not prefix or prefix == "" then prefix = "!" end
   local hasPrefix = message:sub(1, #prefix) == prefix
-  if settings.requirePrefix and not hasPrefix then return end
+  if settings.requirePrefix and not hasPrefix then return nil, "required prefix is missing" end
   if hasPrefix then message = message:sub(#prefix + 1) end
-  local requested, previousWord = {}, nil
+  local words = {}
   for word in message:lower():gmatch("%w+") do
+    words[#words + 1] = word
+  end
+  local requested = {}
+  local wordIndex = 1
+  while wordIndex <= #words do
+    local word = words[wordIndex]
+    local nextWord = words[wordIndex + 1]
     local mode = chatRequestModes[word]
-    if not mode and not tContains(SELF_VENDOR_ALLOWED_WORDS, word) then return end
-    if (word == "rune" or word == "runes") and previousWord == "vantus" then
-      mode = VendorMode.VANTUS_RUNE
+    if (word == "vantus" or word == "augment") and (nextWord == "rune" or nextWord == "runes") then
+      mode = word == "vantus" and VendorMode.VANTUS_RUNE or VendorMode.AUGMENT_RUNES
+      wordIndex = wordIndex + 1
+    end
+    if not mode and not tContains(SELF_VENDOR_ALLOWED_WORDS, word) then
+      return nil, "unrecognized word: " .. word
     end
     local configuration = mode and modeConfiguration(mode)
     if configuration and configuration.enabled then requested[mode] = true end
-    previousWord = word
+    wordIndex = wordIndex + 1
   end
   if next(requested) then return requested end
+  return nil, "no enabled item triggers matched"
 end
 
 --- Look up an item's numeric ID by its display name.
@@ -837,10 +849,20 @@ function module:BeginChatTrade(sender, mode)
   self:StartNextQueuedTrade()
 end
 
-function module:CHAT_MSG_GROUP(_, message, sender)
-  if not sender or sameName(sender, UnitName("player")) or not groupUnitFor(sender) then return end
-  local request = self:ParseChatRequest(message)
-  if request then self:BeginChatTrade(sender, request) end
+function module:CHAT_MSG_GROUP(event, message, sender)
+  if not sender then return end
+  if sameName(sender, UnitName("player")) then return end
+  if not groupUnitFor(sender) then
+    log("Self Vendor ignored " .. event .. " from " .. sender .. ": sender is not in the group")
+    return
+  end
+  local request, reason = self:ParseChatRequest(message)
+  if request then
+    log("Self Vendor accepted " .. event .. " from " .. sender .. ": " .. requestLabel(request))
+    self:BeginChatTrade(sender, request)
+  else
+    log("Self Vendor ignored " .. event .. " from " .. sender .. ": " .. reason)
+  end
 end
 
 function module:INSPECT_READY(_, guid)
