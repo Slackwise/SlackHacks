@@ -49,23 +49,28 @@ local function delvesSeasonFactionID()
   return C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason and C_DelvesUI.GetDelvesFactionForSeason()
 end
 
+--- Returns the last Gilded Stash progress read from the live widget.
+---@return table|nil info Contains `current`, `max`, and `completed`; nil when nothing has been cached yet.
+local function cachedGildedStashInfo()
+  local remaining = db.char.cache.lastKnownGildedStashesRemaining
+  if remaining == nil then return nil end
+  local current = GILDED_STASH_REQUIRED - remaining
+  return { current = current, max = GILDED_STASH_REQUIRED, completed = remaining <= 0 }
+end
+
 --- Reads weekly Gilded Stash progress from the Delver's Journey widget.
---- Caches remaining stashes because Blizzard blanks the widget while the player is inside a Delve.
+--- Falls back to the cached count because Blizzard blanks the widget in delves, raids, and other instances.
 ---@return table|nil info Contains `current`, `max`, and `completed`; nil when progress cannot be determined.
 local function gildedStashInfo()
   if C_DelvesUI and C_DelvesUI.HasActiveDelve and C_DelvesUI.HasActiveDelve() then
-    -- The widget goes blank while inside a delve, so fall back to the last value we saw outside one.
-    local remaining = db.char.cache.lastKnownGildedStashesRemaining
-    if remaining == nil then return nil end
-    local current = GILDED_STASH_REQUIRED - remaining
-    return { current = current, max = GILDED_STASH_REQUIRED, completed = remaining <= 0 }
+    return cachedGildedStashInfo()
   end
 
-  if not C_UIWidgetManager or not C_UIWidgetManager.GetSpellDisplayVisualizationInfo then return nil end
+  if not C_UIWidgetManager or not C_UIWidgetManager.GetSpellDisplayVisualizationInfo then return cachedGildedStashInfo() end
   local ok, widgetInfo = pcall(C_UIWidgetManager.GetSpellDisplayVisualizationInfo, GILDED_STASH_WIDGET_ID)
-  if not ok or not widgetInfo or not widgetInfo.spellInfo then return nil end
+  if not ok or not widgetInfo or not widgetInfo.spellInfo then return cachedGildedStashInfo() end
   local tooltip = widgetInfo.spellInfo.tooltip
-  if type(tooltip) ~= "string" or tooltip == "" then return nil end
+  if type(tooltip) ~= "string" or tooltip == "" then return cachedGildedStashInfo() end
 
   -- Prefer the number pair matching the known weekly cap, in case the tooltip mentions other counts too.
   local current, max
@@ -80,9 +85,8 @@ local function gildedStashInfo()
   end
   max = max or GILDED_STASH_REQUIRED
 
-  if current then
-    db.char.cache.lastKnownGildedStashesRemaining = max - current
-  end
+  if not current then return cachedGildedStashInfo() end
+  db.char.cache.lastKnownGildedStashesRemaining = max - current
 
   return {
     current = current,
