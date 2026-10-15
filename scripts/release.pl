@@ -181,7 +181,8 @@ run_cmd(@tag_cmd);
 # Step 7: Push if Requested
 # ------------------------------------------------------------------------------
 if ($push) {
-    print "Pushing '$target_branch' and tag '$tag_name' to origin...\n";
+    print "Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
+    run_cmd("git", "push", "origin", $source_branch);
     run_cmd("git", "push", "origin", $target_branch, $tag_name);
 }
 
