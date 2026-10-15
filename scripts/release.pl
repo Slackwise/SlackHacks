@@ -22,7 +22,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -35,7 +36,10 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv($defaults_file);
 
 # ------------------------------------------------------------------------------
 # Options
@@ -44,7 +48,14 @@ my $dry_run       = 0;
 my $push          = (!defined $ENV{RELEASE_PUSH} || $ENV{RELEASE_PUSH} !~ /^(0|false|no)$/i) ? 1 : 0;
 my $force         = 0;
 my $source_branch = "";
-my $target_branch = $ENV{TARGET_COMMITISH} || "prod";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
+}
+
+my $target_branch = require_config("TARGET_COMMITISH");
 my $help          = 0;
 
 GetOptions(
@@ -60,7 +71,7 @@ if ($help) {
     print <<"HELP";
 Usage: perl release.pl [OPTIONS]
 
-Merges the working branch into 'prod' and applies a version tag (e.g. 'v5').
+Merges the working branch into the configured target branch and applies a version tag.
 
 Options:
   -n, --dry-run        Show commands that would be executed without running them
@@ -68,7 +79,7 @@ Options:
       --no-push        Skip pushing to origin
   -f, --force          Force tag creation if tag already exists
       --source <name>  Source branch to merge from (default: current branch)
-      --target <name>  Target production branch (default: prod)
+      --target <name>  Target production branch (default: TARGET_COMMITISH in scripts/defaults.env)
   -h, --help           Show this help message
 
 HELP
@@ -101,9 +112,11 @@ if (defined $status_out && $status_out =~ /\S/ && !$dry_run && !$force) {
 }
 
 # ------------------------------------------------------------------------------
-# Step 2: Extract Addon Version from SlackHacks.toc
+# Step 2: Extract Addon Version from TOC
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $addon_name = require_config("ADDON_NAME");
+my $toc_file   = require_config("TOC_FILE");
+my $tag_prefix = require_config("TAG_PREFIX");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -120,7 +133,7 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $tag_name = "v$version";
+my $tag_name = "$tag_prefix$version";
 
 # ------------------------------------------------------------------------------
 # Step 3: Check if Tag Already Exists
@@ -182,7 +195,7 @@ run_cmd(@tag_cmd);
 # Step 7: Push Branches and Tag
 # ------------------------------------------------------------------------------
 if ($push) {
-    print "\nPushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
+    print "Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
     run_cmd("git", "push", "origin", $source_branch);
     run_cmd("git", "push", "origin", $target_branch, $tag_name);
 }

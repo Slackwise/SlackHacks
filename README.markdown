@@ -23,6 +23,22 @@ I get *why* we're all using Copilot today: Blizzard has documented nothing and i
 
 Anything that isn't slop generated that fits with the philosophy of the addon.
 
+## Build and release configuration
+
+Shared, non-secret build and release defaults live in
+[`scripts/defaults.env`](./scripts/defaults.env), so a fresh clone can build
+without any local configuration. For local overrides and credentials, create an
+ignored `.env` in the repository root by copying
+[`.env.example`](./.env.example) and replacing the placeholder values with each
+developer's own deployment tokens. For example, run `cp .env.example .env` from
+the repository root in Bash.
+
+Do not commit `.env` or put API tokens in `scripts/defaults.env`. The deployment
+scripts also support Proton Pass; set the appropriate `PROTON_PASS_ITEM_*`
+values in `.env` if your item names differ from the defaults. Environment
+variables already set by the shell or CI/CD environment take precedence over
+both files, so CI can inject its own configuration and secrets.
+
 ## Contact
 
 Here, on GitHub. Post an issue.

@@ -27,7 +27,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -40,33 +41,102 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv($defaults_file);
 
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
-my $github_repo            = $ENV{GITHUB_REPO}            || "Slackwise/SlackHacks";
-my $target_commitish       = $ENV{TARGET_COMMITISH}       || "";
-if ($target_commitish eq "") {
-    my $has_prod = `git rev-parse --verify prod 2>/dev/null`;
-    $target_commitish = ($? == 0 && defined $has_prod && $has_prod =~ /\S/) ? "prod" : "main";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
 }
 
-my $is_draft               = ($ENV{IS_DRAFT} && $ENV{IS_DRAFT} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-my $is_prerelease          = ($ENV{IS_PRERELEASE} && $ENV{IS_PRERELEASE} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-my $changelog_file         = $ENV{CHANGELOG_FILE}         || "";
+my $addon_name             = require_config("ADDON_NAME");
+my $toc_file               = require_config("TOC_FILE");
+my $dist_dir               = require_config("DIST_DIR");
+my $zip_name               = require_config("ZIP_NAME");
+my $tag_prefix             = require_config("TAG_PREFIX");
+my $changelog_dir          = require_config("CHANGELOG_DIR");
+my $release_title_prefix   = require_config("RELEASE_TITLE_PREFIX");
+my $github_api_version     = require_config("GITHUB_API_VERSION");
+
+my $github_repo            = require_config("GITHUB_REPO");
+my $target_commitish       = require_config("TARGET_COMMITISH");
+
+my $is_draft               = (require_config("IS_DRAFT") =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
+my $is_prerelease          = (require_config("IS_PRERELEASE") =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
+my $changelog_file         = defined $ENV{CHANGELOG_FILE} ? $ENV{CHANGELOG_FILE}
+    : die "Error: Required setting CHANGELOG_FILE is missing. Check scripts/defaults.env.\n";
 
 # Proton Pass CLI settings
-my $proton_pass_item       = $ENV{PROTON_PASS_ITEM_GITHUB} || $ENV{PROTON_PASS_ITEM} || "GitHub: SlackHacksDeploy API Token";
-my $proton_pass_vault      = $ENV{PROTON_PASS_VAULT}       || "Personal";
-my $proton_pass_attribute  = $ENV{PROTON_PASS_ATTRIBUTE}   || "Secret";
-my $proton_pass_cli_bin    = $ENV{PROTON_PASS_CLI_BIN}     || "pass-cli";
+my $proton_pass_item       = require_config("PROTON_PASS_ITEM_GITHUB");
+my $proton_pass_vault      = require_config("PROTON_PASS_VAULT");
+my $proton_pass_attribute  = require_config("PROTON_PASS_ATTRIBUTE");
+my $proton_pass_cli_bin    = require_config("PROTON_PASS_CLI_BIN");
 
 # Dry run flag: --dry-run
 my $dry_run = 0;
 for my $arg (@ARGV) {
     if ($arg eq '--dry-run' || $arg eq '-n') {
         $dry_run = 1;
+    }
+}
+
+# ------------------------------------------------------------------------------
+# Helpers: Browser Launch & Proton Pass Login
+# ------------------------------------------------------------------------------
+sub open_url_in_browser {
+    my ($url) = @_;
+    if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
+        if (-x '/usr/bin/start') {
+            system('/usr/bin/start', $url);
+        } elsif (-x '/c/Windows/explorer.exe') {
+            system('/c/Windows/explorer.exe', $url);
+        } else {
+            system('start', $url);
+        }
+    } elsif ($^O eq 'darwin') {
+        system('open', $url);
+    } else {
+        system('xdg-open', $url);
+    }
+}
+
+sub run_pass_cli_login {
+    my ($bin) = @_;
+    print "\nStarting Proton Pass login...\n";
+
+    open my $pipe, "-|", $bin, "login" or do {
+        warn "Failed to execute '$bin login': $!\n";
+        return 0;
+    };
+
+    my $browser_opened = 0;
+    while (my $line = <$pipe>) {
+        print $line;
+        if (!$browser_opened && $line =~ m{(https://account\.proton\.me\S+)}) {
+            my $url = $1;
+            print "\n[Opening your browser automatically to complete authentication...]\n";
+            open_url_in_browser($url);
+            $browser_opened = 1;
+        }
+    }
+    close $pipe;
+    return ($? == 0);
+}
+
+sub clean_stale_proton_pass_session {
+    my $appdata = $ENV{APPDATA} || '';
+    if ($appdata ne '') {
+        my $stale_file = File::Spec->catfile($appdata, "proton-pass-cli", ".session", "session.json");
+        if (-f $stale_file) {
+            unlink $stale_file;
+        }
     }
 }
 
@@ -81,40 +151,49 @@ sub fetch_secret_from_proton_pass {
     }
 
     my @cmd = ($proton_pass_cli_bin, "item", "view", "--item-title", $item, "--field", $attr);
-    if ($vault ne "") {
-        push @cmd, "--vault-name", $vault;
-    }
+    push @cmd, "--vault-name", $vault if $vault ne "";
 
-    open my $pipe, "-|", @cmd or do {
-        warn "Error: Failed to execute '$proton_pass_cli_bin': $!\n";
-        warn "Please ensure the Proton Pass CLI is installed in PATH, or set GITHUB_TOKEN.\n";
-        return undef;
+    my $run_query = sub {
+        my $cmd_str = join(" ", map { /\s/ ? qq{"$_"} : $_ } @cmd);
+        my $output = `$cmd_str 2>&1`;
+        my $status = $? >> 8;
+        return ($status, $output);
     };
-    my $secret = do { local $/; <$pipe> };
-    close $pipe;
 
-    if (defined $secret) {
-        $secret =~ s/^\s+|\s+$//g;
-        # If pass-cli prints a label such as "Secret: <token>", extract the token
-        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
-            $secret = $1;
-            $secret =~ s/^\s+|\s+$//g;
+    my ($status, $output) = $run_query->();
+
+    # Check for stale corrupted session in Windows file lock state
+    if ($status != 0 && $output =~ /Session is some but is not logged in|Error deleting base dir/i) {
+        print "Detected stale Proton Pass session file. Cleaning up...\n";
+        clean_stale_proton_pass_session();
+        ($status, $output) = $run_query->();
+    }
+
+    # If unauthenticated, locked, or no session, trigger browser login
+    if ($status != 0 && $output =~ /no session|requires an authenticated client|lock|not logged in/i) {
+        print "Proton Pass session is unauthenticated or expired.\n";
+        run_pass_cli_login($proton_pass_cli_bin);
+        ($status, $output) = $run_query->();
+    }
+
+    if ($status == 0 && defined $output) {
+        $output =~ s/^\s+|\s+$//g;
+        if ($output =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $output = $1;
+            $output =~ s/^\s+|\s+$//g;
         }
+        return $output if $output ne "";
     }
 
-    if (!defined $secret || $secret eq "") {
-        warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
-        warn "Please ensure you are logged in ('pass-cli login') and the item/field exists.\n";
-        return undef;
-    }
-
-    return $secret;
+    warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
+    warn "Output: $output\n" if defined $output && $output =~ /\S/;
+    return undef;
 }
 
 # ------------------------------------------------------------------------------
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $toc_file = require_config("TOC_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -131,18 +210,15 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $tag_name      = "v$version";
-my $release_title = "SlackHacks v$version";
-my $zip_name      = "SlackHacks-v$version.zip";
-my $zip_path      = File::Spec->catfile("dist", $zip_name);
+my $tag_name      = "$tag_prefix$version";
+my $release_title = "$release_title_prefix$version";
+my $zip_path      = File::Spec->catfile($dist_dir, $zip_name);
 
-if (!-f $zip_path) {
-    print "Zip archive '$zip_path' not found. Running build.sh first...\n";
-    my $build_script = File::Spec->catfile($script_dir, "build.sh");
-    my $build_status = system("bash", $build_script);
-    if ($build_status != 0) {
-        die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
-    }
+print "Building latest addon package...\n";
+my $build_script = File::Spec->catfile($script_dir, "build.sh");
+my $build_status = system("bash", $build_script);
+if ($build_status != 0) {
+    die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
 }
 
 die "Error: Build output '$zip_path' not found after build.\n" unless -f $zip_path;
@@ -158,7 +234,8 @@ if ($dry_run) {
 } else {
     print "Fetching GitHub Token from Proton Pass...\n";
     $github_token = fetch_secret_from_proton_pass($proton_pass_item, $proton_pass_vault, $proton_pass_attribute);
-    die "Failed to retrieve GitHub Token.\n" unless defined $github_token;
+    die "Error: Failed to retrieve GitHub API token. Set GITHUB_TOKEN or check PROTON_PASS_ITEM_GITHUB in scripts/defaults.env and your Proton Pass item.\n"
+        unless defined $github_token;
     print "Successfully retrieved GitHub Token.\n";
 }
 
@@ -167,7 +244,7 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 my $release_body = "";
 if ($changelog_file eq "") {
-    my $default_changelog = File::Spec->catfile("changelog", "changelog-v$version.md");
+    my $default_changelog = File::Spec->catfile($changelog_dir, "changelog-$tag_prefix$version.md");
     if (-f $default_changelog) {
         $changelog_file = $default_changelog;
     }
@@ -237,7 +314,7 @@ my @create_cmd = (
     "-X", "POST",
     "-H", "Accept: application/vnd.github+json",
     "-H", "Authorization: Bearer $github_token",
-    "-H", "X-GitHub-Api-Version: 2022-11-28",
+    "-H", "X-GitHub-Api-Version: $github_api_version",
     "-d", $payload_json,
     $api_url
 );
@@ -252,19 +329,46 @@ if ($create_resp =~ /HTTP_STATUS:(\d+)/) {
     $create_resp =~ s/\n?HTTP_STATUS:\d+//;
 }
 
-if ($http_status < 200 || $http_status >= 300) {
+if ($http_status == 422 && $create_resp =~ /already_exists/i) {
+    print "Release for tag '$tag_name' already exists on GitHub. Locating existing release...\n";
+    my $tag_url = "https://api.github.com/repos/$github_repo/releases/tags/$tag_name";
+    my $get_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: $github_api_version" "$tag_url"`;
+    my $existing = eval { $json_codec->decode($get_resp) };
+    if ($existing && $existing->{id}) {
+        $release_id  = $existing->{id};
+        $release_url = $existing->{html_url} || "";
+        print "Found existing release (ID: $release_id): $release_url\n";
+    } else {
+        die "Error: Tag '$tag_name' already exists, but could not retrieve release details.\nResponse: $get_resp\n";
+    }
+} elsif ($http_status < 200 || $http_status >= 300) {
     die "Error: Failed to create GitHub Release (HTTP $http_status).\nResponse: $create_resp\n";
+} else {
+    my $release_data = eval { $json_codec->decode($create_resp) };
+    if (!$release_data || !$release_data->{id}) {
+        die "Error: Could not parse release response from GitHub.\nResponse: $create_resp\n";
+    }
+    $release_id  = $release_data->{id};
+    $release_url = $release_data->{html_url} || "";
+    print "Created release successfully (ID: $release_id): $release_url\n";
 }
 
-my $release_data = eval { $json_codec->decode($create_resp) };
-if (!$release_data || !$release_data->{id}) {
-    die "Error: Could not parse release response from GitHub.\nResponse: $create_resp\n";
+# If asset already exists on this release, remove it first so re-running replaces it
+my $assets_url = "https://api.github.com/repos/$github_repo/releases/$release_id/assets";
+my $assets_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: $github_api_version" "$assets_url"`;
+my $assets_list = eval { $json_codec->decode($assets_resp) };
+if ($assets_list && ref($assets_list) eq 'ARRAY') {
+    for my $asset (@$assets_list) {
+        if ($asset->{name} eq $zip_name) {
+            print "Asset '$zip_name' already exists on release (ID: $asset->{id}). Replacing...\n";
+            system("curl", "-s", "-X", "DELETE",
+                   "-H", "Accept: application/vnd.github+json",
+                   "-H", "Authorization: Bearer $github_token",
+                   "-H", "X-GitHub-Api-Version: $github_api_version",
+                   "https://api.github.com/repos/$github_repo/releases/assets/$asset->{id}");
+        }
+    }
 }
-
-my $release_id  = $release_data->{id};
-my $release_url = $release_data->{html_url} || "";
-
-print "Created release successfully (ID: $release_id): $release_url\n";
 
 # ------------------------------------------------------------------------------
 # Step 5: Upload Zip Asset
@@ -279,7 +383,7 @@ my @upload_cmd = (
     "-H", "Accept: application/vnd.github+json",
     "-H", "Authorization: Bearer $github_token",
     "-H", "Content-Type: application/zip",
-    "-H", "X-GitHub-Api-Version: 2022-11-28",
+    "-H", "X-GitHub-Api-Version: $github_api_version",
     "--data-binary", "\@$zip_path",
     $upload_url
 );
