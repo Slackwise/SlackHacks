@@ -31,7 +31,7 @@ fi
 FOLDER_NAME="SlackHacks"
 DIST_DIR="dist"
 TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
-ZIP_NAME="SlackHacks-v${VERSION#v}.zip"
+ZIP_NAME="SlackHacks.zip"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
 echo "Building ${FOLDER_NAME} (version: ${VERSION})..."

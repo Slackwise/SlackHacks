@@ -195,7 +195,7 @@ die "Error: Could not extract version from $toc_file\n" unless defined $version 
 
 my $tag_name      = "v$version";
 my $release_title = "SlackHacks v$version";
-my $zip_name      = "SlackHacks-v$version.zip";
+my $zip_name      = "SlackHacks.zip";
 my $zip_path      = File::Spec->catfile("dist", $zip_name);
 
 print "Building latest addon package...\n";
