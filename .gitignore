@@ -4,3 +4,4 @@ users.json
 .vscode/settings.json
 dist/
 .env
+.bin/

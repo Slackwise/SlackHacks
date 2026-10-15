@@ -39,6 +39,17 @@ values in `.env` if your item names differ from the defaults. Environment
 variables already set by the shell or CI/CD environment take precedence over
 both files, so CI can inject its own configuration and secrets.
 
+## Lua development tools
+
+On Windows x64, run `perl scripts/bootstrap.pl` or the VS Code **Bootstrap**
+task (requires Perl, `tar`, and internet access) to install the Lua 5.1 bytecode
+compiler, StyLua, and Lua Language Server into the repository-local `.bin`
+directory. The bootstrap is safe to rerun; installed tools are left in place.
+`.bin` is ignored by Git.
+
+The recommended VS Code extensions are listed in `.vscode/extensions.json`.
+Lua Language Server uses `.luarc.json`, and StyLua reads `.stylua.toml`.
+
 ## Contact
 
 Here, on GitHub. Post an issue.

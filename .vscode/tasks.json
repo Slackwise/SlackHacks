@@ -2,6 +2,12 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Bootstrap",
+			"type": "shell",
+			"command": "perl scripts/bootstrap.pl",
+			"problemMatcher": []
+		},
+		{
 			"label": "Build SlackHacks",
 			"type": "shell",
 			"command": "bash scripts/build.sh",
