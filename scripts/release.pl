@@ -10,7 +10,7 @@ use Getopt::Long qw(GetOptions);
 # ==============================================================================
 # release.pl
 #
-# Merges the current working branch (e.g. 'main') into 'prod' and creates a git
+# Merges the current working branch (e.g. 'dev') into 'prod' and creates a git
 # tag matching the addon version number (e.g. 'v5').
 # ==============================================================================
 
@@ -100,7 +100,7 @@ if ($source_branch eq "") {
 }
 
 if ($source_branch eq $target_branch) {
-    die "Error: Current branch is already '$target_branch'. Please run this from your development branch (e.g. 'main').\n";
+    die "Error: Current branch is already '$target_branch'. Please run this from your development branch (e.g. 'dev').\n";
 }
 
 # Check for uncommitted changes
