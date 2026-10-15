@@ -25,7 +25,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -38,8 +39,10 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
-load_dotenv(File::Spec->catfile($script_dir, "defaults.env"));
+load_dotenv($defaults_file);
 
 # Ensure standard Windows tool paths (PowerShell / System32) are in PATH on Windows
 if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
@@ -89,10 +92,17 @@ HELP
 # ------------------------------------------------------------------------------
 # Step 1: Read and Parse TOC
 # ------------------------------------------------------------------------------
-my $addon_name    = $ENV{ADDON_NAME}    || "SlackHacks";
-my $toc_file      = $ENV{TOC_FILE}      || "$addon_name.toc";
-my $changelog_dir = $ENV{CHANGELOG_DIR} || "changelog";
-my $tag_prefix    = $ENV{TAG_PREFIX}    // "v";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
+}
+
+my $addon_name    = require_config("ADDON_NAME");
+my $toc_file      = require_config("TOC_FILE");
+my $changelog_dir = require_config("CHANGELOG_DIR");
+my $tag_prefix    = require_config("TAG_PREFIX");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $rfh, "<:encoding(UTF-8)", $toc_file or die "Cannot read $toc_file: $!\n";
@@ -259,10 +269,10 @@ sub clean_stale_proton_pass_session {
 sub get_github_token {
     return $ENV{GITHUB_TOKEN} if ($ENV{GITHUB_TOKEN} && $ENV{GITHUB_TOKEN} =~ /\S/);
 
-    my $pass_cli = $ENV{PROTON_PASS_CLI_BIN}       || "pass-cli";
-    my $item     = $ENV{PROTON_PASS_ITEM_GITHUB}   || $ENV{PROTON_PASS_ITEM} || "GitHub: SlackHacksDeploy API Token";
-    my $vault    = $ENV{PROTON_PASS_VAULT}         || "Personal";
-    my $attr     = $ENV{PROTON_PASS_ATTRIBUTE}     || "Secret";
+    my $pass_cli = require_config("PROTON_PASS_CLI_BIN");
+    my $item     = require_config("PROTON_PASS_ITEM_GITHUB");
+    my $vault    = require_config("PROTON_PASS_VAULT");
+    my $attr     = require_config("PROTON_PASS_ATTRIBUTE");
 
     my @cmd = ($pass_cli, "item", "view", "--item-title", $item, "--field", $attr);
     push @cmd, "--vault-name", $vault if ($vault ne "");

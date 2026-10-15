@@ -8,11 +8,11 @@ cd "$REPO_ROOT"
 . "$SCRIPT_DIR/load-env.sh"
 load_project_env "$REPO_ROOT"
 
-ADDON_NAME="${ADDON_NAME:-SlackHacks}"
-FOLDER_NAME="${FOLDER_NAME:-$ADDON_NAME}"
-TOC_FILE="${TOC_FILE:-${ADDON_NAME}.toc}"
-DIST_DIR="${DIST_DIR:-dist}"
-ZIP_NAME="${ZIP_NAME:-${ADDON_NAME}.zip}"
+require_project_config ADDON_NAME
+require_project_config FOLDER_NAME
+require_project_config TOC_FILE
+require_project_config DIST_DIR
+require_project_config ZIP_NAME
 TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 

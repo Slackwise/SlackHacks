@@ -27,7 +27,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -40,37 +41,43 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
-load_dotenv(File::Spec->catfile($script_dir, "defaults.env"));
+load_dotenv($defaults_file);
 
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
-my $addon_name             = $ENV{ADDON_NAME}             || "SlackHacks";
-my $toc_file               = $ENV{TOC_FILE}               || "$addon_name.toc";
-my $dist_dir               = $ENV{DIST_DIR}               || "dist";
-my $zip_name               = $ENV{ZIP_NAME}               || "$addon_name.zip";
-my $tag_prefix             = $ENV{TAG_PREFIX}             // "v";
-my $changelog_dir          = $ENV{CHANGELOG_DIR}          || "changelog";
-my $release_title_prefix   = $ENV{RELEASE_TITLE_PREFIX}   || "$addon_name v";
-my $github_api_version     = $ENV{GITHUB_API_VERSION}     || "2022-11-28";
-
-my $github_repo            = $ENV{GITHUB_REPO}            || "Slackwise/SlackHacks";
-my $target_commitish       = $ENV{TARGET_COMMITISH}       || "";
-if ($target_commitish eq "") {
-    my $has_prod = `git rev-parse --verify prod 2>/dev/null`;
-    $target_commitish = ($? == 0 && defined $has_prod && $has_prod =~ /\S/) ? "prod" : "main";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
 }
 
-my $is_draft               = ($ENV{IS_DRAFT} && $ENV{IS_DRAFT} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-my $is_prerelease          = ($ENV{IS_PRERELEASE} && $ENV{IS_PRERELEASE} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-my $changelog_file         = $ENV{CHANGELOG_FILE}         || "";
+my $addon_name             = require_config("ADDON_NAME");
+my $toc_file               = require_config("TOC_FILE");
+my $dist_dir               = require_config("DIST_DIR");
+my $zip_name               = require_config("ZIP_NAME");
+my $tag_prefix             = require_config("TAG_PREFIX");
+my $changelog_dir          = require_config("CHANGELOG_DIR");
+my $release_title_prefix   = require_config("RELEASE_TITLE_PREFIX");
+my $github_api_version     = require_config("GITHUB_API_VERSION");
+
+my $github_repo            = require_config("GITHUB_REPO");
+my $target_commitish       = require_config("TARGET_COMMITISH");
+
+my $is_draft               = (require_config("IS_DRAFT") =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
+my $is_prerelease          = (require_config("IS_PRERELEASE") =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
+my $changelog_file         = defined $ENV{CHANGELOG_FILE} ? $ENV{CHANGELOG_FILE}
+    : die "Error: Required setting CHANGELOG_FILE is missing. Check scripts/defaults.env.\n";
 
 # Proton Pass CLI settings
-my $proton_pass_item       = $ENV{PROTON_PASS_ITEM_GITHUB} || $ENV{PROTON_PASS_ITEM} || "GitHub: SlackHacksDeploy API Token";
-my $proton_pass_vault      = $ENV{PROTON_PASS_VAULT}       || "Personal";
-my $proton_pass_attribute  = $ENV{PROTON_PASS_ATTRIBUTE}   || "Secret";
-my $proton_pass_cli_bin    = $ENV{PROTON_PASS_CLI_BIN}     || "pass-cli";
+my $proton_pass_item       = require_config("PROTON_PASS_ITEM_GITHUB");
+my $proton_pass_vault      = require_config("PROTON_PASS_VAULT");
+my $proton_pass_attribute  = require_config("PROTON_PASS_ATTRIBUTE");
+my $proton_pass_cli_bin    = require_config("PROTON_PASS_CLI_BIN");
 
 # Dry run flag: --dry-run
 my $dry_run = 0;
@@ -186,7 +193,7 @@ sub fetch_secret_from_proton_pass {
 # ------------------------------------------------------------------------------
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $toc_file = require_config("TOC_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -227,7 +234,8 @@ if ($dry_run) {
 } else {
     print "Fetching GitHub Token from Proton Pass...\n";
     $github_token = fetch_secret_from_proton_pass($proton_pass_item, $proton_pass_vault, $proton_pass_attribute);
-    die "Failed to retrieve GitHub Token.\n" unless defined $github_token;
+    die "Error: Failed to retrieve GitHub API token. Set GITHUB_TOKEN or check PROTON_PASS_ITEM_GITHUB in scripts/defaults.env and your Proton Pass item.\n"
+        unless defined $github_token;
     print "Successfully retrieved GitHub Token.\n";
 }
 

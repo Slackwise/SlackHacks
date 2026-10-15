@@ -26,7 +26,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -39,30 +40,40 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
-load_dotenv(File::Spec->catfile($script_dir, "defaults.env"));
+load_dotenv($defaults_file);
 
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
-my $addon_name                 = $ENV{ADDON_NAME}                 || "SlackHacks";
-my $toc_file                   = $ENV{TOC_FILE}                   || "$addon_name.toc";
-my $dist_dir                   = $ENV{DIST_DIR}                   || "dist";
-my $zip_name                   = $ENV{ZIP_NAME}                   || "$addon_name.zip";
-my $tag_prefix                 = $ENV{TAG_PREFIX}                 // "v";
-my $changelog_dir              = $ENV{CHANGELOG_DIR}              || "changelog";
-my $curseforge_display_name_prefix = $ENV{CURSEFORGE_DISPLAY_NAME_PREFIX} || "$addon_name v";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
+}
 
-my $curseforge_project_id      = $ENV{CURSEFORGE_PROJECT_ID}      || "1740483";
-my $release_type               = $ENV{RELEASE_TYPE}               || "release";   # release, beta, alpha
-my $changelog_type             = $ENV{CHANGELOG_TYPE}             || "markdown";  # markdown, text, html
-my $changelog_file             = $ENV{CHANGELOG_FILE}             || "";
+my $addon_name                 = require_config("ADDON_NAME");
+my $toc_file                   = require_config("TOC_FILE");
+my $dist_dir                   = require_config("DIST_DIR");
+my $zip_name                   = require_config("ZIP_NAME");
+my $tag_prefix                 = require_config("TAG_PREFIX");
+my $changelog_dir              = require_config("CHANGELOG_DIR");
+my $curseforge_display_name_prefix = require_config("CURSEFORGE_DISPLAY_NAME_PREFIX");
+
+my $curseforge_project_id      = require_config("CURSEFORGE_PROJECT_ID");
+my $release_type               = require_config("RELEASE_TYPE");
+my $changelog_type             = require_config("CHANGELOG_TYPE");
+my $changelog_file             = defined $ENV{CHANGELOG_FILE} ? $ENV{CHANGELOG_FILE}
+    : die "Error: Required setting CHANGELOG_FILE is missing. Check scripts/defaults.env.\n";
 
 # Proton Pass CLI settings
-my $proton_pass_item      = $ENV{PROTON_PASS_ITEM_CURSEFORGE} || $ENV{PROTON_PASS_ITEM} || "CurseForge: SlackHacksDeploy API Token";
-my $proton_pass_vault     = $ENV{PROTON_PASS_VAULT}           || "Personal";
-my $proton_pass_attribute = $ENV{PROTON_PASS_ATTRIBUTE}       || "Secret";
-my $proton_pass_cli_bin   = $ENV{PROTON_PASS_CLI_BIN}         || "pass-cli";
+my $proton_pass_item      = require_config("PROTON_PASS_ITEM_CURSEFORGE");
+my $proton_pass_vault     = require_config("PROTON_PASS_VAULT");
+my $proton_pass_attribute = require_config("PROTON_PASS_ATTRIBUTE");
+my $proton_pass_cli_bin   = require_config("PROTON_PASS_CLI_BIN");
 
 # Command line options
 my $dry_run       = 0;
@@ -325,7 +336,7 @@ sub resolve_game_versions_from_toc {
 # ------------------------------------------------------------------------------
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $toc_file = require_config("TOC_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -365,9 +376,8 @@ print "Found release archive: $zip_path\n";
 # ------------------------------------------------------------------------------
 # Step 2: Validate CurseForge Project ID
 # ------------------------------------------------------------------------------
-if ($curseforge_project_id eq "REPLACE_WITH_CURSEFORGE_PROJECT_ID" || $curseforge_project_id eq "") {
-    die "Error: CURSEFORGE_PROJECT_ID is not configured.\n" .
-        "Please set CURSEFORGE_PROJECT_ID environment variable or edit the script configuration.\n";
+if ($curseforge_project_id eq "REPLACE_WITH_CURSEFORGE_PROJECT_ID") {
+    die "Error: CURSEFORGE_PROJECT_ID is a placeholder. Check scripts/defaults.env.\n";
 }
 
 # ------------------------------------------------------------------------------
@@ -380,7 +390,8 @@ if ($dry_run) {
 } else {
     print "Fetching CurseForge API Token from Proton Pass...\n";
     $api_token = fetch_secret_from_proton_pass($proton_pass_item, $proton_pass_vault, $proton_pass_attribute);
-    die "Failed to retrieve CurseForge API Token.\n" unless defined $api_token;
+    die "Error: Failed to retrieve CurseForge API token. Set CURSEFORGE_API_TOKEN or check PROTON_PASS_ITEM_CURSEFORGE in scripts/defaults.env and your Proton Pass item.\n"
+        unless defined $api_token;
     print "Successfully retrieved CurseForge API Token.\n";
 }
 
