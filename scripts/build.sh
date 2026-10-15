@@ -5,6 +5,17 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
+. "$SCRIPT_DIR/load-env.sh"
+load_project_env "$REPO_ROOT"
+
+require_project_config ADDON_NAME
+require_project_config FOLDER_NAME
+require_project_config TOC_FILE
+require_project_config DIST_DIR
+require_project_config ZIP_NAME
+TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
+ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
+
 # 1. Git checkout the submodules
 echo "Updating git submodules..."
 if ! command -v git >/dev/null 2>&1; then
@@ -13,10 +24,9 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 git submodule update --init --recursive
 
-# 2. Extract version from SlackHacks.toc
-TOC_FILE="SlackHacks.toc"
+# 2. Extract version from TOC file
 if [[ ! -f "$TOC_FILE" ]]; then
-  echo "Error: $TOC_FILE not found in $SCRIPT_DIR" >&2
+  echo "Error: $TOC_FILE not found in $REPO_ROOT" >&2
   exit 1
 fi
 
@@ -27,12 +37,6 @@ if [[ -z "$VERSION" ]]; then
   echo "Error: Could not extract version from $TOC_FILE" >&2
   exit 1
 fi
-
-FOLDER_NAME="SlackHacks"
-DIST_DIR="dist"
-TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
-ZIP_NAME="SlackHacks-v${VERSION#v}.zip"
-ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
 echo "Building ${FOLDER_NAME} (version: ${VERSION})..."
 

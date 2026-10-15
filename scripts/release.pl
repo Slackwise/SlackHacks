@@ -10,7 +10,7 @@ use Getopt::Long qw(GetOptions);
 # ==============================================================================
 # release.pl
 #
-# Merges the current working branch (e.g. 'main') into 'prod' and creates a git
+# Merges the current working branch (e.g. 'dev') into 'prod' and creates a git
 # tag matching the addon version number (e.g. 'v5').
 # ==============================================================================
 
@@ -22,7 +22,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -35,39 +36,50 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv($defaults_file);
 
 # ------------------------------------------------------------------------------
 # Options
 # ------------------------------------------------------------------------------
 my $dry_run       = 0;
-my $push          = 0;
+my $push          = (!defined $ENV{RELEASE_PUSH} || $ENV{RELEASE_PUSH} !~ /^(0|false|no)$/i) ? 1 : 0;
 my $force         = 0;
 my $source_branch = "";
-my $target_branch = $ENV{TARGET_COMMITISH} || "prod";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
+}
+
+my $target_branch = require_config("TARGET_COMMITISH");
 my $help          = 0;
 
 GetOptions(
     'dry-run|n'   => \$dry_run,
-    'push|p'      => \$push,
+    'push!'       => \$push,
     'force|f'     => \$force,
     'source=s'    => \$source_branch,
     'target=s'    => \$target_branch,
     'help|h'      => \$help,
-) or die "Usage: $0 [--dry-run] [--push] [--force] [--source <branch>] [--target <branch>]\n";
+) or die "Usage: $0 [--dry-run] [--no-push] [--force] [--source <branch>] [--target <branch>]\n";
 
 if ($help) {
     print <<"HELP";
 Usage: perl release.pl [OPTIONS]
 
-Merges the working branch into 'prod' and applies a version tag (e.g. 'v5').
+Merges the working branch into the configured target branch and applies a version tag.
 
 Options:
   -n, --dry-run        Show commands that would be executed without running them
-  -p, --push           Push target branch and new tag to origin after merge
+      --push           Push branches and new tag to origin after merge (default: true)
+      --no-push        Skip pushing to origin
   -f, --force          Force tag creation if tag already exists
       --source <name>  Source branch to merge from (default: current branch)
-      --target <name>  Target production branch (default: prod)
+      --target <name>  Target production branch (default: TARGET_COMMITISH in scripts/defaults.env)
   -h, --help           Show this help message
 
 HELP
@@ -88,7 +100,7 @@ if ($source_branch eq "") {
 }
 
 if ($source_branch eq $target_branch) {
-    die "Error: Current branch is already '$target_branch'. Please run this from your development branch (e.g. 'main').\n";
+    die "Error: Current branch is already '$target_branch'. Please run this from your development branch (e.g. 'dev').\n";
 }
 
 # Check for uncommitted changes
@@ -100,9 +112,11 @@ if (defined $status_out && $status_out =~ /\S/ && !$dry_run && !$force) {
 }
 
 # ------------------------------------------------------------------------------
-# Step 2: Extract Addon Version from SlackHacks.toc
+# Step 2: Extract Addon Version from TOC
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $addon_name = require_config("ADDON_NAME");
+my $toc_file   = require_config("TOC_FILE");
+my $tag_prefix = require_config("TAG_PREFIX");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -119,7 +133,7 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $tag_name = "v$version";
+my $tag_name = "$tag_prefix$version";
 
 # ------------------------------------------------------------------------------
 # Step 3: Check if Tag Already Exists
@@ -178,10 +192,11 @@ push @tag_cmd, "-f" if $force;
 run_cmd(@tag_cmd);
 
 # ------------------------------------------------------------------------------
-# Step 7: Push if Requested
+# Step 7: Push Branches and Tag
 # ------------------------------------------------------------------------------
 if ($push) {
-    print "Pushing '$target_branch' and tag '$tag_name' to origin...\n";
+    print "Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
+    run_cmd("git", "push", "origin", $source_branch);
     run_cmd("git", "push", "origin", $target_branch, $tag_name);
 }
 
@@ -192,6 +207,8 @@ print "Returning to branch '$source_branch'...\n";
 run_cmd("git", "checkout", $source_branch);
 
 print "\nRelease complete! Successfully merged '$source_branch' into '$target_branch' and tagged '$tag_name'.\n";
-if (!$push) {
-    print "Tip: Run 'git push origin $target_branch $tag_name' when you're ready to publish upstream.\n";
+if ($push) {
+    print "Pushed '$source_branch', '$target_branch', and '$tag_name' to origin successfully.\n";
+} else {
+    print "Tip: Run 'git push origin $source_branch && git push origin $target_branch $tag_name' when you're ready to publish upstream.\n";
 }

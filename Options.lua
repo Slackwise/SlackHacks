@@ -1,6 +1,8 @@
 local addonName, addonTable = ...
 setfenv(1, _G.SlackHacks)
 
+local ADDON_DISPLAY_NAME = "SlackHacks v" .. getAddonVersion()
+
 dbDefaults = {
   global = {
     configVersion = CONFIG_VERSION,
@@ -434,7 +436,7 @@ local function openMinimapContextMenu(anchor)
 
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(owner, rootDescription)
-      rootDescription:CreateTitle("SlackHacks")
+      rootDescription:CreateTitle(ADDON_DISPLAY_NAME)
       rootDescription:CreateButton("Options", function()
         openOptions()
       end)
@@ -453,7 +455,7 @@ local function openMinimapContextMenu(anchor)
   end
 
   local menuList = {
-    { text = "SlackHacks", isTitle = true, notCheckable = true },
+    { text = ADDON_DISPLAY_NAME, isTitle = true, notCheckable = true },
     { text = "Options", func = function() openOptions() end, notCheckable = true },
     { text = "Report Bugs", func = function() reportBugs() end, notCheckable = true },
     { text = "Listview Bag", checked = isListviewBagActive, func = toggleListviewBag, isNotRadio = true, keepShownOnClick = true },
@@ -506,7 +508,7 @@ local function initMinimapIcon()
   if not minimapLDBObj then
     minimapLDBObj = ldb:NewDataObject(MINIMAP_ICON_NAME, {
       type = "data source",
-      text = "SlackHacks",
+      text = ADDON_DISPLAY_NAME,
       icon = SLACKHACKS_ICON,
       OnClick = function(clickedButton, mouseButton)
         if mouseButton == "RightButton" then
@@ -525,7 +527,7 @@ local function initMinimapIcon()
         local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
           or (errorLogTable and errorLogTable()) or {}
         local count = #list
-        tooltip:AddLine("SlackHacks", 1, 0.82, 0)
+        tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
         if count > 0 then
           tooltip:AddLine(" ")
           if count == 1 then
@@ -624,7 +626,7 @@ local function getWIPModuleNames()
 end
 
 local function printSlashHelp()
-  print(grey(icon(16)) .. " " .. color("FFD100")("SlackHacks Slash Commands:") .. "")
+  print(grey(icon(16)) .. " " .. color("FFD100")(ADDON_DISPLAY_NAME .. " Slash Commands:") .. "")
   print("  " .. color("FFFFFF")("/slack") .. " - Open the SlackHacks config window")
   print("  " .. color("FFFFFF")("/slack help") .. " - Show this list of slash commands")
   print("  " .. color("FFFFFF")("/slack debug") .. " - Toggle debug mode on/off")
@@ -652,13 +654,14 @@ function disableWIPModules()
     acr:NotifyChange("SlackHacks")
   end
 
-  print("SlackHacks: disabled all WIP modules (" .. getWIPModuleNames() .. ").")
+    prn("disabled all WIP modules (" .. getWIPModuleNames() .. ").")
 end
 
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "" then
     openOptions()
+    printSlashHelp()
   elseif command == "help" then
     printSlashHelp()
   elseif command == "debug" then
@@ -672,7 +675,7 @@ function handleSlashCommand(input)
   elseif command == "induce-error" then
     Self.Debug:InduceError()
   else
-    print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
+      prn("unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
   end
 end
 
@@ -792,6 +795,7 @@ end
 
 options = {
   type = "group",
+  name = ADDON_DISPLAY_NAME,
   icon = SLACKHACKS_ICON,
   args = {
     enable = {
@@ -1590,7 +1594,7 @@ options = {
                 if Self.Debug and Self.Debug.RefreshMarkdown then
                   Self.Debug:RefreshMarkdown()
                 end
-                print("SlackHacks: SlackHacks Error Log cleared")
+                prn("SlackHacks Error Log cleared")
               end,
               confirm = true,
               order = 3
@@ -1622,7 +1626,7 @@ options = {
               type = "execute",
               func = function()
                 clearDebugLogs()
-                print("SlackHacks: debug logs cleared")
+                prn("debug logs cleared")
               end,
               confirm = true,
               order = 2
@@ -1672,7 +1676,7 @@ options = {
               type = "execute",
               func = function()
                 purgeOldLogs()
-                print("SlackHacks: old logs purged")
+                prn("old logs purged")
               end,
               order = 3
             }
@@ -2656,7 +2660,7 @@ options = {
   --   desc = "Mount binding configuration",
   --   func = function()
   --     -- mount()
-  --     print("SlackHacks: mounting...")
+  --     prn("mounting...")
   --   end,
   --   args = {
   --   }
@@ -2683,4 +2687,3 @@ function registerOptions()
   Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
   updateMinimapIcon()
 end
-

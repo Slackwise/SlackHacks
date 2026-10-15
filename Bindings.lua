@@ -84,7 +84,7 @@ end
 function openKeybindings()
   if InCombatLockdown() then return end
   if not (Settings and Settings.OpenToCategory) then
-    print("SlackHacks: unable to open Key Bindings automatically on this client. Open it via the Game Menu > Settings > Key Bindings.")
+    prn("unable to open Key Bindings automatically on this client. Open it via the Game Menu > Settings > Key Bindings.")
     return
   end
   expandSlackHacksKeybindingSection()

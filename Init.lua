@@ -228,11 +228,11 @@ function resetCurrentProfileAndAddon()
       acr:NotifyChange("SlackHacks")
     end
 
-    print("SlackHacks: profile and addon state have been reset to defaults.")
+    prn("profile and addon state have been reset to defaults.")
   end)
 
   if not ok then
-    print("SlackHacks: error resetting addon (" .. tostring(err) .. "). Reloading UI...")
+    prn("error resetting addon (" .. tostring(err) .. "). Reloading UI...")
     ReloadUI()
   end
 end
@@ -327,7 +327,7 @@ function Self:OnInitialize()
   end)
   if not ok or not Self.db then
     -- Saved variables were corrupted/unreadable: wipe and recreate from defaults rather than erroring out.
-    print("SlackHacks: failed to load saved settings (" .. tostring(err) .. "), resetting to defaults.")
+    prn("failed to load saved settings (" .. tostring(err) .. "), resetting to defaults.")
     _G.SlackHacksDB = nil
     Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
     notifyConfigReset()
