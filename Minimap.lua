@@ -759,7 +759,9 @@ local function applySquareMinimapCluster()
     MinimapCluster:SetHitRectInsets(0, 0, 0, 0)
   end
 
-  -- Snap the square border to MinimapCluster
+  applySquareSelectionBounds()
+
+  -- Keep the square border anchored to MinimapCluster; Edit Mode selection offsets match its bounds.
   local border = createSquareBorder()
   if border then
     border:ClearAllPoints()
@@ -768,9 +770,6 @@ local function applySquareMinimapCluster()
     border:Show()
     border:EnableMouse(false) -- OnShow only refires the hook on hidden->shown transitions, not repeat Show() calls while already shown
   end
-
-  -- Snap Edit Mode Selection directly to MinimapCluster so its blue drag bounds and snapping match
-  applySquareSelectionBounds()
 
   if MinimapCluster.UpdateClampOffsets then
     MinimapCluster:UpdateClampOffsets()
@@ -927,11 +926,15 @@ local TITLE_BAR_ICON_SCALE = 0.7
 local TITLE_BAR_CLOCK_SCALE = 1.1 -- the clock's text/frame proportions read as too small at the icon scale
 local TITLE_BAR_EXPANSION_LANDING_PAGE_SCALE = 0.7
 local TITLE_BAR_CALENDAR_TRACKING_SCALE = 1.05
+local TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA = 1
 local TITLE_BAR_CALENDAR_Y_OFFSET = -1 -- calendar icon/date art sits slightly higher within its frame than other icons
 local TITLE_BAR_TRACKING_Y_OFFSET = 2 -- lifts tracking to vertically align with title bar
-local TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET = 0 -- addon compartment baseline to visually match tracking height
-local TITLE_BAR_CLOCK_Y_OFFSET = -1 -- lowers clock to vertically center in title bar
-local TITLE_BAR_CLOCK_X_OFFSET = 3 -- shifts clock to the right
+local TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET = isRetail() and 1 or 0 -- Retail: raises addon compartment one pixel
+local TITLE_BAR_ICON_Y_OFFSET = isRetail() and -1 or 0 -- shifts non-clock title-bar icons down on Retail
+local TITLE_BAR_CLOCK_Y_OFFSET = isRetail() and -2 or -1 -- Retail: shifts clock down one additional pixel
+local TITLE_BAR_CLOCK_X_OFFSET = isRetail() and 6 or 3 -- Retail: shifts clock 3 pixels farther right; preserve Forever
+local TITLE_BAR_ZONE_X_OFFSET = isRetail() and -2 or 0 -- Retail: shifts zone text three pixels left from its previous position
+local TITLE_BAR_ZONE_Y_OFFSET = isRetail() and -1 or 0 -- Retail: shifts zone text down one pixel
 local TITLE_BAR_CLOCK_WIDTH_DELTA = -10 -- shorten clock width by 10 pixels
 
 --- Sits in the visual banner area of the square border, hosting the zone text (left) and shrunk
@@ -2259,14 +2262,17 @@ end
 ---@return number, number - Rendered width and scale.
 local function getButtonScaledWidth(button)
   local scale = TITLE_BAR_ICON_SCALE
+  local btnW = button:GetWidth()
+  local nativeWidth = btnW and btnW > 0 and btnW or 32
   if button == TimeManagerClockButton then
     scale = TITLE_BAR_CLOCK_SCALE
   elseif button == getExpansionLandingPageButton() then
     scale = TITLE_BAR_EXPANSION_LANDING_PAGE_SCALE
-  elseif button == AddonCompartmentFrame or button == GameTimeFrame or button == (MinimapCluster and MinimapCluster.Tracking) then
+  elseif button == AddonCompartmentFrame then
+    scale = TITLE_BAR_CALENDAR_TRACKING_SCALE + TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA / nativeWidth
+  elseif button == GameTimeFrame or button == (MinimapCluster and MinimapCluster.Tracking) then
     scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
   end
-  local btnW = button:GetWidth()
   if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
     btnW = math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA)
   end
@@ -2277,16 +2283,19 @@ end
 ---@param button Frame - Button to position.
 ---@return number - Y offset in title-bar coordinates.
 local function getButtonYOffset(button)
-  if button == GameTimeFrame then
-    return TITLE_BAR_CALENDAR_Y_OFFSET
-  elseif button == (MinimapCluster and MinimapCluster.Tracking) then
-    return TITLE_BAR_TRACKING_Y_OFFSET
-  elseif button == AddonCompartmentFrame then
-    return TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET
-  elseif button == TimeManagerClockButton then
+  if button == TimeManagerClockButton then
     return TITLE_BAR_CLOCK_Y_OFFSET
   end
-  return 0
+
+  local yOffset = 0
+  if button == GameTimeFrame then
+    yOffset = TITLE_BAR_CALENDAR_Y_OFFSET
+  elseif button == (MinimapCluster and MinimapCluster.Tracking) then
+    yOffset = TITLE_BAR_TRACKING_Y_OFFSET
+  elseif button == AddonCompartmentFrame then
+    yOffset = TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET
+  end
+  return yOffset + TITLE_BAR_ICON_Y_OFFSET
 end
 
 --- Builds the list of buttons for the permanent title bar flow.
@@ -2397,9 +2406,9 @@ local function layoutTitleBarZoneButton(previous)
   end
 
   zoneButton.slackHacksRealClearAllPoints(zoneButton)
-  zoneButton.slackHacksRealSetPoint(zoneButton, "LEFT", titleBarFrame, "LEFT", 0, 0)
-  zoneButton.slackHacksRealSetPoint(zoneButton, "TOP", titleBarFrame, "TOP", 0, 0)
-  zoneButton.slackHacksRealSetPoint(zoneButton, "BOTTOM", titleBarFrame, "BOTTOM", 0, 0)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "LEFT", titleBarFrame, "LEFT", TITLE_BAR_ZONE_X_OFFSET, 0)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "TOP", titleBarFrame, "TOP", 0, TITLE_BAR_ZONE_Y_OFFSET)
+  zoneButton.slackHacksRealSetPoint(zoneButton, "BOTTOM", titleBarFrame, "BOTTOM", 0, TITLE_BAR_ZONE_Y_OFFSET)
   if previous then
     zoneButton.slackHacksRealSetPoint(zoneButton, "RIGHT", previous, "LEFT", -4, 0)
   else

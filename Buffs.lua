@@ -810,7 +810,7 @@ local function createIconButton(category)
     if mouseButton ~= "RightButton" or InCombatLockdown() then return end
     local items = categoryBagItems(self.category)
     if #items == 0 then
-      print("SlackHacks: No " .. self.category.label .. " items in inventory.")
+      prn("No " .. self.category.label .. " items in inventory.")
       return
     end
 

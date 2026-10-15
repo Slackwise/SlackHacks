@@ -6,7 +6,7 @@
 ## AddonCompartmentFuncOnEnter: SlackHacks_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: SlackHacks_OnAddonCompartmentLeave
 ## Author: Slack — Moon Guard
-## Version: 5
+## Version: 6
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB

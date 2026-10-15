@@ -25,7 +25,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -38,7 +39,10 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv($defaults_file);
 
 # Ensure standard Windows tool paths (PowerShell / System32) are in PATH on Windows
 if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
@@ -86,9 +90,19 @@ HELP
 }
 
 # ------------------------------------------------------------------------------
-# Step 1: Read and Parse SlackHacks.toc
+# Step 1: Read and Parse TOC
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
+}
+
+my $addon_name    = require_config("ADDON_NAME");
+my $toc_file      = require_config("TOC_FILE");
+my $changelog_dir = require_config("CHANGELOG_DIR");
+my $tag_prefix    = require_config("TAG_PREFIX");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $rfh, "<:encoding(UTF-8)", $toc_file or die "Cannot read $toc_file: $!\n";
@@ -140,12 +154,11 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 # Step 3: Check Changelog Directory and File
 # ------------------------------------------------------------------------------
-my $changelog_dir = "changelog";
 if (!-d $changelog_dir && !$dry_run) {
     mkdir $changelog_dir or die "Cannot create directory '$changelog_dir': $!\n";
 }
 
-my $changelog_filename = "changelog-v${new_version_num}.md";
+my $changelog_filename = "changelog-$tag_prefix${new_version_num}.md";
 my $changelog_path = File::Spec->catfile($changelog_dir, $changelog_filename);
 
 if (-f $changelog_path && !$force) {
@@ -161,7 +174,7 @@ if (-f $changelog_path && $force) {
 # ------------------------------------------------------------------------------
 # Step 4: Gather Git Commits Since Previous Version Tag
 # ------------------------------------------------------------------------------
-my $prev_tag = "v$old_version_num";
+my $prev_tag = "$tag_prefix$old_version_num";
 my $tag_check = `git tag -l "$prev_tag" 2>/dev/null`;
 $tag_check =~ s/^\s+|\s+$//g if defined $tag_check;
 
@@ -198,31 +211,102 @@ my $commit_count = scalar(@commits);
 print "Found $commit_count commit(s) since tag '$prev_tag'.\n";
 
 # ------------------------------------------------------------------------------
+# Helpers: Browser Launch & Proton Pass Login
+# ------------------------------------------------------------------------------
+sub open_url_in_browser {
+    my ($url) = @_;
+    if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
+        if (-x '/usr/bin/start') {
+            system('/usr/bin/start', $url);
+        } elsif (-x '/c/Windows/explorer.exe') {
+            system('/c/Windows/explorer.exe', $url);
+        } else {
+            system('start', $url);
+        }
+    } elsif ($^O eq 'darwin') {
+        system('open', $url);
+    } else {
+        system('xdg-open', $url);
+    }
+}
+
+sub run_pass_cli_login {
+    my ($bin) = @_;
+    print "\nStarting Proton Pass login...\n";
+
+    open my $pipe, "-|", $bin, "login" or do {
+        warn "Failed to execute '$bin login': $!\n";
+        return 0;
+    };
+
+    my $browser_opened = 0;
+    while (my $line = <$pipe>) {
+        print $line;
+        if (!$browser_opened && $line =~ m{(https://account\.proton\.me\S+)}) {
+            my $url = $1;
+            print "\n[Opening your browser automatically to complete authentication...]\n";
+            open_url_in_browser($url);
+            $browser_opened = 1;
+        }
+    }
+    close $pipe;
+    return ($? == 0);
+}
+
+sub clean_stale_proton_pass_session {
+    my $appdata = $ENV{APPDATA} || '';
+    if ($appdata ne '') {
+        my $stale_file = File::Spec->catfile($appdata, "proton-pass-cli", ".session", "session.json");
+        if (-f $stale_file) {
+            unlink $stale_file;
+        }
+    }
+}
+
+# ------------------------------------------------------------------------------
 # Helper: Fetch Proton Pass secret for GITHUB_TOKEN if needed
 # ------------------------------------------------------------------------------
 sub get_github_token {
     return $ENV{GITHUB_TOKEN} if ($ENV{GITHUB_TOKEN} && $ENV{GITHUB_TOKEN} =~ /\S/);
 
-    my $pass_cli = $ENV{PROTON_PASS_CLI_BIN}       || "pass-cli";
-    my $item     = $ENV{PROTON_PASS_ITEM_GITHUB}   || $ENV{PROTON_PASS_ITEM} || "GitHub: SlackHacksDeploy API Token";
-    my $vault    = $ENV{PROTON_PASS_VAULT}         || "Personal";
-    my $attr     = $ENV{PROTON_PASS_ATTRIBUTE}     || "Secret";
+    my $pass_cli = require_config("PROTON_PASS_CLI_BIN");
+    my $item     = require_config("PROTON_PASS_ITEM_GITHUB");
+    my $vault    = require_config("PROTON_PASS_VAULT");
+    my $attr     = require_config("PROTON_PASS_ATTRIBUTE");
 
     my @cmd = ($pass_cli, "item", "view", "--item-title", $item, "--field", $attr);
     push @cmd, "--vault-name", $vault if ($vault ne "");
 
-    open my $pipe, "-|", @cmd or return undef;
-    my $secret = do { local $/; <$pipe> };
-    close $pipe;
+    my $run_query = sub {
+        my $cmd_str = join(" ", map { /\s/ ? qq{"$_"} : $_ } @cmd);
+        my $output = `$cmd_str 2>&1`;
+        my $status = $? >> 8;
+        return ($status, $output);
+    };
 
-    if (defined $secret) {
-        $secret =~ s/^\s+|\s+$//g;
-        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
-            $secret = $1;
-            $secret =~ s/^\s+|\s+$//g;
-        }
+    my ($status, $output) = $run_query->();
+
+    # Check for stale corrupted session in Windows file lock state
+    if ($status != 0 && $output =~ /Session is some but is not logged in|Error deleting base dir/i) {
+        clean_stale_proton_pass_session();
+        ($status, $output) = $run_query->();
     }
-    return $secret;
+
+    # If unauthenticated, locked, or no session, trigger pass-cli login (browser window)
+    if ($status != 0 && $output =~ /no session|requires an authenticated client|lock|not logged in/i) {
+        run_pass_cli_login($pass_cli);
+        ($status, $output) = $run_query->();
+    }
+
+    if ($status == 0 && defined $output) {
+        $output =~ s/^\s+|\s+$//g;
+        if ($output =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $output = $1;
+            $output =~ s/^\s+|\s+$//g;
+        }
+        return $output if $output ne "";
+    }
+    return undef;
 }
 
 # ------------------------------------------------------------------------------

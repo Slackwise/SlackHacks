@@ -1745,7 +1745,7 @@ end
 --- (unlike the options-panel checkbox, which is already visible feedback) is typically invoked "blind".
 function module:Toggle()
   self:SetEnabled(not settings().enabled)
-  print("SlackHacks: Movable Windows " .. (settings().enabled and "enabled" or "disabled"))
+  prn("Movable Windows " .. (settings().enabled and "enabled" or "disabled"))
 end
 
 --- Global slash-command entry point (bound in Bindings.xml/Core.lua) for toggling the module.

@@ -26,7 +26,8 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 sub load_dotenv {
     my ($file) = @_;
     return unless -f $file;
-    open my $fh, "<:encoding(UTF-8)", $file or return;
+    open my $fh, "<:encoding(UTF-8)", $file
+        or die "Error: Cannot read configuration file $file: $!\n";
     while (my $line = <$fh>) {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq "" || $line =~ /^#/;
@@ -39,21 +40,40 @@ sub load_dotenv {
     close $fh;
 }
 
+my $defaults_file = File::Spec->catfile($script_dir, "defaults.env");
+die "Error: Required configuration file scripts/defaults.env is missing.\n" unless -f $defaults_file;
 load_dotenv(File::Spec->catfile($repo_root, ".env"));
+load_dotenv($defaults_file);
 
 # ------------------------------------------------------------------------------
 # Configurable Variables & Settings (Environment variables take precedence)
 # ------------------------------------------------------------------------------
-my $curseforge_project_id   = $ENV{CURSEFORGE_PROJECT_ID} || "1740483";
-my $release_type            = $ENV{RELEASE_TYPE}          || "release";   # release, beta, alpha
-my $changelog_type          = $ENV{CHANGELOG_TYPE}        || "markdown";  # markdown, text, html
-my $changelog_file          = $ENV{CHANGELOG_FILE}        || "";
+sub require_config {
+    my ($name) = @_;
+    die "Error: Required setting $name is missing. Check scripts/defaults.env.\n"
+        unless defined $ENV{$name} && length $ENV{$name};
+    return $ENV{$name};
+}
+
+my $addon_name                 = require_config("ADDON_NAME");
+my $toc_file                   = require_config("TOC_FILE");
+my $dist_dir                   = require_config("DIST_DIR");
+my $zip_name                   = require_config("ZIP_NAME");
+my $tag_prefix                 = require_config("TAG_PREFIX");
+my $changelog_dir              = require_config("CHANGELOG_DIR");
+my $curseforge_display_name_prefix = require_config("CURSEFORGE_DISPLAY_NAME_PREFIX");
+
+my $curseforge_project_id      = require_config("CURSEFORGE_PROJECT_ID");
+my $release_type               = require_config("RELEASE_TYPE");
+my $changelog_type             = require_config("CHANGELOG_TYPE");
+my $changelog_file             = defined $ENV{CHANGELOG_FILE} ? $ENV{CHANGELOG_FILE}
+    : die "Error: Required setting CHANGELOG_FILE is missing. Check scripts/defaults.env.\n";
 
 # Proton Pass CLI settings
-my $proton_pass_item      = $ENV{PROTON_PASS_ITEM_CURSEFORGE} || $ENV{PROTON_PASS_ITEM} || "CurseForge: SlackHacksDeploy API Token";
-my $proton_pass_vault     = $ENV{PROTON_PASS_VAULT}           || "Personal";
-my $proton_pass_attribute = $ENV{PROTON_PASS_ATTRIBUTE}       || "Secret";
-my $proton_pass_cli_bin   = $ENV{PROTON_PASS_CLI_BIN}         || "pass-cli";
+my $proton_pass_item      = require_config("PROTON_PASS_ITEM_CURSEFORGE");
+my $proton_pass_vault     = require_config("PROTON_PASS_VAULT");
+my $proton_pass_attribute = require_config("PROTON_PASS_ATTRIBUTE");
+my $proton_pass_cli_bin   = require_config("PROTON_PASS_CLI_BIN");
 
 # Command line options
 my $dry_run       = 0;
@@ -81,6 +101,59 @@ HELP
 }
 
 # ------------------------------------------------------------------------------
+# Helpers: Browser Launch & Proton Pass Login
+# ------------------------------------------------------------------------------
+sub open_url_in_browser {
+    my ($url) = @_;
+    if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
+        if (-x '/usr/bin/start') {
+            system('/usr/bin/start', $url);
+        } elsif (-x '/c/Windows/explorer.exe') {
+            system('/c/Windows/explorer.exe', $url);
+        } else {
+            system('start', $url);
+        }
+    } elsif ($^O eq 'darwin') {
+        system('open', $url);
+    } else {
+        system('xdg-open', $url);
+    }
+}
+
+sub run_pass_cli_login {
+    my ($bin) = @_;
+    print "\nStarting Proton Pass login...\n";
+
+    open my $pipe, "-|", $bin, "login" or do {
+        warn "Failed to execute '$bin login': $!\n";
+        return 0;
+    };
+
+    my $browser_opened = 0;
+    while (my $line = <$pipe>) {
+        print $line;
+        if (!$browser_opened && $line =~ m{(https://account\.proton\.me\S+)}) {
+            my $url = $1;
+            print "\n[Opening your browser automatically to complete authentication...]\n";
+            open_url_in_browser($url);
+            $browser_opened = 1;
+        }
+    }
+    close $pipe;
+    return ($? == 0);
+}
+
+sub clean_stale_proton_pass_session {
+    my $appdata = $ENV{APPDATA} || '';
+    if ($appdata ne '') {
+        my $stale_file = File::Spec->catfile($appdata, "proton-pass-cli", ".session", "session.json");
+        if (-f $stale_file) {
+            unlink $stale_file;
+        }
+    }
+}
+
+# ------------------------------------------------------------------------------
 # Helper: Fetch secret from Proton Pass CLI
 # ------------------------------------------------------------------------------
 sub fetch_secret_from_proton_pass {
@@ -91,34 +164,43 @@ sub fetch_secret_from_proton_pass {
     }
 
     my @cmd = ($proton_pass_cli_bin, "item", "view", "--item-title", $item, "--field", $attr);
-    if ($vault ne "") {
-        push @cmd, "--vault-name", $vault;
-    }
+    push @cmd, "--vault-name", $vault if $vault ne "";
 
-    open my $pipe, "-|", @cmd or do {
-        warn "Error: Failed to execute '$proton_pass_cli_bin': $!\n";
-        warn "Please ensure the Proton Pass CLI is installed in PATH, or set CURSEFORGE_API_TOKEN.\n";
-        return undef;
+    my $run_query = sub {
+        my $cmd_str = join(" ", map { /\s/ ? qq{"$_"} : $_ } @cmd);
+        my $output = `$cmd_str 2>&1`;
+        my $status = $? >> 8;
+        return ($status, $output);
     };
-    my $secret = do { local $/; <$pipe> };
-    close $pipe;
 
-    if (defined $secret) {
-        $secret =~ s/^\s+|\s+$//g;
-        # If pass-cli prints a label such as "Secret: <token>", extract the token
-        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
-            $secret = $1;
-            $secret =~ s/^\s+|\s+$//g;
+    my ($status, $output) = $run_query->();
+
+    # Check for stale corrupted session in Windows file lock state
+    if ($status != 0 && $output =~ /Session is some but is not logged in|Error deleting base dir/i) {
+        print "Detected stale Proton Pass session file. Cleaning up...\n";
+        clean_stale_proton_pass_session();
+        ($status, $output) = $run_query->();
+    }
+
+    # If unauthenticated, locked, or no session, trigger browser login
+    if ($status != 0 && $output =~ /no session|requires an authenticated client|lock|not logged in/i) {
+        print "Proton Pass session is unauthenticated or expired.\n";
+        run_pass_cli_login($proton_pass_cli_bin);
+        ($status, $output) = $run_query->();
+    }
+
+    if ($status == 0 && defined $output) {
+        $output =~ s/^\s+|\s+$//g;
+        if ($output =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $output = $1;
+            $output =~ s/^\s+|\s+$//g;
         }
+        return $output if $output ne "";
     }
 
-    if (!defined $secret || $secret eq "") {
-        warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
-        warn "Please ensure you are logged in ('pass-cli login') and the item/field exists.\n";
-        return undef;
-    }
-
-    return $secret;
+    warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
+    warn "Output: $output\n" if defined $output && $output =~ /\S/;
+    return undef;
 }
 
 # ------------------------------------------------------------------------------
@@ -254,7 +336,7 @@ sub resolve_game_versions_from_toc {
 # ------------------------------------------------------------------------------
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
-my $toc_file = "SlackHacks.toc";
+my $toc_file = require_config("TOC_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -279,11 +361,10 @@ close $fh;
 
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
-my $zip_name = "SlackHacks-v$version.zip";
-my $zip_path = File::Spec->catfile("dist", $zip_name);
+my $zip_path = File::Spec->catfile($dist_dir, $zip_name);
 
-if (!-f $zip_path) {
-    print "Zip archive '$zip_path' not found. Running build.sh first...\n";
+unless (-f $zip_path) {
+    print "Release archive not found. Building addon package...\n";
     my $build_script = File::Spec->catfile($script_dir, "build.sh");
     my $build_status = system("bash", $build_script);
     if ($build_status != 0) {
@@ -291,15 +372,14 @@ if (!-f $zip_path) {
     }
 }
 
-die "Error: Build output '$zip_path' not found after build.\n" unless -f $zip_path;
+die "Error: Build output '$zip_path' not found.\n" unless -f $zip_path;
 print "Found release archive: $zip_path\n";
 
 # ------------------------------------------------------------------------------
 # Step 2: Validate CurseForge Project ID
 # ------------------------------------------------------------------------------
-if ($curseforge_project_id eq "REPLACE_WITH_CURSEFORGE_PROJECT_ID" || $curseforge_project_id eq "") {
-    die "Error: CURSEFORGE_PROJECT_ID is not configured.\n" .
-        "Please set CURSEFORGE_PROJECT_ID environment variable or edit the script configuration.\n";
+if ($curseforge_project_id eq "REPLACE_WITH_CURSEFORGE_PROJECT_ID") {
+    die "Error: CURSEFORGE_PROJECT_ID is a placeholder. Check scripts/defaults.env.\n";
 }
 
 # ------------------------------------------------------------------------------
@@ -312,7 +392,8 @@ if ($dry_run) {
 } else {
     print "Fetching CurseForge API Token from Proton Pass...\n";
     $api_token = fetch_secret_from_proton_pass($proton_pass_item, $proton_pass_vault, $proton_pass_attribute);
-    die "Failed to retrieve CurseForge API Token.\n" unless defined $api_token;
+    die "Error: Failed to retrieve CurseForge API token. Set CURSEFORGE_API_TOKEN or check PROTON_PASS_ITEM_CURSEFORGE in scripts/defaults.env and your Proton Pass item.\n"
+        unless defined $api_token;
     print "Successfully retrieved CurseForge API Token.\n";
 }
 
@@ -344,7 +425,7 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 my $changelog_text = "";
 if ($changelog_file eq "") {
-    my $default_changelog = File::Spec->catfile("changelog", "changelog-v$version.md");
+    my $default_changelog = File::Spec->catfile($changelog_dir, "changelog-$tag_prefix$version.md");
     if (-f $default_changelog) {
         $changelog_file = $default_changelog;
     }
@@ -367,18 +448,17 @@ if ($changelog_file ne "" && -f $changelog_file) {
 }
 
 if (!defined $changelog_text || $changelog_text !~ /\S/) {
-    $changelog_text = "Release SlackHacks v$version";
+    $changelog_text = "Release $curseforge_display_name_prefix$version";
 }
 
 # ------------------------------------------------------------------------------
 # Step 6: Construct Metadata JSON & Upload
 # ------------------------------------------------------------------------------
-my $display_name = "SlackHacks-v$version";
+my $display_name = "$curseforge_display_name_prefix$version";
 my $metadata = {
     changelog     => $changelog_text,
     changelogType => $changelog_type,
     displayName   => $display_name,
-    parentFileID  => JSON::PP::null,
     releaseType   => $release_type,
     gameVersions  => \@game_version_ids,
 };
