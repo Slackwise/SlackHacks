@@ -81,6 +81,59 @@ HELP
 }
 
 # ------------------------------------------------------------------------------
+# Helpers: Browser Launch & Proton Pass Login
+# ------------------------------------------------------------------------------
+sub open_url_in_browser {
+    my ($url) = @_;
+    if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
+        if (-x '/usr/bin/start') {
+            system('/usr/bin/start', $url);
+        } elsif (-x '/c/Windows/explorer.exe') {
+            system('/c/Windows/explorer.exe', $url);
+        } else {
+            system('start', $url);
+        }
+    } elsif ($^O eq 'darwin') {
+        system('open', $url);
+    } else {
+        system('xdg-open', $url);
+    }
+}
+
+sub run_pass_cli_login {
+    my ($bin) = @_;
+    print "\nStarting Proton Pass login...\n";
+
+    open my $pipe, "-|", $bin, "login" or do {
+        warn "Failed to execute '$bin login': $!\n";
+        return 0;
+    };
+
+    my $browser_opened = 0;
+    while (my $line = <$pipe>) {
+        print $line;
+        if (!$browser_opened && $line =~ m{(https://account\.proton\.me\S+)}) {
+            my $url = $1;
+            print "\n[Opening your browser automatically to complete authentication...]\n";
+            open_url_in_browser($url);
+            $browser_opened = 1;
+        }
+    }
+    close $pipe;
+    return ($? == 0);
+}
+
+sub clean_stale_proton_pass_session {
+    my $appdata = $ENV{APPDATA} || '';
+    if ($appdata ne '') {
+        my $stale_file = File::Spec->catfile($appdata, "proton-pass-cli", ".session", "session.json");
+        if (-f $stale_file) {
+            unlink $stale_file;
+        }
+    }
+}
+
+# ------------------------------------------------------------------------------
 # Helper: Fetch secret from Proton Pass CLI
 # ------------------------------------------------------------------------------
 sub fetch_secret_from_proton_pass {
@@ -91,34 +144,43 @@ sub fetch_secret_from_proton_pass {
     }
 
     my @cmd = ($proton_pass_cli_bin, "item", "view", "--item-title", $item, "--field", $attr);
-    if ($vault ne "") {
-        push @cmd, "--vault-name", $vault;
-    }
+    push @cmd, "--vault-name", $vault if $vault ne "";
 
-    open my $pipe, "-|", @cmd or do {
-        warn "Error: Failed to execute '$proton_pass_cli_bin': $!\n";
-        warn "Please ensure the Proton Pass CLI is installed in PATH, or set CURSEFORGE_API_TOKEN.\n";
-        return undef;
+    my $run_query = sub {
+        my $cmd_str = join(" ", map { /\s/ ? qq{"$_"} : $_ } @cmd);
+        my $output = `$cmd_str 2>&1`;
+        my $status = $? >> 8;
+        return ($status, $output);
     };
-    my $secret = do { local $/; <$pipe> };
-    close $pipe;
 
-    if (defined $secret) {
-        $secret =~ s/^\s+|\s+$//g;
-        # If pass-cli prints a label such as "Secret: <token>", extract the token
-        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
-            $secret = $1;
-            $secret =~ s/^\s+|\s+$//g;
+    my ($status, $output) = $run_query->();
+
+    # Check for stale corrupted session in Windows file lock state
+    if ($status != 0 && $output =~ /Session is some but is not logged in|Error deleting base dir/i) {
+        print "Detected stale Proton Pass session file. Cleaning up...\n";
+        clean_stale_proton_pass_session();
+        ($status, $output) = $run_query->();
+    }
+
+    # If unauthenticated, locked, or no session, trigger browser login
+    if ($status != 0 && $output =~ /no session|requires an authenticated client|lock|not logged in/i) {
+        print "Proton Pass session is unauthenticated or expired.\n";
+        run_pass_cli_login($proton_pass_cli_bin);
+        ($status, $output) = $run_query->();
+    }
+
+    if ($status == 0 && defined $output) {
+        $output =~ s/^\s+|\s+$//g;
+        if ($output =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $output = $1;
+            $output =~ s/^\s+|\s+$//g;
         }
+        return $output if $output ne "";
     }
 
-    if (!defined $secret || $secret eq "") {
-        warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
-        warn "Please ensure you are logged in ('pass-cli login') and the item/field exists.\n";
-        return undef;
-    }
-
-    return $secret;
+    warn "Error: Could not retrieve secret for item '$item' from Proton Pass.\n";
+    warn "Output: $output\n" if defined $output && $output =~ /\S/;
+    return undef;
 }
 
 # ------------------------------------------------------------------------------

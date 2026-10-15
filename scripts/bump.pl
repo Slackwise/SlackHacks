@@ -198,6 +198,59 @@ my $commit_count = scalar(@commits);
 print "Found $commit_count commit(s) since tag '$prev_tag'.\n";
 
 # ------------------------------------------------------------------------------
+# Helpers: Browser Launch & Proton Pass Login
+# ------------------------------------------------------------------------------
+sub open_url_in_browser {
+    my ($url) = @_;
+    if ($^O eq 'MSWin32' || $^O eq 'msys' || $^O eq 'cygwin') {
+        if (-x '/usr/bin/start') {
+            system('/usr/bin/start', $url);
+        } elsif (-x '/c/Windows/explorer.exe') {
+            system('/c/Windows/explorer.exe', $url);
+        } else {
+            system('start', $url);
+        }
+    } elsif ($^O eq 'darwin') {
+        system('open', $url);
+    } else {
+        system('xdg-open', $url);
+    }
+}
+
+sub run_pass_cli_login {
+    my ($bin) = @_;
+    print "\nStarting Proton Pass login...\n";
+
+    open my $pipe, "-|", $bin, "login" or do {
+        warn "Failed to execute '$bin login': $!\n";
+        return 0;
+    };
+
+    my $browser_opened = 0;
+    while (my $line = <$pipe>) {
+        print $line;
+        if (!$browser_opened && $line =~ m{(https://account\.proton\.me\S+)}) {
+            my $url = $1;
+            print "\n[Opening your browser automatically to complete authentication...]\n";
+            open_url_in_browser($url);
+            $browser_opened = 1;
+        }
+    }
+    close $pipe;
+    return ($? == 0);
+}
+
+sub clean_stale_proton_pass_session {
+    my $appdata = $ENV{APPDATA} || '';
+    if ($appdata ne '') {
+        my $stale_file = File::Spec->catfile($appdata, "proton-pass-cli", ".session", "session.json");
+        if (-f $stale_file) {
+            unlink $stale_file;
+        }
+    }
+}
+
+# ------------------------------------------------------------------------------
 # Helper: Fetch Proton Pass secret for GITHUB_TOKEN if needed
 # ------------------------------------------------------------------------------
 sub get_github_token {
@@ -211,18 +264,36 @@ sub get_github_token {
     my @cmd = ($pass_cli, "item", "view", "--item-title", $item, "--field", $attr);
     push @cmd, "--vault-name", $vault if ($vault ne "");
 
-    open my $pipe, "-|", @cmd or return undef;
-    my $secret = do { local $/; <$pipe> };
-    close $pipe;
+    my $run_query = sub {
+        my $cmd_str = join(" ", map { /\s/ ? qq{"$_"} : $_ } @cmd);
+        my $output = `$cmd_str 2>&1`;
+        my $status = $? >> 8;
+        return ($status, $output);
+    };
 
-    if (defined $secret) {
-        $secret =~ s/^\s+|\s+$//g;
-        if ($secret =~ /^\Q$attr\E:\s*(.+)$/i) {
-            $secret = $1;
-            $secret =~ s/^\s+|\s+$//g;
-        }
+    my ($status, $output) = $run_query->();
+
+    # Check for stale corrupted session in Windows file lock state
+    if ($status != 0 && $output =~ /Session is some but is not logged in|Error deleting base dir/i) {
+        clean_stale_proton_pass_session();
+        ($status, $output) = $run_query->();
     }
-    return $secret;
+
+    # If unauthenticated, locked, or no session, trigger pass-cli login (browser window)
+    if ($status != 0 && $output =~ /no session|requires an authenticated client|lock|not logged in/i) {
+        run_pass_cli_login($pass_cli);
+        ($status, $output) = $run_query->();
+    }
+
+    if ($status == 0 && defined $output) {
+        $output =~ s/^\s+|\s+$//g;
+        if ($output =~ /^\Q$attr\E:\s*(.+)$/i) {
+            $output = $1;
+            $output =~ s/^\s+|\s+$//g;
+        }
+        return $output if $output ne "";
+    }
+    return undef;
 }
 
 # ------------------------------------------------------------------------------
