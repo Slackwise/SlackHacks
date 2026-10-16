@@ -805,6 +805,18 @@ local function goldModuleOverview(text)
   }
 end
 
+--- Closes the Settings panel and opens Blizzard's Edit Mode. Does nothing in combat (Edit Mode is
+--- protected) or on clients without Edit Mode.
+local function openEditMode()
+  if InCombatLockdown() then return end
+  if SettingsPanel and SettingsPanel:IsShown() then
+    HideUIPanel(SettingsPanel)
+  end
+  if EditModeManagerFrame then
+    ShowUIPanel(EditModeManagerFrame)
+  end
+end
+
 local function infoDisplayCharSheetDisabled()
   return not db.profile.infoDisplay.enabled or not db.profile.infoDisplay.charSheet.enabled
 end
@@ -1802,19 +1814,11 @@ options = {
           order = 0.05
         },
         openEditMode = {
-          name = "Open Visual Settings via Edit Mode",
+          name = "Open Edit Mode",
           desc = "Open Blizzard's Edit Mode and select the Minimap to configure its visual settings and " ..
             "position/size.",
           type = "execute",
-          func = function()
-            if InCombatLockdown() then return end
-            if SettingsPanel and SettingsPanel:IsShown() then
-              HideUIPanel(SettingsPanel)
-            end
-            if EditModeManagerFrame then
-              ShowUIPanel(EditModeManagerFrame)
-            end
-          end,
+          func = openEditMode,
           disabled = function() return not db.profile.minimap.enabled end,
           order = 0.1
         },
@@ -2514,7 +2518,7 @@ options = {
       desc = "Reposition and resize Blizzard windows.",
       order = 9,
       args = {
-        overview = goldModuleOverview("Move Blizzard windows by dragging their title bars and resize them with modifier keys and the mouse wheel."),
+        overview = goldModuleOverview("Make windows movable, scalable, and other related goodies."),
         enabled = {
           name = "Enable Windows Module",
           desc = "Turn on the Windows features below (Movable Windows and Scaling).",
@@ -2528,7 +2532,7 @@ options = {
         movableToasts = {
           name = "Make Toasts Movable in Edit Mode",
           desc = "Toasts are the popup windows in the center bottom of your screen for achievements and " ..
-            "notable items. This enables you to move a blue box in Edit Mode so they pop up elsewhere.",
+            "notable items. This adds a blue box to Edit Mode so you can reposition where they'll popup.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -2536,6 +2540,14 @@ options = {
           set = function(_, value) Self.Windows:SetMoveToastsEnabled(value) end,
           disabled = function() return not db.profile.windows.enabled end,
           order = 0.2
+        },
+        openEditMode = {
+          name = "Open Edit Mode",
+          desc = "Open Blizzard's Edit Mode to reposition the toasts.",
+          type = "execute",
+          func = openEditMode,
+          disabled = function() return not (db.profile.windows.enabled and db.profile.windows.movableToasts) end,
+          order = 0.25
         },
         scalingZoneMap = {
           name = "Enable Zone Map Scaling",
