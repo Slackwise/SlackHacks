@@ -159,6 +159,121 @@ function script(repo, file, args = [], ok = true) {
   return run('perl', [`scripts/${file}`, ...args], repo, ok);
 }
 
+test('release errors and EOF return to dev even when started on another branch', t => {
+  const repo = fixture(t);
+  prepareScripts(repo);
+  run('git', ['checkout', '-b', 'release-work'], repo);
+  script(repo, 'release.pl', ['--no-push']);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+
+  run('git', ['checkout', 'prod'], repo);
+  const early = script(repo, 'release.pl', [], false);
+  assert.notEqual(early.status, 0);
+  assert.match(early.stderr, /already 'prod'/);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+
+  run('git', ['checkout', 'release-work'], repo);
+  fs.writeFileSync(path.join(repo, 'SlackHacks.toc'), '## Version: 2\n');
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'missing changelog'], repo);
+  const eof = script(repo, 'release.pl', [], false);
+  assert.notEqual(eof.status, 0);
+  assert.match(eof.stderr, /No response received/);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+
+  run('git', ['checkout', 'release-work'], repo);
+  const preview = script(repo, 'release.pl', ['--dry-run'], false);
+  assert.notEqual(preview.status, 0);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'release-work');
+});
+
+test('a conflicted release merge is aborted before returning to dev', t => {
+  const repo = fixture(t);
+  prepareScripts(repo);
+  fs.writeFileSync(path.join(repo, 'release.txt'), 'dev change');
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'dev change'], repo);
+  const dev = run('git', ['rev-parse', 'dev'], repo).stdout;
+  run('git', ['checkout', 'prod'], repo);
+  fs.writeFileSync(path.join(repo, 'release.txt'), 'prod change');
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'prod change'], repo);
+  run('git', ['push', 'origin', 'prod'], repo);
+  run('git', ['checkout', 'dev'], repo);
+  const result = script(repo, 'release.pl', ['--no-push'], false);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Command failed/);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+  assert.equal(run('git', ['rev-parse', 'dev'], repo).stdout, dev);
+  assert.equal(run('git', ['status', '--porcelain'], repo).stdout, '');
+  assert.equal(fs.existsSync(path.join(repo, '.git', 'MERGE_HEAD')), false);
+});
+
+test('deployment failure returns to dev rather than the caller branch', t => {
+  const repo = fixture(t);
+  prepareScripts(repo);
+  run('git', ['checkout', '-b', 'release-work'], repo);
+  fs.writeFileSync(path.join(repo, 'scripts', 'deploy.sh'), '#!/usr/bin/env bash\nexit 97\n');
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'failing deployment'], repo);
+  const result = script(repo, 'release.pl', [], false);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /exit code 97/);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+});
+
+test('blocked recovery reports failure without discarding working changes', t => {
+  const repo = fixture(t);
+  prepareScripts(repo);
+  run('git', ['checkout', '-b', 'release-work'], repo);
+  fs.writeFileSync(path.join(repo, 'release.txt'), 'branch change');
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'branch change'], repo);
+  fs.writeFileSync(path.join(repo, 'release.txt'), 'unsaved work');
+  const result = script(repo, 'release.pl', [], false);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /uncommitted changes/);
+  assert.match(result.stderr, /Could not return to branch 'dev'/);
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'release-work');
+  assert.equal(fs.readFileSync(path.join(repo, 'release.txt'), 'utf8'), 'unsaved work');
+});
+
+test('cleanup failure makes an otherwise successful exit fail', t => {
+  const repo = fixture(t);
+  prepareScripts(repo);
+  run('git', ['branch', '-m', 'dev', 'release-work'], repo);
+  const result = script(repo, 'release.pl', ['--help'], false);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Could not return to branch 'dev'/);
+});
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  test(`input interrupted by ${signal} returns to dev`, t => {
+    const repo = fixture(t);
+    prepareScripts(repo);
+    run('git', ['checkout', '-b', 'release-work'], repo);
+    fs.unlinkSync(path.join(repo, 'changelog', 'changelog-v1.md'));
+    // Deliver the signal inside Perl: Node's kill() forcibly terminates Windows children.
+    fs.writeFileSync(path.join(repo, 'scripts', 'ReleaseTestInterrupt.pm'),
+      'package ReleaseTestInterrupt;\n' +
+      'sub TIEHANDLE { bless {}, shift }\n' +
+      'sub READLINE { kill $ENV{RELEASE_TEST_SIGNAL}, $$; die "Signal was not handled\\n"; }\n' +
+      'INIT { tie *STDIN, __PACKAGE__; }\n1;\n');
+    run('git', ['add', '.'], repo);
+    run('git', ['commit', '-m', 'missing changelog'], repo);
+    const result = spawnSync('perl', ['scripts/release.pl'], {
+      cwd: repo, encoding: 'utf8', timeout: 20000,
+      env: { ...process.env, PERL5LIB: path.join(repo, 'scripts'),
+        PERL5OPT: '-MReleaseTestInterrupt', RELEASE_TEST_SIGNAL: signal },
+    });
+    assert.ifError(result.error);
+    assert.match(result.stdout, /Run bump.pl now/);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Release interrupted/);
+    assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+  });
+}
+
 test('local-only releases resume without retagging, deploying, or hiding new changes', t => {
   const repo = fixture(t);
   prepareScripts(repo);
