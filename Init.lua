@@ -179,7 +179,7 @@ CONFIG_MIGRATIONS = {
       enabled = false,
       autoAccept = false,
       autoComplete = false,
-      autoInteract = false,
+      autoClickFirstOption = false,
       numberKeys = false,
       questItemButton = false,
     }
