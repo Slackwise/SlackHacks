@@ -1235,6 +1235,24 @@ local function saveButtonState(button)
     end
   end
 
+  if isForever() and button == AddonCompartmentFrame then
+    saved.compartmentTextures = {}
+    for _, texture in ipairs({ button:GetRegions() }) do
+      if texture:IsObjectType("Texture") and texture:GetAtlas() == "ui-hud-minimap-addon-indicator" then
+        local state = {
+          frame = texture,
+          width = texture:GetWidth(),
+          height = texture:GetHeight(),
+          points = {},
+        }
+        for i = 1, texture:GetNumPoints() do
+          table.insert(state.points, { texture:GetPoint(i) })
+        end
+        table.insert(saved.compartmentTextures, state)
+      end
+    end
+  end
+
   if button == getZoneTextButton() then
     local fs = (button.GetFontString and button:GetFontString()) or _G.MinimapZoneText
     if fs then
@@ -1391,6 +1409,14 @@ local function restoreButtonState(button)
       else
         border:Hide()
       end
+    end
+  end
+
+  for _, state in ipairs(saved.compartmentTextures or {}) do
+    state.frame:ClearAllPoints()
+    state.frame:SetSize(state.width, state.height)
+    for _, point in ipairs(state.points) do
+      state.frame:SetPoint(unpack(point))
     end
   end
 
@@ -2289,13 +2315,17 @@ local function layoutCornerIcons()
   end
 end
 
---- Preserves native artwork dimensions so scaling also resizes fixed-size icon textures.
+--- Restores native frame dimensions and removes Forever's compartment texture insets for title-bar layout.
 ---@param button Frame - Title-bar button being laid out.
 local function matchTrackingButtonSize(button)
   if not isForever() or (button ~= GameTimeFrame and button ~= AddonCompartmentFrame) then return end
   local saved = button.slackHacksSaved
   if saved and saved.width and saved.height then
     button:SetSize(saved.width, saved.height)
+  end
+  for _, state in ipairs((saved and saved.compartmentTextures) or {}) do
+    state.frame:ClearAllPoints()
+    state.frame:SetAllPoints(button)
   end
 end
 
@@ -2319,13 +2349,6 @@ local function getButtonScaledWidth(button)
   if isForever() and (button == GameTimeFrame or button == AddonCompartmentFrame) then
     local tracking = MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button
     local height = button:GetHeight()
-    if button == AddonCompartmentFrame and button.GetNormalTexture then
-      local texture = button:GetNormalTexture()
-      if texture and texture:GetHeight() > 0 then
-        -- The compartment's icon can be smaller than its clickable frame.
-        height = texture:GetHeight()
-      end
-    end
     if tracking and height > 0 then
       scale = tracking:GetHeight() * tracking:GetScale() * TITLE_BAR_CALENDAR_TRACKING_SCALE / height
     end
@@ -2337,8 +2360,16 @@ local function getButtonScaledWidth(button)
     btnW = math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA)
   end
   if isForever() and button == AddonCompartmentFrame then
-    -- Add one rendered pixel of height without increasing the icon's width.
-    button:SetHeight(button:GetHeight() + 1 / scale)
+    local tracking = MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button
+    if tracking then
+      button:SetHeight(tracking:GetHeight() * tracking:GetScale() * TITLE_BAR_CALENDAR_TRACKING_SCALE / scale)
+    end
+    -- Compensate for transparent atlas margins without changing the clickable frame or row spacing.
+    for _, state in ipairs((button.slackHacksSaved and button.slackHacksSaved.compartmentTextures) or {}) do
+      state.frame:ClearAllPoints()
+      state.frame:SetPoint("TOPLEFT", button, "TOPLEFT", -1 / scale, 1 / scale)
+      state.frame:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1 / scale, -1 / scale)
+    end
   end
   return (btnW and btnW > 0 and btnW or 32) * scale, scale
 end
@@ -2355,6 +2386,9 @@ local function getButtonYOffset(button)
   if isForever() and (button == GameTimeFrame or button == AddonCompartmentFrame
       or button == (MinimapCluster and MinimapCluster.Tracking)) then
     yOffset = TITLE_BAR_TRACKING_Y_OFFSET - 1
+    if button == AddonCompartmentFrame then
+      yOffset = yOffset - 0.5
+    end
   elseif button == GameTimeFrame then
     yOffset = TITLE_BAR_CALENDAR_Y_OFFSET
   elseif button == (MinimapCluster and MinimapCluster.Tracking) then
