@@ -163,7 +163,7 @@ sub release_requirements_met {
     my @problems;
     if ($version !~ /^\d+$/) {
         push @problems, "TOC version '$version' is not a numeric release version.";
-    } elsif (defined $latest && $version < $latest) {
+    } elsif (defined $latest && $version <= $latest) {
         push @problems, "TOC version $version has not been bumped past the latest tagged version $latest.";
     }
 
@@ -205,24 +205,28 @@ if (@requirement_problems) {
 
     print "Release prerequisites are not met:\n";
     print "  - $_\n" for @requirement_problems;
-    print "Run bump.pl now? [y/N]: ";
+    print "Run bump.pl now? [y/N]: " or die "Error: Could not prompt for bump confirmation.\n";
     my $answer = <STDIN>;
     die "Error: No response received; release aborted.\n" unless defined $answer;
     $answer =~ s/^\s+|\s+$//g;
     die "Release aborted. Update the version and changelog, then retry.\n"
         unless $answer =~ /^(?:y|yes)$/i;
 
-    print "Choose bump mode [copilot/blank]: ";
-    my $bump_mode = <STDIN>;
-    die "Error: No bump mode received; release aborted.\n" unless defined $bump_mode;
-    $bump_mode =~ s/^\s+|\s+$//g;
-    die "Error: Bump mode must be 'copilot' or 'blank'.\n"
-        unless $bump_mode =~ /^(?:copilot|blank)$/i;
+    print "Use Copilot to generate the changelog? [Y/n]: "
+        or die "Error: Could not prompt for Copilot selection.\n";
+    my $use_copilot = <STDIN>;
+    die "Error: No Copilot selection received; release aborted.\n" unless defined $use_copilot;
+    $use_copilot =~ s/^\s+|\s+$//g;
+    die "Error: Copilot selection must be 'yes' or 'no'.\n"
+        unless $use_copilot eq "" || $use_copilot =~ /^(?:y|yes|n|no)$/i;
 
     my $bump_script = File::Spec->catfile($script_dir, "bump.pl");
     my @bump_cmd = ($^X, $bump_script);
-    push @bump_cmd, "--blank" if lc($bump_mode) eq "blank";
-    print "Running bump.pl in $bump_mode mode...\n";
+    push @bump_cmd, "--no-copilot"
+        if $use_copilot =~ /^(?:n|no)$/i;
+    print "Running bump.pl " .
+        ($use_copilot =~ /^(?:n|no)$/i ? "without" : "with") .
+        " Copilot...\n";
     my $bump_status = system(@bump_cmd);
     die "Error: bump.pl failed with exit code " . ($bump_status >> 8) . "\n"
         if $bump_status != 0;
