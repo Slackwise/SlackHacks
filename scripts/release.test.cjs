@@ -213,11 +213,54 @@ test('release deploys pushed prod, restores dev on failure, and retries the same
   assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
 });
 
+test('re-release refuses older versions, dirty trees, and concurrent remote tag changes', t => {
+  const repo = fixture(t);
+  prepareScripts(repo);
+  fs.writeFileSync(path.join(repo, 'scripts', 'deploy.sh'), '#!/usr/bin/env bash\nexit 0\n');
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'test deployment'], repo);
+  script(repo, 'release.pl', ['--rerelease']);
+  const oldTag = run('git', ['rev-parse', 'v1'], repo).stdout.trim();
+  const oldProd = run('git', ['rev-parse', 'prod'], repo).stdout.trim();
+  fs.appendFileSync(path.join(repo, 'release.txt'), 'more features');
+  const dirty = script(repo, 'release.pl', ['--rerelease'], false);
+  assert.notEqual(dirty.status, 0);
+  assert.match(dirty.stderr, /uncommitted changes/);
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'new features'], repo);
+  run('git', ['tag', 'v2'], repo);
+  const older = script(repo, 'release.pl', ['--rerelease', '--dry-run'], false);
+  assert.notEqual(older.status, 0);
+  assert.match(older.stderr, /latest tagged version 2/);
+  run('git', ['tag', '-d', 'v2'], repo);
+  // A hook simulates a second publisher changing the tag after release.pl snapshots it.
+  const hook = path.join(repo, '.git', 'hooks', 'pre-push');
+  fs.writeFileSync(hook, '#!/usr/bin/env bash\nset -eu\n' +
+    'while read -r local_ref local_sha remote_ref remote_sha; do\n' +
+    `  if [[ "$remote_ref" = refs/heads/prod ]]; then git --git-dir=../origin.git update-ref refs/tags/v1 ${oldProd}; fi\n` +
+    'done\n');
+  fs.chmodSync(hook, 0o755);
+  const raced = script(repo, 'release.pl', ['--rerelease'], false);
+  assert.notEqual(raced.status, 0);
+  assert.match(raced.stderr, /stale info|atomic transaction failed/);
+  assert.ok(run('git', ['ls-remote', '--refs', 'origin', 'refs/heads/prod'], repo).stdout.startsWith(oldProd));
+  assert.ok(run('git', ['ls-remote', '--refs', 'origin', 'refs/tags/v1'], repo).stdout.startsWith(oldProd));
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+  const revisedTag = run('git', ['rev-parse', 'v1'], repo).stdout.trim();
+  assert.notEqual(revisedTag, oldTag);
+  fs.unlinkSync(hook);
+  script(repo, 'release.pl', ['--rerelease']);
+  assert.equal(run('git', ['rev-parse', 'v1'], repo).stdout.trim(), revisedTag);
+  assert.ok(run('git', ['ls-remote', '--refs', 'origin', 'refs/tags/v1'], repo).stdout.startsWith(revisedTag));
+});
+
 function asyncScript(repo, file, args = []) {
   const env = { ...process.env };
   const defaults = fs.readFileSync(path.join(scripts, 'defaults.env'), 'utf8');
   for (const match of defaults.matchAll(/^([A-Z_]+)=/gm)) delete env[match[1]];
-  Object.assign(env, { GITHUB_TOKEN: 'test-token', CURSEFORGE_API_TOKEN: 'test-token' });
+  Object.assign(env, { GITHUB_TOKEN: 'test-token', CURSEFORGE_API_TOKEN: 'test-token',
+    GIT_AUTHOR_NAME: 'Release Test', GIT_AUTHOR_EMAIL: 'test@example.invalid',
+    GIT_COMMITTER_NAME: 'Release Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' });
   return new Promise((resolve, reject) => {
     const child = spawn('perl', [`scripts/${file}`, ...args], { cwd: repo, env });
     let stdout = '', stderr = '';
@@ -229,7 +272,8 @@ function asyncScript(repo, file, args = []) {
 }
 
 test('deployers reconcile GitHub releases and guard completed or uncertain CurseForge uploads', async t => {
-  const state = { release: null, assets: [], creates: 0, patches: 0, uploads: 0, cfUploads: 0, cfFail: false };
+  const state = { release: null, assets: [], creates: 0, patches: 0, uploads: 0, deletes: 0,
+    cfUploads: 0, cfFail: false, uploadFail: false, deleteFail: false };
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', chunk => { chunks.push(chunk); });
@@ -254,11 +298,19 @@ test('deployers reconcile GitHub releases and guard completed or uncertain Curse
         return reply(200, state.assets);
       }
       if (req.url.includes('/releases/10/assets?') && req.method === 'POST') {
+        if (state.uploadFail) return reply(500, { error: 'upload failed' });
         state.uploads++;
         const asset = { id: 11, name: 'SlackHacks.zip', state: 'uploaded', size: bytes.length,
           digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}` };
         state.assets.push(asset);
         return reply(201, asset);
+      }
+      if (req.url.endsWith('/releases/assets/11') && req.method === 'DELETE') {
+        if (state.deleteFail) return reply(403, { error: 'delete failed' });
+        state.deletes++;
+        state.assets = [];
+        res.writeHead(204);
+        return res.end();
       }
       if (req.url.endsWith('/api/game/version-types')) return reply(200, [{ id: 1, name: 'Retail' }]);
       if (req.url.endsWith('/api/game/versions')) return reply(200, [{ id: 12, name: '12.0.0', gameVersionTypeID: 1 }]);
@@ -282,8 +334,8 @@ test('deployers reconcile GitHub releases and guard completed or uncertain Curse
   }
   assert.equal(fs.existsSync(path.join(repo, 'dist')), false);
   run('git', ['push', 'origin', 'v1'], repo);
-  const deploy = async file => {
-    const result = await asyncScript(repo, file);
+  const deploy = async (file, args = []) => {
+    const result = await asyncScript(repo, file, args);
     assert.equal(result.status, 0, result.stderr + result.stdout);
     return result;
   };
@@ -321,6 +373,48 @@ test('deployers reconcile GitHub releases and guard completed or uncertain Curse
   assert.equal(state.uploads, 1);
   assert.equal(state.cfUploads, 1);
 
+  const oldTag = run('git', ['rev-parse', 'v1'], repo).stdout;
+  fs.appendFileSync(path.join(repo, 'release.txt'), 'more features');
+  fs.writeFileSync(path.join(repo, 'scripts', 'build.sh'),
+    fs.readFileSync(path.join(repo, 'scripts', 'build.sh'), 'utf8').replace('printf archive', 'printf revised'));
+  run('git', ['add', '.'], repo);
+  run('git', ['commit', '-m', 'more features for same version'], repo);
+  const preview = await deploy('release.pl', ['--rerelease', '--dry-run']);
+  assert.match(preview.stdout, /--force-with-lease=refs\/tags\/v1:/);
+  assert.equal(run('git', ['rev-parse', 'v1'], repo).stdout, oldTag);
+  assert.equal(state.uploads, 1, 'dry run must not replace published files');
+  await deploy('release.pl', ['--rerelease', '--no-push']);
+  const revisedTag = run('git', ['rev-parse', 'v1'], repo).stdout;
+  assert.notEqual(revisedTag, oldTag);
+  assert.ok(run('git', ['ls-remote', '--refs', 'origin', 'refs/tags/v1'], repo).stdout.startsWith(oldTag.trim()));
+  await deploy('release.pl', ['--rerelease']);
+  assert.equal(run('git', ['rev-parse', 'v1'], repo).stdout, revisedTag, 'resume must not recreate tag object');
+  assert.equal(state.deletes, 1);
+  assert.equal(state.uploads, 2);
+  assert.equal(state.cfUploads, 2);
+  await deploy('release.pl', ['--rerelease']);
+  await deploy('release.pl');
+  assert.equal(state.deletes, 1);
+  assert.equal(state.uploads, 2);
+  assert.equal(state.cfUploads, 2, 'same revision must not be uploaded twice');
+  assert.equal(run('git', ['branch', '--show-current'], repo).stdout.trim(), 'dev');
+
+  run('git', ['checkout', 'prod'], repo);
+  state.assets[0].digest = 'sha256:old';
+  state.deleteFail = true;
+  const deleteFailure = await asyncScript(repo, 'deploy-github.pl', ['--rerelease']);
+  assert.notEqual(deleteFailure.status, 0);
+  assert.match(deleteFailure.stderr, /Cannot remove existing asset/);
+  assert.equal(state.uploads, 2);
+  state.deleteFail = false;
+  state.uploadFail = true;
+  assert.notEqual((await asyncScript(repo, 'deploy-github.pl', ['--rerelease'])).status, 0);
+  assert.equal(state.assets.length, 0);
+  state.uploadFail = false;
+  await deploy('deploy-github.pl', ['--rerelease']);
+  await deploy('deploy-github.pl', ['--rerelease']);
+  assert.equal(state.uploads, 3, 'retry after deletion must recover missing asset once');
+
   const other = fixture(t);
   prepareScripts(other, `http://127.0.0.1:${server.address().port}`);
   run('git', ['tag', '-a', 'v1', '-m', 'release'], other);
@@ -330,5 +424,8 @@ test('deployers reconcile GitHub releases and guard completed or uncertain Curse
   const pending = await asyncScript(other, 'deploy-curseforge.pl');
   assert.notEqual(pending.status, 0);
   assert.match(pending.stderr, /pending or uncertain/);
-  assert.equal(state.cfUploads, 2, 'uncertain upload must not be repeated');
+  const forcedPending = await asyncScript(other, 'deploy-curseforge.pl', ['--rerelease']);
+  assert.notEqual(forcedPending.status, 0);
+  assert.match(forcedPending.stderr, /pending or uncertain/);
+  assert.equal(state.cfUploads, 3, 'uncertain upload must not be repeated');
 });

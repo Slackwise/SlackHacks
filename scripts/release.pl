@@ -49,6 +49,7 @@ load_dotenv($defaults_file);
 my $dry_run       = 0;
 my $push          = (!defined $ENV{RELEASE_PUSH} || $ENV{RELEASE_PUSH} !~ /^(0|false|no)$/i) ? 1 : 0;
 my $force         = 0;
+my $rerelease     = 0;
 my $source_branch = "";
 sub require_config {
     my ($name) = @_;
@@ -64,10 +65,11 @@ GetOptions(
     'dry-run|n'   => \$dry_run,
     'push!'       => \$push,
     'force|f'     => \$force,
+    'rerelease'   => \$rerelease,
     'source=s'    => \$source_branch,
     'target=s'    => \$target_branch,
     'help|h'      => \$help,
-) or die "Usage: $0 [--dry-run] [--no-push] [--force] [--source <branch>] [--target <branch>]\n";
+) or die "Usage: $0 [--dry-run] [--no-push] [--rerelease] [--source <branch>] [--target <branch>]\n";
 
 if ($help) {
     print <<"HELP";
@@ -80,6 +82,8 @@ Options:
       --push           Push branches and new tag to origin after merge (default: true)
       --no-push        Skip pushing to origin
   -f, --force          Deprecated; release tags and dirty worktrees are never overwritten
+      --rerelease      Merge new changes, move this version's tag, and replace published
+                       GitHub assets. CurseForge gets a new file; remove the old one manually.
       --source <name>  Source branch to merge from (default: current branch)
       --target <name>  Target production branch (default: TARGET_COMMITISH in scripts/defaults.env)
   -h, --help           Show this help message
@@ -173,8 +177,22 @@ sub release_requirements_met {
 }
 
 my $version = read_toc_version($toc_file);
+my $tag_name = "$tag_prefix$version";
 die "Error: Release target must be prod.\n" unless $target_branch eq 'prod';
-git_output('fetch', '--tags', 'origin', "refs/heads/$target_branch:refs/remotes/origin/$target_branch");
+if ($rerelease) {
+    # Exclude only this tag so a locally retagged --no-push release can be resumed.
+    git_output('fetch', '--no-tags', 'origin',
+        "refs/heads/$target_branch:refs/remotes/origin/$target_branch",
+        'refs/tags/*:refs/tags/*', "^refs/tags/$tag_name");
+} else {
+    git_output('fetch', '--tags', 'origin', "refs/heads/$target_branch:refs/remotes/origin/$target_branch");
+}
+my $remote_tag_ref = git_output('ls-remote', '--refs', 'origin', "refs/tags/$tag_name");
+my ($remote_tag_oid) = split /\s+/, $remote_tag_ref;
+$remote_tag_oid //= '';
+if ($rerelease && length $remote_tag_oid && !length git_output('tag', '--list', $tag_name)) {
+    git_output('fetch', '--no-tags', 'origin', "refs/tags/$tag_name:refs/tags/$tag_name");
+}
 my $latest_tagged_version = latest_tagged_version($tag_prefix);
 my @requirement_problems = release_requirements_met(
     $version, $latest_tagged_version, $tag_prefix, $changelog_dir
@@ -212,15 +230,15 @@ if (@requirement_problems) {
     die "Bump completed. Review and commit the updated TOC and changelog, then rerun release.pl.\n";
 }
 
-my $tag_name = "$tag_prefix$version";
-
 # ------------------------------------------------------------------------------
 # Step 3: Check if Tag Already Exists
 # ------------------------------------------------------------------------------
 my $existing_tag = `git tag -l "$tag_name" 2>/dev/null`;
 $existing_tag =~ s/^\s+|\s+$//g if defined $existing_tag;
 
-my $resuming = defined $existing_tag && $existing_tag eq $tag_name;
+my $tag_exists = defined $existing_tag && $existing_tag eq $tag_name;
+my $resuming = $tag_exists && !$rerelease;
+my $previous_commit = $tag_exists ? git_output('rev-parse', "refs/tags/$tag_name^{commit}") : undef;
 
 # If the merge will fast-forward or do nothing, reject a commit that already
 # carries a release tag instead of creating another version tag on it.
@@ -252,7 +270,7 @@ my $prospective_commit =
     ($merge_base eq $target_commit) ? $source_commit
     : ($merge_base eq $source_commit) ? $target_commit
     : undef;
-if (!$resuming && defined $prospective_commit) {
+if (!$tag_exists && defined $prospective_commit) {
     my @tags_on_commit = `git tag --points-at "$prospective_commit" 2>/dev/null`;
     die "Error: Could not inspect tags on the prospective release commit.\n" if $? != 0;
     chomp @tags_on_commit;
@@ -268,6 +286,8 @@ print "Tag Name:      $tag_name\n";
 print "Source Branch: $source_branch\n";
 print "Target Branch: $target_branch\n";
 print "Push to Remote:" . ($push ? " Yes" : " No (local only)") . "\n";
+print "WARNING: Explicit re-release may move a published tag and replace GitHub assets.\n" if $rerelease;
+print "CurseForge will receive a new file for a revised commit; manage old files manually.\n" if $rerelease;
 print "=======================\n";
 
 # Helper to execute shell commands
@@ -306,19 +326,32 @@ eval {
 
         die "Error: Merged production TOC version differs from planned release $version.\n"
             if !$dry_run && read_toc_version($toc_file) ne $version;
-        print "Creating tag '$tag_name'...\n";
-        run_cmd("git", "tag", "-a", $tag_name, "-m", "Release $tag_name");
+        if ($tag_exists && !$dry_run) {
+            my $head = git_output('rev-parse', 'HEAD');
+            die "Error: Refusing to move '$tag_name' away from unrelated release history.\n"
+                unless git_output('merge-base', $previous_commit, $head) eq $previous_commit;
+        }
+        if (!$tag_exists || $dry_run || git_output('rev-parse', 'HEAD') ne $previous_commit) {
+            print ($tag_exists ? "Moving tag '$tag_name'...\n" : "Creating tag '$tag_name'...\n");
+            my @tag_cmd = ("git", "tag", "-a", $tag_name, "-m", "Release $tag_name");
+            push @tag_cmd, '-f' if $rerelease && $tag_exists;
+            run_cmd(@tag_cmd);
+        } else {
+            print "Tag '$tag_name' already points to this release; leaving it unchanged.\n";
+        }
     }
 
     if ($push) {
         print "Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
         run_cmd("git", "push", "origin", $source_branch);
-        run_cmd("git", "push", "--atomic", "origin",
+        my @lease = $rerelease ? ("--force-with-lease=refs/tags/$tag_name:$remote_tag_oid") : ();
+        run_cmd("git", "push", "--atomic", @lease, "origin",
             "refs/heads/$target_branch:refs/heads/$target_branch",
             "refs/tags/$tag_name:refs/tags/$tag_name");
         unless ($dry_run) {
             print "\nDeploying the pushed production release...\n";
-            run_cmd("bash", File::Spec->catfile($script_dir, "deploy.sh"));
+            run_cmd("bash", File::Spec->catfile($script_dir, "deploy.sh"),
+                $rerelease ? ('--rerelease') : ());
         }
     } else {
         print "Local release only; deployment skipped until branch and tag are pushed.\n";
@@ -345,6 +378,8 @@ die $release_error if defined $release_error;
 print "\nRelease complete! Successfully merged '$source_branch' into '$target_branch' and tagged '$tag_name'.\n";
 if ($push) {
     print "Pushed '$source_branch', '$target_branch', and '$tag_name' to origin successfully.\n";
+} elsif ($rerelease) {
+    print "Tip: Rerun release.pl --rerelease --push to publish this revised release and deploy.\n";
 } else {
     print "Tip: Run 'git push origin $source_branch && git push origin $target_branch $tag_name' when you're ready to publish upstream.\n";
 }

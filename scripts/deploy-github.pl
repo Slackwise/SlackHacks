@@ -8,6 +8,7 @@ use ReleaseUtil qw(verify_release read_changelog json_file curl_response file_di
 use Cwd qw(abs_path);
 use File::Spec;
 use JSON::PP;
+use Getopt::Long qw(GetOptions);
 
 # ==============================================================================
 # deploy-github.pl
@@ -81,13 +82,11 @@ my $proton_pass_vault      = require_config("PROTON_PASS_VAULT");
 my $proton_pass_attribute  = require_config("PROTON_PASS_ATTRIBUTE");
 my $proton_pass_cli_bin    = require_config("PROTON_PASS_CLI_BIN");
 
-# Dry run flag: --dry-run
 my $dry_run = 0;
-for my $arg (@ARGV) {
-    if ($arg eq '--dry-run' || $arg eq '-n') {
-        $dry_run = 1;
-    }
-}
+my $rerelease = 0;
+GetOptions('dry-run|n' => \$dry_run, 'rerelease' => \$rerelease)
+    or die "Usage: $0 [--dry-run] [--rerelease]\n";
+die "Error: Unexpected arguments: @ARGV\n" if @ARGV;
 
 # ------------------------------------------------------------------------------
 # Helpers: Browser Launch & Proton Pass Login
@@ -322,6 +321,7 @@ if (($release_data->{body} // '') ne $release_body ||
 
 my $digest = 'sha256:' . file_digest($zip_path);
 my $page = 1;
+my @replace_assets;
 while (1) {
     my ($status, $body) = curl_response(@headers, "$api_url/$release_id/assets?per_page=100&page=$page");
     die "Error: Cannot list release assets (HTTP $status).\nResponse: $body\n" unless $status == 200;
@@ -334,10 +334,19 @@ while (1) {
             exit 0;
         }
         die "Error: Asset '$zip_name' already exists but its digest differs or is unavailable. " .
-            "Refusing to replace a published artifact; inspect it on GitHub before retrying.\n";
+            "Refusing to replace a published artifact without --rerelease.\n" unless $rerelease;
+        die "Error: GitHub asset has no ID.\n" unless $asset->{id};
+        push @replace_assets, $asset->{id};
     }
     last if @$assets < 100;
     $page++;
+}
+
+for my $asset_id (@replace_assets) {
+    print "Replacing published asset '$zip_name' (ID: $asset_id) for explicit re-release...\n";
+    my ($status, $body) = curl_response(@headers, '-X', 'DELETE', "$api_url/assets/$asset_id");
+    die "Error: Cannot remove existing asset (HTTP $status).\nResponse: $body\n"
+        unless $status == 204;
 }
 
 # ------------------------------------------------------------------------------
