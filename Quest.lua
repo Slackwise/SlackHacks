@@ -47,7 +47,12 @@ AUTOMATION_OPTIONS = {
 local ALL_AUTOMATION_LABEL = "All NPC Auto-Interacts"
 
 local function settings()
-  return db.profile.quest
+  local s = db.profile.quest
+  if not s then
+    s = CopyTable(dbDefaults.profile.quest or {})
+    db.profile.quest = s
+  end
+  return s
 end
 
 local function isAutomationSuppressed()
