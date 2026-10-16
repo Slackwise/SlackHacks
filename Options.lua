@@ -74,6 +74,14 @@ dbDefaults = {
       opacity = 100,
       color = { r = 1, g = 1, b = 1 }
     },
+    quest = {
+      enabled = false,
+      autoAccept = false,
+      autoComplete = false,
+      autoClickFirstOption = false,
+      numberKeys = false,
+      questItemButton = false
+    },
     combat = {
       raiseCastingNameplates = false,
       paladin = {
@@ -447,6 +455,7 @@ local function openMinimapContextMenu(anchor)
       rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
       rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
       rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
+      rootDescription:CreateCheckbox("All NPC Auto-Interacts", isAllQuestAutomationEnabled, toggleAllQuestAutomation)
       if isRetail and isRetail() then
         rootDescription:CreateCheckbox("Track Delve Weeklies", isTrackDelvesActive, toggleTrackDelves)
       end
@@ -462,6 +471,7 @@ local function openMinimapContextMenu(anchor)
     { text = "Square Minimap", checked = isSquareMinimapActive, func = toggleSquareMinimap, isNotRadio = true, keepShownOnClick = true },
     { text = "Display Gear Stats", checked = isGearStatsActive, func = toggleGearStats, isNotRadio = true, keepShownOnClick = true },
     { text = "Mouse Ring", checked = isMouseRingActive, func = toggleMouseRing, isNotRadio = true, keepShownOnClick = true },
+    { text = "All NPC Auto-Interacts", checked = isAllQuestAutomationEnabled, func = toggleAllQuestAutomation, isNotRadio = true, keepShownOnClick = true },
   }
   if isRetail and isRetail() then
     table.insert(menuList, {
@@ -2645,6 +2655,95 @@ options = {
       name = "Self Vendor",
       order = 10,
       args = selfVendorModeOptions()
+    },
+    quest = {
+      type = "group",
+      name = "Quest / NPC",
+      desc = "Quest and NPC dialog automation, plus an Extra Action Button for quest items.",
+      order = 9.5,
+      args = {
+        overview = goldModuleOverview("Automates quest and NPC dialogs, adds number-key shortcuts to dialog options, and shows an Extra Action Button for quest items."),
+        shiftNote = {
+          type = "description",
+          name = "|cffffffffHold |cff00ccffShift|cffffffff while interacting with an NPC to skip all automation for that interaction.|r",
+          fontSize = "small",
+          width = "full",
+          order = 0.05
+        },
+        enabled = {
+          name = "Enable Quest Module",
+          desc = "Enable the Quest / NPC features below.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.quest.enabled end,
+          set = function(_, value) Self.Quest:SetEnabled(value) end,
+          order = 0.1
+        },
+        setKeybinds = {
+          name = "Set Quest Keybinds",
+          desc = "Open the Key Bindings settings to the SlackHacks section to bind the NPC auto-interact toggles.",
+          type = "execute",
+          func = function() openKeybindings() end,
+          order = 0.2
+        },
+        autoAccept = {
+          name = "Auto-Accept Quests",
+          desc = "Automatically accepts quests on interact.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.autoAccept end,
+          set = function(_, value) Self.Quest:SetOption("autoAccept", value) end,
+          order = 1
+        },
+        autoComplete = {
+          name = "Auto-Complete Quests",
+          desc = "Automatically completes quests that have no choices in reward.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.autoComplete end,
+          set = function(_, value) Self.Quest:SetOption("autoComplete", value) end,
+          order = 2
+        },
+        autoClickFirstOption = {
+          name = "Auto-Click First Dialog Option",
+          desc = "Automatically clicks an interact option in an NPC dialog if it's the only option.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.autoClickFirstOption end,
+          set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
+          order = 3
+        },
+        numberKeys = {
+          name = "Map NPC Dialog Options to Number Keys",
+          desc = "Maps NPC dialog options to the number keys when interacting.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.numberKeys end,
+          set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+          order = 4
+        },
+        questItemButton = {
+          name = "Use 'Extra Action Button' for Quest Items",
+          desc = "Shows the 'Extra Action Button' when there is a quest item to use.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          hidden = function() return not Self.Quest:IsQuestItemButtonSupported() end,
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.questItemButton end,
+          set = function(_, value) Self.Quest:SetOption("questItemButton", value) end,
+          order = 5
+        }
+      }
     },
     bind = {
       type = "execute",

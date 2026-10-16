@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 3
+CONFIG_VERSION = 4
 
 function getAddonVersion()
   return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
@@ -171,6 +171,37 @@ CONFIG_MIGRATIONS = {
     local g = Self.db.global
     if g and g.logs and g.logs.error then
       wipe(g.logs.error)
+    end
+  end,
+  [4] = function()
+    -- Add the Quest / NPC module settings, all off by default.
+    local QUEST_DEFAULTS = {
+      enabled = false,
+      autoAccept = false,
+      autoComplete = false,
+      autoClickFirstOption = false,
+      numberKeys = false,
+      questItemButton = false,
+    }
+    local function migrateProfile(p)
+      if not p or type(p) ~= "table" then return end
+      if type(p.quest) ~= "table" then
+        p.quest = {}
+      end
+      for key, value in pairs(QUEST_DEFAULTS) do
+        if p.quest[key] == nil then
+          p.quest[key] = value
+        end
+      end
+    end
+
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+      end
+    end
+    if Self.db.profile then
+      migrateProfile(Self.db.profile)
     end
   end,
 }

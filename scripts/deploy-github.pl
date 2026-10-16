@@ -3,9 +3,12 @@ use strict;
 use warnings;
 use utf8;
 use FindBin;
+use lib $FindBin::Bin;
+use ReleaseUtil qw(verify_release read_changelog json_file curl_response file_digest ensure_build);
 use Cwd qw(abs_path);
 use File::Spec;
 use JSON::PP;
+use Getopt::Long qw(GetOptions);
 
 # ==============================================================================
 # deploy-github.pl
@@ -79,13 +82,11 @@ my $proton_pass_vault      = require_config("PROTON_PASS_VAULT");
 my $proton_pass_attribute  = require_config("PROTON_PASS_ATTRIBUTE");
 my $proton_pass_cli_bin    = require_config("PROTON_PASS_CLI_BIN");
 
-# Dry run flag: --dry-run
 my $dry_run = 0;
-for my $arg (@ARGV) {
-    if ($arg eq '--dry-run' || $arg eq '-n') {
-        $dry_run = 1;
-    }
-}
+my $rerelease = 0;
+GetOptions('dry-run|n' => \$dry_run, 'rerelease' => \$rerelease)
+    or die "Usage: $0 [--dry-run] [--rerelease]\n";
+die "Error: Unexpected arguments: @ARGV\n" if @ARGV;
 
 # ------------------------------------------------------------------------------
 # Helpers: Browser Launch & Proton Pass Login
@@ -213,17 +214,11 @@ my $tag_name      = "$tag_prefix$version";
 my $release_title = "$release_title_prefix$version";
 my $zip_path      = File::Spec->catfile($dist_dir, $zip_name);
 
-unless (-f $zip_path) {
-    print "Release archive not found. Building addon package...\n";
-    my $build_script = File::Spec->catfile($script_dir, "build.sh");
-    my $build_status = system("bash", $build_script);
-    if ($build_status != 0) {
-        die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
-    }
-}
+my $commit = verify_release($tag_name, $target_commitish);
 
-die "Error: Build output '$zip_path' not found.\n" unless -f $zip_path;
-print "Found release archive: $zip_path\n";
+ensure_build($script_dir, $zip_path, $commit) unless $dry_run;
+
+die "Error: Build output '$zip_path' not found.\n" unless $dry_run || -f $zip_path;
 
 # ------------------------------------------------------------------------------
 # Step 2: Retrieve GitHub Token from Proton Pass
@@ -243,29 +238,10 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 # Step 3: Prepare Release Notes / Body
 # ------------------------------------------------------------------------------
-my $release_body = "";
-if ($changelog_file eq "") {
-    my $default_changelog = File::Spec->catfile($changelog_dir, "changelog-$tag_prefix$version.md");
-    if (-f $default_changelog) {
-        $changelog_file = $default_changelog;
-    }
-}
-
-if ($changelog_file ne "" && -f $changelog_file) {
-    open my $cfh, "<:encoding(UTF-8)", $changelog_file or warn "Cannot open changelog file '$changelog_file': $!\n";
-    if ($cfh) {
-        $release_body = do { local $/; <$cfh> };
-        close $cfh;
-    }
-}
-
-my $generate_release_notes;
-if (defined $ENV{GENERATE_RELEASE_NOTES}) {
-    $generate_release_notes = ($ENV{GENERATE_RELEASE_NOTES} =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-} else {
-    # If a changelog file exists, default to false so GitHub doesn't append raw commit logs; otherwise true
-    $generate_release_notes = ($release_body =~ /\S/) ? JSON::PP::false : JSON::PP::true;
-}
+my $release_body;
+($changelog_file, $release_body) = read_changelog($changelog_file, $changelog_dir, $tag_name);
+# GitHub's generator appends commit-based notes; the changelog is the authoritative body.
+my $generate_release_notes = JSON::PP::false;
 
 # ------------------------------------------------------------------------------
 # Step 4: Create GitHub Release
@@ -282,7 +258,6 @@ my $payload = {
     generate_release_notes => $generate_release_notes,
 };
 
-my $payload_json = $json_codec->encode($payload);
 my $api_url = "https://api.github.com/repos/$github_repo/releases";
 
 print "=== GitHub Release Summary ===\n";
@@ -293,7 +268,7 @@ print "Release Title:       $release_title\n";
 print "Changelog File:      " . ($changelog_file ne "" ? $changelog_file : "(none)") . "\n";
 print "Draft:               " . ($is_draft ? "true" : "false") . "\n";
 print "Prerelease:          " . ($is_prerelease ? "true" : "false") . "\n";
-print "Auto Release Notes:  " . ($generate_release_notes ? "true" : "false") . "\n";
+print "Auto Release Notes:  changelog file (GitHub commit generation disabled)\n";
 print "Artifact:            $zip_path\n";
 print "==============================\n";
 
@@ -308,68 +283,70 @@ if ($dry_run) {
     exit 0;
 }
 
-print "Creating GitHub Release...\n";
-my @create_cmd = (
-    "curl", "-s", "-S",
-    "-w", "\nHTTP_STATUS:%{http_code}",
-    "-X", "POST",
-    "-H", "Accept: application/vnd.github+json",
-    "-H", "Authorization: Bearer $github_token",
-    "-H", "X-GitHub-Api-Version: $github_api_version",
-    "-d", $payload_json,
-    $api_url
+my @headers = (
+    '-H', 'Accept: application/vnd.github+json',
+    '-H', "Authorization: Bearer $github_token",
+    '-H', "X-GitHub-Api-Version: $github_api_version",
 );
+my $tag_url = "$api_url/tags/$tag_name";
+my ($http_status, $response) = curl_response(@headers, $tag_url);
+my $release_data;
+if ($http_status == 404) {
+    print "Creating GitHub Release...\n";
+    my $request_file = json_file($payload);
+    ($http_status, $response) = curl_response(@headers, '-X', 'POST',
+        '-H', 'Content-Type: application/json', '--data-binary', "\@$request_file", $api_url);
+    if ($http_status == 422 && $response =~ /already_exists/i) {
+        ($http_status, $response) = curl_response(@headers, $tag_url);
+    }
+}
+die "Error: Cannot create or retrieve GitHub release (HTTP $http_status).\nResponse: $response\n"
+    unless $http_status >= 200 && $http_status < 300;
+$release_data = $json_codec->decode($response);
+die "Error: Invalid GitHub release response.\n"
+    unless ref($release_data) eq 'HASH' && $release_data->{id};
+my $release_id = $release_data->{id};
+my $release_url = $release_data->{html_url} // '';
 
-open my $create_pipe, "-|", @create_cmd or die "Failed to execute curl: $!\n";
-my $create_resp = do { local $/; <$create_pipe> };
-close $create_pipe;
-
-my $http_status = 0;
-my ($release_id, $release_url);
-if ($create_resp =~ /HTTP_STATUS:(\d+)/) {
-    $http_status = int($1);
-    $create_resp =~ s/\n?HTTP_STATUS:\d+//;
+if (($release_data->{body} // '') ne $release_body ||
+    ($release_data->{name} // '') ne $release_title ||
+    !!$release_data->{draft} != !!$is_draft ||
+    !!$release_data->{prerelease} != !!$is_prerelease) {
+    my $request_file = json_file($payload);
+    my ($status, $body) = curl_response(@headers, '-X', 'PATCH',
+        '-H', 'Content-Type: application/json', '--data-binary', "\@$request_file", "$api_url/$release_id");
+    die "Error: Cannot update release notes (HTTP $status).\nResponse: $body\n"
+        unless $status == 200;
 }
 
-if ($http_status == 422 && $create_resp =~ /already_exists/i) {
-    print "Release for tag '$tag_name' already exists on GitHub. Locating existing release...\n";
-    my $tag_url = "https://api.github.com/repos/$github_repo/releases/tags/$tag_name";
-    my $get_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: $github_api_version" "$tag_url"`;
-    my $existing = eval { $json_codec->decode($get_resp) };
-    if ($existing && $existing->{id}) {
-        $release_id  = $existing->{id};
-        $release_url = $existing->{html_url} || "";
-        print "Found existing release (ID: $release_id): $release_url\n";
-    } else {
-        die "Error: Tag '$tag_name' already exists, but could not retrieve release details.\nResponse: $get_resp\n";
-    }
-} elsif ($http_status < 200 || $http_status >= 300) {
-    die "Error: Failed to create GitHub Release (HTTP $http_status).\nResponse: $create_resp\n";
-} else {
-    my $release_data = eval { $json_codec->decode($create_resp) };
-    if (!$release_data || !$release_data->{id}) {
-        die "Error: Could not parse release response from GitHub.\nResponse: $create_resp\n";
-    }
-    $release_id  = $release_data->{id};
-    $release_url = $release_data->{html_url} || "";
-    print "Created release successfully (ID: $release_id): $release_url\n";
-}
-
-# If asset already exists on this release, remove it first so re-running replaces it
-my $assets_url = "https://api.github.com/repos/$github_repo/releases/$release_id/assets";
-my $assets_resp = `curl -s -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $github_token" -H "X-GitHub-Api-Version: $github_api_version" "$assets_url"`;
-my $assets_list = eval { $json_codec->decode($assets_resp) };
-if ($assets_list && ref($assets_list) eq 'ARRAY') {
-    for my $asset (@$assets_list) {
-        if ($asset->{name} eq $zip_name) {
-            print "Asset '$zip_name' already exists on release (ID: $asset->{id}). Replacing...\n";
-            system("curl", "-s", "-X", "DELETE",
-                   "-H", "Accept: application/vnd.github+json",
-                   "-H", "Authorization: Bearer $github_token",
-                   "-H", "X-GitHub-Api-Version: $github_api_version",
-                   "https://api.github.com/repos/$github_repo/releases/assets/$asset->{id}");
+my $digest = 'sha256:' . file_digest($zip_path);
+my $page = 1;
+my @replace_assets;
+while (1) {
+    my ($status, $body) = curl_response(@headers, "$api_url/$release_id/assets?per_page=100&page=$page");
+    die "Error: Cannot list release assets (HTTP $status).\nResponse: $body\n" unless $status == 200;
+    my $assets = $json_codec->decode($body);
+    die "Error: Invalid GitHub asset list.\n" unless ref($assets) eq 'ARRAY';
+    for my $asset (@$assets) {
+        next unless $asset->{name} eq $zip_name;
+        if (($asset->{state} // '') eq 'uploaded' && ($asset->{digest} // '') eq $digest) {
+            print "Release and matching asset already published: $release_url\n";
+            exit 0;
         }
+        die "Error: Asset '$zip_name' already exists but its digest differs or is unavailable. " .
+            "Refusing to replace a published artifact without --rerelease.\n" unless $rerelease;
+        die "Error: GitHub asset has no ID.\n" unless $asset->{id};
+        push @replace_assets, $asset->{id};
     }
+    last if @$assets < 100;
+    $page++;
+}
+
+for my $asset_id (@replace_assets) {
+    print "Replacing published asset '$zip_name' (ID: $asset_id) for explicit re-release...\n";
+    my ($status, $body) = curl_response(@headers, '-X', 'DELETE', "$api_url/assets/$asset_id");
+    die "Error: Cannot remove existing asset (HTTP $status).\nResponse: $body\n"
+        unless $status == 204;
 }
 
 # ------------------------------------------------------------------------------
@@ -379,8 +356,6 @@ my $upload_url = "https://uploads.github.com/repos/$github_repo/releases/$releas
 
 print "Uploading asset $zip_name to GitHub release...\n";
 my @upload_cmd = (
-    "curl", "-s", "-S",
-    "-w", "\nHTTP_STATUS:%{http_code}",
     "-X", "POST",
     "-H", "Accept: application/vnd.github+json",
     "-H", "Authorization: Bearer $github_token",
@@ -390,17 +365,14 @@ my @upload_cmd = (
     $upload_url
 );
 
-open my $upload_pipe, "-|", @upload_cmd or die "Failed to execute curl: $!\n";
-my $upload_resp = do { local $/; <$upload_pipe> };
-close $upload_pipe;
-
-my $upload_http_status = 0;
-if ($upload_resp =~ /HTTP_STATUS:(\d+)/) {
-    $upload_http_status = int($1);
-    $upload_resp =~ s/\n?HTTP_STATUS:\d+//;
-}
+my ($upload_http_status, $upload_resp) = curl_response(@upload_cmd);
 
 if ($upload_http_status >= 200 && $upload_http_status < 300) {
+    my $asset = $json_codec->decode($upload_resp);
+    die "Error: GitHub did not confirm the uploaded asset.\n"
+        unless ref($asset) eq 'HASH' && $asset->{id} &&
+            ($asset->{state} // '') eq 'uploaded' &&
+            $asset->{name} eq $zip_name && $asset->{size} == -s $zip_path;
     print "Asset uploaded successfully (HTTP $upload_http_status)!\n";
     print "Release URL: $release_url\n";
 } else {

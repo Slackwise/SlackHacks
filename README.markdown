@@ -39,6 +39,84 @@ values in `.env` if your item names differ from the defaults. Environment
 variables already set by the shell or CI/CD environment take precedence over
 both files, so CI can inject its own configuration and secrets.
 
+### Publishing and retrying releases
+
+Run `perl scripts/release.pl` from a clean development branch after committing
+the version bump and the non-empty `changelog/changelog-v<VERSION>.md` file.
+The script merges into `prod`, creates an immutable version tag, atomically
+pushes `prod` and the tag, and deploys that production checkout before restoring
+your original branch (also on deployment failure). `--no-push` prepares only
+the local release and never deploys. `--force` no longer bypasses dirty-worktree
+checks or overwrites tags.
+
+Rerun the same release command after a partial failure: an existing tag is
+resumed, not recreated, provided the source has no commits outside that release
+and production has not advanced or diverged. New development needs a version
+bump rather than retagging a published release.
+
+To intentionally include new commits in the same version, commit the changes
+and changelog on `dev`, then run `perl scripts/release.pl --rerelease`.
+This is an explicit exception to immutable releases: it merges into `prod`,
+moves the version tag only when the release commit changes, and atomically
+pushes the branch and tag using a tag-specific force-with-lease. Concurrent
+remote tag changes reject the push rather than being overwritten. It does not
+force-push `prod`, permit dirty worktrees, or allow releasing an older version
+when a newer tag exists. `--dry-run` previews and `--no-push` prepares locally;
+retry either with `--rerelease` to finish publishing the revised release.
+
+The flag is forwarded to both deployers. GitHub's existing release notes are
+updated and a mismatched ZIP is deleted and uploaded again (there is a window
+without the ZIP if upload fails; rerun the same command to finish).
+CurseForge receives a **new file** for the revised commit; the API cannot replace
+the old file in place. Archive/delete the old file manually on CurseForge.
+Confirmed uploads of the same commit are still skipped, and uncertain attempts
+remain blocked, even with `--rerelease`. Receipts for each revision are retained.
+For standalone deployment of the already-pushed revision, use
+`bash scripts/deploy.sh --rerelease`.
+
+For standalone deployment, check out the release tag or matching `prod` commit
+and run `bash scripts/deploy.sh` (or either individual deployment script).
+Both deployers verify a clean checkout, the exact pushed `origin/prod` tip, and
+the pushed version tag **before building or uploading**. Dry runs perform these
+read-only remote checks too, but do not build, retrieve secrets, or upload.
+The CurseForge `--list-versions` command remains available without a release.
+
+Release notes are automatically read from the versioned changelog, or from an
+explicit `CHANGELOG_FILE` override. Missing or empty changelogs are errors.
+GitHub's separate `generate_release_notes` feature is disabled so commit-derived
+notes are not appended; `GENERATE_RELEASE_NOTES` is no longer used.
+JSON request bodies and CurseForge metadata are sent from UTF-8 files to avoid
+Windows command-line quoting and length problems.
+
+Retries reuse a checksum-verified build for the same commit and packaging
+configuration. GitHub looks up the existing release, synchronizes its changelog
+notes, and skips an already-uploaded archive with a matching SHA-256 digest.
+Without `--rerelease`, an asset with a different or unavailable digest is never
+deleted and requires manual inspection.
+
+CurseForge upload receipts live in Git's common directory under
+`slackhacks-deploy`, outside the worktree. Confirmed uploads are skipped on retry.
+Because the legacy upload API has no idempotency key, pending/ambiguous uploads
+block retries: inspect the project's files on CurseForge before removing the
+specific pending receipt named in the error. Do not remove a receipt for an
+upload that succeeded. These receipts are local to the clone; use the same clone
+for retries and check CurseForge before publishing from another machine.
+
+Run the release regression tests with `node --test scripts/release.test.cjs`
+(requires Node.js, Perl, Git, Bash, and curl; uses temporary local repositories
+and a local HTTP server, not publishing credentials or live release APIs).
+
+## Lua development tools
+
+On Windows x64, run `perl scripts/bootstrap.pl` or the VS Code **Bootstrap**
+task (requires Perl, `tar`, and internet access) to install the Lua 5.1 bytecode
+compiler, StyLua, and Lua Language Server into the repository-local `.bin`
+directory. The bootstrap is safe to rerun; installed tools are left in place.
+`.bin` is ignored by Git.
+
+The recommended VS Code extensions are listed in `.vscode/extensions.json`.
+Lua Language Server uses `.luarc.json`, and StyLua reads `.stylua.toml`.
+
 ## Contact
 
 Here, on GitHub. Post an issue.

@@ -63,6 +63,15 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
 * **Addon Compartment:** Moves third-party addon minimap icons into the Addon Compartment dropdown.
 * **Dynamic Fading:** Configurable opacity values for idle, moving, and combat states.
 
+### Quest / NPC
+* **Auto-Accept Quests:** Automatically accepts quests on interact.
+* **Auto-Complete Quests:** Automatically completes quests that have no choices in reward.
+* **Auto-Click First Dialog Option:** Automatically clicks an interact option in an NPC dialog if it's the only option.
+* **Number Key Dialog Options:** Maps NPC dialog options to the number keys (1–9, 0) while the dialog is open, using temporary override bindings that are cleared when the dialog closes or combat starts.
+* **Quest Item Extra Action Button:** Shows an Extra Action Button for a quest item while you're inside that quest's area, bound to your Extra Action Button key. Items that must be used on a target are left out.
+* **Toggles:** Keybindings to toggle each auto option or all of them at once, plus an "All NPC Auto-Interacts" checkbox in the minimap icon menu.
+* Hold `Shift` while interacting to skip all automation.
+
 ### Combat & Nameplates (**WIP!**)
 * **Raise Casting Nameplates:** Temporarily increases the frame level of enemy nameplates while casting so cast bars remain visible in overlapping packs.
 * **Mouse Ring:** Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.

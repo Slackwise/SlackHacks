@@ -29,4 +29,16 @@
   <Binding name="SLACKHACKS_TOGGLE_MOVABLE_WINDOWS" category="BINDING_HEADER_SLACKHACKS">
     SlackHacks.toggleMovableWindows()
   </Binding>
+  <Binding name="SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.toggleQuestAutomation("autoAccept")
+  </Binding>
+  <Binding name="SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.toggleQuestAutomation("autoComplete")
+  </Binding>
+  <Binding name="SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.toggleQuestAutomation("autoClickFirstOption")
+  </Binding>
+  <Binding name="SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.toggleAllQuestAutomation()
+  </Binding>
 </Bindings>
