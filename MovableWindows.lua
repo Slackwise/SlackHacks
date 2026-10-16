@@ -30,7 +30,7 @@ local MAX_SCALE = 2.5
 local DEFAULT_TITLE_BAR_HEIGHT = 20 -- matches most Blizzard windows' native title/border strip height
 -- Blizzard's own portrait/title-bar decorations (NineSlice, TitleContainer, CloseButton, etc.) are commonly
 -- placed at up to frame:GetFrameLevel()+510 (see PortraitFrameMixin:SetFrameLevelsFromBaseLevel); the drag
--- handle needs to sit above all of that or those elements silently eat the mousedown before it ever arrives.
+-- handle sits above that artwork, but its hit rectangle must exclude the native close button.
 local TITLE_BAR_HANDLE_LEVEL_OFFSET = 1000
 local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
 -- Blizzard's alert/toast popups -- achievements, notable items (mounts/toys/recipes/BoE epics/etc.), honor,
@@ -48,6 +48,7 @@ local moveHandles = {} -- [handleFrame] = true
 local mouseoverFrames = {} -- [frame] = true
 local sessionScales = {} -- [frameName] = scale, cleared on reload
 local combatLockdownQueue = {}
+local combatQueueFrame
 local setFramePointsQueue = {}
 local ignoreSetPointHook = false
 local mouseWheelCaptureFrame
@@ -59,6 +60,7 @@ local toastHooked
 
 -- Forward declarations for functions referenced before their definition further down the file.
 local onMouseDown, onMouseUp, onMouseWheel, onShow, onSetPoint, onSizeUpdate, checkMouseWheelCapture
+local updateMoveHandleHitRect
 local registerToastEditMode
 local setupZoneMap, setZoneMapScale
 
@@ -156,16 +158,22 @@ local function addToCombatLockdownQueue(func, ...)
     end
   end
   if #combatLockdownQueue == 0 then
-    module:RegisterEvent("PLAYER_REGEN_ENABLED")
+    -- AceEvent unregisters module events AFTER OnDisable returns, so restoration queued during disable
+    -- needs its own event frame to survive that final library cleanup.
+    if not combatQueueFrame then
+      combatQueueFrame = CreateFrame("Frame")
+      combatQueueFrame:SetScript("OnEvent", function() module:PLAYER_REGEN_ENABLED() end)
+    end
+    combatQueueFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
   end
   tinsert(combatLockdownQueue, { func = func, args = { ... } })
 end
 
---- AceEvent handler for PLAYER_REGEN_ENABLED (combat ends): flushes and runs every queued deferred call
+--- Handler for the queue frame's PLAYER_REGEN_ENABLED event (combat ends): runs every deferred call
 --- from addToCombatLockdownQueue(), in the order they were queued, then unregisters itself again since
 --- there's nothing to listen for until the queue has something in it again.
 function module:PLAYER_REGEN_ENABLED()
-  self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+  combatQueueFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
   if #combatLockdownQueue == 0 then return end
   local queued = combatLockdownQueue
   combatLockdownQueue = {}
@@ -736,6 +744,8 @@ function onShow(frame, skipRerun)
 
   local frameName = frameData.storage.frameName
 
+  updateMoveHandleHitRect(frame)
+
   -- Position isn't restored here -- it's handled entirely by the onSetPoint watchdog below, which
   -- reasserts frameData.storage.points.dragPoints (in-memory for "session", saved-variable-backed via
   -- table aliasing for "permanent") whenever Blizzard's own code re-anchors the frame, e.g. on every Show.
@@ -830,12 +840,15 @@ end
 ---@param frame Frame
 function onSizeUpdate(frame)
   local frameData = frameRegistry[frame]
-  if not frameData or not frameData.storage or frameData.storage.disabled or frameData.IgnoreClamping then return end
+  if not frameData or not frameData.storage or frameData.storage.disabled then return end
 
   if frame:IsProtected() and InCombatLockdown() then
     addToCombatLockdownQueue(onSizeUpdate, frame)
     return
   end
+
+  updateMoveHandleHitRect(frame)
+  if frameData.IgnoreClamping then return end
 
   local clampDistance = 40
   local clampWidth = (frame:GetWidth() or 0) - clampDistance
@@ -884,7 +897,7 @@ function checkMouseWheelCapture()
   if not mouseWheelCaptureFrame then return end
   mouseWheelCaptureFrame:EnableMouseWheel(false)
 
-  if not settings().enableScaling then return end
+  if not isModuleEnabled() or not settings().enableScaling then return end
   if not isScaleModifierDown() or not next(mouseoverFrames) then return end
 
   local foci = GetMouseFoci and GetMouseFoci() or {}
@@ -962,6 +975,24 @@ local function hookScript(frame, script, handler)
   end
 end
 
+--- Excludes the native close button (including any expanded hit area) from the elevated drag overlay.
+--- Coordinates are converted to screen units first because a close button may have its own scale.
+---@param frame Frame - The registered window whose title bar is being updated.
+function updateMoveHandleHitRect(frame)
+  local frameData = frameRegistry[frame]
+  local handle = frameData and frameData.moveHandle
+  if not handle then return end
+  local name = frame:GetName()
+  local closeButton = frame.CloseButton or (name and _G[name .. "CloseButton"])
+  if not closeButton then return end
+  local right, left = handle:GetRight(), closeButton:GetLeft()
+  if not right or not left then return end -- Hidden windows are retried by onShow(), after layout.
+  local leftInset = closeButton:GetHitRectInsets()
+  local scale = handle:GetEffectiveScale()
+  local closeLeft = (left + min(0, leftInset)) * closeButton:GetEffectiveScale()
+  handle:SetHitRectInsets(0, max(0, right - closeLeft / scale), 0, 0)
+end
+
 --- Creates the small, unprotected drag-bar overlay used to make a (possibly protected) frame movable and
 --- wheel-scalable without ever calling a protected method ourselves. It inherits Blizzard's own
 --- "PanelDragBarTemplate" so the actual StartMoving()/StopMovingOrSizing() calls always originate from
@@ -1009,17 +1040,19 @@ local function makeMoveHandle(frame, rootFrame, titleBarHeight, titleBarRaise, i
   return handle
 end
 
---- Replaces (if one already exists, e.g. re-registration) and (re)creates the move handle for a registered
---- frame, walking up frameData.parentData to find the true root of the registration chain first, since
+--- Reuses an existing move handle across toggles, or creates one for a newly registered frame,
+--- walking up frameData.parentData to find the true root of the registration chain first, since
 --- the handle's frame LEVEL (not its visual parent) needs to be computed relative to the root window so it
 --- reliably sits above the whole window's own layered decorations regardless of which subframe it's on.
 ---@param frame Frame
 ---@param frameData table - Must already have `.storage` set (via makeFrameMovable).
 local function makeMoveHandles(frame, frameData)
   if frameData.moveHandle then
-    frameData.moveHandle:SetScript("OnEvent", nil)
-    frameData.moveHandle:Hide()
-    moveHandles[frameData.moveHandle] = nil
+    local handle = frameData.moveHandle
+    handle.onDragStartCallback = function() return false end
+    handle:Show()
+    moveHandles[handle] = true
+    return
   end
 
   local rootData = frameData
@@ -1058,12 +1091,26 @@ local function makeFrameMovable(frame, frameName, frameData, frameParent)
   local clampFrame = not frameParent or frameData.Detachable
 
   frameData.parentData = frameParent and frameRegistry[frameParent] or nil
-  frameData.storage = {
-    hooked = true,
-    frame = frame,
-    frameName = frameName,
-    frameParent = frameParent,
+  local storage = frameData.storage or {}
+  frameData.storage = storage
+  storage.hooked = true
+  storage.disabled = nil
+  storage.frame = frame
+  storage.frameName = frameName
+  storage.frameParent = frameParent
+  -- Keep native anchor objects and local offsets verbatim: saved-position helpers substitute UIParent
+  -- and scale offsets, neither of which is appropriate when undoing our changes.
+  storage.nativeState = {
+    movable = frame:IsMovable(),
+    clamped = frame:IsClampedToScreen(),
+    clampInsets = { frame:GetClampRectInsets() },
+    userPlaced = frame:IsUserPlaced(),
+    scale = frame:GetScale(),
+    points = {},
   }
+  for i = 1, frame:GetNumPoints() do
+    storage.nativeState.points[i] = { frame:GetPoint(i) }
+  end
   frameRegistry[frame] = frameData
 
   -- Alias/preload storage.points from the saved-variable table now (not just lazily on first mouse-down)
@@ -1092,6 +1139,7 @@ local function makeFrameMovable(frame, frameName, frameData, frameParent)
   end
   module:SecureHook(frame, "SetWidth", onSizeUpdate)
   module:SecureHook(frame, "SetHeight", onSizeUpdate)
+  hookScript(frame, "OnSizeChanged", onSizeUpdate)
 
   onShow(frame)
   onSizeUpdate(frame)
@@ -1110,6 +1158,7 @@ end
 ---@param frameParent Frame? - Passed down when this call is itself processing a SubFrame entry.
 ---@return boolean ok
 local function processFrame(frameName, frameData, frameParent)
+  if not isModuleEnabled() then return false end
   local frame = getFrameFromName(frameName)
   if not frame then return false end -- retried later via ApplyAll()/ADDON_LOADED
 
@@ -1133,31 +1182,15 @@ local function processFrame(frameName, frameData, frameParent)
   return true
 end
 
---- Reverses makeFrameMovable(): restores the frame's native movability/clamping/mouse state, hides and
---- forgets its move handle, and marks it `disabled` so every hook installed on it (onShow, onSetPoint,
---- etc.) becomes a no-op from here on rather than trying (and failing) to fully unhook everything --
---- Blizzard's secure hooks can't be selectively removed, only ignored via this disabled flag. Recurses
---- into SubFrames so disabling the module cleans up the whole registered tree, not just root windows.
---- No-ops entirely if the frame is protected mid-combat, since none of this is safe to touch there either
---- (this is only ever called from module:OnDisable(), so simply skipping is acceptable -- disabling mid-
---- combat leaves the frame movable until the player is next out of combat and reloads/toggles again).
+--- Restores the native state captured before setup, retaining saved/session positions for re-enable.
+--- Disables callbacks immediately; protected-frame restoration waits until combat ends. Mouse input on
+--- the window itself is deliberately untouched, since only our overlay ever changed input handling.
+--- Recurses into SubFrames even when their parent needs deferred restoration.
 ---@param frame Frame
 local function unprocessFrame(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or not frameData.storage.hooked then return end
-  if InCombatLockdown() and frame:IsProtected() then return end
-
-  frame:SetMovable(false)
-  if not frameData.IgnoreClamping then frame:SetClampedToScreen(false) end
-  frame:EnableMouse(false)
-  frame:EnableMouseWheel(false)
   frameData.storage.disabled = true
-
-  if frameData.moveHandle then
-    frameData.moveHandle:Hide()
-    moveHandles[frameData.moveHandle] = nil
-    frameData.moveHandle = nil
-  end
 
   if frameData.SubFrames then
     for _, subFrameData in pairs(frameData.SubFrames) do
@@ -1166,6 +1199,36 @@ local function unprocessFrame(frame)
       end
     end
   end
+
+  if InCombatLockdown() and frame:IsProtected() then
+    addToCombatLockdownQueue(unprocessFrame, frame)
+    return
+  end
+
+  local storage = frameData.storage
+  local native = storage.nativeState
+  if storage.isMoving then
+    frame:StopMovingOrSizing()
+    storage.isMoving = nil
+  end
+  if frameData.moveHandle then
+    frameData.moveHandle.onDragStartCallback = function() return false end
+    frameData.moveHandle:Hide()
+    moveHandles[frameData.moveHandle] = nil
+  end
+  frame:SetScale(native.scale)
+  frame:ClearAllPoints()
+  for _, point in ipairs(native.points) do
+    realSetPoint(frame, unpack(point))
+  end
+  frame:SetUserPlaced(native.userPlaced)
+  frame:SetMovable(native.movable)
+  if not frameData.IgnoreClamping then
+    frame:SetClampRectInsets(unpack(native.clampInsets))
+    frame:SetClampedToScreen(native.clamped)
+  end
+  storage.hooked = false
+  storage.nativeState = nil
 end
 
 --=====================================================================
@@ -1203,7 +1266,7 @@ function module:ApplyAll()
       processFrame(frameName, frameData)
     end
   end
-  if settings().moveToasts and not toastSelection then
+  if settings().moveToasts and not toastHooked then
     registerToastEditMode()
   end
   setupZoneMap()
@@ -1428,8 +1491,8 @@ function registerToastEditMode()
 end
 
 --- Enable/disable moving Blizzard's toasts (see TOAST_FRAME_NAME) through the real Edit Mode UI.
---- Disabling only hides the Edit Mode selection box -- it does not move the toasts back, same as
---- disabling this module entirely doesn't undo any other window's saved position.
+--- Disabling only hides the Edit Mode selection box; unlike registered windows, this separate Edit Mode
+--- integration leaves its toast anchor in place.
 ---@param enabled boolean
 function module:SetMoveToastsEnabled(enabled)
   settings().moveToasts = enabled
@@ -1794,6 +1857,9 @@ function module:OnEnable()
 
   if not mouseWheelCaptureFrame then
     initMouseWheelCaptureFrame()
+  else
+    mouseWheelCaptureFrame:RegisterEvent("MODIFIER_STATE_CHANGED")
+    mouseWheelCaptureFrame:Show()
   end
 
   if _G.UIPanelUpdateScaleForFit then
@@ -1808,13 +1874,23 @@ end
 
 --- AceAddon lifecycle: runs whenever the module transitions to disabled. Unregisters every event/hook this
 --- module installed (Ace3's UnregisterAllEvents/UnhookAll), then unprocesses every registered frame
---- (restoring native movability/clamping/mouse state -- see unprocessFrame()) and hides the shared
+--- (restoring native anchors/scale/movability/clamping -- see unprocessFrame()) and hides the shared
 --- mouse-wheel-capture frame and the toast selection box. `toastHooked` is reset to nil (rather than left
 --- stale) since UnhookAll() above already tore down the EditModeManagerFrame hooks it guards -- if the
 --- module is re-enabled later, registerToastEditMode() needs to know to re-install them.
 function module:OnDisable()
   self:UnregisterAllEvents()
   self:UnhookAll()
+  wipe(combatLockdownQueue)
+  if combatQueueFrame then
+    combatQueueFrame:UnregisterAllEvents()
+  end
+  wipe(setFramePointsQueue)
+  wipe(mouseoverFrames)
+  awaitingGlobalMouseUp = nil
+  if queueProcessorFrame then
+    queueProcessorFrame:SetScript("OnUpdate", nil)
+  end
 
   for frameName, frameData in pairs(registeredFrames) do
     if frameData.storage and frameData.storage.frame then
@@ -1823,6 +1899,8 @@ function module:OnDisable()
   end
 
   if mouseWheelCaptureFrame then
+    mouseWheelCaptureFrame:UnregisterAllEvents()
+    mouseWheelCaptureFrame:EnableMouseWheel(false)
     mouseWheelCaptureFrame:Hide()
   end
 
