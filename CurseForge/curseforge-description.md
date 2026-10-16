@@ -77,6 +77,13 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Collapsible:** Collapse the window down to its header (which still shows the online count) using the same minimize button as the Damage Meter.
 * **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, the sort order, and the icon toggles.
 
+#### Friends List
+* **Online Friends:** The same Damage Meter-style window as the Guild Member List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
+* **Filters:** Only Favorite Friends (default on), Only Playing WoW, and Only Same WoW Version (e.g. hide Classic players while you're on Retail). With Only Favorite Friends off, character friends are listed too.
+* **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name (toggleable).
+* **Instance and Faction Icons:** The same toggleable Dungeon/Raid/Delve and Horde/Alliance icons as the Guild Member List.
+* **Sorting, Fit to Content, Collapsible, Settings Cog:** Same as the Guild Member List, with the filters also in the cog menu. Name sorting follows the Friends list's order.
+
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.
 

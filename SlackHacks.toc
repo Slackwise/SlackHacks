@@ -30,6 +30,7 @@ MouseRing.lua
 Quest.lua
 CharSheet.lua
 GuildMemberList.lua
+FriendsList.lua
 InfoDisplay.lua
 Options.lua
 Mount.lua
