@@ -210,7 +210,7 @@ function displaySpecName(specKey)
 end
 
 function shortName(name)
-  return name and Ambiguate(name, "none")
+  return name and Ambiguate(name, "short")
 end
 
 function sameName(left, right)
