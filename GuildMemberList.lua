@@ -72,21 +72,28 @@ local populate
 local instanceIcons -- Zone name -> inline icon markup; built once by getInstanceIcons().
 local memberClubInfo = {} -- Member GUID -> { faction, race, timerunningSeasonID }; filled by scanMemberClubInfo().
 
+--- Returns the Enum.PvPFaction for a race, used when club member info omits the faction (it often comes back nil).
+--- Neutral races (e.g. Pandaren, Dracthyr) have no fixed faction, so they return nil.
+---@param raceID number|nil The member's race ID.
+---@return number|nil faction 0 = Horde, 1 = Alliance, or nil if unknown.
+local function factionFromRace(raceID)
+  local factionInfo = raceID and C_CreatureInfo.GetFactionInfo(raceID)
+  return factionInfo and PLAYER_FACTION_GROUP[factionInfo.groupTag]
+end
+
 --- Records each guild member's faction, race and Timerunning season, keyed by GUID. The legacy guild roster
 --- (GetGuildRosterInfo) has none of these, but cross-faction guilds made the guild a Communities club whose member
---- info does, so this reads it the way Blizzard's Communities member list does. None of these change once known,
---- so results are cached for the session and this only re-runs when an online member isn't cached yet. Entries
---- without a faction aren't cached: the client can return a member before their details have loaded, and caching
---- that would hide their faction for the rest of the session.
+--- info does, so this reads it the way Blizzard's Communities member list does. None of these change, so results
+--- are cached for the session and this only re-runs when an online member isn't cached yet (e.g. someone joined).
 local function scanMemberClubInfo()
   local clubId = C_Club.GetGuildClubId()
   if not clubId then return end
   for _, memberId in ipairs(C_Club.GetClubMembers(clubId) or {}) do
     local info = C_Club.GetMemberInfo(clubId, memberId)
     -- GUIDs can be secret values in restricted (combat) contexts, and secret values can't be used as table keys.
-    if info and info.guid and info.faction and not (_G.issecretvalue and _G.issecretvalue(info.guid)) then
+    if info and info.guid and not (_G.issecretvalue and _G.issecretvalue(info.guid)) then
       memberClubInfo[info.guid] = {
-        faction = info.faction,
+        faction = info.faction or factionFromRace(info.race),
         race = info.race,
         timerunningSeasonID = info.timerunningSeasonID,
       }
