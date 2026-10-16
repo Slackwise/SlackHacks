@@ -54,6 +54,26 @@ resumed, not recreated, provided the source has no commits outside that release
 and production has not advanced or diverged. New development needs a version
 bump rather than retagging a published release.
 
+To intentionally include new commits in the same version, commit the changes
+and changelog on `dev`, then run `perl scripts/release.pl --rerelease`.
+This is an explicit exception to immutable releases: it merges into `prod`,
+moves the version tag only when the release commit changes, and atomically
+pushes the branch and tag using a tag-specific force-with-lease. Concurrent
+remote tag changes reject the push rather than being overwritten. It does not
+force-push `prod`, permit dirty worktrees, or allow releasing an older version
+when a newer tag exists. `--dry-run` previews and `--no-push` prepares locally;
+retry either with `--rerelease` to finish publishing the revised release.
+
+The flag is forwarded to both deployers. GitHub's existing release notes are
+updated and a mismatched ZIP is deleted and uploaded again (there is a window
+without the ZIP if upload fails; rerun the same command to finish).
+CurseForge receives a **new file** for the revised commit; the API cannot replace
+the old file in place. Archive/delete the old file manually on CurseForge.
+Confirmed uploads of the same commit are still skipped, and uncertain attempts
+remain blocked, even with `--rerelease`. Receipts for each revision are retained.
+For standalone deployment of the already-pushed revision, use
+`bash scripts/deploy.sh --rerelease`.
+
 For standalone deployment, check out the release tag or matching `prod` commit
 and run `bash scripts/deploy.sh` (or either individual deployment script).
 Both deployers verify a clean checkout, the exact pushed `origin/prod` tip, and
@@ -71,8 +91,8 @@ Windows command-line quoting and length problems.
 Retries reuse a checksum-verified build for the same commit and packaging
 configuration. GitHub looks up the existing release, synchronizes its changelog
 notes, and skips an already-uploaded archive with a matching SHA-256 digest.
-It never deletes published assets automatically; an asset with a different or
-unavailable digest requires manual inspection.
+Without `--rerelease`, an asset with a different or unavailable digest is never
+deleted and requires manual inspection.
 
 CurseForge upload receipts live in Git's common directory under
 `slackhacks-deploy`, outside the worktree. Confirmed uploads are skipped on retry.

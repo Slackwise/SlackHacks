@@ -81,14 +81,17 @@ my $proton_pass_cli_bin   = require_config("PROTON_PASS_CLI_BIN");
 
 # Command line options
 my $dry_run       = 0;
+my $rerelease     = 0;
 my $list_versions;
 my $help          = 0;
 
 GetOptions(
     'dry-run|n'           => \$dry_run,
+    'rerelease'           => \$rerelease,
     'list-versions|l|v:s' => \$list_versions,
     'help|h'              => \$help,
-) or die "Usage: $0 [--dry-run] [--list-versions [filter]] [--help]\n";
+) or die "Usage: $0 [--dry-run] [--rerelease] [--list-versions [filter]] [--help]\n";
+die "Error: Unexpected arguments: @ARGV\n" if @ARGV;
 
 if ($help) {
     print <<"HELP";
@@ -96,6 +99,8 @@ Usage: perl deploy-curseforge.pl [OPTIONS]
 
 Options:
   -n, --dry-run                 Simulate deployment and preview metadata without uploading
+      --rerelease               Allow a new file for a revised commit of an existing version.
+                                Old CurseForge files must be managed manually.
   -l, --list-versions [filter]  Fetch available game version names and IDs from CurseForge API
                                 (optional filter by keyword, e.g. -l retail or -l classic)
   -h, --help                    Show this help message
@@ -375,22 +380,38 @@ unless ($dry_run) {
     my $state_dir = File::Spec->catdir(git_output('rev-parse', '--git-common-dir'), 'slackhacks-deploy');
     make_path($state_dir);
     $state_key = Digest::SHA::sha256_hex("$curseforge_project_id:$tag_name");
-    $state_file = File::Spec->catfile($state_dir, "$state_key.json");
-    if (-f $state_file) {
-        my $receipt_file = -f "$state_file.complete" ? "$state_file.complete" : $state_file;
+    opendir my $dir_fh, $state_dir or die "Error: Cannot inspect upload receipts: $!\n";
+    my @claims = sort grep { /^\Q$state_key\E(?:-[0-9a-f]+)?\.json$/ } readdir $dir_fh;
+    closedir $dir_fh;
+    my $already_uploaded;
+    my @previous_files;
+    for my $claim (@claims) {
+        my $claim_file = File::Spec->catfile($state_dir, $claim);
+        my $receipt_file = -f "$claim_file.complete" ? "$claim_file.complete" : $claim_file;
         open my $state_fh, '<:raw', $receipt_file or die "Error: Cannot read $receipt_file: $!\n";
         my $state = eval { JSON::PP->new->utf8->decode(do { local $/; <$state_fh> }) };
         die "Error: Invalid upload receipt '$receipt_file'; inspect CurseForge before retrying. $@\n"
             unless ref($state) eq 'HASH' && defined $state->{commit} && defined $state->{status};
         close $state_fh or die "Error: Cannot close '$receipt_file': $!\n";
-        die "Error: CurseForge receipt does not match this release.\n" unless $state->{commit} eq $commit;
         if ($state->{status} eq 'complete' && $state->{file_id}) {
-            print "CurseForge release $tag_name already uploaded (file $state->{file_id}).\n";
-            exit 0;
+            if ($state->{commit} eq $commit) {
+                $already_uploaded = $state->{file_id};
+            } else {
+                push @previous_files, $state->{file_id};
+            }
+            next;
         }
         die "Error: A previous CurseForge upload is pending or uncertain. Check the project's files " .
-            "before removing '$state_file' to retry; an upload may already exist.\n";
+            "before removing '$claim_file' to retry; an upload may already exist.\n";
     }
+    if ($already_uploaded) {
+        print "CurseForge release $tag_name already uploaded (file $already_uploaded).\n";
+        exit 0;
+    }
+    die "Error: This version was uploaded from a different commit. Use --rerelease to upload a new file.\n"
+        if @previous_files && !$rerelease;
+    print "Previous CurseForge file $_ will remain; manage it manually.\n" for @previous_files;
+    $state_file = File::Spec->catfile($state_dir, "$state_key-$commit.json");
 }
 
 ensure_build($script_dir, $zip_path, $commit) unless $dry_run;
