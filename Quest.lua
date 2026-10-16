@@ -3,7 +3,7 @@ setfenv(1, _G.SlackHacks)
 --=====================================================================
 -- Quest / NPC
 --=====================================================================
--- NPC dialog automation (auto-accept, auto-complete, auto-interact), number-key shortcuts for dialog
+-- NPC dialog automation (auto-accept, auto-complete, auto-click first option), number-key shortcuts for dialog
 -- options, and an "Extra Action Button" style button for quest items usable in the current quest area.
 --
 -- Design decisions worth calling out:
@@ -19,6 +19,8 @@ setfenv(1, _G.SlackHacks)
 --   * Dialog number keys are override bindings owned by a secure state handler whose "[combat]" state
 --     clears them from restricted code, so they're disposed of the instant combat starts (when insecure
 --     code can no longer touch bindings). They're also cleared whenever the dialog closes.
+--   * The quest item button skips items that must be used on a unit (C_Item.IsHelpfulItem/IsHarmfulItem),
+--     so it only shows items used on the ground or without a target.
 --   * Holding Shift while interacting suppresses all dialog automation for that interaction.
 
 --- The addon module instance. Exposed as `Self.Quest` so Options.lua can call `:SetEnabled()`,
@@ -32,6 +34,17 @@ local AUTO_INTERACT_REPEAT_GUARD = 2 -- Seconds before the same gossip option ma
 local GetItemCount = (C_Item and C_Item.GetItemCount) or _G.GetItemCount
 local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or _G.GetItemInfoInstant
 local GetItemCooldown = (C_Item and C_Item.GetItemCooldown) or (C_Container and C_Container.GetItemCooldown)
+local IsHelpfulItem = (C_Item and C_Item.IsHelpfulItem) or _G.IsHelpfulItem
+local IsHarmfulItem = (C_Item and C_Item.IsHarmfulItem) or _G.IsHarmfulItem
+
+-- The NPC dialog automation options, in display order. `label` is shared by Options.lua, chat messages,
+-- and on-screen notifications.
+AUTOMATION_OPTIONS = {
+  { key = "autoAccept", label = "Auto-Accept Quests" },
+  { key = "autoComplete", label = "Auto-Complete Quests" },
+  { key = "autoClickFirstOption", label = "Auto-Click First Dialog Option" },
+}
+local ALL_AUTOMATION_LABEL = "All NPC Auto-Interacts"
 
 local function settings()
   return db.profile.quest
@@ -151,7 +164,7 @@ local function automateGossip(availableQuests, activeQuests, options)
     end
   end
 
-  if s.autoInteract and #availableQuests == 0 and #activeQuests == 0 and #options == 1
+  if s.autoClickFirstOption and #availableQuests == 0 and #activeQuests == 0 and #options == 1
     and not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip()) then
     local option = options[1]
     local now = GetTime()
@@ -374,8 +387,15 @@ local function updateItemCooldown()
   end
 end
 
---- Scans the quest log for a quest whose area the player is inside and that has a usable special item
---- in the player's bags. Prefers the super-tracked quest when several qualify.
+--- True for items that must be used on a friendly or hostile unit (clicked on a target), which don't
+--- belong on the button. Ground-targeted and no-target items are neither helpful nor harmful.
+local function requiresUnitTarget(link)
+  if not (IsHelpfulItem and IsHarmfulItem) then return false end
+  return IsHelpfulItem(link) or IsHarmfulItem(link)
+end
+
+--- Scans the quest log for a quest whose area the player is inside and that has a usable, non-targeted
+--- special item in the player's bags. Prefers the super-tracked quest when several qualify.
 ---@return string|nil itemLink, boolean isInsideAnyItemQuestArea
 local function findQuestItem()
   local superTrackedID = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID and C_SuperTrack.GetSuperTrackedQuestID()
@@ -384,7 +404,7 @@ local function findQuestItem()
     local info = C_QuestLog.GetInfo(index)
     if info and not info.isHeader then
       local link, _, _, showWhenComplete = GetQuestLogSpecialItemInfo(index)
-      if link and C_Minimap.IsInsideQuestBlob(info.questID) then
+      if link and not requiresUnitTarget(link) and C_Minimap.IsInsideQuestBlob(info.questID) then
         insideAny = true
         if (showWhenComplete or not C_QuestLog.IsComplete(info.questID)) and GetItemCount(link) > 0 then
           found = link
@@ -546,7 +566,7 @@ end
 --- Re-applies all current `db.profile.quest` settings. Called on enable and whenever an option changes.
 function module:Refresh()
   local s = settings()
-  local dialogFeatures = s.autoAccept or s.autoComplete or s.autoInteract or s.numberKeys
+  local dialogFeatures = s.autoAccept or s.autoComplete or s.autoClickFirstOption or s.numberKeys
   for _, event in ipairs(DIALOG_EVENTS) do
     if dialogFeatures then self:RegisterEvent(event) else self:UnregisterEvent(event) end
   end
@@ -572,7 +592,82 @@ function module:SetOption(key, value)
   if self:IsEnabled() then self:Refresh() end
 end
 
+--=====================================================================
+-- Automation Toggles (keybindings & minimap menu)
+--=====================================================================
+
+local function getAutomationLabel(key)
+  for _, option in ipairs(AUTOMATION_OPTIONS) do
+    if option.key == key then return option.label end
+  end
+  return key
+end
+
+--- Reports a toggle in chat and with the same on-screen notice Blizzard uses for "Music Enabled".
+local function announceToggle(label, enabled)
+  prn(label .. ": " .. (enabled and color("00FF00")("Enabled") or color("FF4040")("Disabled")))
+  local message = label .. " " .. (enabled and "Enabled" or "Disabled")
+  if ActionStatus and ActionStatus.DisplayMessage then
+    ActionStatus:DisplayMessage(message)
+  elseif ActionStatus_DisplayMessage then
+    ActionStatus_DisplayMessage(message, true)
+  end
+end
+
+local function notifyOptionsChanged()
+  local acr = LibStub("AceConfigRegistry-3.0", true)
+  if acr then acr:NotifyChange("SlackHacks") end
+end
+
+--- Writes automation options and applies them. Turning anything on also enables the module, otherwise
+--- the toggle would silently do nothing.
+local function setAutomation(values)
+  local s = settings()
+  local anyOn = false
+  for key, value in pairs(values) do
+    s[key] = value
+    anyOn = anyOn or value
+  end
+  if anyOn and not module:IsEnabled() then
+    module:SetEnabled(true)
+  elseif module:IsEnabled() then
+    module:Refresh()
+  end
+  notifyOptionsChanged()
+end
+
+function isAllQuestAutomationEnabled()
+  local s = Self.db and Self.db.profile and Self.db.profile.quest
+  if not (s and s.enabled) then return false end
+  for _, option in ipairs(AUTOMATION_OPTIONS) do
+    if not s[option.key] then return false end
+  end
+  return true
+end
+
+--- Toggles a single automation option (e.g. "autoAccept"). Used by keybindings.
+function toggleQuestAutomation(key)
+  local s = settings()
+  local enabled = not (s.enabled and s[key])
+  setAutomation({ [key] = enabled })
+  announceToggle(getAutomationLabel(key), enabled)
+end
+
+--- Turns all automation options off if they're all on, otherwise turns them all on.
+function toggleAllQuestAutomation()
+  local enabled = not isAllQuestAutomationEnabled()
+  local values = {}
+  for _, option in ipairs(AUTOMATION_OPTIONS) do
+    values[option.key] = enabled
+  end
+  setAutomation(values)
+  announceToggle(ALL_AUTOMATION_LABEL, enabled)
+end
+
 function module:OnInitialize()
+  -- Create secure frames up front (load time is never in combat), so enabling later in combat is safe.
+  createDialogKeyFrames()
+  if self:IsQuestItemButtonSupported() then createItemButton() end
   if not settings().enabled then self:Disable() end
 end
 
