@@ -1,0 +1,11 @@
+{
+	"runtime.version": "Lua 5.1",
+	"workspace.library": [
+		"Libs/Ace3",
+		"Libs/LibDBIcon-1.0"
+	],
+	"workspace.ignoreDir": [
+		".bin",
+		"dist"
+	]
+}
