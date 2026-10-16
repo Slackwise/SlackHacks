@@ -1235,6 +1235,24 @@ local function saveButtonState(button)
     end
   end
 
+  if isForever() and button == AddonCompartmentFrame then
+    saved.compartmentTextures = {}
+    for _, texture in ipairs({ button:GetRegions() }) do
+      if texture:IsObjectType("Texture") and texture:GetAtlas() == "ui-hud-minimap-addon-indicator" then
+        local state = {
+          frame = texture,
+          width = texture:GetWidth(),
+          height = texture:GetHeight(),
+          points = {},
+        }
+        for i = 1, texture:GetNumPoints() do
+          table.insert(state.points, { texture:GetPoint(i) })
+        end
+        table.insert(saved.compartmentTextures, state)
+      end
+    end
+  end
+
   if button == getZoneTextButton() then
     local fs = (button.GetFontString and button:GetFontString()) or _G.MinimapZoneText
     if fs then
@@ -1243,7 +1261,30 @@ local function saveButtonState(button)
         fontObject = fs:GetFontObject(),
         justifyH = fs:GetJustifyH(),
         points = {},
+        textures = {},
       }
+      local function saveTextures(frame)
+        local regionsOk, regions = pcall(function() return { frame:GetRegions() } end)
+        if regionsOk then
+          for _, region in ipairs(regions) do
+            if region:IsObjectType("Texture") then
+              table.insert(fsSaved.textures, {
+                frame = region,
+                alpha = region:GetAlpha(),
+              })
+            end
+          end
+        end
+        local childrenOk, children = pcall(function() return { frame:GetChildren() } end)
+        if childrenOk then
+          for _, child in ipairs(children) do
+            saveTextures(child)
+          end
+        end
+      end
+      if isForever() then
+        saveTextures(button)
+      end
       if fs.CanWordWrap then
         fsSaved.wordWrap = fs:CanWordWrap()
       end
@@ -1266,6 +1307,7 @@ local function saveButtonState(button)
       frame = border,
       texture = border:GetTexture(),
       atlas = border.GetAtlas and border:GetAtlas(),
+      shown = border:IsShown(),
       width = border:GetWidth(),
       height = border:GetHeight(),
       points = {},
@@ -1337,6 +1379,9 @@ local function restoreButtonState(button)
     if saved.fontString.wordWrap ~= nil and fs.SetWordWrap then
       fs:SetWordWrap(saved.fontString.wordWrap)
     end
+    for _, texture in ipairs(saved.fontString.textures or {}) do
+      texture.frame:SetAlpha(texture.alpha)
+    end
   end
 
   if saved.border then
@@ -1359,6 +1404,19 @@ local function restoreButtonState(button)
         border:SetTexture(saved.border.texture)
       end
       border:SetTexCoord(0, 1, 0, 1)
+      if saved.border.shown then
+        border:Show()
+      else
+        border:Hide()
+      end
+    end
+  end
+
+  for _, state in ipairs(saved.compartmentTextures or {}) do
+    state.frame:ClearAllPoints()
+    state.frame:SetSize(state.width, state.height)
+    for _, point in ipairs(state.points) do
+      state.frame:SetPoint(unpack(point))
     end
   end
 
@@ -2257,6 +2315,20 @@ local function layoutCornerIcons()
   end
 end
 
+--- Restores native frame dimensions and removes Forever's compartment texture insets for title-bar layout.
+---@param button Frame - Title-bar button being laid out.
+local function matchTrackingButtonSize(button)
+  if not isForever() or (button ~= GameTimeFrame and button ~= AddonCompartmentFrame) then return end
+  local saved = button.slackHacksSaved
+  if saved and saved.width and saved.height then
+    button:SetSize(saved.width, saved.height)
+  end
+  for _, state in ipairs((saved and saved.compartmentTextures) or {}) do
+    state.frame:ClearAllPoints()
+    state.frame:SetAllPoints(button)
+  end
+end
+
 --- Returns the scaled width and scale used for a title-bar button.
 ---@param button Frame - Button to size.
 ---@return number, number - Rendered width and scale.
@@ -2269,12 +2341,35 @@ local function getButtonScaledWidth(button)
   elseif button == getExpansionLandingPageButton() then
     scale = TITLE_BAR_EXPANSION_LANDING_PAGE_SCALE
   elseif button == AddonCompartmentFrame then
-    scale = TITLE_BAR_CALENDAR_TRACKING_SCALE + TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA / nativeWidth
+    scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
+      + (isForever() and 0 or TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA / nativeWidth)
   elseif button == GameTimeFrame or button == (MinimapCluster and MinimapCluster.Tracking) then
     scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
   end
+  if isForever() and (button == GameTimeFrame or button == AddonCompartmentFrame) then
+    local tracking = MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button
+    local height = button:GetHeight()
+    if tracking and height > 0 then
+      scale = tracking:GetHeight() * tracking:GetScale() * TITLE_BAR_CALENDAR_TRACKING_SCALE / height
+    end
+    if button == AddonCompartmentFrame and height > 0 then
+      scale = scale + (TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA + 1) / height
+    end
+  end
   if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
     btnW = math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA)
+  end
+  if isForever() and button == AddonCompartmentFrame then
+    local tracking = MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button
+    if tracking then
+      button:SetHeight(tracking:GetHeight() * tracking:GetScale() * TITLE_BAR_CALENDAR_TRACKING_SCALE / scale)
+    end
+    -- Compensate for transparent atlas margins without changing the clickable frame or row spacing.
+    for _, state in ipairs((button.slackHacksSaved and button.slackHacksSaved.compartmentTextures) or {}) do
+      state.frame:ClearAllPoints()
+      state.frame:SetPoint("TOPLEFT", button, "TOPLEFT", -1 / scale, 1 / scale)
+      state.frame:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 1 / scale, -1 / scale)
+    end
   end
   return (btnW and btnW > 0 and btnW or 32) * scale, scale
 end
@@ -2288,7 +2383,13 @@ local function getButtonYOffset(button)
   end
 
   local yOffset = 0
-  if button == GameTimeFrame then
+  if isForever() and (button == GameTimeFrame or button == AddonCompartmentFrame
+      or button == (MinimapCluster and MinimapCluster.Tracking)) then
+    yOffset = TITLE_BAR_TRACKING_Y_OFFSET - 1
+    if button == AddonCompartmentFrame then
+      yOffset = yOffset - 0.5
+    end
+  elseif button == GameTimeFrame then
     yOffset = TITLE_BAR_CALENDAR_Y_OFFSET
   elseif button == (MinimapCluster and MinimapCluster.Tracking) then
     yOffset = TITLE_BAR_TRACKING_Y_OFFSET
@@ -2296,6 +2397,21 @@ local function getButtonYOffset(button)
     yOffset = TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET
   end
   return yOffset + TITLE_BAR_ICON_Y_OFFSET
+end
+
+--- Converts Forever's absolute row offsets into offsets relative to the preceding scaled button.
+---@param button Frame - Button being positioned.
+---@param previous Frame|nil - Previous button in the same row.
+---@return number - Relative Y offset in the button's coordinates.
+local function getButtonAnchorYOffset(button, previous)
+  local yOffset = getButtonYOffset(button)
+  if isForever() then
+    if previous then
+      yOffset = yOffset - getButtonYOffset(previous)
+    end
+    yOffset = yOffset / button:GetScale()
+  end
+  return yOffset
 end
 
 --- Builds the list of buttons for the permanent title bar flow.
@@ -2416,6 +2532,12 @@ local function layoutTitleBarZoneButton(previous)
   end
   zoneButton:Show()
   updateZoneText()
+  local saved = zoneButton.slackHacksSaved
+  if isForever() and saved and saved.fontString then
+    for _, texture in ipairs(saved.fontString.textures or {}) do
+      texture.frame:SetAlpha(0)
+    end
+  end
 end
 
 --- Lays out icons hidden without hover in a separate container frame with a HIGH frame strata.
@@ -2456,6 +2578,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
       -- proven technique already used for the corner Instance Difficulty icon -- never SetShown,
       -- which is what broke Calendar/AddonCompartment/Expansion Landing Page clicks previously.
       setShownSafely(button, true)
+      matchTrackingButtonSize(button)
       local scaledW, scale = getButtonScaledWidth(button)
       button:SetScale(scale)
       setFrameStrataSafe(button, "DIALOG")
@@ -2463,7 +2586,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
       if button.Raise then button:Raise() end
       button.slackHacksRealClearAllPoints(button)
       local isSubsequent = (previousHover ~= nil)
-      local yOffset = getButtonYOffset(button)
+      local yOffset = getButtonAnchorYOffset(button, previousHover)
       if previousHover then
         button.slackHacksRealSetPoint(button, "RIGHT", previousHover, "LEFT", -buttonGap, yOffset)
       else
@@ -2499,12 +2622,13 @@ local function layoutTitleBarIcons()
       -- previously managed by the hidden-until-hover container (which hides via SetShown/fades via alpha).
       setShownSafely(button, true)
       button:SetAlpha(1)
+      matchTrackingButtonSize(button)
       local _, scale = getButtonScaledWidth(button)
-      local yOffset = getButtonYOffset(button)
       if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
         button:SetWidth(math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA))
       end
       button:SetScale(scale)
+      local yOffset = getButtonAnchorYOffset(button, previous)
       setFrameStrataSafe(button, row:GetFrameStrata())
       setFrameLevelRecursive(button, row:GetFrameLevel() + 1)
       button.slackHacksRealClearAllPoints(button)
