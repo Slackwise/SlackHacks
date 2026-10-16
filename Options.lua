@@ -191,7 +191,9 @@ dbDefaults = {
       guildMemberList = {
         enabled = false,
         minimized = false,
+        fitToContent = false,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
+        sortBy = "name", -- "name" or "zone"
         point = "CENTER",
         relativePoint = "CENTER",
         x = 0,
@@ -2540,6 +2542,16 @@ options = {
               set = function(_, value) Self.GuildMemberList:SetEnabled(value) end,
               order = 0.05
             },
+            fitToContent = {
+              name = "Fit Window to Content",
+              desc = "Automatically size the window to fit its members and locations (up to a maximum height, after which the list scrolls). Turns off manual resizing while enabled. Also available from the window's cog menu.",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
+              get = function() return db.profile.infoDisplay.guildMemberList.fitToContent end,
+              set = function(_, value) Self.GuildMemberList:SetFitToContent(value) end,
+              order = 0.5
+            },
             opacity = {
               name = "Background Opacity",
               desc = "How opaque the window's background is. Also available from the window's cog menu.",
@@ -2552,6 +2564,17 @@ options = {
               get = function() return db.profile.infoDisplay.guildMemberList.opacity end,
               set = function(_, value) Self.GuildMemberList:SetOpacity(value) end,
               order = 1
+            },
+            sortBy = {
+              name = "Sort By",
+              desc = "Sort the list by member name or by location. Also available from the window's cog menu.",
+              type = "select",
+              values = { name = "Name", zone = "Location" },
+              sorting = { "name", "zone" },
+              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
+              get = function() return db.profile.infoDisplay.guildMemberList.sortBy end,
+              set = function(_, value) Self.GuildMemberList:SetSortBy(value) end,
+              order = 2
             }
           }
         }
