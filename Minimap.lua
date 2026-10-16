@@ -1243,7 +1243,30 @@ local function saveButtonState(button)
         fontObject = fs:GetFontObject(),
         justifyH = fs:GetJustifyH(),
         points = {},
+        textures = {},
       }
+      local function saveTextures(frame)
+        local regionsOk, regions = pcall(function() return { frame:GetRegions() } end)
+        if regionsOk then
+          for _, region in ipairs(regions) do
+            if region:IsObjectType("Texture") then
+              table.insert(fsSaved.textures, {
+                frame = region,
+                alpha = region:GetAlpha(),
+              })
+            end
+          end
+        end
+        local childrenOk, children = pcall(function() return { frame:GetChildren() } end)
+        if childrenOk then
+          for _, child in ipairs(children) do
+            saveTextures(child)
+          end
+        end
+      end
+      if isForever() then
+        saveTextures(button)
+      end
       if fs.CanWordWrap then
         fsSaved.wordWrap = fs:CanWordWrap()
       end
@@ -1266,6 +1289,7 @@ local function saveButtonState(button)
       frame = border,
       texture = border:GetTexture(),
       atlas = border.GetAtlas and border:GetAtlas(),
+      shown = border:IsShown(),
       width = border:GetWidth(),
       height = border:GetHeight(),
       points = {},
@@ -1337,6 +1361,9 @@ local function restoreButtonState(button)
     if saved.fontString.wordWrap ~= nil and fs.SetWordWrap then
       fs:SetWordWrap(saved.fontString.wordWrap)
     end
+    for _, texture in ipairs(saved.fontString.textures or {}) do
+      texture.frame:SetAlpha(texture.alpha)
+    end
   end
 
   if saved.border then
@@ -1359,6 +1386,11 @@ local function restoreButtonState(button)
         border:SetTexture(saved.border.texture)
       end
       border:SetTexCoord(0, 1, 0, 1)
+      if saved.border.shown then
+        border:Show()
+      else
+        border:Hide()
+      end
     end
   end
 
@@ -2416,6 +2448,12 @@ local function layoutTitleBarZoneButton(previous)
   end
   zoneButton:Show()
   updateZoneText()
+  local saved = zoneButton.slackHacksSaved
+  if isForever() and saved and saved.fontString then
+    for _, texture in ipairs(saved.fontString.textures or {}) do
+      texture.frame:SetAlpha(0)
+    end
+  end
 end
 
 --- Lays out icons hidden without hover in a separate container frame with a HIGH frame strata.
