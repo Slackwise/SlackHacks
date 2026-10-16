@@ -195,6 +195,7 @@ dbDefaults = {
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
         sortBy = "name", -- "name" or "zone"
         showInstanceIcons = true,
+        showRankIcons = true,
         showFactionIcons = true,
         factionIconsOppositeOnly = true,
         point = "CENTER",
@@ -2589,6 +2590,16 @@ options = {
               get = function() return db.profile.infoDisplay.guildMemberList.showInstanceIcons end,
               set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showInstanceIcons", value) end,
               order = 3
+            },
+            showRankIcons = {
+              name = "Show Rank Icons",
+              desc = "Show the guild roster's crown icon after the Guild Master's name and its assistant icon after officers' names. Also available from the window's cog menu.",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
+              get = function() return db.profile.infoDisplay.guildMemberList.showRankIcons end,
+              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showRankIcons", value) end,
+              order = 3.5
             },
             showFactionIcons = {
               name = "Show Faction Icons",
