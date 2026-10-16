@@ -135,55 +135,54 @@ module.Data = {
     [17] = "INVTYPE_SHIELD",
   },
   KNOWN_ENCHANTS = {
-    { pattern = "radiant%s+haste", stats = { HASTE = 315 }, text = "+315 Haste" },
-    { pattern = "radiant%s+crit", stats = { CRIT = 315 }, text = "+315 Crit" },
-    { pattern = "radiant%s+mastery", stats = { MASTERY = 315 }, text = "+315 Mastery" },
-    { pattern = "radiant%s+vers", stats = { VERSATILITY = 315 }, text = "+315 Vers" },
-    { pattern = "cursed%s+haste", stats = { HASTE = 375, AVOIDANCE = -150 }, text = "+375 Haste" },
-    { pattern = "cursed%s+crit", stats = { CRIT = 375, LEECH = -150 }, text = "+375 Crit" },
-    { pattern = "cursed%s+mastery", stats = { MASTERY = 375, SPEED = -150 }, text = "+375 Mastery" },
-    { pattern = "cursed%s+vers", stats = { VERSATILITY = 375, SPEED = -150 }, text = "+375 Vers" },
-    { pattern = "glimmering%s+haste", stats = { HASTE = 220 }, text = "+220 Haste" },
-    { pattern = "glimmering%s+crit", stats = { CRIT = 220 }, text = "+220 Crit" },
-    { pattern = "glimmering%s+mastery", stats = { MASTERY = 220 }, text = "+220 Mastery" },
-    { pattern = "glimmering%s+vers", stats = { VERSATILITY = 220 }, text = "+220 Vers" },
-    { pattern = "silvermoon's%s+alacrity", stats = { HASTE = 315 }, text = "+315 Haste" },
-    { pattern = "silvermoon's%s+tenacity", stats = { VERSATILITY = 315 }, text = "+315 Vers" },
-    { pattern = "nature's%s+fury", stats = { CRIT = 315 }, text = "+315 Crit" },
-    { pattern = "eyes%s+of%s+the%s+eagle", stats = { CRIT = 315 }, text = "+315 Crit" },
-    { pattern = "zul'jin's%s+mastery", stats = { MASTERY = 315 }, text = "+315 Mastery" },
-    { pattern = "crystalline%s+radiance", stats = { PRIMARY = 605 }, text = "+605 Primary" },
+    { pattern = "radiant%s+haste", stats = { HASTE = 21 }, text = "+21 Haste" },
+    { pattern = "radiant%s+crit", stats = { CRIT = 18 }, text = "+18 Crit" },
+    { pattern = "radiant%s+mastery", stats = { MASTERY = 21 }, text = "+21 Mastery" },
+    { pattern = "radiant%s+vers", stats = { VERSATILITY = 21 }, text = "+21 Vers" },
+    { pattern = "cursed%s+haste", stats = { HASTE = 26, VERSATILITY = -8 }, text = "+26 Haste / -8 Vers" },
+    { pattern = "cursed%s+crit", stats = { CRIT = 26, HASTE = -8 }, text = "+26 Crit / -8 Haste" },
+    { pattern = "cursed%s+mastery", stats = { MASTERY = 22, CRIT = -6 }, text = "+22 Mastery / -6 Crit" },
+    { pattern = "cursed%s+vers", stats = { VERSATILITY = 18, MASTERY = -4 }, text = "+18 Vers / -4 Mastery" },
+    { pattern = "glimmering%s+haste", stats = { HASTE = 11 }, text = "+11 Haste" },
+    { pattern = "glimmering%s+crit", stats = { CRIT = 9 }, text = "+9 Crit" },
+    { pattern = "glimmering%s+mastery", stats = { MASTERY = 9 }, text = "+9 Mastery" },
+    { pattern = "glimmering%s+vers", stats = { VERSATILITY = 11 }, text = "+11 Vers" },
+    { pattern = "silvermoon's%s+alacrity", stats = { HASTE = 29 }, text = "+29 Haste" },
+    { pattern = "silvermoon's%s+tenacity", stats = { VERSATILITY = 29 }, text = "+29 Vers" },
+    { pattern = "nature's%s+fury", stats = { CRIT = 29 }, text = "+29 Crit" },
+    { pattern = "eyes%s+of%s+the%s+eagle", stats = {}, text = "+2% Crit Effectiveness" },
+    { pattern = "zul'jin's%s+mastery", stats = { MASTERY = 29 }, text = "+29 Mastery" },
+    { pattern = "crystalline%s+radiance", stats = { PRIMARY = 49 }, text = "+49 Primary" },
     { pattern = "mark%s+of%s+the%s+worldsoul", stats = { PRIMARY = 50 }, text = "+50 Primary" },
-    { pattern = "mark%s+of%s+the%s+magister", stats = { PRIMARY = 50 }, text = "+50 Primary" },
-    { pattern = "council's%s+intellect", stats = { INTELLECT = 450 }, text = "+450 Int" },
-    { pattern = "stormrider's%s+agility", stats = { AGILITY = 450 }, text = "+450 Agi" },
-    { pattern = "scout's%s+march", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "defender's%s+march", stats = { SPEED = 250, STAMINA = 1150 }, text = "+250 Speed" },
-    { pattern = "cavalry's%s+march", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "lynx's%s+dexterity", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "shaladrassil's%s+roots", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "farstrider's%s+hunt", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "winged%s+grace", stats = { AVOIDANCE = 125, SPEED = 125 }, text = "+125 Avoid / +125 Speed" },
-    { pattern = "leeching%s+fangs", stats = { LEECH = 250 }, text = "+250 Leech" },
-    { pattern = "silken%s+avoidance", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
-    { pattern = "empowered%s+blessing%s+of%s+speed", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "empowered%s+hex%s+of%s+leeching", stats = { LEECH = 250 }, text = "+250 Leech" },
-    { pattern = "empowered%s+rune%s+of%s+avoidance", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
-    { pattern = "armored%s+avoidance", stats = { AVOIDANCE = 200, ARMOR = 250 }, text = "+200 Avoid" },
-    { pattern = "armored%s+speed", stats = { SPEED = 200, ARMOR = 250 }, text = "+200 Speed" },
-    { pattern = "armored%s+leech", stats = { LEECH = 200, ARMOR = 250 }, text = "+200 Leech" },
-    { pattern = "sunfire%s+silk%s+spellthread", stats = { INTELLECT = 450, STAMINA = 1150 }, text = "+450 Int / +1150 Stam" },
-    { pattern = "sunset%s+spellthread", stats = { INTELLECT = 450, STAMINA = 1150 }, text = "+450 Int / +1150 Stam" },
-    { pattern = "daybreak%s+spellthread", stats = { INTELLECT = 450, STAMINA = 1150 }, text = "+450 Int / +1150 Stam" },
-    { pattern = "arcanoweave%s+spellthread", stats = { INTELLECT = 325, STAMINA = 850 }, text = "+325 Int / +850 Stam" },
-    { pattern = "dual%s+flocked%s+spellthread", stats = { INTELLECT = 325, STAMINA = 850 }, text = "+325 Int / +850 Stam" },
-    { pattern = "forest%s+hunter's%s+armor%s+kit", stats = { PRIMARY = 450, STAMINA = 1150 }, text = "+450 Primary / +1150 Stam" },
-    { pattern = "blood%s+knight's%s+armor%s+kit", stats = { PRIMARY = 450, STAMINA = 1150 }, text = "+450 Primary / +1150 Stam" },
-    { pattern = "stormbound%s+armor%s+kit", stats = { PRIMARY = 450, STAMINA = 1150 }, text = "+450 Primary / +1150 Stam" },
-    { pattern = "akil'zon's%s+swiftness", stats = { SPEED = 250 }, text = "+250 Speed" },
-    { pattern = "amirdrassil's%s+grace", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
-    { pattern = "silvermoon's%s+mending", stats = { LEECH = 250 }, text = "+250 Leech" },
-    { pattern = "flight%s+of%s+the%s+eagle", stats = { AVOIDANCE = 250 }, text = "+250 Avoid" },
+    { pattern = "mark%s+of%s+the%s+magister", stats = { INTELLECT = 40 }, text = "+40 Int" },
+    { pattern = "council's%s+intellect", stats = { INTELLECT = 34 }, text = "+34 Int" },
+    { pattern = "stormrider's%s+agility", stats = { AGILITY = 34, SPEED = 17 }, text = "+34 Agi / +17 Speed" },
+    { pattern = "scout's%s+march", stats = { SPEED = 17 }, text = "+17 Speed" },
+    { pattern = "defender's%s+march", stats = { STAMINA = 59 }, text = "+59 Stam" },
+    { pattern = "cavalry's%s+march", stats = {}, text = "+10% Mounted Speed" },
+    { pattern = "lynx's%s+dexterity", stats = { AVOIDANCE = 19, STAMINA = 232 }, text = "+19 Avoid / +232 Stam" },
+    { pattern = "shaladrassil's%s+roots", stats = { LEECH = 28, STAMINA = 232 }, text = "+28 Leech / +232 Stam" },
+    { pattern = "farstrider's%s+hunt", stats = { SPEED = 11, STAMINA = 232 }, text = "+11 Speed / +232 Stam" },
+    { pattern = "winged%s+grace", stats = { AVOIDANCE = 36 }, text = "+36 Avoid" },
+    { pattern = "leeching%s+fangs", stats = { LEECH = 23 }, text = "+23 Leech" },
+    { pattern = "silken%s+avoidance", stats = { AVOIDANCE = 23 }, text = "+23 Avoid" },
+    { pattern = "empowered%s+blessing%s+of%s+speed", stats = { SPEED = 22 }, text = "+22 Speed" },
+    { pattern = "empowered%s+hex%s+of%s+leeching", stats = { LEECH = 55 }, text = "+55 Leech" },
+    { pattern = "empowered%s+rune%s+of%s+avoidance", stats = { AVOIDANCE = 37 }, text = "+37 Avoid" },
+    { pattern = "armored%s+avoidance", stats = { AVOIDANCE = 61 }, text = "+61 Avoid" },
+    { pattern = "armored%s+speed", stats = { SPEED = 66 }, text = "+66 Speed" },
+    { pattern = "armored%s+leech", stats = { LEECH = 43 }, text = "+43 Leech" },
+    { pattern = "sunfire%s+silk%s+spellthread", stats = { INTELLECT = 41, STAMINA = 115 }, text = "+41 Int / +115 Stam" },
+    { pattern = "sunset%s+spellthread", stats = { INTELLECT = 7, STAMINA = 7 }, text = "+7 Int / +7 Stam" },
+    { pattern = "daybreak%s+spellthread", stats = { INTELLECT = 7 }, text = "+7 Int / +4% Mana" },
+    { pattern = "arcanoweave%s+spellthread", stats = { INTELLECT = 41 }, text = "+41 Int / +4% Mana" },
+    { pattern = "forest%s+hunter's%s+armor%s+kit", stats = { PRIMARY = 41, STAMINA = 115 }, text = "+41 Primary / +115 Stam" },
+    { pattern = "blood%s+knight's%s+armor%s+kit", stats = { PRIMARY = 41, ARMOR = 27 }, text = "+41 Primary / +27 Armor" },
+    { pattern = "stormbound%s+armor%s+kit", stats = { PRIMARY = 7, STAMINA = 7 }, text = "+7 Primary / +7 Stam" },
+    { pattern = "akil'zon's%s+swiftness", stats = { SPEED = 65 }, text = "+65 Speed" },
+    { pattern = "amirdrassil's%s+grace", stats = { AVOIDANCE = 111 }, text = "+111 Avoid" },
+    { pattern = "silvermoon's%s+mending", stats = { LEECH = 166 }, text = "+166 Leech" },
+    { pattern = "flight%s+of%s+the%s+eagle", stats = { SPEED = 39 }, text = "+39 Speed" },
   },
 }
 
@@ -949,17 +948,19 @@ local function getEnchantDisplayText(itemLink, rawEnchantText, enchantAtlas, slo
   -- If enchantBuckets has calculated stats, format cleanly from stats
   if enchantBuckets and next(enchantBuckets) then
     local parts = {}
-    if enchantBuckets["PRIMARY"] then table.insert(parts, string.format("+%d Primary", enchantBuckets["PRIMARY"])) end
-    if enchantBuckets["STRENGTH"] then table.insert(parts, string.format("+%d Str", enchantBuckets["STRENGTH"])) end
-    if enchantBuckets["AGILITY"] then table.insert(parts, string.format("+%d Agi", enchantBuckets["AGILITY"])) end
-    if enchantBuckets["INTELLECT"] then table.insert(parts, string.format("+%d Int", enchantBuckets["INTELLECT"])) end
-    if enchantBuckets["CRIT"] then table.insert(parts, string.format("+%d Crit", enchantBuckets["CRIT"])) end
-    if enchantBuckets["HASTE"] then table.insert(parts, string.format("+%d Haste", enchantBuckets["HASTE"])) end
-    if enchantBuckets["MASTERY"] then table.insert(parts, string.format("+%d Mastery", enchantBuckets["MASTERY"])) end
-    if enchantBuckets["VERSATILITY"] then table.insert(parts, string.format("+%d Vers", enchantBuckets["VERSATILITY"])) end
-    if enchantBuckets["SPEED"] then table.insert(parts, string.format("+%d Speed", enchantBuckets["SPEED"])) end
-    if enchantBuckets["LEECH"] then table.insert(parts, string.format("+%d Leech", enchantBuckets["LEECH"])) end
-    if enchantBuckets["AVOIDANCE"] then table.insert(parts, string.format("+%d Avoid", enchantBuckets["AVOIDANCE"])) end
+    if enchantBuckets["PRIMARY"] then table.insert(parts, string.format("%+d Primary", enchantBuckets["PRIMARY"])) end
+    if enchantBuckets["STRENGTH"] then table.insert(parts, string.format("%+d Str", enchantBuckets["STRENGTH"])) end
+    if enchantBuckets["AGILITY"] then table.insert(parts, string.format("%+d Agi", enchantBuckets["AGILITY"])) end
+    if enchantBuckets["INTELLECT"] then table.insert(parts, string.format("%+d Int", enchantBuckets["INTELLECT"])) end
+    if enchantBuckets["CRIT"] then table.insert(parts, string.format("%+d Crit", enchantBuckets["CRIT"])) end
+    if enchantBuckets["HASTE"] then table.insert(parts, string.format("%+d Haste", enchantBuckets["HASTE"])) end
+    if enchantBuckets["MASTERY"] then table.insert(parts, string.format("%+d Mastery", enchantBuckets["MASTERY"])) end
+    if enchantBuckets["VERSATILITY"] then table.insert(parts, string.format("%+d Vers", enchantBuckets["VERSATILITY"])) end
+    if enchantBuckets["SPEED"] then table.insert(parts, string.format("%+d Speed", enchantBuckets["SPEED"])) end
+    if enchantBuckets["LEECH"] then table.insert(parts, string.format("%+d Leech", enchantBuckets["LEECH"])) end
+    if enchantBuckets["AVOIDANCE"] then table.insert(parts, string.format("%+d Avoid", enchantBuckets["AVOIDANCE"])) end
+    if enchantBuckets["STAMINA"] then table.insert(parts, string.format("%+d Stam", enchantBuckets["STAMINA"])) end
+    if enchantBuckets["ARMOR"] then table.insert(parts, string.format("%+d Armor", enchantBuckets["ARMOR"])) end
     if #parts > 0 then
       local formatted = table.concat(parts, " / ")
       if atlas and atlas ~= "" then
@@ -1515,7 +1516,7 @@ local function updateSlot(unitId, slotId)
     for _, ke in ipairs(CHAR_SHEET_DATA.KNOWN_ENCHANTS) do
       if lowerEnchant:find(ke.pattern) then
         for g, val in pairs(ke.stats) do
-          enchantBuckets[g] = math.max(enchantBuckets[g] or 0, val)
+          enchantBuckets[g] = val
         end
         break
       end
