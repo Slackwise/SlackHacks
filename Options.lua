@@ -2739,7 +2739,7 @@ options = {
               disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
               get = function() return db.profile.infoDisplay.friendsList.sortBy end,
               set = function(_, value) Self.FriendsList:SetSortBy(value) end,
-              order = 2
+              order = 1.2
             },
             showInstanceIcons = {
               name = "Show Instance Icons",
