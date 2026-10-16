@@ -194,6 +194,9 @@ dbDefaults = {
         fitToContent = false,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
         sortBy = "name", -- "name" or "zone"
+        showInstanceIcons = true,
+        showFactionIcons = true,
+        factionIconsOppositeOnly = true,
         point = "CENTER",
         relativePoint = "CENTER",
         x = 0,
@@ -2576,6 +2579,39 @@ options = {
               get = function() return db.profile.infoDisplay.guildMemberList.sortBy end,
               set = function(_, value) Self.GuildMemberList:SetSortBy(value) end,
               order = 2
+            },
+            showInstanceIcons = {
+              name = "Show Instance Icons",
+              desc = "Show a Dungeon, Raid, or Delve icon after the location of members inside one. Also available from the window's cog menu.",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
+              get = function() return db.profile.infoDisplay.guildMemberList.showInstanceIcons end,
+              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showInstanceIcons", value) end,
+              order = 3
+            },
+            showFactionIcons = {
+              name = "Show Faction Icons",
+              desc = "Show a Horde or Alliance icon after member names. Also available from the window's cog menu.",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
+              get = function() return db.profile.infoDisplay.guildMemberList.showFactionIcons end,
+              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showFactionIcons", value) end,
+              order = 4
+            },
+            factionIconsOppositeOnly = {
+              name = "Only Show Opposite Faction",
+              desc = "Only show the faction icon for members of the opposite faction to your current character. Also available from the window's cog menu.",
+              type = "toggle",
+              width = "full",
+              disabled = function()
+                local settings = db.profile.infoDisplay.guildMemberList
+                return not settings.enabled or not settings.showFactionIcons
+              end,
+              get = function() return db.profile.infoDisplay.guildMemberList.factionIconsOppositeOnly end,
+              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
+              order = 5
             }
           }
         }
