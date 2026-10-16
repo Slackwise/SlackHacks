@@ -27,6 +27,7 @@ MovableWindows.lua
 Controls.lua
 Graphics.lua
 MouseRing.lua
+Quest.lua
 CharSheet.lua
 InfoDisplay.lua
 Options.lua
