@@ -52,6 +52,13 @@
 			"type": "shell",
 			"command": "perl scripts/release.pl",
 			"problemMatcher": []
+		},
+		{
+			"label": "Test release scripts",
+			"type": "shell",
+			"command": "node --test \"scripts\\release.test.cjs\"",
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

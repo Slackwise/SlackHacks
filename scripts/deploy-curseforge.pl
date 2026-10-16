@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use utf8;
 use FindBin;
+use lib $FindBin::Bin;
+use ReleaseUtil qw(git_output verify_release read_changelog json_file curl_response file_digest ensure_build);
+use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
+use File::Path qw(make_path);
 use Cwd qw(abs_path);
 use File::Spec;
 use JSON::PP;
@@ -247,21 +251,23 @@ sub resolve_game_versions_from_toc {
 
     # Fetch version types
     my %type_names = ();
-    my $types_resp = `curl -s -H "X-Api-Token: $token" https://wow.curseforge.com/api/game/version-types`;
-    my $types_data = eval { JSON::PP->new->utf8->decode($types_resp) };
-    if ($types_data && ref($types_data) eq 'ARRAY') {
-        for my $t (@$types_data) {
-            $type_names{$t->{id}} = $t->{name} if defined $t->{id} && defined $t->{name};
-        }
+    my ($types_status, $types_resp) = curl_response('-H', "X-Api-Token: $token",
+        'https://wow.curseforge.com/api/game/version-types');
+    die "Error: Cannot fetch CurseForge version types (HTTP $types_status).\nResponse: $types_resp\n"
+        unless $types_status == 200;
+    my $types_data = JSON::PP->new->utf8->decode($types_resp);
+    die "Error: Invalid CurseForge version types response.\n" unless ref($types_data) eq 'ARRAY';
+    for my $t (@$types_data) {
+        $type_names{$t->{id}} = $t->{name} if defined $t->{id} && defined $t->{name};
     }
 
     # Fetch versions
-    my $ver_resp = `curl -s -H "X-Api-Token: $token" https://wow.curseforge.com/api/game/versions`;
-    my $versions = eval { JSON::PP->new->utf8->decode($ver_resp) };
-    if (!$versions || ref($versions) ne 'ARRAY') {
-        warn "Warning: Could not fetch game versions from CurseForge API: $ver_resp\n";
-        return [];
-    }
+    my ($versions_status, $ver_resp) = curl_response('-H', "X-Api-Token: $token",
+        'https://wow.curseforge.com/api/game/versions');
+    die "Error: Cannot fetch CurseForge game versions (HTTP $versions_status).\nResponse: $ver_resp\n"
+        unless $versions_status == 200;
+    my $versions = JSON::PP->new->utf8->decode($ver_resp);
+    die "Error: Invalid CurseForge game versions response.\n" unless ref($versions) eq 'ARRAY';
 
     my $semver_cmp = sub {
         my ($a_str, $b_str) = @_;
@@ -336,7 +342,6 @@ sub resolve_game_versions_from_toc {
 # ------------------------------------------------------------------------------
 # Step 1: Extract Version from SlackHacks.toc & Check Build Artifact
 # ------------------------------------------------------------------------------
-my $toc_file = require_config("TOC_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 open my $fh, "<:encoding(UTF-8)", $toc_file or die "Cannot open $toc_file: $!\n";
@@ -362,18 +367,35 @@ close $fh;
 die "Error: Could not extract version from $toc_file\n" unless defined $version && length($version);
 
 my $zip_path = File::Spec->catfile($dist_dir, $zip_name);
+my $tag_name = "$tag_prefix$version";
+my $commit = verify_release($tag_name, require_config("TARGET_COMMITISH"));
 
-unless (-f $zip_path) {
-    print "Release archive not found. Building addon package...\n";
-    my $build_script = File::Spec->catfile($script_dir, "build.sh");
-    my $build_status = system("bash", $build_script);
-    if ($build_status != 0) {
-        die "Error: build.sh failed with exit code " . ($build_status >> 8) . "\n";
+my ($state_file, $state_key);
+unless ($dry_run) {
+    my $state_dir = File::Spec->catdir(git_output('rev-parse', '--git-common-dir'), 'slackhacks-deploy');
+    make_path($state_dir);
+    $state_key = Digest::SHA::sha256_hex("$curseforge_project_id:$tag_name");
+    $state_file = File::Spec->catfile($state_dir, "$state_key.json");
+    if (-f $state_file) {
+        my $receipt_file = -f "$state_file.complete" ? "$state_file.complete" : $state_file;
+        open my $state_fh, '<:raw', $receipt_file or die "Error: Cannot read $receipt_file: $!\n";
+        my $state = eval { JSON::PP->new->utf8->decode(do { local $/; <$state_fh> }) };
+        die "Error: Invalid upload receipt '$receipt_file'; inspect CurseForge before retrying. $@\n"
+            unless ref($state) eq 'HASH' && defined $state->{commit} && defined $state->{status};
+        close $state_fh or die "Error: Cannot close '$receipt_file': $!\n";
+        die "Error: CurseForge receipt does not match this release.\n" unless $state->{commit} eq $commit;
+        if ($state->{status} eq 'complete' && $state->{file_id}) {
+            print "CurseForge release $tag_name already uploaded (file $state->{file_id}).\n";
+            exit 0;
+        }
+        die "Error: A previous CurseForge upload is pending or uncertain. Check the project's files " .
+            "before removing '$state_file' to retry; an upload may already exist.\n";
     }
 }
 
-die "Error: Build output '$zip_path' not found.\n" unless -f $zip_path;
-print "Found release archive: $zip_path\n";
+ensure_build($script_dir, $zip_path, $commit) unless $dry_run;
+
+die "Error: Build output '$zip_path' not found.\n" unless $dry_run || -f $zip_path;
 
 # ------------------------------------------------------------------------------
 # Step 2: Validate CurseForge Project ID
@@ -423,33 +445,8 @@ if ($dry_run) {
 # ------------------------------------------------------------------------------
 # Step 5: Prepare Changelog
 # ------------------------------------------------------------------------------
-my $changelog_text = "";
-if ($changelog_file eq "") {
-    my $default_changelog = File::Spec->catfile($changelog_dir, "changelog-$tag_prefix$version.md");
-    if (-f $default_changelog) {
-        $changelog_file = $default_changelog;
-    }
-}
-
-if ($changelog_file ne "" && -f $changelog_file) {
-    open my $cfh, "<:encoding(UTF-8)", $changelog_file or warn "Cannot open changelog file '$changelog_file': $!\n";
-    if ($cfh) {
-        $changelog_text = do { local $/; <$cfh> };
-        close $cfh;
-    }
-} elsif (-d ".git") {
-    my $last_tag = `git describe --tags --abbrev=0 2>/dev/null`;
-    if ($? == 0 && defined $last_tag && $last_tag =~ /\S/) {
-        $last_tag =~ s/^\s+|\s+$//g;
-        $changelog_text = `git log "${last_tag}..HEAD" --oneline --no-merges 2>/dev/null`;
-    } else {
-        $changelog_text = `git log -n 10 --oneline --no-merges 2>/dev/null`;
-    }
-}
-
-if (!defined $changelog_text || $changelog_text !~ /\S/) {
-    $changelog_text = "Release $curseforge_display_name_prefix$version";
-}
+my $changelog_text;
+($changelog_file, $changelog_text) = read_changelog($changelog_file, $changelog_dir, $tag_name);
 
 # ------------------------------------------------------------------------------
 # Step 6: Construct Metadata JSON & Upload
@@ -464,7 +461,6 @@ my $metadata = {
 };
 
 my $json_encoder = JSON::PP->new->utf8->canonical;
-my $metadata_json = $json_encoder->encode($metadata);
 
 my $upload_url = "https://wow.curseforge.com/api/projects/$curseforge_project_id/upload-file";
 
@@ -491,26 +487,40 @@ if ($dry_run) {
 }
 
 print "Uploading to CurseForge...\n";
+die "Error: No compatible CurseForge game versions resolved; refusing upload.\n" unless @game_version_ids;
+my $metadata_file = json_file($metadata);
+my $receipt = {
+    status => 'pending', commit => $commit, tag => $tag_name,
+    project => $curseforge_project_id, digest => file_digest($zip_path),
+};
+# Claim the upload before sending it. Keep uncertain attempts for manual reconciliation:
+# the legacy upload API has no idempotency key or authoritative file-list endpoint.
+sysopen my $state_fh, $state_file, O_WRONLY | O_CREAT | O_EXCL
+    or die "Error: Cannot claim CurseForge upload '$state_file': $!\n";
+binmode $state_fh;
+print {$state_fh} $json_encoder->encode($receipt) or die "Error: Cannot write upload receipt: $!\n";
+close $state_fh or die "Error: Cannot save upload receipt: $!\n";
 my @curl_cmd = (
-    "curl", "-s", "-S",
-    "-w", "\nHTTP_STATUS:%{http_code}",
     "-H", "X-Api-Token: $api_token",
-    "-F", "metadata=$metadata_json",
+    "-F", "metadata=<$metadata_file",
     "-F", "file=\@$zip_path",
     $upload_url
 );
 
-open my $curl_pipe, "-|", @curl_cmd or die "Failed to execute curl: $!\n";
-my $response = do { local $/; <$curl_pipe> };
-close $curl_pipe;
-
-my $http_status = 0;
-if ($response =~ /HTTP_STATUS:(\d+)/) {
-    $http_status = int($1);
-    $response =~ s/\n?HTTP_STATUS:\d+//;
-}
+my ($http_status, $response) = curl_response(@curl_cmd);
 
 if ($http_status >= 200 && $http_status < 300) {
+    my $result = $json_encoder->decode($response);
+    die "Error: CurseForge did not confirm a file ID; inspect '$state_file' before retrying.\n"
+        unless ref($result) eq 'HASH' && $result->{id};
+    $receipt->{status} = 'complete';
+    $receipt->{file_id} = $result->{id};
+    my $completed_file = "$state_file.result";
+    open my $completed_fh, '>:raw', $completed_file or die "Error: Cannot save upload result: $!\n";
+    print {$completed_fh} $json_encoder->encode($receipt) or die "Error: Cannot write upload result: $!\n";
+    close $completed_fh or die "Error: Cannot close upload result: $!\n";
+    # A separate completion file avoids losing the pending claim on interrupted writes.
+    rename $completed_file, "$state_file.complete" or die "Error: Cannot finalize upload receipt: $!\n";
     print "Deployment to CurseForge succeeded (HTTP $http_status)!\n";
     print "Response: $response\n";
 } else {
