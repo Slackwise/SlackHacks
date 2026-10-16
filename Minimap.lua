@@ -2289,6 +2289,16 @@ local function layoutCornerIcons()
   end
 end
 
+--- Preserves native artwork dimensions so scaling also resizes fixed-size icon textures.
+---@param button Frame - Title-bar button being laid out.
+local function matchTrackingButtonSize(button)
+  if not isForever() or (button ~= GameTimeFrame and button ~= AddonCompartmentFrame) then return end
+  local saved = button.slackHacksSaved
+  if saved and saved.width and saved.height then
+    button:SetSize(saved.width, saved.height)
+  end
+end
+
 --- Returns the scaled width and scale used for a title-bar button.
 ---@param button Frame - Button to size.
 ---@return number, number - Rendered width and scale.
@@ -2301,12 +2311,34 @@ local function getButtonScaledWidth(button)
   elseif button == getExpansionLandingPageButton() then
     scale = TITLE_BAR_EXPANSION_LANDING_PAGE_SCALE
   elseif button == AddonCompartmentFrame then
-    scale = TITLE_BAR_CALENDAR_TRACKING_SCALE + TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA / nativeWidth
+    scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
+      + (isForever() and 0 or TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA / nativeWidth)
   elseif button == GameTimeFrame or button == (MinimapCluster and MinimapCluster.Tracking) then
     scale = TITLE_BAR_CALENDAR_TRACKING_SCALE
   end
+  if isForever() and (button == GameTimeFrame or button == AddonCompartmentFrame) then
+    local tracking = MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button
+    local height = button:GetHeight()
+    if button == AddonCompartmentFrame and button.GetNormalTexture then
+      local texture = button:GetNormalTexture()
+      if texture and texture:GetHeight() > 0 then
+        -- The compartment's icon can be smaller than its clickable frame.
+        height = texture:GetHeight()
+      end
+    end
+    if tracking and height > 0 then
+      scale = tracking:GetHeight() * tracking:GetScale() * TITLE_BAR_CALENDAR_TRACKING_SCALE / height
+    end
+    if button == AddonCompartmentFrame and height > 0 then
+      scale = scale + (TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA + 1) / height
+    end
+  end
   if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
     btnW = math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA)
+  end
+  if isForever() and button == AddonCompartmentFrame then
+    -- Add one rendered pixel of height without increasing the icon's width.
+    button:SetHeight(button:GetHeight() + 1 / scale)
   end
   return (btnW and btnW > 0 and btnW or 32) * scale, scale
 end
@@ -2320,7 +2352,10 @@ local function getButtonYOffset(button)
   end
 
   local yOffset = 0
-  if button == GameTimeFrame then
+  if isForever() and (button == GameTimeFrame or button == AddonCompartmentFrame
+      or button == (MinimapCluster and MinimapCluster.Tracking)) then
+    yOffset = TITLE_BAR_TRACKING_Y_OFFSET - 1
+  elseif button == GameTimeFrame then
     yOffset = TITLE_BAR_CALENDAR_Y_OFFSET
   elseif button == (MinimapCluster and MinimapCluster.Tracking) then
     yOffset = TITLE_BAR_TRACKING_Y_OFFSET
@@ -2328,6 +2363,21 @@ local function getButtonYOffset(button)
     yOffset = TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET
   end
   return yOffset + TITLE_BAR_ICON_Y_OFFSET
+end
+
+--- Converts Forever's absolute row offsets into offsets relative to the preceding scaled button.
+---@param button Frame - Button being positioned.
+---@param previous Frame|nil - Previous button in the same row.
+---@return number - Relative Y offset in the button's coordinates.
+local function getButtonAnchorYOffset(button, previous)
+  local yOffset = getButtonYOffset(button)
+  if isForever() then
+    if previous then
+      yOffset = yOffset - getButtonYOffset(previous)
+    end
+    yOffset = yOffset / button:GetScale()
+  end
+  return yOffset
 end
 
 --- Builds the list of buttons for the permanent title bar flow.
@@ -2494,6 +2544,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
       -- proven technique already used for the corner Instance Difficulty icon -- never SetShown,
       -- which is what broke Calendar/AddonCompartment/Expansion Landing Page clicks previously.
       setShownSafely(button, true)
+      matchTrackingButtonSize(button)
       local scaledW, scale = getButtonScaledWidth(button)
       button:SetScale(scale)
       setFrameStrataSafe(button, "DIALOG")
@@ -2501,7 +2552,7 @@ local function layoutAddonIconsContainer(anchorRightTo)
       if button.Raise then button:Raise() end
       button.slackHacksRealClearAllPoints(button)
       local isSubsequent = (previousHover ~= nil)
-      local yOffset = getButtonYOffset(button)
+      local yOffset = getButtonAnchorYOffset(button, previousHover)
       if previousHover then
         button.slackHacksRealSetPoint(button, "RIGHT", previousHover, "LEFT", -buttonGap, yOffset)
       else
@@ -2537,12 +2588,13 @@ local function layoutTitleBarIcons()
       -- previously managed by the hidden-until-hover container (which hides via SetShown/fades via alpha).
       setShownSafely(button, true)
       button:SetAlpha(1)
+      matchTrackingButtonSize(button)
       local _, scale = getButtonScaledWidth(button)
-      local yOffset = getButtonYOffset(button)
       if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
         button:SetWidth(math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA))
       end
       button:SetScale(scale)
+      local yOffset = getButtonAnchorYOffset(button, previous)
       setFrameStrataSafe(button, row:GetFrameStrata())
       setFrameLevelRecursive(button, row:GetFrameLevel() + 1)
       button.slackHacksRealClearAllPoints(button)
