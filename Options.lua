@@ -1,6 +1,8 @@
 local addonName, addonTable = ...
 setfenv(1, _G.SlackHacks)
 
+local ADDON_DISPLAY_NAME = "SlackHacks v" .. getAddonVersion()
+
 dbDefaults = {
   global = {
     configVersion = CONFIG_VERSION,
@@ -16,7 +18,8 @@ dbDefaults = {
   },
   char = {
     cache = {
-      lastKnownGildedStashesRemaining = nil
+      lastKnownGildedStashesRemaining = nil,
+      lastKnownGildedStashesResetAt = nil
     }
   },
   profile = {
@@ -70,6 +73,14 @@ dbDefaults = {
       scale = 50,
       opacity = 100,
       color = { r = 1, g = 1, b = 1 }
+    },
+    quest = {
+      enabled = false,
+      autoAccept = false,
+      autoComplete = false,
+      autoClickFirstOption = false,
+      numberKeys = false,
+      questItemButton = false
     },
     combat = {
       raiseCastingNameplates = false,
@@ -433,7 +444,7 @@ local function openMinimapContextMenu(anchor)
 
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(owner, rootDescription)
-      rootDescription:CreateTitle("SlackHacks")
+      rootDescription:CreateTitle(ADDON_DISPLAY_NAME)
       rootDescription:CreateButton("Options", function()
         openOptions()
       end)
@@ -444,6 +455,7 @@ local function openMinimapContextMenu(anchor)
       rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
       rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
       rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
+      rootDescription:CreateCheckbox("All NPC Auto-Interacts", isAllQuestAutomationEnabled, toggleAllQuestAutomation)
       if isRetail and isRetail() then
         rootDescription:CreateCheckbox("Track Delve Weeklies", isTrackDelvesActive, toggleTrackDelves)
       end
@@ -452,13 +464,14 @@ local function openMinimapContextMenu(anchor)
   end
 
   local menuList = {
-    { text = "SlackHacks", isTitle = true, notCheckable = true },
+    { text = ADDON_DISPLAY_NAME, isTitle = true, notCheckable = true },
     { text = "Options", func = function() openOptions() end, notCheckable = true },
     { text = "Report Bugs", func = function() reportBugs() end, notCheckable = true },
     { text = "Listview Bag", checked = isListviewBagActive, func = toggleListviewBag, isNotRadio = true, keepShownOnClick = true },
     { text = "Square Minimap", checked = isSquareMinimapActive, func = toggleSquareMinimap, isNotRadio = true, keepShownOnClick = true },
     { text = "Display Gear Stats", checked = isGearStatsActive, func = toggleGearStats, isNotRadio = true, keepShownOnClick = true },
     { text = "Mouse Ring", checked = isMouseRingActive, func = toggleMouseRing, isNotRadio = true, keepShownOnClick = true },
+    { text = "All NPC Auto-Interacts", checked = isAllQuestAutomationEnabled, func = toggleAllQuestAutomation, isNotRadio = true, keepShownOnClick = true },
   }
   if isRetail and isRetail() then
     table.insert(menuList, {
@@ -505,7 +518,7 @@ local function initMinimapIcon()
   if not minimapLDBObj then
     minimapLDBObj = ldb:NewDataObject(MINIMAP_ICON_NAME, {
       type = "data source",
-      text = "SlackHacks",
+      text = ADDON_DISPLAY_NAME,
       icon = SLACKHACKS_ICON,
       OnClick = function(clickedButton, mouseButton)
         if mouseButton == "RightButton" then
@@ -524,7 +537,7 @@ local function initMinimapIcon()
         local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
           or (errorLogTable and errorLogTable()) or {}
         local count = #list
-        tooltip:AddLine("SlackHacks", 1, 0.82, 0)
+        tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
         if count > 0 then
           tooltip:AddLine(" ")
           if count == 1 then
@@ -623,7 +636,7 @@ local function getWIPModuleNames()
 end
 
 local function printSlashHelp()
-  print(grey(icon(16)) .. " " .. color("FFD100")("SlackHacks Slash Commands:") .. "")
+  print(grey(icon(16)) .. " " .. color("FFD100")(ADDON_DISPLAY_NAME .. " Slash Commands:") .. "")
   print("  " .. color("FFFFFF")("/slack") .. " - Open the SlackHacks config window")
   print("  " .. color("FFFFFF")("/slack help") .. " - Show this list of slash commands")
   print("  " .. color("FFFFFF")("/slack debug") .. " - Toggle debug mode on/off")
@@ -651,13 +664,14 @@ function disableWIPModules()
     acr:NotifyChange("SlackHacks")
   end
 
-  print("SlackHacks: disabled all WIP modules (" .. getWIPModuleNames() .. ").")
+  prn("disabled all WIP modules (" .. getWIPModuleNames() .. ").")
 end
 
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   if command == "" then
     openOptions()
+    printSlashHelp()
   elseif command == "help" then
     printSlashHelp()
   elseif command == "debug" then
@@ -671,7 +685,7 @@ function handleSlashCommand(input)
   elseif command == "induce-error" then
     Self.Debug:InduceError()
   else
-    print("SlackHacks: unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
+    prn("unknown command '" .. command .. "'. Type " .. color("FFFFFF")("/slack help") .. " for available commands.")
   end
 end
 
@@ -791,6 +805,7 @@ end
 
 options = {
   type = "group",
+  name = ADDON_DISPLAY_NAME,
   icon = SLACKHACKS_ICON,
   args = {
     enable = {
@@ -1589,7 +1604,7 @@ options = {
                 if Self.Debug and Self.Debug.RefreshMarkdown then
                   Self.Debug:RefreshMarkdown()
                 end
-                print("SlackHacks: SlackHacks Error Log cleared")
+                prn("SlackHacks Error Log cleared")
               end,
               confirm = true,
               order = 3
@@ -1621,7 +1636,7 @@ options = {
               type = "execute",
               func = function()
                 clearDebugLogs()
-                print("SlackHacks: debug logs cleared")
+                prn("debug logs cleared")
               end,
               confirm = true,
               order = 2
@@ -1671,7 +1686,7 @@ options = {
               type = "execute",
               func = function()
                 purgeOldLogs()
-                print("SlackHacks: old logs purged")
+                prn("old logs purged")
               end,
               order = 3
             }
@@ -2641,6 +2656,95 @@ options = {
       order = 10,
       args = selfVendorModeOptions()
     },
+    quest = {
+      type = "group",
+      name = "Quest / NPC",
+      desc = "Quest and NPC dialog automation, plus an Extra Action Button for quest items.",
+      order = 9.5,
+      args = {
+        overview = goldModuleOverview("Automates quest and NPC dialogs, adds number-key shortcuts to dialog options, and shows an Extra Action Button for quest items."),
+        shiftNote = {
+          type = "description",
+          name = "|cffffffffHold |cff00ccffShift|cffffffff while interacting with an NPC to skip all automation for that interaction.|r",
+          fontSize = "small",
+          width = "full",
+          order = 0.05
+        },
+        enabled = {
+          name = "Enable Quest Module",
+          desc = "Enable the Quest / NPC features below.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          get = function() return db.profile.quest.enabled end,
+          set = function(_, value) Self.Quest:SetEnabled(value) end,
+          order = 0.1
+        },
+        setKeybinds = {
+          name = "Set Quest Keybinds",
+          desc = "Open the Key Bindings settings to the SlackHacks section to bind the NPC auto-interact toggles.",
+          type = "execute",
+          func = function() openKeybindings() end,
+          order = 0.2
+        },
+        autoAccept = {
+          name = "Auto-Accept Quests",
+          desc = "Automatically accepts quests on interact.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.autoAccept end,
+          set = function(_, value) Self.Quest:SetOption("autoAccept", value) end,
+          order = 1
+        },
+        autoComplete = {
+          name = "Auto-Complete Quests",
+          desc = "Automatically completes quests that have no choices in reward.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.autoComplete end,
+          set = function(_, value) Self.Quest:SetOption("autoComplete", value) end,
+          order = 2
+        },
+        autoClickFirstOption = {
+          name = "Auto-Click First Dialog Option",
+          desc = "Automatically clicks an interact option in an NPC dialog if it's the only option.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.autoClickFirstOption end,
+          set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
+          order = 3
+        },
+        numberKeys = {
+          name = "Map NPC Dialog Options to Number Keys",
+          desc = "Maps NPC dialog options to the number keys when interacting.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.numberKeys end,
+          set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+          order = 4
+        },
+        questItemButton = {
+          name = "Use 'Extra Action Button' for Quest Items",
+          desc = "Shows the 'Extra Action Button' when there is a quest item to use.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          hidden = function() return not Self.Quest:IsQuestItemButtonSupported() end,
+          disabled = function() return not db.profile.quest.enabled end,
+          get = function() return db.profile.quest.questItemButton end,
+          set = function(_, value) Self.Quest:SetOption("questItemButton", value) end,
+          order = 5
+        }
+      }
+    },
     bind = {
       type = "execute",
       name = "Set Bindings",
@@ -2655,7 +2759,7 @@ options = {
   --   desc = "Mount binding configuration",
   --   func = function()
   --     -- mount()
-  --     print("SlackHacks: mounting...")
+  --     prn("mounting...")
   --   end,
   --   args = {
   --   }
