@@ -111,7 +111,14 @@ function icon(size)
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
+-- Each entry notes the addon release (`## Version` in SlackHacks.toc) that first shipped it. Config version 1
+-- covers every release before v2.
+--
+-- Bump CONFIG_VERSION at most ONCE per release. The first saved-data change after a release bumps it and adds
+-- the new entry; any further changes before the next release extend that same entry instead of bumping again.
+-- (Config v5-v7 predate this rule and all shipped together in addon v10.)
 CONFIG_MIGRATIONS = {
+  -- Config v2, shipped in addon v2.
   [2] = function()
     local function migrateProfile(p)
       if not p or type(p) ~= "table" then return end
@@ -166,6 +173,7 @@ CONFIG_MIGRATIONS = {
       end
     end
   end,
+  -- Config v3, shipped in addon v4.
   [3] = function()
     -- Purge previous error logs for version 3
     local g = Self.db.global
@@ -173,6 +181,7 @@ CONFIG_MIGRATIONS = {
       wipe(g.logs.error)
     end
   end,
+  -- Config v4, shipped in addon v7.
   [4] = function()
     -- Add the Quest / NPC module settings, all off by default.
     local QUEST_DEFAULTS = {
@@ -204,6 +213,7 @@ CONFIG_MIGRATIONS = {
       migrateProfile(Self.db.profile)
     end
   end,
+  -- Config v5, shipped in addon v10.
   [5] = function()
     -- Rename movableWindows -> windows and split it into nested `movable` and `scaling` tables. The old
     -- single `enabled` switch becomes both the overall Windows switch and the Movable Windows switch, so
@@ -246,6 +256,7 @@ CONFIG_MIGRATIONS = {
       migrateProfile(Self.db.profile)
     end
   end,
+  -- Config v6, shipped in addon v10.
   [6] = function()
     -- Toast moving and its saved position move up from windows.movable to the Windows level, and Zone Map
     -- scaling gets its own switch (defaulting on, since it was previously always active).
@@ -275,6 +286,7 @@ CONFIG_MIGRATIONS = {
       migrateProfile(Self.db.profile)
     end
   end,
+  -- Config v7, shipped in addon v10.
   [7] = function()
     -- Rename windows.moveToasts -> windows.movableToasts and windows.zoneMapScaling -> windows.scalingZoneMap.
     -- Only saved (raw) values are moved, so AceDB defaults never overwrite a user's choice.
