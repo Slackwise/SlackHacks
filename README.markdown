@@ -39,6 +39,53 @@ values in `.env` if your item names differ from the defaults. Environment
 variables already set by the shell or CI/CD environment take precedence over
 both files, so CI can inject its own configuration and secrets.
 
+### Publishing and retrying releases
+
+Run `perl scripts/release.pl` from a clean development branch after committing
+the version bump and the non-empty `changelog/changelog-v<VERSION>.md` file.
+The script merges into `prod`, creates an immutable version tag, atomically
+pushes `prod` and the tag, and deploys that production checkout before restoring
+your original branch (also on deployment failure). `--no-push` prepares only
+the local release and never deploys. `--force` no longer bypasses dirty-worktree
+checks or overwrites tags.
+
+Rerun the same release command after a partial failure: an existing tag is
+resumed, not recreated, provided the source has no commits outside that release
+and production has not advanced or diverged. New development needs a version
+bump rather than retagging a published release.
+
+For standalone deployment, check out the release tag or matching `prod` commit
+and run `bash scripts/deploy.sh` (or either individual deployment script).
+Both deployers verify a clean checkout, the exact pushed `origin/prod` tip, and
+the pushed version tag **before building or uploading**. Dry runs perform these
+read-only remote checks too, but do not build, retrieve secrets, or upload.
+The CurseForge `--list-versions` command remains available without a release.
+
+Release notes are automatically read from the versioned changelog, or from an
+explicit `CHANGELOG_FILE` override. Missing or empty changelogs are errors.
+GitHub's separate `generate_release_notes` feature is disabled so commit-derived
+notes are not appended; `GENERATE_RELEASE_NOTES` is no longer used.
+JSON request bodies and CurseForge metadata are sent from UTF-8 files to avoid
+Windows command-line quoting and length problems.
+
+Retries reuse a checksum-verified build for the same commit and packaging
+configuration. GitHub looks up the existing release, synchronizes its changelog
+notes, and skips an already-uploaded archive with a matching SHA-256 digest.
+It never deletes published assets automatically; an asset with a different or
+unavailable digest requires manual inspection.
+
+CurseForge upload receipts live in Git's common directory under
+`slackhacks-deploy`, outside the worktree. Confirmed uploads are skipped on retry.
+Because the legacy upload API has no idempotency key, pending/ambiguous uploads
+block retries: inspect the project's files on CurseForge before removing the
+specific pending receipt named in the error. Do not remove a receipt for an
+upload that succeeded. These receipts are local to the clone; use the same clone
+for retries and check CurseForge before publishing from another machine.
+
+Run the release regression tests with `node --test scripts/release.test.cjs`
+(requires Node.js, Perl, Git, Bash, and curl; uses temporary local repositories
+and a local HTTP server, not publishing credentials or live release APIs).
+
 ## Lua development tools
 
 On Windows x64, run `perl scripts/bootstrap.pl` or the VS Code **Bootstrap**

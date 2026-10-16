@@ -8,9 +8,6 @@ cd "$REPO_ROOT"
 . "$SCRIPT_DIR/load-env.sh"
 load_project_env "$REPO_ROOT"
 
-echo "=== Building addon package ==="
-bash "$SCRIPT_DIR/build.sh"
-
 echo "=== Deploying to GitHub ==="
 perl "$SCRIPT_DIR/deploy-github.pl" "$@"
 
