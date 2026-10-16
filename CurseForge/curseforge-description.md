@@ -38,6 +38,11 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
   * Displays currency totals for Restored Coffer Keys, Coffer Key Shards, Undercoin, and Untainted Mana-Crystals.
   * Context menu for detailed progress breakdowns.
 
+### Guild Member List
+* **Online Guild Members:** A movable, resizable window styled after Blizzard's Damage Meter, listing online guild members (class-colored) with their zone, and their level on hover.
+* **Collapsible:** Collapse the window down to its header (which still shows the online count) using the same minimize button as the Damage Meter.
+* **Settings Cog:** A Damage Meter-style cog menu on the header, including a "Change Opacity" slider for the window background.
+
 ### Group Trade Automation ("Self Vendor")
 * **Chat Request Handling:** Listens in party, raid, and instance chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`).
 * **Spec Matching:** Selects the recommended Flask and Weapon Oil for the requesting player's class and specialization using data from Wowhead or Icy Veins.

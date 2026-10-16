@@ -29,6 +29,7 @@ Graphics.lua
 MouseRing.lua
 Quest.lua
 CharSheet.lua
+GuildMemberList.lua
 InfoDisplay.lua
 Options.lua
 Mount.lua
