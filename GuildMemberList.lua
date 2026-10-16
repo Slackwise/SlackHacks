@@ -337,15 +337,16 @@ local function createCell(row)
   return cell
 end
 
---- Sizes a row's name column for the list's current width. The name gets its full measured width when it fits
---- beside the widest zone; otherwise the zone gives up space first, down to NAME_COLUMN_MIN_SHARE of the row.
---- Every row gets the same width for the same list width, so the zones stay lined up in a column.
+--- Sizes a row's name column for the list's current width: the name takes all the width the widest zone doesn't
+--- need, so widening the window always widens the names. When the row is too narrow for both, the zone gives up
+--- space first, keeping the name at least NAME_COLUMN_MIN_SHARE of the row (or its full measured width, if
+--- smaller). Every row gets the same width, so the zones stay lined up in a column.
 ---@param row Frame A list row created by initRow().
 local function layoutRow(row)
   -- Rows stretch to the ScrollBox's width, but a freshly bound row isn't anchored yet and reports a width of 0, so
   -- the ScrollBox's own width is used instead.
   local available = window.ScrollBox:GetWidth() - 2 * ROW_PADDING - COLUMN_GAP
-  local width = math.min(nameColumnWidth, math.max(available - zoneColumnWidth, available * NAME_COLUMN_MIN_SHARE))
+  local width = math.max(available - zoneColumnWidth, math.min(nameColumnWidth, available * NAME_COLUMN_MIN_SHARE))
   -- A FontString width of 0 means "unbounded", which would stop the name truncating in a very narrow row.
   row.Name:SetWidth(math.max(width, 1))
 end
@@ -640,9 +641,11 @@ local function createWindow()
   title:SetPoint("RIGHT", settingsDropdown, "LEFT", -4, 0)
   window.Title = title
 
-  -- Never shown; fitToContent uses it to measure location text in the same font as the zone column.
+  -- Invisible text used to measure name/zone text in the same font as the list's columns. It's anchored and shown
+  -- (at zero alpha) rather than hidden, so inline icons are laid out like the rows'.
   local measure = window:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  measure:Hide()
+  measure:SetPoint("TOPLEFT")
+  measure:SetAlpha(0)
   window.Measure = measure
 
   -- Shares the window's frame level (useParentLevel in the template) so it sits underneath the header widgets.
