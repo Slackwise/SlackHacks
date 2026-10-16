@@ -29,10 +29,13 @@ local INSTANCE_ICONS = {
   raid = CreateAtlasMarkup("Raid", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
   delve = CreateAtlasMarkup("delves-regular", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
 }
--- Inline faction icons keyed by Enum.PvPFaction (0 = Horde, 1 = Alliance), the atlases the Mount Journal uses.
+-- Inline faction icons keyed by Enum.PvPFaction (0 = Horde, 1 = Alliance). Blizzard's quest log uses these same
+-- atlases inline in text for faction-specific quests (QuestUtils.lua), so they're known to render as markup. The
+-- FriendsFrame's travelPassButton faction atlases are button art (friendslist-invitebutton-horde-normal) and too
+-- wide for inline text.
 local FACTION_ICONS = {
-  [0] = CreateAtlasMarkup("MountJournalIcons-Horde", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
-  [1] = CreateAtlasMarkup("MountJournalIcons-Alliance", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
+  [0] = CreateAtlasMarkup("questlog-questtypeicon-horde", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
+  [1] = CreateAtlasMarkup("questlog-questtypeicon-alliance", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
 }
 local OPACITY_STEP = 0.05
 local SCROLL_BAR_IDLE_ALPHA = 0.3 -- The scroll bar is dimmed until the window is hovered, like the DamageMeter.
@@ -71,15 +74,17 @@ local memberClubInfo = {} -- Member GUID -> { faction, race, timerunningSeasonID
 
 --- Records each guild member's faction, race and Timerunning season, keyed by GUID. The legacy guild roster
 --- (GetGuildRosterInfo) has none of these, but cross-faction guilds made the guild a Communities club whose member
---- info does, so this reads it the way Blizzard's Communities member list does. None of these change, so results
---- are cached for the session and this only re-runs when an online member isn't cached yet (e.g. someone joined).
+--- info does, so this reads it the way Blizzard's Communities member list does. None of these change once known,
+--- so results are cached for the session and this only re-runs when an online member isn't cached yet. Entries
+--- without a faction aren't cached: the client can return a member before their details have loaded, and caching
+--- that would hide their faction for the rest of the session.
 local function scanMemberClubInfo()
   local clubId = C_Club.GetGuildClubId()
   if not clubId then return end
   for _, memberId in ipairs(C_Club.GetClubMembers(clubId) or {}) do
     local info = C_Club.GetMemberInfo(clubId, memberId)
     -- GUIDs can be secret values in restricted (combat) contexts, and secret values can't be used as table keys.
-    if info and info.guid and not (_G.issecretvalue and _G.issecretvalue(info.guid)) then
+    if info and info.guid and info.faction and not (_G.issecretvalue and _G.issecretvalue(info.guid)) then
       memberClubInfo[info.guid] = {
         faction = info.faction,
         race = info.race,
