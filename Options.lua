@@ -2545,6 +2545,7 @@ options = {
             fitToContent = {
               name = "Fit Window to Content",
               desc = "Automatically size the window to fit its members and locations (up to a maximum height, after which the list scrolls). Turns off manual resizing while enabled. Also available from the window's cog menu.",
+              descStyle = "inline",
               type = "toggle",
               width = "full",
               disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
