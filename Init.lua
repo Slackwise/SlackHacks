@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 7
+CONFIG_VERSION = 8
 
 function getAddonVersion()
   return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
@@ -311,6 +311,21 @@ CONFIG_MIGRATIONS = {
     if Self.db.profile then
       migrateProfile(Self.db.profile)
     end
+  end,
+  -- Config v8, next release after addon v11.
+  --- Adds the opt-in Spacebar shortcut to every saved profile.
+  [8] = function()
+    --- Adds the opt-in Spacebar shortcut without changing existing quest settings.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      if type(p.quest) ~= "table" then p.quest = {} end
+      if p.quest.spacebar == nil then p.quest.spacebar = false end
+    end
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
+    end
+    migrateProfile(Self.db.profile)
   end,
 }
 
