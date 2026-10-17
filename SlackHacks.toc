@@ -23,7 +23,7 @@ Buffs.lua
 Weeklies.lua
 ListviewBag.lua
 Minimap.lua
-MovableWindows.lua
+Windows.lua
 Controls.lua
 Graphics.lua
 MouseRing.lua

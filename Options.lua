@@ -93,16 +93,22 @@ dbDefaults = {
         y = 0
       }
     },
-    movableWindows = {
-      enabled = false,
-      moveToasts = false, -- adds Blizzard's toast popups (loot, mounts, achievements, etc.) as a draggable box in the real Edit Mode
-      modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
-      enableScaling = false, -- scaleModifierKey + mouse wheel over a title bar resizes a registered frame
-      scaleModifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to scale a registered frame
-      savePositionStrategy = "permanent", -- "off" | "session" | "permanent"
-      saveScaleStrategy = "permanent", -- "session" | "permanent"
-      points = {},
-      scales = {}
+    windows = {
+      enabled = false, -- overall switch for the whole Windows module
+      movableToasts = false, -- adds Blizzard's toast popups (loot, mounts, achievements, etc.) as a draggable box in the real Edit Mode
+      scalingZoneMap = true, -- adds a "Change Scale" slider to the Zone Map tab's menu and applies its saved scale
+      movable = {
+        enabled = true, -- drag registered Blizzard windows by their title bar
+        modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to drag a registered frame
+        savePositionStrategy = "permanent", -- "off" | "session" | "permanent"
+        points = {}
+      },
+      scaling = {
+        enabled = false, -- modifierKey + mouse wheel over a title bar resizes a registered frame
+        modifierKey = "NONE", -- "NONE" | "SHIFT" | "CTRL" | "ALT" -- held to scale a registered frame
+        saveStrategy = "permanent", -- "off" | "session" | "permanent"
+        scales = {}
+      }
     },
     minimap = {
       enabled = false,
@@ -2502,111 +2508,134 @@ options = {
         }
       }
     },
-    movableWindows = {
+    windows = {
       type = "group",
-      name = "Movable Windows",
-      desc = "Drag most Blizzard windows by their title bar to reposition them, and resize them with the " ..
-        "mouse wheel.",
+      name = "Windows",
+      desc = "Reposition and resize Blizzard windows.",
       order = 9,
       args = {
         overview = goldModuleOverview("Move Blizzard windows by dragging their title bars and resize them with modifier keys and the mouse wheel."),
         enabled = {
-          name = "Enable Movable Windows Module",
-          desc = "Make registered Blizzard windows draggable and mouse-wheel scalable.",
+          name = "Enable Windows Module",
+          desc = "Turn on the Windows features below (Movable Windows and Scaling).",
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.movableWindows.enabled end,
-          set = function(_, value) Self.MovableWindows:SetEnabled(value) end,
+          get = function() return db.profile.windows.enabled end,
+          set = function(_, value) Self.Windows:SetEnabled(value) end,
           order = 0.01
         },
-        moveToasts = {
+        movableToasts = {
           name = "Make Toasts Movable in Edit Mode",
           desc = "Toasts are the popup windows in the center bottom of your screen for achievements and " ..
             "notable items. This enables you to move a blue box in Edit Mode so they pop up elsewhere.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.movableWindows.moveToasts end,
-          set = function(_, value) Self.MovableWindows:SetMoveToastsEnabled(value) end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 0.05
+          get = function() return db.profile.windows.movableToasts end,
+          set = function(_, value) Self.Windows:SetMoveToastsEnabled(value) end,
+          disabled = function() return not db.profile.windows.enabled end,
+          order = 0.2
         },
-        setKeybinds = {
-          name = "Set Window Keybinds",
-          desc = "Open the Key Bindings settings to the SlackHacks section to bind \"Toggle Movable Windows\".",
-          type = "execute",
-          func = function() openKeybindings() end,
-          order = 0.1
-        },
-        modifierKey = {
-          name = "Move Modifier Key",
-          desc = "Key that must be held while left-click-dragging a window's title bar to move it (dragging " ..
-            "elsewhere on the window does nothing). Choose None to allow moving with a plain left-click-drag.",
-          type = "select",
+        scalingZoneMap = {
+          name = "Enable Zone Map Scaling",
+          desc = "Adds a 'Change Scale' slider to the Zone Map's tab menu " ..
+            "(right-click the tab).",
+          type = "toggle",
+          descStyle = "inline",
           width = "full",
-          values = {
-            NONE = "None",
-            SHIFT = "Shift",
-            CTRL = "Ctrl",
-            ALT = "Alt"
-          },
-          sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
-          get = function() return db.profile.movableWindows.modifierKey end,
-          set = function(_, value) db.profile.movableWindows.modifierKey = value end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 1
+          get = function() return db.profile.windows.scalingZoneMap end,
+          set = function(_, value) Self.Windows:SetZoneMapScalingEnabled(value) end,
+          disabled = function() return not db.profile.windows.enabled end,
+          order = 0.3
         },
-        savePositionStrategy = {
-          name = "Remember Positions",
-          desc =
-            "Do Not Remember >> positions reset when you close and reopen a window\n\n" ..
-            "In Session >> positions are kept until you reload your UI\n\n" ..
-            "Remember Permanently >> positions are kept until reset or changed again",
-          type = "select",
-          width = 1.5,
-          values = {
-            off = "Do Not Remember",
-            session = "In Session, Until Reload",
-            permanent = "Remember Permanently"
-          },
-          sorting = { "off", "session", "permanent" },
-          get = function() return db.profile.movableWindows.savePositionStrategy end,
-          set = function(_, value) db.profile.movableWindows.savePositionStrategy = value end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 3
-        },
-        resetPositions = {
-          name = "Reset Remembered Positions",
-          desc = "Clear all permanently remembered window positions. Reloads your UI.",
-          type = "execute",
-          width = 1.5,
-          func = function()
-            Self.MovableWindows:ResetPositions()
-            ReloadUI()
-          end,
-          confirm = function() return "Are you sure you want to reset all remembered window positions? This will reload the UI." end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 5
+        movable = {
+          type = "group",
+          name = "Movable Windows",
+          inline = true,
+          order = 5,
+          args = {
+            enabled = {
+              name = "Enable Movable Windows",
+              desc = "Drag most Blizzard windows by their title bar to reposition them.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.windows.movable.enabled end,
+              set = function(_, value) db.profile.windows.movable.enabled = value end,
+              disabled = function() return not db.profile.windows.enabled end,
+              order = 0.01
+            },
+            modifierKey = {
+              name = "Move Modifier Key",
+              desc = "Key that must be held while left-click-dragging a window's title bar to move it (dragging " ..
+                "elsewhere on the window does nothing). Choose None to allow moving with a plain left-click-drag.",
+              type = "select",
+              width = "full",
+              values = {
+                NONE = "None",
+                SHIFT = "Shift",
+                CTRL = "Ctrl",
+                ALT = "Alt"
+              },
+              sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
+              get = function() return db.profile.windows.movable.modifierKey end,
+              set = function(_, value) db.profile.windows.movable.modifierKey = value end,
+              disabled = function() return not (db.profile.windows.enabled and db.profile.windows.movable.enabled) end,
+              order = 1
+            },
+            savePositionStrategy = {
+              name = "Remember Positions",
+              desc =
+                "Do Not Remember: positions reset when you close and reopen a window\n\n" ..
+                "In Session: positions are kept until you reload your UI\n\n" ..
+                "Remember Permanently: positions are kept until reset or changed again",
+              type = "select",
+              width = 1.5,
+              values = {
+                off = "Do Not Remember",
+                session = "In Session, Until Reload",
+                permanent = "Remember Permanently"
+              },
+              sorting = { "off", "session", "permanent" },
+              get = function() return db.profile.windows.movable.savePositionStrategy end,
+              set = function(_, value) db.profile.windows.movable.savePositionStrategy = value end,
+              disabled = function() return not (db.profile.windows.enabled and db.profile.windows.movable.enabled) end,
+              order = 3
+            },
+            resetPositions = {
+              name = "Reset Remembered Positions",
+              desc = "Clear all permanently remembered window positions. Reloads your UI.",
+              type = "execute",
+              width = 1.5,
+              func = function()
+                Self.Windows:ResetPositions()
+                ReloadUI()
+              end,
+              confirm = function() return "Are you sure you want to reset all remembered window positions? This will reload the UI." end,
+              disabled = function() return not (db.profile.windows.enabled and db.profile.windows.movable.enabled) end,
+              order = 5
+            }
+          }
         },
         scaling = {
           type = "group",
-          name = "Scaling",
+          name = "Window Scaling",
           inline = true,
           order = 10,
           args = {
-            enableScaling = {
+            enabled = {
               name = "Enable Window Scaling",
               desc = "Scroll on the titlebar to scale the window.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.movableWindows.enableScaling end,
-              set = function(_, value) db.profile.movableWindows.enableScaling = value end,
-              disabled = function() return not db.profile.movableWindows.enabled end,
+              get = function() return db.profile.windows.scaling.enabled end,
+              set = function(_, value) db.profile.windows.scaling.enabled = value end,
+              disabled = function() return not db.profile.windows.enabled end,
               order = 1
             },
-            scaleModifierKey = {
+            modifierKey = {
               name = "Scale Modifier Key",
               desc = "Key that must be held while scrolling the mouse wheel over a window's title bar to resize " ..
                 "it. Choose None to allow resizing with a plain mouse wheel scroll.",
@@ -2619,26 +2648,28 @@ options = {
                 ALT = "Alt"
               },
               sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
-              get = function() return db.profile.movableWindows.scaleModifierKey end,
-              set = function(_, value) db.profile.movableWindows.scaleModifierKey = value end,
-              disabled = function() return not db.profile.movableWindows.enabled or not db.profile.movableWindows.enableScaling end,
+              get = function() return db.profile.windows.scaling.modifierKey end,
+              set = function(_, value) db.profile.windows.scaling.modifierKey = value end,
+              disabled = function() return not (db.profile.windows.enabled and db.profile.windows.scaling.enabled) end,
               order = 2
             },
-            saveScaleStrategy = {
+            saveStrategy = {
               name = "Remember Scales",
               desc =
-                "In Session >> scales are kept until you reload your UI\n\n" ..
-                "Remember Permanently >> scales are kept until reset or changed again",
+                "Do Not Remember: scales reset when you close and reopen a window\n\n" ..
+                "In Session: scales are kept until you reload your UI\n\n" ..
+                "Remember Permanently: scales are kept until reset or changed again",
               type = "select",
               width = 1.5,
               values = {
+                off = "Do Not Remember",
                 session = "In Session, Until Reload",
                 permanent = "Remember Permanently"
               },
-              sorting = { "session", "permanent" },
-              get = function() return db.profile.movableWindows.saveScaleStrategy end,
-              set = function(_, value) db.profile.movableWindows.saveScaleStrategy = value end,
-              disabled = function() return not db.profile.movableWindows.enabled end,
+              sorting = { "off", "session", "permanent" },
+              get = function() return db.profile.windows.scaling.saveStrategy end,
+              set = function(_, value) db.profile.windows.scaling.saveStrategy = value end,
+              disabled = function() return not db.profile.windows.enabled end,
               order = 3
             },
             resetScales = {
@@ -2647,11 +2678,11 @@ options = {
               type = "execute",
               width = 1.5,
               func = function()
-                Self.MovableWindows:ResetScales()
+                Self.Windows:ResetScales()
                 ReloadUI()
               end,
               confirm = function() return "Are you sure you want to reset all remembered window scales? This will reload the UI." end,
-              disabled = function() return not db.profile.movableWindows.enabled end,
+              disabled = function() return not db.profile.windows.enabled end,
               order = 4
             }
           }

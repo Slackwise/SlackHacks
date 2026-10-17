@@ -28,9 +28,9 @@ SLACKWISE_CONFIG = {
       opacity = 100,
       color = { r = 1, g = 1, b = 1 }
     },
-    movableWindows = {
+    windows = {
       enabled = true,
-      enableScaling = true,
+      scaling = { enabled = true },
     },
     minimap = {
       -- enabled = true,
