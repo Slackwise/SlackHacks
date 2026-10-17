@@ -32,6 +32,10 @@ local LIST_TOP_GAP = 2
 local LIST_LEFT_INSET = 5
 local LIST_RIGHT_INSET = 1
 local LIST_BOTTOM_INSET = 6
+-- The ScrollBox spans the window's full width so the section headers line up with the window header like the
+-- tracker's module headers do (the ScrollBox clips anything outside it); the list insets move into the rows.
+local ROW_LEFT_INSET = LIST_LEFT_INSET + ROW_PADDING
+local ROW_RIGHT_INSET = LIST_RIGHT_INSET + ROW_PADDING
 local SCROLL_BAR_SPACE = 15
 local HEADER_BUTTONS_WIDTH = 62 -- Header space beside the title: title inset, cog, minimize button and gaps.
 local MIN_WIDTH = 200
@@ -182,7 +186,7 @@ end
 ---@param row Button A person row created by initRow().
 local function layoutRow(row)
   -- A freshly bound row isn't anchored yet and reports a width of 0, so the ScrollBox's width is used instead.
-  local available = window.ScrollBox:GetWidth() - 2 * ROW_PADDING - COLUMN_GAP
+  local available = window.ScrollBox:GetWidth() - ROW_LEFT_INSET - ROW_RIGHT_INSET - COLUMN_GAP
   local width = math.max(available - zoneColumnWidth, math.min(nameColumnWidth, available * NAME_COLUMN_MIN_SHARE))
   row.Name:SetWidth(math.max(width, 1)) -- A width of 0 would mean "unbounded" and stop truncation.
 end
@@ -196,12 +200,12 @@ local function initRow(row, data)
     row.Name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.Name:SetJustifyH("LEFT")
     row.Name:SetWordWrap(false)
-    row.Name:SetPoint("LEFT", ROW_PADDING, 0)
+    row.Name:SetPoint("LEFT", ROW_LEFT_INSET, 0)
     row.Zone = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.Zone:SetJustifyH("LEFT")
     row.Zone:SetWordWrap(false)
     row.Zone:SetPoint("LEFT", row.Name, "RIGHT", COLUMN_GAP, 0)
-    row.Zone:SetPoint("RIGHT", -ROW_PADDING, 0)
+    row.Zone:SetPoint("RIGHT", -ROW_RIGHT_INSET, 0)
     row:SetScript("OnEnter", function(self)
       onWindowEnter()
       self.listModule:ShowTooltip(self, self.entry)
@@ -247,13 +251,16 @@ local function initSectionHeader(header, data)
     local center = SECTION_HEADER_HEIGHT / 2
     local background = header:CreateTexture(nil, "BACKGROUND")
     background:SetAtlas("UI-QuestTracker-Secondary-Objective-Header", TextureKitConstants.UseAtlasSize)
-    -- Stretched across the list (the template centers it at a fixed size) since this window can be resized.
+    -- Stretched across the full-width list (the template centers it at a fixed size on a header as wide as the
+    -- tracker) since this window can be resized.
     background:SetPoint("LEFT", header, "BOTTOMLEFT", 0, center)
     background:SetPoint("RIGHT", header, "BOTTOMRIGHT", 0, center)
 
     local button = CreateFrame("Button", nil, header)
     button:SetSize(SECTION_BUTTON_SIZE, SECTION_BUTTON_SIZE)
-    button:SetPoint("RIGHT", header, "BOTTOMRIGHT", -1, center)
+    -- Centered under the window header's 18px MinimizeButton (at -1), as the tracker's module buttons sit under
+    -- its "All Objectives" button.
+    button:SetPoint("RIGHT", header, "BOTTOMRIGHT", -2, center)
     button:SetHighlightAtlas("ui-questtrackerbutton-yellow-highlight", "ADD")
     button:SetScript("OnClick", function(self) toggleSection(self:GetParent().key) end)
     -- Entering the button skips the window's own OnEnter, so it has to start the hover fades itself.
@@ -279,7 +286,8 @@ local function initSectionHeader(header, data)
   header.MinimizeButton:SetPushedAtlas(atlas .. "-pressed")
 end
 
---- Returns the widest rendered width of a field across entries, measured in the rows' font.
+--- Returns the widest rendered width of a field across entries, measured in the rows' font. Friends' names are
+--- measured both as displayed and as their `measureName` stand-in, since protected Battle.net names measure short.
 ---@param entries table List entries.
 ---@param field string "name" or "zoneText".
 ---@return number width The widest width in whole pixels plus one so rounding never truncates (0 when empty).
@@ -288,6 +296,10 @@ local function measureWidest(entries, field)
   for _, entry in ipairs(entries) do
     window.Measure:SetText(entry[field])
     width = math.max(width, window.Measure:GetUnboundedStringWidth())
+    if field == "name" and entry.measureName then
+      window.Measure:SetText(entry.measureName)
+      width = math.max(width, window.Measure:GetUnboundedStringWidth())
+    end
   end
   return width > 0 and math.ceil(width) + 1 or 0
 end
@@ -517,10 +529,10 @@ local function createWindow()
     self:ForEachFrame(function(frame) if frame.Name then layoutRow(frame) end end)
   end)
 
-  local topLeft = CreateAnchor("TOPLEFT", header, "BOTTOMLEFT", LIST_LEFT_INSET, -LIST_TOP_GAP)
+  local topLeft = CreateAnchor("TOPLEFT", header, "BOTTOMLEFT", 0, -LIST_TOP_GAP)
   ScrollUtil.AddManagedScrollBarVisibilityBehavior(scrollBox, scrollBar,
-    { topLeft, CreateAnchor("BOTTOMRIGHT", -LIST_RIGHT_INSET - SCROLL_BAR_SPACE, LIST_BOTTOM_INSET) },
-    { topLeft, CreateAnchor("BOTTOMRIGHT", -LIST_RIGHT_INSET, LIST_BOTTOM_INSET) })
+    { topLeft, CreateAnchor("BOTTOMRIGHT", -SCROLL_BAR_SPACE, LIST_BOTTOM_INSET) },
+    { topLeft, CreateAnchor("BOTTOMRIGHT", 0, LIST_BOTTOM_INSET) })
 
   local resizeButton = CreateFrame("Button", nil, container)
   resizeButton:SetSize(60, 60)
