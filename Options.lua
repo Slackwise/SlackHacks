@@ -230,6 +230,7 @@ dbDefaults = {
         stacked = false,
         stackOrder = "friends", -- "friends" (Friends, Guildies) or "guildies" (Guildies, Friends)
         minimized = false,
+        opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency".
         fitToContent = true,
         collapsed = { friends = false, guildies = false }, -- Per-list section collapse state.
         point = "CENTER",
@@ -2352,7 +2353,7 @@ options = {
           set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
           order = 0.05
         },
-        stackPeopleLists = {
+        stackPlayerLists = {
           name = "Stack Friends and Guildie Lists",
           desc = "Show the Friends and Guildie lists stacked in one collapsible \"Players Online\" window, " ..
             "like the Objective Tracker's sections, instead of in their own windows.",
@@ -2361,7 +2362,7 @@ options = {
           width = "full",
           hidden = function() return not isRetail() end,
           get = function() return db.profile.infoDisplay.playersOnline.stacked end,
-          set = function(_, value) Self.InfoDisplay:SetStackPeopleLists(value) end,
+          set = function(_, value) Self.InfoDisplay:SetStackLists(value) end,
           order = 0.1
         },
         stackOrder = {

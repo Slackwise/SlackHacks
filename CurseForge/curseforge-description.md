@@ -89,7 +89,8 @@ An alternate list-based view for player bags that can replace the default grid b
 #### Players Online
 * **Stacked Lists:** Turn on "Stack Friends and Guildie Lists" to show both lists in one "Players Online (N)" window, where N counts everyone online once, even if they're both a friend and a guildie.
 * **Objective Tracker Sections:** Each list gets an Objective Tracker-style section header that collapses just that list. "List Stack Order" picks which list is on top.
-* **Fit to Content, Collapsible, Settings Cog:** Same as the individual lists. Each list keeps its own sorting, filters, and icon settings.
+* **Settings Cogs:** The window's cog has Fit to Content, "Change Opacity", and "Split Friend/Guildie Lists". Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer "Stack Friend/Guildie Lists".
+* **Collapsible:** Same as the individual lists.
 
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.

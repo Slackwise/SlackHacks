@@ -640,16 +640,10 @@ local function addCheckboxes(rootDescription, title, toggles)
   end
 end
 
---- Fills the header cog's settings menu, the Lua equivalent of the DamageMeter's SettingsDropdown menu.
----@param _ Frame The cog button (unused).
----@param rootDescription table The menu's root description.
-local function buildSettingsMenu(_, rootDescription)
-  rootDescription:SetTag(SETTINGS_MENU_TAG)
-  rootDescription:CreateCheckbox("Fit to Content",
-    function() return getSettings().fitToContent end,
-    function() setFitToContent(not getSettings().fitToContent) end)
-  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
-  rootDescription:CreateDivider()
+--- Adds this list's own options to a menu: Sort By plus the Show filters and icon toggles. Shared by this window's
+--- cog and the Friends section cog in the stacked Players Online window.
+---@param rootDescription table The menu description to add to.
+local function addListOptions(rootDescription)
   rootDescription:CreateTitle("Sort By")
   for _, option in ipairs(SORT_OPTIONS) do
     rootDescription:CreateRadio(option.text,
@@ -668,6 +662,20 @@ local function buildSettingsMenu(_, rootDescription)
     { key = "showFactionIcons", text = "Faction Icons" },
     { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
   })
+end
+
+--- Fills the header cog's settings menu, the Lua equivalent of the DamageMeter's SettingsDropdown menu.
+---@param _ Frame The cog button (unused).
+---@param rootDescription table The menu's root description.
+local function buildSettingsMenu(_, rootDescription)
+  rootDescription:SetTag(SETTINGS_MENU_TAG)
+  rootDescription:CreateCheckbox("Fit to Content",
+    function() return getSettings().fitToContent end,
+    function() setFitToContent(not getSettings().fitToContent) end)
+  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
+  Self.InfoDisplay:AddStackMenuButton(rootDescription)
+  rootDescription:CreateDivider()
+  addListOptions(rootDescription)
 end
 
 --- Builds the window, following DamageMeterSessionWindowTemplate: a Header bar holding the title,
@@ -843,6 +851,13 @@ end
 ---@param friend table A friend entry from GetEntries().
 function module:OpenMenu(friend)
   openFriendMenu(friend)
+end
+
+--- Adds this list's Sort By, Show and icon options to a menu (used by the Players Online window's Friends section
+--- cog).
+---@param rootDescription table The menu description to add to.
+function module:AddListOptions(rootDescription)
+  addListOptions(rootDescription)
 end
 
 --- Asks the server for character friends' latest zones/status (used when the Players Online window is shown).

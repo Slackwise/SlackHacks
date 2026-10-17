@@ -12,3 +12,5 @@
 
 ## Players Online
 - New "Stack Friends and Guildie Lists" Info Display option that stacks both lists in one "Players Online (N)" window, with Objective Tracker-style collapsible section headers, a "List Stack Order" choice, and a Fit to Content cog option
+- Players Online's cog also has "Change Opacity" and "Split Friend/Guildie Lists"; each section header has a cog with its list's sort, filter, and icon options
+- The Friends and Guildie list cogs offer "Stack Friend/Guildie Lists" when both lists are enabled
