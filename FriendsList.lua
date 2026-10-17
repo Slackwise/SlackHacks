@@ -815,11 +815,13 @@ local function createWindow()
   container.EmphasizeScrollBar = createFade(scrollBar, SCROLL_BAR_IDLE_ALPHA)
 end
 
---- Turns the Friends List on or off and saves the choice.
+--- Turns the Friends List on or off and saves the choice. Also used by the Players Online cog and minimap menus,
+--- so the options panel is told to redraw, and stacking is turned off once neither list is left to stack.
 ---@param enabled boolean Whether the window should be shown.
 function module:SetEnabled(enabled)
   getSettings().enabled = enabled
   if enabled then self:Enable() else self:Disable() end
+  Self.InfoDisplay:OnListEnabledChanged()
 end
 
 --- Saves and applies whether the window sizes itself to its content (used by the options panel).

@@ -502,6 +502,37 @@ local function toggleTrackDelves()
   if acr then acr:NotifyChange("SlackHacks") end
 end
 
+--- Returns a minimap checkbox's "is checked" callback for a Players Online list (Friends or Guildie List): checked
+--- while both the Info Display master switch and the list are on.
+---@param key string The list's `infoDisplay` settings key: "friendsList" or "guildieList".
+---@return fun(): boolean isActive
+local function listActiveChecker(key)
+  return function()
+    local infoDisplay = Self.db and Self.db.profile.infoDisplay
+    return (infoDisplay and infoDisplay.enabled and infoDisplay[key].enabled) and true or false
+  end
+end
+
+--- Returns a minimap checkbox's toggle callback for a Players Online list. Turning a list on also turns on the Info
+--- Display master switch; turning it off only disables that list.
+---@param key string The list's `infoDisplay` settings key: "friendsList" or "guildieList".
+---@param moduleName string The list's AceModule name on Self: "FriendsList" or "GuildieList".
+---@return fun() toggle
+local function listToggler(key, moduleName)
+  local isActive = listActiveChecker(key)
+  return function()
+    local listModule = Self[moduleName]
+    if not Self.db or not listModule or not Self.InfoDisplay then return end
+    local newState = not isActive()
+    -- Saved before the master switch enables sub-modules, so the list's Enable() isn't aborted.
+    listModule:SetEnabled(newState)
+    if newState and not Self.db.profile.infoDisplay.enabled then Self.InfoDisplay:SetEnabled(true) end
+  end
+end
+
+local isFriendsListActive, toggleFriendsList = listActiveChecker("friendsList"), listToggler("friendsList", "FriendsList")
+local isGuildieListActive, toggleGuildieList = listActiveChecker("guildieList"), listToggler("guildieList", "GuildieList")
+
 local function openMinimapContextMenu(anchor)
   if InCombatLockdown() then return end
   if GameTooltip then GameTooltip:Hide() end
@@ -518,6 +549,10 @@ local function openMinimapContextMenu(anchor)
       rootDescription:CreateCheckbox("Listview Bag", isListviewBagActive, toggleListviewBag)
       rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
       rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
+      if isRetailOrForever() then
+        rootDescription:CreateCheckbox("Friends List", isFriendsListActive, toggleFriendsList)
+        rootDescription:CreateCheckbox("Guildies List", isGuildieListActive, toggleGuildieList)
+      end
       rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
       rootDescription:CreateCheckbox("All NPC Auto-Interacts", isAllQuestAutomationEnabled, toggleAllQuestAutomation)
       if isRetail and isRetail() then

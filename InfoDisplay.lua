@@ -51,8 +51,8 @@ local SETTINGS_MENU_TAG = "MENU_SLACKHACKS_PLAYERS_ONLINE_SETTINGS"
 local SUBMODULES = { "CharSheet", "Weeklies", "GuildieList", "FriendsList" }
 -- The stacked lists, keyed by section; `module` is the list's AceModule name on Self.
 local SECTIONS = {
-  friends = { module = "FriendsList", title = "Friends" },
-  guildies = { module = "GuildieList", title = "Guildies" },
+  friends = { module = "FriendsList", title = "Friends", listName = "Friends List" },
+  guildies = { module = "GuildieList", title = "Guildies", listName = "Guildies List" },
 }
 -- Section order for each `stackOrder` setting value.
 local STACK_ORDERS = {
@@ -409,8 +409,9 @@ local function showOpacityPanel()
   opacityPanel:Open(getSettings().opacity, "TOPLEFT", window, "TOPRIGHT", 0, 7)
 end
 
---- Fills the window header cog's menu with the settings that apply to the whole window. Each list's own options
---- are in its section header's cog instead.
+--- Fills the window header cog's menu with the settings that apply to the whole window, plus a checkbox per list
+--- to turn it on or off (unchecking both also turns stacking off; see OnListEnabledChanged). Each list's own
+--- options are in its section header's cog instead.
 ---@param _ Frame The cog button (unused).
 ---@param rootDescription table The menu's root description.
 local function buildSettingsMenu(_, rootDescription)
@@ -420,6 +421,13 @@ local function buildSettingsMenu(_, rootDescription)
     function() setFitToContent(not getSettings().fitToContent) end)
   rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
   rootDescription:CreateButton("Split Friend/Guildie Lists", function() module:SetStackLists(false) end)
+  rootDescription:CreateDivider()
+  for _, key in ipairs(STACK_ORDERS[getSettings().stackOrder] or STACK_ORDERS.friends) do
+    local listModule = Self[SECTIONS[key].module]
+    rootDescription:CreateCheckbox(SECTIONS[key].listName,
+      function() return listModule:IsEnabled() end,
+      function() listModule:SetEnabled(not listModule:IsEnabled()) end)
+  end
 end
 
 --- Publishes a fully built window to the module-level `window` upvalue, which createWindow's local shadows.
@@ -625,6 +633,20 @@ function module:AddStackMenuButton(rootDescription)
   if isRetailOrForever() and Self.GuildieList:IsEnabled() and Self.FriendsList:IsEnabled() then
     rootDescription:CreateButton("Stack Friend/Guildie Lists", function() self:SetStackLists(true) end)
   end
+end
+
+--- Called after the user turns the Friends or Guildie List on or off. The Players Online window's visibility belongs
+--- to the stacking option, so once neither list is enabled stacking is turned off too; otherwise the window would
+--- vanish with its cog (the only in-window way back) while stacking stayed on. Uses the saved settings rather than
+--- IsEnabled() so the Info Display master switch, which disables the modules without touching them, doesn't count.
+function module:OnListEnabledChanged()
+  local infoDisplay = db.profile.infoDisplay
+  if getSettings().stacked and not infoDisplay.friendsList.enabled and not infoDisplay.guildieList.enabled then
+    self:SetStackLists(false) -- Also notifies the options panel.
+    return
+  end
+  local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
 end
 
 --- Saves which list is stacked on top and redraws the Players Online window.
