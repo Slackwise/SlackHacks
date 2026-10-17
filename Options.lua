@@ -159,6 +159,7 @@ dbDefaults = {
       source = "icyveins",
       requirePrefix = false,
       chatPrefix = "!",
+      guildOnly = false,
       modes = {
         [Enum.SelfVendorMode.CONSUMABLES] = { enabled = false },
         [Enum.SelfVendorMode.FLASK] = { enabled = false },
@@ -819,14 +820,14 @@ local function selfVendorModeOptions()
   local args = {}
   args.requestDescription = {
     type = "description",
-    name = "|cffffd100Let group members request buff items by saying phrases like 'crit oil rune' to be auto-traded a crit flask, oil, and x runes from your inventory. Any combination of the below selected enabled options will work.|r",
+    name = "|cffffd100Let players request buff items by saying phrases like 'crit oil rune' in group chat, /say, or a whisper to be auto-traded a crit flask, oil, and x runes from your inventory. Any combination of the below selected enabled options will work.|r",
     fontSize = "medium",
     width = "full",
     order = 0,
   }
   args.enabled = {
     name = "Enable Self Vendor Module",
-    desc = "Accept Self Vendor requests in party, raid, and instance chat. Requests may also include 'and', 'give', 'need', or 'please'.",
+    desc = "Accept Self Vendor requests in party, raid, instance, say, and whisper chat. Requests may also include 'and', 'give', 'need', or 'please'.",
     type = "toggle",
     descStyle = "inline",
     width = "full",
@@ -837,6 +838,7 @@ local function selfVendorModeOptions()
   args.source = {
     name = "Flask and Augments Source",
     desc = "Select Wowhead or Icy Veins for optimal flask selection and Augments recommendations.",
+    descStyle = "inline",
     type = "select",
     values = { wowhead = "Wowhead", icyveins = "Icy Veins" },
     get = function() return db.profile.selfVendor.source end,
@@ -855,12 +857,23 @@ local function selfVendorModeOptions()
   }
   args.chatPrefix = {
     name = "Chat Prefix",
+    desc = "The first character(s) (or word) required at the beginning of the chat message to trigger vendoring.",
     type = "input",
     get = function() return db.profile.selfVendor.chatPrefix end,
     set = function(_, value) db.profile.selfVendor.chatPrefix = value end,
     validate = function(_, value) return #value > 0 and not value:find("%s") end,
     disabled = function() return not db.profile.selfVendor.requirePrefix end,
     order = 4,
+  }
+  args.guildOnly = {
+    name = "Only Serve to Fellow Guildies",
+    desc = "Ignore requests from players who aren't in your guild, including group members.",
+    type = "toggle",
+    descStyle = "inline",
+    width = "full",
+    get = function() return db.profile.selfVendor.guildOnly end,
+    set = function(_, value) db.profile.selfVendor.guildOnly = value end,
+    order = 5.5,
   }
   for order, mode in ipairs(selfVendorModeSorting) do
     local configuredMode = mode
