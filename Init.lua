@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 8
+CONFIG_VERSION = 9
 
 function getAddonVersion()
   return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
@@ -321,6 +321,32 @@ CONFIG_MIGRATIONS = {
       if type(p) ~= "table" then return end
       if type(p.quest) ~= "table" then p.quest = {} end
       if p.quest.spacebar == nil then p.quest.spacebar = false end
+    end
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
+    end
+    migrateProfile(Self.db.profile)
+  end,
+  -- Config v9, next release after addon v11.
+  --- Moves the renamed Guild Member List's settings (infoDisplay.guildMemberList) to the Guildie List
+  --- (infoDisplay.guildieList) in every saved profile.
+  [9] = function()
+    --- Carries over the profile's saved Guild Member List settings under the Guildie List's key.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      local infoDisplay = rawget(p, "infoDisplay")
+      local old = type(infoDisplay) == "table" and rawget(infoDisplay, "guildMemberList")
+      if type(old) ~= "table" then return end
+      -- Non-raw read, so the active profile gets AceDB's defaults-backed table; other profiles get a new one.
+      local new = infoDisplay.guildieList
+      if type(new) ~= "table" then
+        new = {}
+        infoDisplay.guildieList = new
+      end
+      -- Only the raw (user-saved) values are copied, so unset keys keep falling back to the defaults.
+      for key, value in pairs(old) do new[key] = value end
+      infoDisplay.guildMemberList = nil
     end
     if Self.db.profiles then
       for _, p in pairs(Self.db.profiles) do migrateProfile(p) end

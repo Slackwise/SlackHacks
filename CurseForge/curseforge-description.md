@@ -67,8 +67,9 @@ An alternate list-based view for player bags that can replace the default grid b
   * Displays currency totals for Restored Coffer Keys, Coffer Key Shards, Undercoin, and Untainted Mana-Crystals.
   * Context menu for detailed progress breakdowns.
 
-#### Guild Member List
+#### Guildie List
 * **Online Guild Members:** A movable, resizable window styled after Blizzard's Damage Meter, listing online guild members (class-colored) and their zone in two columns. Hovering a member shows a player tooltip like Blizzard's: name and AFK/DND status, guild and rank, level, race and class, faction, location, and guild notes.
+* **Context Menu:** Left- or right-click a member for the guild roster's Invite, Whisper, and View Houses options (Invite is hidden when they can't be invited, e.g. on mobile).
 * **Instance Icons:** Members inside a dungeon, raid, or delve get the world map's Dungeon/Raid/Delve icon after their zone (toggleable).
 * **Rank Icons:** The guild roster's crown icon after the Guild Master's name and its assistant icon after officers' names (toggleable).
 * **Faction Icons:** A Horde/Alliance icon after member names for cross-faction guilds; by default only shown for members of the opposite faction to your character (toggleable).
@@ -78,11 +79,12 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, the sort order, and the icon toggles.
 
 #### Friends List
-* **Online Friends:** The same Damage Meter-style window as the Guild Member List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
+* **Online Friends:** The same Damage Meter-style window as the Guildie List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
+* **Context Menu:** Left- or right-click a friend for the Friends list's Invite, Whisper, and View Houses options (Invite is hidden for friends in another game or WoW version).
 * **Filters:** Only Favorite Friends (default on), Only Playing WoW, and Only Same WoW Version (e.g. hide Classic players while you're on Retail). With Only Favorite Friends off, character friends are listed too.
 * **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name, for friends who aren't in the same game as you, including other WoW versions (toggleable).
-* **Instance and Faction Icons:** The same toggleable Dungeon/Raid/Delve and Horde/Alliance icons as the Guild Member List.
-* **Sorting, Fit to Content, Collapsible, Settings Cog:** Same as the Guild Member List, with the filters also in the cog menu. Name sorting follows the Friends list's order.
+* **Instance and Faction Icons:** The same toggleable Dungeon/Raid/Delve and Horde/Alliance icons as the Guildie List.
+* **Sorting, Fit to Content, Collapsible, Settings Cog:** Same as the Guildie List, with the filters also in the cog menu. Name sorting follows the Friends list's order.
 
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.

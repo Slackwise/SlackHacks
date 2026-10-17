@@ -582,6 +582,68 @@ function createSliderPanel(name, label, minValue, maxValue, step, onValueChanged
   return frame
 end
 
+-- Player context menus for the Info Display lists (Guildie List, Friends List), keyed by UnitPopup menu name.
+-- Each returns a trimmed-down entry list from Blizzard's own menus (Blizzard_UnitPopup's
+-- UnitPopupMenuCommunitiesGuildMember and UnitPopupMenuBnFriend), so the buttons keep Blizzard's logic: e.g. the
+-- invite options hide themselves for offline/mobile players and swap between Invite, Suggest Invite and Request
+-- Invite. They're functions because the mixins are only read when a menu opens, after Blizzard_UnitPopup loads.
+local PLAYER_MENU_ENTRIES = {
+  -- A WoW character, by name and GUID (guild members, character-only friends).
+  SLACKHACKS_PLAYER = function()
+    return { UnitPopupMenuFriendlyPlayerInviteOptions, UnitPopupWhisperButtonMixin, UnitPopupViewHousesButtonMixin }
+  end,
+  -- A Battle.net friend who can be grouped with (in this WoW version).
+  SLACKHACKS_BN_FRIEND = function()
+    return { UnitPopupBnetInviteButtonMixin, UnitPopupBnetSuggestInviteButtonMixin,
+      UnitPopupBnetRequestInviteButtonMixin, UnitPopupWhisperButtonMixin, UnitPopupViewHousesButtonMixin }
+  end,
+  -- A Battle.net friend who can't be grouped with (another game or WoW version). Blizzard's BN invite buttons
+  -- would only be disabled there, so they're left out entirely.
+  SLACKHACKS_BN_FRIEND_NO_INVITE = function()
+    return { UnitPopupWhisperButtonMixin, UnitPopupViewHousesButtonMixin }
+  end,
+}
+local registeredPlayerMenus = {}
+
+--- Opens one of the PLAYER_MENU_ENTRIES context menus at the cursor, the way the Communities guild roster does
+--- (CommunitiesMemberListMixin:OnClubMemberButtonClicked -> UnitPopup_OpenMenu). The menu is registered with
+--- UnitPopupManager on first use, like Blizzard's own RAF_RECRUIT menu.
+---@param which string A PLAYER_MENU_ENTRIES key.
+---@param contextData table UnitPopup context: `name` ("Name-Realm" or a Battle.net name) plus `guid`,
+--- `bnetIDAccount`, `battleTag`, `isMobile` and `isGuildMember` as applicable. Don't set `accountInfo`, which
+--- UnitPopupManager:OpenMenu fills in from `bnetIDAccount`.
+function openPlayerMenu(which, contextData)
+  if not registeredPlayerMenus[which] then
+    local menu = CreateFromMixins(UnitPopupTopLevelMenuMixin)
+    menu.GetEntries = PLAYER_MENU_ENTRIES[which]
+    UnitPopupManager:RegisterMenu(which, menu)
+    registeredPlayerMenus[which] = true
+  end
+  UnitPopup_OpenMenu(which, contextData)
+end
+
+--- Makes a list row open a menu on left- or right-click while still letting a left-drag move its window.
+--- A drag that started on a row is forwarded to the window's own drag handlers, and the click is dropped.
+---@param row Frame The list row.
+---@param window Frame The movable window the row belongs to; its OnDragStart/OnDragStop scripts are reused.
+---@param onClick fun(row: Frame) Called when the row is clicked (released over the row without dragging).
+function enableRowClicks(row, window, onClick)
+  row:SetMouseClickEnabled(true)
+  row:RegisterForDrag("LeftButton")
+  -- Reset on press rather than release, since OnMouseUp and OnDragStop don't fire in a guaranteed order.
+  row:SetScript("OnMouseDown", function(self) self.dragged = false end)
+  row:SetScript("OnDragStart", function(self)
+    self.dragged = true
+    window:GetScript("OnDragStart")(window)
+  end)
+  row:SetScript("OnDragStop", function() window:GetScript("OnDragStop")(window) end)
+  row:SetScript("OnMouseUp", function(self, button)
+    if not self.dragged and (button == "LeftButton" or button == "RightButton") and self:IsMouseOver() then
+      onClick(self)
+    end
+  end)
+end
+
 
 --- Trim outer whitespace and leading indentation after each newline.
 ---@param str string - The multiline string to trim.
