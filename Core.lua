@@ -655,20 +655,30 @@ end
 -- UnitPopupMenuCommunitiesGuildMember and UnitPopupMenuBnFriend), so the buttons keep Blizzard's logic: e.g. the
 -- invite options hide themselves for offline/mobile players and swap between Invite, Suggest Invite and Request
 -- Invite. They're functions because the mixins are only read when a menu opens, after Blizzard_UnitPopup loads.
+
+--- Appends View Houses to a menu's entries, except in WoW Forever: its UI source still defines the button's mixin,
+--- but Housing doesn't exist there.
+---@param entries table UnitPopup entry mixins.
+---@return table entries The same table.
+local function withViewHouses(entries)
+  if not isForever() then table.insert(entries, UnitPopupViewHousesButtonMixin) end
+  return entries
+end
+
 local PLAYER_MENU_ENTRIES = {
   -- A WoW character, by name and GUID (guild members, character-only friends).
   SLACKHACKS_PLAYER = function()
-    return { UnitPopupMenuFriendlyPlayerInviteOptions, UnitPopupWhisperButtonMixin, UnitPopupViewHousesButtonMixin }
+    return withViewHouses({ UnitPopupMenuFriendlyPlayerInviteOptions, UnitPopupWhisperButtonMixin })
   end,
   -- A Battle.net friend who can be grouped with (in this WoW version).
   SLACKHACKS_BN_FRIEND = function()
-    return { UnitPopupBnetInviteButtonMixin, UnitPopupBnetSuggestInviteButtonMixin,
-      UnitPopupBnetRequestInviteButtonMixin, UnitPopupWhisperButtonMixin, UnitPopupViewHousesButtonMixin }
+    return withViewHouses({ UnitPopupBnetInviteButtonMixin, UnitPopupBnetSuggestInviteButtonMixin,
+      UnitPopupBnetRequestInviteButtonMixin, UnitPopupWhisperButtonMixin })
   end,
   -- A Battle.net friend who can't be grouped with (another game or WoW version). Blizzard's BN invite buttons
   -- would only be disabled there, so they're left out entirely.
   SLACKHACKS_BN_FRIEND_NO_INVITE = function()
-    return { UnitPopupWhisperButtonMixin, UnitPopupViewHousesButtonMixin }
+    return withViewHouses({ UnitPopupWhisperButtonMixin })
   end,
 }
 local registeredPlayerMenus = {}
