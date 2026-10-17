@@ -936,6 +936,8 @@ local TITLE_BAR_CLOCK_X_OFFSET = isRetail() and 6 or 3 -- Retail: shifts clock 3
 local TITLE_BAR_ZONE_X_OFFSET = isRetail() and -2 or 0 -- Retail: shifts zone text three pixels left from its previous position
 local TITLE_BAR_ZONE_Y_OFFSET = isRetail() and -1 or 0 -- Retail: shifts zone text down one pixel
 local TITLE_BAR_CLOCK_WIDTH_DELTA = -10 -- shorten clock width by 10 pixels
+local TITLE_BAR_RETAIL_MAIL_Y_OFFSET = isRetail() and 2 or 0 -- Retail: raises mail two pixels
+local TITLE_BAR_RETAIL_CALENDAR_Y_OFFSET = isRetail() and -0.5 or 0 -- Retail: lowers calendar half a pixel
 
 --- Sits in the visual banner area of the square border, hosting the zone text (left) and shrunk
 --- minimap icons (right) in square mode. Parented to the minimap itself (not the border) so it isn't
@@ -2356,6 +2358,15 @@ local function getButtonScaledWidth(button)
       scale = scale + (TITLE_BAR_ADDON_COMPARTMENT_SIZE_DELTA + 1) / height
     end
   end
+  if isRetail() and button == getMailButton() then
+    local tracking = MinimapCluster and MinimapCluster.Tracking and MinimapCluster.Tracking.Button
+    local parentScale = (MinimapCluster or _G.Minimap):GetEffectiveScale()
+    local mailHeight = button.slackHacksSaved and button.slackHacksSaved.height or button:GetHeight()
+    if tracking and mailHeight > 0 and parentScale > 0 then
+      -- Compare rendered heights, since tracking inherits its wrapper's scale while mail does not.
+      scale = tracking:GetHeight() * tracking:GetEffectiveScale() / (mailHeight * parentScale)
+    end
+  end
   if button == TimeManagerClockButton and button.slackHacksSaved and button.slackHacksSaved.width then
     btnW = math.max(10, button.slackHacksSaved.width + TITLE_BAR_CLOCK_WIDTH_DELTA)
   end
@@ -2390,11 +2401,13 @@ local function getButtonYOffset(button)
       yOffset = yOffset - 0.5
     end
   elseif button == GameTimeFrame then
-    yOffset = TITLE_BAR_CALENDAR_Y_OFFSET
+    yOffset = TITLE_BAR_CALENDAR_Y_OFFSET + TITLE_BAR_RETAIL_CALENDAR_Y_OFFSET
   elseif button == (MinimapCluster and MinimapCluster.Tracking) then
     yOffset = TITLE_BAR_TRACKING_Y_OFFSET
   elseif button == AddonCompartmentFrame then
     yOffset = TITLE_BAR_ADDON_COMPARTMENT_Y_OFFSET
+  elseif button == getMailButton() then
+    yOffset = TITLE_BAR_RETAIL_MAIL_Y_OFFSET
   end
   return yOffset + TITLE_BAR_ICON_Y_OFFSET
 end
