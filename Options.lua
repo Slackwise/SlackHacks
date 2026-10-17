@@ -160,6 +160,8 @@ dbDefaults = {
       requirePrefix = false,
       chatPrefix = "!",
       guildOnly = false,
+      autoTradeMode = 0,
+      autoTradeOffAfterGroup = false,
       modes = {
         [Enum.SelfVendorMode.CONSUMABLES] = { enabled = false },
         [Enum.SelfVendorMode.FLASK] = { enabled = false },
@@ -745,6 +747,7 @@ local function printSlashHelp()
   print("  " .. color("FFFFFF")("/slack bugs") .. " - View and report error logs")
   print("  " .. color("FFFFFF")("/slack reset") .. " - Reset profile and addon state to defaults")
   print("  " .. color("FFFFFF")("/slack wipoff") .. " - Disable work-in-progress modules (" .. getWIPModuleNames() .. ")")
+  print("  " .. color("FFFFFF")("/slack vend <mode>") .. " - Set Self Vendor's Automatic Trade Response (e.g. vantus, crit, buffs, off)")
 end
 
 function disableWIPModules()
@@ -771,7 +774,11 @@ end
 
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
-  if command == "" then
+  -- "vendor" and "trade" are undocumented aliases of "vend"; everything after the word is the mode.
+  local vendCommand, vendArguments = command:match("^(%S+)%s*(.*)$")
+  if vendCommand == "vend" or vendCommand == "vendor" or vendCommand == "trade" then
+    Self.SelfVendor:HandleSlash(vendArguments)
+  elseif command == "" then
     openOptions()
     printSlashHelp()
   elseif command == "help" then
@@ -900,6 +907,44 @@ local function selfVendorModeOptions()
       }
     end
   end
+  -- Stat flasks aren't checkboxes (chat requests reach them via the Flask mode), but they're
+  -- included here so every mode `/slack vend <mode>` can set also appears in this dropdown.
+  local autoTradeSorting = { 0 }
+  local autoTradeValues = { [0] = "Off" }
+  for _, mode in ipairs(selfVendorModeSorting) do
+    autoTradeSorting[#autoTradeSorting + 1] = mode
+    autoTradeValues[mode] = SELF_VENDOR_MODES[mode].name
+    if mode == Enum.SelfVendorMode.FLASK then
+      for _, flaskMode in ipairs({
+        Enum.SelfVendorMode.CRIT_FLASK, Enum.SelfVendorMode.HASTE_FLASK,
+        Enum.SelfVendorMode.MASTERY_FLASK, Enum.SelfVendorMode.VERSATILITY_FLASK,
+      }) do
+        autoTradeSorting[#autoTradeSorting + 1] = flaskMode
+        autoTradeValues[flaskMode] = SELF_VENDOR_MODES[flaskMode].name
+      end
+    end
+  end
+  args.autoTradeMode = {
+    name = "Automatic Trade Response",
+    desc = "When someone opens a trade with you, automatically trade them the items for this mode, even if its checkbox above is off. They're moved to the front of the queue. Set with /slack vend <mode>.",
+    descStyle = "inline",
+    type = "select",
+    values = autoTradeValues,
+    sorting = autoTradeSorting,
+    get = function() return db.profile.selfVendor.autoTradeMode or 0 end,
+    set = function(_, value) Self.SelfVendor:SetAutoTradeMode(value) end,
+    order = 20,
+  }
+  args.autoTradeOffAfterGroup = {
+    name = "Turn Off Automatic Trade Response After Leaving Group",
+    desc = "Set Automatic Trade Response to Off whenever you leave a party or raid.",
+    type = "toggle",
+    descStyle = "inline",
+    width = "full",
+    get = function() return db.profile.selfVendor.autoTradeOffAfterGroup end,
+    set = function(_, value) db.profile.selfVendor.autoTradeOffAfterGroup = value end,
+    order = 21,
+  }
   return args
 end
 
