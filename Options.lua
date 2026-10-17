@@ -866,7 +866,7 @@ local function selfVendorModeOptions()
     order = 4,
   }
   args.guildOnly = {
-    name = "Only Serve to Fellow Guildies",
+    name = "Only Vend to Fellow Guildies",
     desc = "Ignore requests from players who aren't in your guild, including group members.",
     type = "toggle",
     descStyle = "inline",
