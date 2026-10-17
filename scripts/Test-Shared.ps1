@@ -10,8 +10,8 @@ param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'ReleaseUtils.psm1') -Force
-$module = Get-Module ReleaseUtils
+Import-Module (Join-Path $PSScriptRoot 'Shared.psm1') -Force
+$module = Get-Module Shared
 $scratch = Join-Path ([IO.Path]::GetTempPath()) "release-tests-$([guid]::NewGuid().ToString('N'))"
 $null = New-Item -ItemType Directory -Path $scratch
 $script:passed = 0
@@ -84,7 +84,7 @@ function Save-TestCommit {
 function Invoke-TestScript {
     param([string]$Repository, [string]$Script, [string[]]$Arguments = @(), [string]$InputText = '')
 
-    foreach ($file in 'ReleaseUtils.psm1', $Script) {
+    foreach ($file in 'Shared.psm1', $Script) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $Repository "scripts\$file") -Force
     }
     $executable = if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' }

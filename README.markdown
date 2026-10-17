@@ -50,7 +50,7 @@ The existing Linux build/update scripts remain available.
 
 All entry points live in [`scripts/`](./scripts/); shared configuration, Git,
 packaging, authentication, changelog, and publishing functions live in
-[`ReleaseUtils.psm1`](./scripts/ReleaseUtils.psm1). Use `Get-Help` on a script to
+[`Shared.psm1`](./scripts/Shared.psm1). Use `Get-Help` on a script to
 see its parameters. The VS Code tasks invoke PowerShell directly, regardless
 of the configured terminal shell.
 
@@ -64,7 +64,7 @@ of the configured terminal shell.
 | Deploy already-pushed release | `.\scripts\Publish-Addon.ps1` |
 | Deploy to GitHub only | `.\scripts\Publish-GitHubRelease.ps1` |
 | Deploy to CurseForge only | `.\scripts\Publish-CurseForgeRelease.ps1` |
-| Run offline regression tests | `.\scripts\Test-ReleaseUtils.ps1` |
+| Run offline regression tests | `.\scripts\Test-Shared.ps1` |
 
 The packager uses .NET ZIP support and preserves the addon folder at the archive
 root, excluding hidden files, tooling, and Ace3 tests. It marks its staging
@@ -180,7 +180,7 @@ upload that succeeded. Existing Perl-era receipts retain their format and remain
 effective. These receipts are local to the clone; use the same clone
 for retries and check CurseForge before publishing from another machine.
 
-Run release regression tests with `.\scripts\Test-ReleaseUtils.ps1` or the
+Run release regression tests with `.\scripts\Test-Shared.ps1` or the
 **Test release scripts** task. Tests use temporary local repositories, local HTTP
 transport checks, and mocked release APIs, never publishing credentials or live
 release services. No test framework installation is required.

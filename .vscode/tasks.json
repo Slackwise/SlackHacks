@@ -125,7 +125,7 @@
 			"args": [
 				"-NoProfile",
 				"-File",
-				"${workspaceFolder}\\scripts\\Test-ReleaseUtils.ps1"
+				"${workspaceFolder}\\scripts\\Test-Shared.ps1"
 			],
 			"isBackground": false,
 			"problemMatcher": [],

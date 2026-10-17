@@ -9,7 +9,7 @@ Permits replacing an existing ZIP whose digest differs. Release notes are always
 param([switch]$DryRun, [switch]$Rerelease)
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'ReleaseUtils.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Shared.psm1') -Force
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 try { Publish-GitHubRelease -Configuration (Import-ProjectConfiguration $root) -RepositoryPath $root @PSBoundParameters }
