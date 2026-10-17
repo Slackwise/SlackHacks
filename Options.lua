@@ -2399,7 +2399,7 @@ options = {
           order = 0.05
         },
         stackPlayerLists = {
-          name = "Stack Friends and Guildie Lists",
+          name = "Stacked Friends/Guildies List ('Players Online' Window)",
           desc = "Show the Friends and Guildie lists stacked in one collapsible \"Players Online\" window, " ..
             "like the Objective Tracker's sections, instead of in their own windows.",
           type = "toggle",
