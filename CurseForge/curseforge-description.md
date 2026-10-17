@@ -80,7 +80,7 @@ An alternate list-based view for player bags that can replace the default grid b
 #### Friends List
 * **Online Friends:** The same Damage Meter-style window as the Guild Member List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
 * **Filters:** Only Favorite Friends (default on), Only Playing WoW, and Only Same WoW Version (e.g. hide Classic players while you're on Retail). With Only Favorite Friends off, character friends are listed too.
-* **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name (toggleable).
+* **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name, for friends who aren't in the same game as you, including other WoW versions (toggleable).
 * **Instance and Faction Icons:** The same toggleable Dungeon/Raid/Delve and Horde/Alliance icons as the Guild Member List.
 * **Sorting, Fit to Content, Collapsible, Settings Cog:** Same as the Guild Member List, with the filters also in the cog menu. Name sorting follows the Friends list's order.
 
