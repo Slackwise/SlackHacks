@@ -86,6 +86,11 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Instance and Faction Icons:** The same toggleable Dungeon/Raid/Delve and Horde/Alliance icons as the Guildie List.
 * **Sorting, Fit to Content, Collapsible, Settings Cog:** Same as the Guildie List, with the filters also in the cog menu. Name sorting follows the Friends list's order.
 
+#### Players Online
+* **Stacked Lists:** Turn on "Stack Friends and Guildie Lists" to show both lists in one "Players Online (N)" window, where N counts everyone online once, even if they're both a friend and a guildie.
+* **Objective Tracker Sections:** Each list gets an Objective Tracker-style section header that collapses just that list. "List Stack Order" picks which list is on top.
+* **Fit to Content, Collapsible, Settings Cog:** Same as the individual lists. Each list keeps its own sorting, filters, and icon settings.
+
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.
 

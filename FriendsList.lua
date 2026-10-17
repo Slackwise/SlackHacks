@@ -61,15 +61,6 @@ local FADE_DURATION = 0.25
 -- per this many seconds.
 local REFRESH_DELAY = 0.2
 local SETTINGS_MENU_TAG = "MENU_SLACKHACKS_FRIENDS_LIST_SETTINGS"
--- Cog atlases per button state, from DamageMeterSettingsDropdownButtonTemplate's KeyValues.
-local SETTINGS_ICON_ATLAS = {
-  disabled = "common-dropdown-a-button-settings-disabled-shadowless",
-  normal = "common-dropdown-a-button-settings-shadowless",
-  pressed = "common-dropdown-a-button-settings-pressed-shadowless",
-  hover = "common-dropdown-a-button-settings-hover-shadowless",
-  hoverPressed = "common-dropdown-a-button-settings-pressedhover-shadowless",
-  open = "common-dropdown-a-button-settings-open-shadowless",
-}
 
 -- Sort choices in menu order; `key` is the saved `sortBy` value.
 local SORT_OPTIONS = {
@@ -151,19 +142,26 @@ local function showOpacityPanel()
   opacityPanel:Open(getSettings().opacity, "TOPLEFT", window, "TOPRIGHT", 0, 7)
 end
 
---- Saves the list's sort order and re-sorts the window if it's showing.
+--- Redraws the list wherever it's showing: this module's own window and the stacked Players Online window.
+local function refresh()
+  refreshPending = false
+  if window and window:IsVisible() then populate() end
+  Self.InfoDisplay:RefreshPlayersOnline()
+end
+
+--- Saves the list's sort order and re-sorts the list wherever it's showing.
 ---@param sortBy string A SORT_COMPARATORS key: "name" or "zone".
 local function setSortBy(sortBy)
   getSettings().sortBy = sortBy
-  if window and window:IsVisible() then populate() end
+  refresh()
 end
 
---- Saves a display or filter setting (e.g. an icon toggle) and redraws the list if it's showing.
+--- Saves a display or filter setting (e.g. an icon toggle) and redraws the list wherever it's showing.
 ---@param key string The `friendsList` setting to change.
 ---@param value any The new value.
 local function setDisplaySetting(key, value)
   getSettings()[key] = value
-  if window and window:IsVisible() then populate() end
+  refresh()
 end
 
 --- Saves the window's current anchor and size so it is restored on the next login. The size is skipped while
@@ -269,12 +267,11 @@ end
 --- "Name, Level N Race Class", faction and "zone - realm" (or region), otherwise their character/game name and
 --- rich presence (e.g. "In Menus"), followed by the friend's note and broadcast message.
 --- Character friends: name with AFK/DND, "Level N Race Class", faction, zone and note.
----@param row Frame The hovered list row.
-local function showFriendTooltip(row)
-  onWindowEnter()
-  local friend = row.friend
+---@param owner Frame The hovered row the tooltip anchors to.
+---@param friend table Friend entry built by buildFriends().
+local function showFriendTooltip(owner, friend)
   local white = HIGHLIGHT_FONT_COLOR
-  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
 
   local account = friend.accountInfo
   if account then
@@ -328,9 +325,9 @@ end
 --- Opens the friend's context menu (Invite, Whisper, View Houses) with the same context data the FriendsFrame
 --- passes (FriendsFrame_ShowBNDropdown / FriendsFrame_ShowDropdown). Battle.net friends who can't be grouped
 --- with, e.g. because they're in another game or WoW version, get a menu without the invite buttons.
----@param row Frame The clicked list row.
-local function openFriendMenu(row)
-  local account, info = row.friend.accountInfo, row.friend.friendInfo
+---@param friend table Friend entry built by buildFriends().
+local function openFriendMenu(friend)
+  local account, info = friend.accountInfo, friend.friendInfo
   GameTooltip:Hide()
   if account then
     local canInvite = CanGroupWithAccount(account.bnetAccountID)
@@ -370,7 +367,7 @@ end
 
 --- ScrollBox element initializer; builds a row's two columns (name, location) once and then binds it to a friend.
 ---@param row Frame A pooled row frame from the ScrollBox.
----@param friend table Friend entry built by populate().
+---@param friend table Friend entry built by buildFriends().
 local function initRow(row, friend)
   if not row.Name then
     row.Name = createCell(row)
@@ -378,10 +375,13 @@ local function initRow(row, friend)
     row.Zone = createCell(row)
     row.Zone:SetPoint("LEFT", row.Name, "RIGHT", COLUMN_GAP, 0)
     row.Zone:SetPoint("RIGHT", -ROW_PADDING, 0)
-    row:SetScript("OnEnter", showFriendTooltip)
+    row:SetScript("OnEnter", function(self)
+      onWindowEnter()
+      showFriendTooltip(self, self.friend)
+    end)
     row:SetScript("OnLeave", GameTooltip_Hide)
     row:SetMouseMotionEnabled(true)
-    enableRowClicks(row, window, openFriendMenu)
+    enableRowClicks(row, window, function(self) openFriendMenu(self.friend) end)
   end
   -- Re-applied on every bind since populate() re-measures the columns.
   layoutRow(row)
@@ -579,10 +579,10 @@ local function addCharacterFriends(friends, settings, icons, playerFaction)
   end
 end
 
---- Rebuilds the list of online friends from the client's friend lists (no server request), filtered and sorted
---- by the saved settings. Assigned to the forward-declared local so setSortBy can call it.
-function populate()
-  refreshPending = false
+--- Builds the list of online friends from the client's friend lists (no server request), filtered and sorted by
+--- the saved settings. Shared by this window and the stacked Players Online window.
+---@return table friends Friend entries.
+local function buildFriends()
   local settings = getSettings()
   local friends = {}
   local icons = settings.showInstanceIcons and getInstanceIcons() or {}
@@ -590,124 +590,84 @@ function populate()
   if BNConnected() then addAccountFriends(friends, settings, icons, playerFaction) end
   addCharacterFriends(friends, settings, icons, playerFaction)
   table.sort(friends, SORT_COMPARATORS[settings.sortBy] or SORT_COMPARATORS.name)
+  return friends
+end
 
+--- Returns the list's title when it has no count to show, e.g. while favorites can't be read without Battle.net.
+---@return string|nil title The replacement title, or nil to show the friend count.
+local function getUnavailableTitle()
+  if getSettings().onlyFavorites and not BNConnected() then
+    return BATTLENET_UNAVAILABLE or "Battle.net Unavailable"
+  end
+end
+
+--- Redraws this module's window from buildFriends(). Assigned to the forward-declared local so refresh() can
+--- call it.
+function populate()
+  local friends = buildFriends()
   nameColumnWidth = measureWidest(friends, "name")
   zoneColumnWidth = measureWidest(friends, "zoneText")
-  if settings.onlyFavorites and not BNConnected() then
-    window.Title:SetText(BATTLENET_UNAVAILABLE or "Battle.net Unavailable")
-  else
-    window.Title:SetText("Friends (" .. #friends .. ")")
-  end
+  window.Title:SetText(getUnavailableTitle() or ("Friends (" .. #friends .. ")"))
   window.ScrollBox:SetDataProvider(CreateDataProvider(friends), ScrollBoxConstants.RetainScrollPosition)
   fitToContent(friends)
 end
 
---- Queues a populate() for REFRESH_DELAY seconds from now, so a burst of friend events causes one refresh.
+--- Queues a refresh() for REFRESH_DELAY seconds from now, so a burst of friend events causes one refresh. Runs
+--- even while this module's own window is hidden, since the list may be showing in the Players Online window.
 local function scheduleRefresh()
-  if refreshPending or not window:IsVisible() then return end
+  if refreshPending then return end
   refreshPending = true
   C_Timer.After(REFRESH_DELAY, function()
-    if refreshPending and window:IsVisible() then populate() end
+    if refreshPending then refresh() end
   end)
 end
 
---- Builds the header's cog button, a Lua copy of Blizzard's DamageMeterSettingsDropdownButtonTemplate
---- (Blizzard_DamageMeter/DamageMeterSettingsDropdownButton.xml/.lua), and fills its settings menu.
----@return DropdownButton button The cog button.
-local function createSettingsDropdown()
-  -- "DropdownButton" is the intrinsic behind Blizzard's <DropdownButton> XML tag (Blizzard_Menu): it brings
-  -- DropdownButtonMixin (SetupMenu, opening/closing the menu on click) plus intrinsic script handlers that
-  -- keep running alongside the scripts set below. ButtonStateBehaviorMixin tracks hover/pressed state.
-  local button = CreateFrame("DropdownButton", nil, window)
-  Mixin(button, ButtonStateBehaviorMixin)
-  button:SetSize(27, 27)
-  button.Icon = button:CreateTexture(nil, "ARTWORK")
-  button.Icon:SetAllPoints()
-
-  --- Shows the cog atlas for the button's current state; copy of DamageMeterSettingsDropdownButton:GetIconAtlas().
-  function button:OnButtonStateChanged()
-    local atlas
-    if not self:IsEnabled() then
-      atlas = SETTINGS_ICON_ATLAS.disabled
-    elseif self:IsDownOver() then
-      atlas = SETTINGS_ICON_ATLAS.hoverPressed
-    elseif self:IsOver() then
-      atlas = SETTINGS_ICON_ATLAS.hover
-    elseif self:IsDown() then
-      atlas = SETTINGS_ICON_ATLAS.pressed
-    elseif self:IsMenuOpen() then
-      atlas = SETTINGS_ICON_ATLAS.open
-    else
-      atlas = SETTINGS_ICON_ATLAS.normal
-    end
-    self.Icon:SetAtlas(atlas, TextureKitConstants.UseAtlasSize)
-  end
-
-  --- Extends DropdownButtonMixin:OnMenuOpened to switch to the "open" cog.
-  ---@param menu Frame The opened menu.
-  function button:OnMenuOpened(menu)
-    DropdownButtonMixin.OnMenuOpened(self, menu)
-    self:OnButtonStateChanged()
-  end
-
-  --- Extends DropdownButtonMixin:OnMenuClosed to switch back from the "open" cog.
-  ---@param menu Frame The closed menu.
-  ---@param closeReason number Why the menu closed.
-  function button:OnMenuClosed(menu, closeReason)
-    DropdownButtonMixin.OnMenuClosed(self, menu, closeReason)
-    self:OnButtonStateChanged()
-  end
-
-  -- The template's <Scripts> block: all of these are ButtonStateBehaviorMixin methods.
-  for _, script in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave", "OnEnable", "OnDisable" }) do
-    button:SetScript(script, button[script])
-  end
-  button:OnButtonStateChanged() -- ButtonStateBehaviorMixin:OnLoad()
-
-  --- Adds a titled group of setting checkboxes; `requires` names a setting that must be on to enable one.
-  ---@param rootDescription table The menu's root description.
-  ---@param title string The group's title.
-  ---@param toggles table List of { key, text, requires? }.
-  local function addCheckboxes(rootDescription, title, toggles)
-    rootDescription:CreateDivider()
-    rootDescription:CreateTitle(title)
-    for _, toggle in ipairs(toggles) do
-      local checkbox = rootDescription:CreateCheckbox(toggle.text,
-        function() return getSettings()[toggle.key] end,
-        function() setDisplaySetting(toggle.key, not getSettings()[toggle.key]) end)
-      if toggle.requires then
-        checkbox:SetEnabled(function() return getSettings()[toggle.requires] end)
-      end
+--- Adds a titled group of setting checkboxes to the settings menu; `requires` names a setting that must be on
+--- to enable one.
+---@param rootDescription table The menu's root description.
+---@param title string The group's title.
+---@param toggles table List of { key, text, requires? }.
+local function addCheckboxes(rootDescription, title, toggles)
+  rootDescription:CreateDivider()
+  rootDescription:CreateTitle(title)
+  for _, toggle in ipairs(toggles) do
+    local checkbox = rootDescription:CreateCheckbox(toggle.text,
+      function() return getSettings()[toggle.key] end,
+      function() setDisplaySetting(toggle.key, not getSettings()[toggle.key]) end)
+    if toggle.requires then
+      checkbox:SetEnabled(function() return getSettings()[toggle.requires] end)
     end
   end
+end
 
-  button:SetupMenu(function(_, rootDescription)
-    rootDescription:SetTag(SETTINGS_MENU_TAG)
-    rootDescription:CreateCheckbox("Fit to Content",
-      function() return getSettings().fitToContent end,
-      function() setFitToContent(not getSettings().fitToContent) end)
-    rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
-    rootDescription:CreateDivider()
-    rootDescription:CreateTitle("Sort By")
-    for _, option in ipairs(SORT_OPTIONS) do
-      rootDescription:CreateRadio(option.text,
-        function(key) return (getSettings().sortBy or "name") == key end,
-        setSortBy,
-        option.key)
-    end
-    addCheckboxes(rootDescription, "Show", {
-      { key = "onlyFavorites", text = "Only Favorite Friends" },
-      { key = "onlyWoW", text = "Only Playing WoW" },
-      { key = "onlySameWoWVersion", text = "Only Same WoW Version", requires = "onlyWoW" },
-    })
-    addCheckboxes(rootDescription, "Icons", {
-      { key = "showInstanceIcons", text = "Instance Icons" },
-      { key = "showGameIcons", text = "Game Icons" },
-      { key = "showFactionIcons", text = "Faction Icons" },
-      { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
-    })
-  end)
-  return button
+--- Fills the header cog's settings menu, the Lua equivalent of the DamageMeter's SettingsDropdown menu.
+---@param _ Frame The cog button (unused).
+---@param rootDescription table The menu's root description.
+local function buildSettingsMenu(_, rootDescription)
+  rootDescription:SetTag(SETTINGS_MENU_TAG)
+  rootDescription:CreateCheckbox("Fit to Content",
+    function() return getSettings().fitToContent end,
+    function() setFitToContent(not getSettings().fitToContent) end)
+  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
+  rootDescription:CreateDivider()
+  rootDescription:CreateTitle("Sort By")
+  for _, option in ipairs(SORT_OPTIONS) do
+    rootDescription:CreateRadio(option.text,
+      function(key) return (getSettings().sortBy or "name") == key end,
+      setSortBy,
+      option.key)
+  end
+  addCheckboxes(rootDescription, "Show", {
+    { key = "onlyFavorites", text = "Only Favorite Friends" },
+    { key = "onlyWoW", text = "Only Playing WoW" },
+    { key = "onlySameWoWVersion", text = "Only Same WoW Version", requires = "onlyWoW" },
+  })
+  addCheckboxes(rootDescription, "Icons", {
+    { key = "showInstanceIcons", text = "Instance Icons" },
+    { key = "showGameIcons", text = "Game Icons" },
+    { key = "showFactionIcons", text = "Faction Icons" },
+    { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
+  })
 end
 
 --- Builds the window, following DamageMeterSessionWindowTemplate: a Header bar holding the title,
@@ -751,7 +711,7 @@ local function createWindow()
   minimizeButton:SetScript("OnClick", function() setMinimized(not getSettings().minimized) end)
   window.MinimizeButton = minimizeButton
 
-  local settingsDropdown = createSettingsDropdown()
+  local settingsDropdown = createSettingsCog(window, buildSettingsMenu)
   settingsDropdown:SetPoint("RIGHT", minimizeButton, "LEFT", -2, -2)
   window.SettingsDropdown = settingsDropdown
 
@@ -865,6 +825,40 @@ function module:SetDisplaySetting(key, value)
   setDisplaySetting(key, value)
 end
 
+--- Returns the online friends for the stacked Players Online window.
+---@return table friends Filtered, sorted friend entries.
+---@return string|nil unavailableTitle A title to show instead of the count (e.g. "Battle.net Unavailable").
+function module:GetEntries()
+  return buildFriends(), getUnavailableTitle()
+end
+
+--- Shows a friend's tooltip (used by the stacked Players Online window's rows).
+---@param owner Frame The row the tooltip anchors to.
+---@param friend table A friend entry from GetEntries().
+function module:ShowTooltip(owner, friend)
+  showFriendTooltip(owner, friend)
+end
+
+--- Opens a friend's context menu (used by the stacked Players Online window's rows).
+---@param friend table A friend entry from GetEntries().
+function module:OpenMenu(friend)
+  openFriendMenu(friend)
+end
+
+--- Asks the server for character friends' latest zones/status (used when the Players Online window is shown).
+function module:RequestFriends()
+  C_FriendList.ShowFriends()
+end
+
+--- Shows this module's own window unless the list is stacked into the Players Online window, in which case the
+--- window (and its opacity panel) stay hidden while the module keeps listening for friend changes.
+function module:UpdateWindowShown()
+  if not window then return end
+  local stacked = Self.InfoDisplay:IsPlayersOnlineStacked()
+  window:SetShown(not stacked)
+  if stacked and opacityPanel then opacityPanel:Hide() end
+end
+
 --- AceAddon initialization hook; keeps the module disabled when turned off or outside Retail, since the
 --- DamageMeter atlases and ScrollBox templates the window relies on only exist there.
 function module:OnInitialize()
@@ -889,12 +883,15 @@ function module:OnEnable()
     "BN_FRIEND_LIST_SIZE_CHANGED", "BN_CONNECTED", "BN_DISCONNECTED", "FRIENDLIST_UPDATE" }) do
     self:RegisterEvent(event, scheduleRefresh)
   end
-  window:Show()
+  self:UpdateWindowShown()
+  Self.InfoDisplay:RefreshPlayersOnline()
 end
 
---- Stops listening for friend changes and hides the window and its opacity panel.
+--- Stops listening for friend changes, hides the window and its opacity panel, and drops the Friends section
+--- from the stacked Players Online window.
 function module:OnDisable()
   self:UnregisterAllEvents()
   if window then window:Hide() end
   if opacityPanel then opacityPanel:Hide() end
+  Self.InfoDisplay:RefreshPlayersOnline()
 end
