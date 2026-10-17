@@ -1,8 +1,7 @@
 # SlackHacks v15
 
-## Players Online
-- Replaced "Split Friend/Guildie Lists" with a "Stack Friend/Guildie List" checkbox, grouped directly above the Friends List/Guildies List visibility toggles in the window's cog menu. Uncheck it to split the lists into standalone windows.
-- The standalone Friends and Guildie list cogs now use the same stacking checkbox and label.
+## Friends List
+- Disabled "Show Only Favorite Friends" by default
 
 ## Self Vendor
 - Requests are now also accepted from `/say` and whispers, not just party, raid, and instance chat.
@@ -15,6 +14,3 @@
 - Added "Turn Off Automatic Trade Response After Leaving Group" to set Automatic Trade Response back to Off when you leave a party or raid.
 - Added `/slack vend <mode>` to set Automatic Trade Response from chat, e.g. `/slack vend vantus`, `/slack vend flask`, or `/slack vend off`.
 - If a requester opens the trade with you before their items are ready, their items are now added to that trade window once prepared instead of failing.
-
-## Listview Bag
-- The "Sell Trash" button is now only enabled while a merchant is open and you have marked trash a merchant will actually buy, and it disables itself once everything has been sold.
