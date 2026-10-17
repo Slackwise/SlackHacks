@@ -326,9 +326,11 @@ end
 
 --- Opens the member's context menu (Invite, Whisper, View Houses) with the same context data the Communities
 --- guild roster passes for a guild member (CommunitiesMemberListMixin:OnClubMemberButtonClicked). Blizzard's
---- invite options hide themselves for mobile members and pick Invite, Suggest Invite or Request Invite.
+--- invite options hide themselves for mobile members and pick Invite, Suggest Invite or Request Invite. Does nothing
+--- for the player's own row, where every option hides itself and the menu would open empty.
 ---@param member table Member entry built by buildMembers().
 local function openMemberMenu(member)
+  if member.guid == UnitGUID("player") then return end
   GameTooltip:Hide()
   openPlayerMenu("SLACKHACKS_PLAYER", {
     name = member.fullName,
