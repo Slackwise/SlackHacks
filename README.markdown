@@ -30,8 +30,8 @@ Shared, non-secret build and release defaults live in
 without any local configuration. For local overrides and credentials, create an
 ignored `.env` in the repository root by copying
 [`.env.example`](./.env.example) and replacing the placeholder values with each
-developer's own deployment tokens. For example, run `cp .env.example .env` from
-the repository root in Bash.
+developer's own deployment tokens. For example, run `Copy-Item .env.example .env`
+from the repository root in PowerShell.
 
 Do not commit `.env` or put API tokens in `scripts/defaults.env`. The deployment
 scripts also support Proton Pass; set the appropriate `PROTON_PASS_ITEM_*`
@@ -39,15 +39,91 @@ values in `.env` if your item names differ from the defaults. Environment
 variables already set by the shell or CI/CD environment take precedence over
 both files, so CI can inject its own configuration and secrets.
 
+### PowerShell tooling
+
+Repository tooling requires **PowerShell 7.4 or later** (`pwsh`) and **Git**, both
+on `PATH`. On Windows, PowerShell can be installed with
+`winget install --id Microsoft.PowerShell --exact`. Restart VS Code after installing
+or changing `PATH`. Windows PowerShell 5.1 is not supported by the new tooling.
+Perl, Node.js, npm, Bash, and curl are not required for the PowerShell workflow.
+The existing Linux build/update scripts remain available.
+
+All entry points live in [`scripts/`](./scripts/); shared configuration, Git,
+packaging, authentication, changelog, and publishing functions live in
+[`ReleaseUtils.psm1`](./scripts/ReleaseUtils.psm1). Use `Get-Help` on a script to
+see its parameters. The VS Code tasks invoke PowerShell directly, regardless
+of the configured terminal shell.
+
+| Operation | PowerShell command (from the repository root) |
+| --- | --- |
+| Install Lua tools | `.\scripts\Initialize-DevelopmentTools.ps1` |
+| Build | `.\scripts\Build-Addon.ps1` |
+| Bump version | `.\scripts\Step-AddonVersion.ps1` |
+| Create/append changelog | `.\scripts\New-AddonChangelog.ps1` |
+| Publish release | `.\scripts\Publish-Release.ps1` |
+| Deploy already-pushed release | `.\scripts\Publish-Addon.ps1` |
+| Deploy to GitHub only | `.\scripts\Publish-GitHubRelease.ps1` |
+| Deploy to CurseForge only | `.\scripts\Publish-CurseForgeRelease.ps1` |
+| Run offline regression tests | `.\scripts\Test-ReleaseUtils.ps1` |
+
+The packager uses .NET ZIP support and preserves the addon folder at the archive
+root, excluding hidden files, tooling, and Ace3 tests. It marks its staging
+directory so subsequent builds can safely replace it. If an older Bash build
+left an unmarked staging directory in `dist`, remove that specific staging
+directory manually before the first PowerShell build.
+
+### Versions and changelogs
+
+[`Step-AddonVersion.ps1`](./scripts/Step-AddonVersion.ps1) increments the numeric
+TOC version. If the target changelog does not exist, it asks whether to generate
+it (**default yes**), then whether to use Copilot (**default yes**). Existing
+changelogs are preserved. `-Blank` creates only a version header.
+
+[`New-AddonChangelog.ps1`](./scripts/New-AddonChangelog.ps1) runs independently
+of the bump script. If the TOC version is not newer than the latest numeric
+version tag, it offers to bump past that tag (**default yes**). Otherwise it
+uses the already-bumped version. `-BumpVersion:$false` explicitly keeps the
+current version, even if already tagged.
+
+Existing changelog text is never replaced: new sections/bullets are appended.
+An HTML commit checkpoint prevents subsequent runs from repeating the same
+commits. For older changelogs without a checkpoint, their last Git commit is
+used as the append baseline. Commit-derived duplicate bullets are also
+filtered. Changelogs describe committed work, not uncommitted diffs. An
+unrelated/rebased checkpoint is an error rather than silently duplicating notes.
+Review generated notes before committing and publishing.
+
+For unattended, local generation:
+
+```powershell
+.\scripts\Step-AddonVersion.ps1 -GenerateChangelog:$true -UseCopilot:$false -NoOpen
+.\scripts\New-AddonChangelog.ps1 -BumpVersion:$false -UseCopilot:$false -NoOpen
+```
+
+Use `-GenerateChangelog:$false` to bump only. Both scripts support `-DryRun`
+(no writes, prompts, or Copilot invocation) and `-NoOpen` (do not open VS Code).
+Other than `-Blank`, choices are Boolean parameters, so pass `:$true` or
+`:$false`, not legacy `--no-copilot` flags. EOF aborts interactive prompts.
+
+Copilot generation requires an installed, authenticated **standalone Copilot
+CLI**, available as `copilot` on `PATH` (for example, install with
+`winget install --id GitHub.Copilot --exact`). Scripts never install npm packages
+or automatically install/authenticate Copilot. If Copilot fails, the error is
+reported; rerun with `-UseCopilot:$false` to generate notes from commit subjects.
+No changes are invented when there are no commits. Normal deployment still uses
+environment tokens or Proton Pass as configured above.
+
 ### Publishing and retrying releases
 
-Run `perl scripts/release.pl` from a clean development branch after committing
+Run `.\scripts\Publish-Release.ps1` from a clean development branch after committing
 the version bump and the non-empty `changelog/changelog-v<VERSION>.md` file.
 The script merges into `prod`, creates an immutable version tag, atomically
 pushes `prod` and the tag, and deploys that production checkout before restoring
-your original branch (also on deployment failure). `--no-push` prepares only
-the local release and never deploys. `--force` no longer bypasses dirty-worktree
-checks or overwrites tags.
+`dev` (also on deployment failure); use `-ReturnBranch` to choose another recovery
+branch. `-NoPush` prepares only the local release and never deploys.
+`RELEASE_PUSH=false` also defaults to local-only; `-Push:$true` explicitly
+overrides that setting.
+Dirty-worktree checks cannot be bypassed.
 
 Rerun the same release command after a partial failure: an existing tag is
 resumed, not recreated, provided the source has no commits outside that release
@@ -55,14 +131,14 @@ and production has not advanced or diverged. New development needs a version
 bump rather than retagging a published release.
 
 To intentionally include new commits in the same version, commit the changes
-and changelog on `dev`, then run `perl scripts/release.pl --rerelease`.
+and changelog on `dev`, then run `.\scripts\Publish-Release.ps1 -Rerelease`.
 This is an explicit exception to immutable releases: it merges into `prod`,
 moves the version tag only when the release commit changes, and atomically
 pushes the branch and tag using a tag-specific force-with-lease. Concurrent
 remote tag changes reject the push rather than being overwritten. It does not
 force-push `prod`, permit dirty worktrees, or allow releasing an older version
-when a newer tag exists. `--dry-run` previews and `--no-push` prepares locally;
-retry either with `--rerelease` to finish publishing the revised release.
+when a newer tag exists. `-DryRun` previews and `-NoPush` prepares locally;
+retry either with `-Rerelease` to finish publishing the revised release.
 
 The flag is forwarded to both deployers. GitHub's existing release notes are
 updated and a mismatched ZIP is deleted and uploaded again (there is a window
@@ -70,28 +146,29 @@ without the ZIP if upload fails; rerun the same command to finish).
 CurseForge receives a **new file** for the revised commit; the API cannot replace
 the old file in place. Archive/delete the old file manually on CurseForge.
 Confirmed uploads of the same commit are still skipped, and uncertain attempts
-remain blocked, even with `--rerelease`. Receipts for each revision are retained.
+remain blocked, even with `-Rerelease`. Receipts for each revision are retained.
 For standalone deployment of the already-pushed revision, use
-`bash scripts/deploy.sh --rerelease`.
+`.\scripts\Publish-Addon.ps1 -Rerelease`.
 
 For standalone deployment, check out the release tag or matching `prod` commit
-and run `bash scripts/deploy.sh` (or either individual deployment script).
+and run `.\scripts\Publish-Addon.ps1` (or either individual deployment script).
 Both deployers verify a clean checkout, the exact pushed `origin/prod` tip, and
 the pushed version tag **before building or uploading**. Dry runs perform these
 read-only remote checks too, but do not build, retrieve secrets, or upload.
-The CurseForge `--list-versions` command remains available without a release.
+The CurseForge `-ListVersions` command remains available without a release;
+use `-Filter retail` (or another search term) to restrict the output.
 
 Release notes are automatically read from the versioned changelog, or from an
 explicit `CHANGELOG_FILE` override. Missing or empty changelogs are errors.
 GitHub's separate `generate_release_notes` feature is disabled so commit-derived
 notes are not appended; `GENERATE_RELEASE_NOTES` is no longer used.
-JSON request bodies and CurseForge metadata are sent from UTF-8 files to avoid
-Windows command-line quoting and length problems.
+JSON request bodies and CurseForge multipart metadata are UTF-8 encoded in
+PowerShell's HTTP client, avoiding command-line quoting and length problems.
 
 Retries reuse a checksum-verified build for the same commit and packaging
 configuration. GitHub looks up the existing release, synchronizes its changelog
 notes, and skips an already-uploaded archive with a matching SHA-256 digest.
-Without `--rerelease`, an asset with a different or unavailable digest is never
+Without `-Rerelease`, an asset with a different or unavailable digest is never
 deleted and requires manual inspection.
 
 CurseForge upload receipts live in Git's common directory under
@@ -99,17 +176,19 @@ CurseForge upload receipts live in Git's common directory under
 Because the legacy upload API has no idempotency key, pending/ambiguous uploads
 block retries: inspect the project's files on CurseForge before removing the
 specific pending receipt named in the error. Do not remove a receipt for an
-upload that succeeded. These receipts are local to the clone; use the same clone
+upload that succeeded. Existing Perl-era receipts retain their format and remain
+effective. These receipts are local to the clone; use the same clone
 for retries and check CurseForge before publishing from another machine.
 
-Run the release regression tests with `node --test scripts/release.test.cjs`
-(requires Node.js, Perl, Git, Bash, and curl; uses temporary local repositories
-and a local HTTP server, not publishing credentials or live release APIs).
+Run release regression tests with `.\scripts\Test-ReleaseUtils.ps1` or the
+**Test release scripts** task. Tests use temporary local repositories, local HTTP
+transport checks, and mocked release APIs, never publishing credentials or live
+release services. No test framework installation is required.
 
 ## Lua development tools
 
-On Windows x64, run `perl scripts/bootstrap.pl` or the VS Code **Bootstrap**
-task (requires Perl, `tar`, and internet access) to install the Lua 5.1 bytecode
+On Windows x64, run `.\scripts\Initialize-DevelopmentTools.ps1` or the VS Code
+**Bootstrap** task (requires PowerShell 7.4+ and internet access) to install the Lua 5.1 bytecode
 compiler, StyLua, and Lua Language Server into the repository-local `.bin`
 directory. The bootstrap is safe to rerun; installed tools are left in place.
 `.bin` is ignored by Git.
