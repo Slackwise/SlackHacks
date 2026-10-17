@@ -2532,10 +2532,11 @@ options = {
           disabled = function() return not db.profile.movableWindows.enabled end,
           order = 0.05
         },
-        keybindHint = {
-          name = "Set a keybinding for \"Toggle Movable Windows\" under Key Bindings > SlackHacks to quickly " ..
-            "enable/disable this without opening options.",
-          type = "description",
+        setKeybinds = {
+          name = "Set Window Keybinds",
+          desc = "Open the Key Bindings settings to the SlackHacks section to bind \"Toggle Movable Windows\".",
+          type = "execute",
+          func = function() openKeybindings() end,
           order = 0.1
         },
         modifierKey = {
@@ -2556,36 +2557,6 @@ options = {
           disabled = function() return not db.profile.movableWindows.enabled end,
           order = 1
         },
-        enableScaling = {
-          name = "Enable Scaling (Modifier + Mouse Wheel)",
-          desc = "Hold the modifier key below and scroll the mouse wheel over a window's title bar to resize " ..
-            "it (scrolling elsewhere on the window is left alone).",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.movableWindows.enableScaling end,
-          set = function(_, value) db.profile.movableWindows.enableScaling = value end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 2
-        },
-        scaleModifierKey = {
-          name = "Scale Modifier Key",
-          desc = "Key that must be held while scrolling the mouse wheel over a window's title bar to resize " ..
-            "it. Choose None to allow resizing with a plain mouse wheel scroll.",
-          type = "select",
-          width = "full",
-          values = {
-            NONE = "None",
-            SHIFT = "Shift",
-            CTRL = "Ctrl",
-            ALT = "Alt"
-          },
-          sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
-          get = function() return db.profile.movableWindows.scaleModifierKey end,
-          set = function(_, value) db.profile.movableWindows.scaleModifierKey = value end,
-          disabled = function() return not db.profile.movableWindows.enabled or not db.profile.movableWindows.enableScaling end,
-          order = 2.5
-        },
         savePositionStrategy = {
           name = "Remember Positions",
           desc =
@@ -2605,23 +2576,6 @@ options = {
           disabled = function() return not db.profile.movableWindows.enabled end,
           order = 3
         },
-        saveScaleStrategy = {
-          name = "Remember Scales",
-          desc =
-            "In Session >> scales are kept until you reload your UI\n\n" ..
-            "Remember Permanently >> scales are kept until reset or changed again",
-          type = "select",
-          width = 1.5,
-          values = {
-            session = "In Session, Until Reload",
-            permanent = "Remember Permanently"
-          },
-          sorting = { "session", "permanent" },
-          get = function() return db.profile.movableWindows.saveScaleStrategy end,
-          set = function(_, value) db.profile.movableWindows.saveScaleStrategy = value end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 4
-        },
         resetPositions = {
           name = "Reset Remembered Positions",
           desc = "Clear all permanently remembered window positions. Reloads your UI.",
@@ -2635,18 +2589,72 @@ options = {
           disabled = function() return not db.profile.movableWindows.enabled end,
           order = 5
         },
-        resetScales = {
-          name = "Reset Remembered Scales",
-          desc = "Clear all permanently remembered window scales. Reloads your UI.",
-          type = "execute",
-          width = 1.5,
-          func = function()
-            Self.MovableWindows:ResetScales()
-            ReloadUI()
-          end,
-          confirm = function() return "Are you sure you want to reset all remembered window scales? This will reload the UI." end,
-          disabled = function() return not db.profile.movableWindows.enabled end,
-          order = 6
+        scaling = {
+          type = "group",
+          name = "Scaling",
+          inline = true,
+          order = 10,
+          args = {
+            enableScaling = {
+              name = "Enable Window Scaling",
+              desc = "Scroll on the titlebar to scale the window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.movableWindows.enableScaling end,
+              set = function(_, value) db.profile.movableWindows.enableScaling = value end,
+              disabled = function() return not db.profile.movableWindows.enabled end,
+              order = 1
+            },
+            scaleModifierKey = {
+              name = "Scale Modifier Key",
+              desc = "Key that must be held while scrolling the mouse wheel over a window's title bar to resize " ..
+                "it. Choose None to allow resizing with a plain mouse wheel scroll.",
+              type = "select",
+              width = "full",
+              values = {
+                NONE = "None",
+                SHIFT = "Shift",
+                CTRL = "Ctrl",
+                ALT = "Alt"
+              },
+              sorting = { "NONE", "SHIFT", "CTRL", "ALT" },
+              get = function() return db.profile.movableWindows.scaleModifierKey end,
+              set = function(_, value) db.profile.movableWindows.scaleModifierKey = value end,
+              disabled = function() return not db.profile.movableWindows.enabled or not db.profile.movableWindows.enableScaling end,
+              order = 2
+            },
+            saveScaleStrategy = {
+              name = "Remember Scales",
+              desc =
+                "In Session >> scales are kept until you reload your UI\n\n" ..
+                "Remember Permanently >> scales are kept until reset or changed again",
+              type = "select",
+              width = 1.5,
+              values = {
+                session = "In Session, Until Reload",
+                permanent = "Remember Permanently"
+              },
+              sorting = { "session", "permanent" },
+              get = function() return db.profile.movableWindows.saveScaleStrategy end,
+              set = function(_, value) db.profile.movableWindows.saveScaleStrategy = value end,
+              disabled = function() return not db.profile.movableWindows.enabled end,
+              order = 3
+            },
+            resetScales = {
+              name = "Reset Remembered Scales",
+              desc = "Clear all permanently remembered window scales. Reloads your UI.",
+              type = "execute",
+              width = 1.5,
+              func = function()
+                Self.MovableWindows:ResetScales()
+                ReloadUI()
+              end,
+              confirm = function() return "Are you sure you want to reset all remembered window scales? This will reload the UI." end,
+              disabled = function() return not db.profile.movableWindows.enabled end,
+              order = 4
+            }
+          }
         }
       }
     },
