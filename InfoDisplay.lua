@@ -7,8 +7,8 @@ setfenv(1, _G.SlackHacks)
 -- window's header bar copies the tracker's own
 -- "All Objectives" header (ObjectiveTrackerContainerHeaderTemplate), and the rest of the window is the same
 -- DamageMeterSessionWindowTemplate recreation the lists use on their own (background, cog, resize handle). The
--- list modules still build their entries, tooltips and menus; this window only lays them out. Unlike
--- the Char Sheet, the window doesn't depend on this module's enabled state, since the lists are independent of it.
+-- list modules still build their entries, tooltips and menus; this window only lays them out. This module's enable
+-- switch is the master switch for all Info Display sub-modules (SUBMODULES); the window follows the lists' state.
 local module = Self:NewModule("InfoDisplay")
 Self.InfoDisplay = module
 
@@ -47,6 +47,8 @@ local OPACITY_STEP = 0.05
 local SCROLL_BAR_IDLE_ALPHA = 0.3
 local FADE_DURATION = 0.25
 local SETTINGS_MENU_TAG = "MENU_SLACKHACKS_PLAYERS_ONLINE_SETTINGS"
+-- AceModule names on Self that the Info Display's enable switch turns on and off.
+local SUBMODULES = { "CharSheet", "Weeklies", "GuildieList", "FriendsList" }
 -- The stacked lists, keyed by section; `module` is the list's AceModule name on Self.
 local SECTIONS = {
   friends = { module = "FriendsList", title = "Friends" },
@@ -77,12 +79,19 @@ function module:Refresh()
   if Self.CharSheet then Self.CharSheet:Refresh() end
 end
 
---- Turns the Info Display (Char Sheet overlays) on or off and saves the choice.
----@param enabled boolean Whether the overlays should be shown.
+--- Turns the whole Info Display on or off and saves the choice. It's the master switch for every sub-module:
+--- each one also checks `infoDisplay.enabled` when it initializes and enables, so turning this on only starts the
+--- sub-modules whose own settings are on, and the Players Online window goes away with the lists.
+---@param enabled boolean Whether the Info Display sub-modules may run.
 function module:SetEnabled(enabled)
   db.profile.infoDisplay.enabled = enabled
-  if Self.CharSheet then Self.CharSheet:SetGearStatsEnabled(enabled) end
   if enabled then self:Enable() else self:Disable() end
+  for _, name in ipairs(SUBMODULES) do
+    local submodule = Self[name]
+    if submodule then
+      if enabled then submodule:Enable() else submodule:Disable() end
+    end
+  end
   self:Refresh()
   local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
   if registry then registry:NotifyChange("SlackHacks") end
@@ -91,16 +100,6 @@ end
 --- AceAddon initialization hook; keeps the module disabled when the Info Display is turned off.
 function module:OnInitialize()
   if not db.profile.infoDisplay.enabled then self:Disable() end
-end
-
---- Enables the Char Sheet module along with the Info Display.
-function module:OnEnable()
-  if Self.CharSheet and not Self.CharSheet:IsEnabled() then Self.CharSheet:Enable() end
-end
-
---- Disables the Char Sheet module along with the Info Display.
-function module:OnDisable()
-  if Self.CharSheet and Self.CharSheet:IsEnabled() then Self.CharSheet:Disable() end
 end
 
 --- Returns the Players Online window's saved settings table.

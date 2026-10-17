@@ -764,16 +764,22 @@ function module:UpdateWindowShown()
   if stacked and opacityPanel then opacityPanel:Hide() end
 end
 
---- AceAddon initialization hook; keeps the module disabled when turned off or outside Retail and Forever, since
---- the DamageMeter atlases and ScrollBox templates the window relies on only exist there.
+--- Returns whether the Guildie List may run: its own setting and the Info Display's master switch are on, on a
+--- client with the DamageMeter atlases and ScrollBox templates the window relies on (Retail and Forever).
+---@return boolean allowed
+local function isAllowed()
+  return getSettings().enabled and db.profile.infoDisplay.enabled and isRetailOrForever()
+end
+
+--- AceAddon initialization hook; keeps the module disabled when it isn't allowed to run (see isAllowed).
 function module:OnInitialize()
-  if not getSettings().enabled or not isRetailOrForever() then self:Disable() end
+  if not isAllowed() then self:Disable() end
 end
 
 --- Shows the window (creating it on first use) and listens for roster changes.
 function module:OnEnable()
-  -- Addon-wide re-enables (e.g. profile reset) enable every module, so re-check the saved setting.
-  if not getSettings().enabled or not isRetailOrForever() then
+  -- Addon-wide re-enables (e.g. profile reset) and the Info Display switch enable every module, so re-check.
+  if not isAllowed() then
     self:SetEnabledState(false)
     return
   end

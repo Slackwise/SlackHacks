@@ -169,7 +169,7 @@ dbDefaults = {
       }
     },
     infoDisplay = {
-      enabled = false,
+      enabled = true,
       weeklies = {
         enabled = false,
         trackDelves = false
@@ -442,32 +442,27 @@ local function toggleSquareMinimap()
   if acr then acr:NotifyChange("SlackHacks") end
 end
 
+--- Returns whether Gear Stats overlays are currently showing (the Info Display, Char Sheet and Gear Stats are all on).
+---@return boolean active
 local function isGearStatsActive()
-  local profile = Self.db and Self.db.profile
-  return profile and profile.infoDisplay and profile.infoDisplay.enabled
-    and profile.infoDisplay.charSheet and profile.infoDisplay.charSheet.gearStats
+  local infoDisplay = Self.db and Self.db.profile.infoDisplay
+  return (infoDisplay and infoDisplay.enabled and infoDisplay.charSheet.enabled and infoDisplay.charSheet.gearStats)
+    and true or false
 end
 
+--- Minimap toggle for Gear Stats. Turning it on also turns on whatever it depends on (the Info Display master
+--- switch and the Char Sheet module); turning it off only hides Gear Stats so the other Info Display features stay.
 local function toggleGearStats()
-  local profile = Self.db and Self.db.profile
-  if not profile then return end
-  if not profile.infoDisplay then profile.infoDisplay = {} end
-  if not profile.infoDisplay.charSheet then profile.infoDisplay.charSheet = {} end
-  local isGearStats = profile.infoDisplay.enabled and profile.infoDisplay.charSheet.gearStats
-  local newState = not isGearStats
-  profile.infoDisplay.enabled = newState
-  profile.infoDisplay.charSheet.enabled = newState
-  profile.infoDisplay.charSheet.gearStats = newState
-  if newState then
-    if Self.CharSheet and not Self.CharSheet:IsEnabled() then Self.CharSheet:Enable() end
-    if Self.CharSheet and Self.CharSheet.SetCharSheetEnabled then Self.CharSheet:SetCharSheetEnabled(true) end
-    if Self.InfoDisplay then Self.InfoDisplay:SetEnabled(true) end
-  else
-    if Self.InfoDisplay then Self.InfoDisplay:SetEnabled(false) end
-    if Self.CharSheet and Self.CharSheet.SetCharSheetEnabled then Self.CharSheet:SetCharSheetEnabled(false) end
+  if not Self.db or not Self.CharSheet or not Self.InfoDisplay then return end
+  local infoDisplay = Self.db.profile.infoDisplay
+  if isGearStatsActive() then
+    Self.CharSheet:SetGearStatsEnabled(false)
+    return
   end
-  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
-  if acr then acr:NotifyChange("SlackHacks") end
+  -- Enable the Char Sheet first so the master switch's sub-module Enable() doesn't immediately abort it.
+  if not infoDisplay.charSheet.enabled then Self.CharSheet:SetCharSheetEnabled(true) end
+  if not infoDisplay.enabled then Self.InfoDisplay:SetEnabled(true) end
+  Self.CharSheet:SetGearStatsEnabled(true)
 end
 
 local function isMouseRingActive()
@@ -486,25 +481,23 @@ local function toggleMouseRing()
   if acr then acr:NotifyChange("SlackHacks") end
 end
 
+--- Returns whether the Delves weekly tracker is showing (the Info Display, Weeklies and Track Delves are all on).
+---@return boolean active
 local function isTrackDelvesActive()
-  local profile = Self.db and Self.db.profile
-  return profile and profile.infoDisplay and profile.infoDisplay.weeklies
-    and profile.infoDisplay.weeklies.enabled and profile.infoDisplay.weeklies.trackDelves
+  local infoDisplay = Self.db and Self.db.profile.infoDisplay
+  return (infoDisplay and infoDisplay.enabled and infoDisplay.weeklies.enabled and infoDisplay.weeklies.trackDelves)
+    and true or false
 end
 
+--- Minimap toggle for the Delves tracker. Turning it on also turns on the Info Display master switch and the
+--- Weeklies module; turning it off disables Weeklies and Track Delves but leaves the rest of the Info Display alone.
 local function toggleTrackDelves()
-  local profile = Self.db and Self.db.profile
-  if not profile then return end
-  if not profile.infoDisplay then profile.infoDisplay = {} end
-  if not profile.infoDisplay.weeklies then profile.infoDisplay.weeklies = {} end
-  local isTracking = profile.infoDisplay.weeklies.enabled and profile.infoDisplay.weeklies.trackDelves
-  local newState = not isTracking
-  profile.infoDisplay.weeklies.enabled = newState
-  profile.infoDisplay.weeklies.trackDelves = newState
-  if Self.Weeklies then
-    Self.Weeklies:SetEnabled(newState)
-    Self.Weeklies:SetTrackDelves(newState)
-  end
+  if not Self.db or not Self.Weeklies or not Self.InfoDisplay then return end
+  local newState = not isTrackDelvesActive()
+  -- Save Weeklies' settings before the master switch enables sub-modules, so its Enable() isn't aborted.
+  Self.Weeklies:SetTrackDelves(newState)
+  Self.Weeklies:SetEnabled(newState)
+  if newState and not Self.db.profile.infoDisplay.enabled then Self.InfoDisplay:SetEnabled(true) end
   local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
   if acr then acr:NotifyChange("SlackHacks") end
 end
@@ -880,6 +873,12 @@ local function openEditMode()
   if EditModeManagerFrame then
     ShowUIPanel(EditModeManagerFrame)
   end
+end
+
+--- AceConfig `disabled` callback: Info Display options are greyed out while its master switch is off.
+---@return boolean disabled
+local function infoDisplayDisabled()
+  return not db.profile.infoDisplay.enabled
 end
 
 local function infoDisplayCharSheetDisabled()
@@ -2355,7 +2354,8 @@ options = {
         overview = goldModuleOverview("Display item levels, upgrade tracks, stats, enchants, and gems directly on equipment icons."),
         enabled = {
           name = "Enable Info Display Module",
-          desc = "Enable Info Display overlays on equipment slots.",
+          desc = "Enable all Info Display features: Char Sheet, Weeklies, and the Guildie and Friends lists. " ..
+            "Turning this off disables all of them.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -2371,6 +2371,7 @@ options = {
           descStyle = "inline",
           width = "full",
           hidden = function() return not isRetailOrForever() end,
+          disabled = infoDisplayDisabled,
           get = function() return db.profile.infoDisplay.playersOnline.stacked end,
           set = function(_, value) Self.InfoDisplay:SetStackLists(value) end,
           order = 0.1
@@ -2382,7 +2383,7 @@ options = {
           values = { friends = "Friends, Guildies", guildies = "Guildies, Friends" },
           sorting = { "friends", "guildies" },
           hidden = function() return not isRetailOrForever() end,
-          disabled = function() return not db.profile.infoDisplay.playersOnline.stacked end,
+          disabled = function() return infoDisplayDisabled() or not db.profile.infoDisplay.playersOnline.stacked end,
           get = function() return db.profile.infoDisplay.playersOnline.stackOrder end,
           set = function(_, value) Self.InfoDisplay:SetStackOrder(value) end,
           order = 0.2
@@ -2392,6 +2393,7 @@ options = {
           name = "Char Sheet",
           desc = "Character Sheet equipment overlay options.",
           order = 1,
+          disabled = infoDisplayDisabled,
           args = {
             overview = goldModuleOverview("Display Gear Stats on the character sheet with configurable item-level, upgrade, stat, enchant, and gem details."),
             enabled = {
@@ -2411,8 +2413,8 @@ options = {
               descStyle = "inline",
               width = "full",
               get = function() return db.profile.infoDisplay.charSheet.gearStats end,
-              set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
-              disabled = function() return not db.profile.infoDisplay.charSheet.enabled end,
+              set = function(_, value) Self.CharSheet:SetGearStatsEnabled(value) end,
+              disabled = infoDisplayCharSheetDisabled,
               order = 1.5
             },
             itemLevel = {
@@ -2573,6 +2575,7 @@ options = {
           name = "Weeklies",
           desc = "Track weekly quest completions and activities.",
           order = 2,
+          disabled = infoDisplayDisabled,
           args = {
             overview = goldModuleOverview("Track weekly activities and show their progress in the Objective Tracker."),
             enabled = {
@@ -2604,6 +2607,7 @@ options = {
           name = "Guildie List",
           desc = "A collapsible window listing online guild members.",
           order = 3,
+          disabled = infoDisplayDisabled,
           args = {
             overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online guild members and their zones. Click a member for Invite, Whisper, and View Houses."),
             enabled = {
@@ -2706,6 +2710,7 @@ options = {
           name = "Friends List",
           desc = "A collapsible window listing online friends.",
           order = 4,
+          disabled = infoDisplayDisabled,
           args = {
             overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online friends and their locations."),
             enabled = {

@@ -213,9 +213,21 @@ function module:GetSettings()
   return getSettings()
 end
 
+--- Returns whether the Char Sheet may run: its own setting and the Info Display's master switch are both on.
+---@return boolean active
+local function isCharSheetActive()
+  local infoDisplay = db and db.profile and db.profile.infoDisplay
+  return (infoDisplay and infoDisplay.enabled and getSettings().enabled) and true or false
+end
+
+--- Returns whether equipment overlays should be drawn for a unit. Both the character sheet and the inspect frame
+--- follow Gear Stats: it used to share one saved switch with the whole Info Display, so inspect overlays only ever
+--- showed while Gear Stats was on, and this keeps that behavior now the two are separate.
+---@param unitId string "player" or "target".
+---@return boolean show
 function module:ShouldShowOverlays(unitId)
   local settings = getSettings()
-  return settings.enabled and (unitId ~= "player" or settings.gearStats == true)
+  return settings.enabled and settings.gearStats == true
 end
 
 local function getForeverScrollArea()
@@ -275,11 +287,12 @@ end
 function module:UpdateCheckbox()
   if not gearStatsCheckbox then return end
   local settings = getSettings()
-  if not settings.enabled then
+  if not isCharSheetActive() then
     gearStatsCheckbox:Hide()
     return
   end
   gearStatsCheckbox:SetChecked(settings.gearStats == true)
+  gearStatsCheckbox:Show() -- Restores it after the Info Display switch was turned back on.
 end
 
 local function updateCheckboxPosition()
@@ -303,7 +316,7 @@ local function updateCheckboxPosition()
 end
 
 local function getOrCreateGearStatsCheckbox()
-  if not getSettings().enabled then
+  if not isCharSheetActive() then
     if gearStatsCheckbox then gearStatsCheckbox:Hide() end
     return nil
   end
@@ -333,7 +346,7 @@ local function getOrCreateGearStatsCheckbox()
     local checked = self:GetChecked() and true or false
     local sound = checked and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF
     PlaySound(sound or (checked and 856 or 857))
-    Self.InfoDisplay:SetEnabled(checked)
+    module:SetGearStatsEnabled(checked)
   end)
   checkbox:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -382,9 +395,15 @@ function module:SetCharSheetEnabled(enabled)
   if registry then registry:NotifyChange("SlackHacks") end
 end
 
+--- Shows or hides the equipment overlays (the Gear Stats checkbox), saves the choice, and redraws them. Separate
+--- from the Info Display's master switch, which turns the whole Char Sheet module on and off.
+---@param enabled boolean Whether the overlays should be shown.
 function module:SetGearStatsEnabled(enabled)
   getSettings().gearStats = enabled
   self:UpdateCheckbox()
+  self:Refresh()
+  local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
 end
 
 local CHAR_SHEET_DATA = module.Data
@@ -2194,4 +2213,5 @@ function module:OnDisable()
   for _, overlay in ipairs(createdOverlays) do
     overlay:Hide()
   end
+  self:UpdateCheckbox() -- Hides the Gear Stats checkbox when the Info Display was switched off.
 end

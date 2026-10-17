@@ -542,7 +542,8 @@ function module:Refresh()
   createButton()
   if not button then return end
 
-  local shouldShow = db.profile.infoDisplay.weeklies.enabled and db.profile.infoDisplay.weeklies.trackDelves
+  local weeklies = db.profile.infoDisplay.weeklies
+  local shouldShow = db.profile.infoDisplay.enabled and weeklies.enabled and weeklies.trackDelves
   if not shouldShow then
     button:Hide()
     return
@@ -582,16 +583,27 @@ function module:SetTrackDelves(enabled)
   self:Refresh()
 end
 
+--- Returns whether weekly tracking may run: its own setting and the Info Display's master switch are both on.
+---@return boolean allowed
+local function isAllowed()
+  return db.profile.infoDisplay.enabled and db.profile.infoDisplay.weeklies.enabled
+end
+
 --- AceAddon initialization hook; creates the button when its Objective Tracker anchor exists.
 function module:OnInitialize()
   createButton()
-  if not db.profile.infoDisplay.weeklies.enabled then self:Disable() end
+  if not isAllowed() then self:Disable() end
 end
 
 --- Registers events that can change stash progress or bounty status, then performs an initial refresh.
 --- BAG_UPDATE_DELAYED (fired once per batch of bag changes, not per slot) catches the Acquired status
 --- picking up/losing the Trovehunter's Bounty item without registering a noisier per-slot bag event.
 function module:OnEnable()
+  -- Addon-wide re-enables (e.g. profile reset) and the Info Display switch enable every module, so re-check.
+  if not isAllowed() then
+    self:SetEnabledState(false)
+    return
+  end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "Refresh")
   self:RegisterEvent("UPDATE_UI_WIDGET", "Refresh")
   self:RegisterEvent("QUEST_LOG_UPDATE", "Refresh")

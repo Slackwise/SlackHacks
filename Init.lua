@@ -352,16 +352,35 @@ CONFIG_MIGRATIONS = {
   end,
   -- Config v9, addon v13.
   --- Moves the renamed Guild Member List's settings (infoDisplay.guildMemberList) to the Guildie List
-  --- (infoDisplay.guildieList) in every saved profile.
+  --- (infoDisplay.guildieList) in every saved profile, and splits Gear Stats from the Info Display's switch.
   [9] = function()
-    --- Carries over the profile's saved Guild Member List settings under the Guildie List's key.
+    --- Carries over the profile's saved Guild Member List settings under the Guildie List's key, and moves the
+    --- Info Display's old on/off state to Gear Stats.
     ---@param p table|nil Saved profile.
     local function migrateProfile(p)
       if type(p) ~= "table" then return end
+      -- Before v13 `infoDisplay.enabled` (default false) only meant "Gear Stats", kept in sync with
+      -- charSheet.gearStats. It's now the master switch for every Info Display module (default true), so a profile
+      -- that had it off keeps Gear Stats hidden instead and the other modules follow their own settings.
+      -- Non-raw read, so the active profile gets AceDB's defaults-backed table; other profiles get a new one.
+      local rawInfoDisplay = rawget(p, "infoDisplay")
+      local wasEnabled = type(rawInfoDisplay) == "table" and rawget(rawInfoDisplay, "enabled") == true
+      if not wasEnabled then
+        local display = p.infoDisplay
+        if type(display) ~= "table" then
+          display = {}
+          p.infoDisplay = display
+        end
+        if type(display.charSheet) ~= "table" then display.charSheet = {} end
+        display.charSheet.gearStats = false
+        -- Clear an explicit false so the new default (on) applies. A cleared value reads as on when the active
+        -- profile is also iterated in Self.db.profiles; re-running this then only re-hides Gear Stats, so it's safe.
+        display.enabled = nil
+      end
+
       local infoDisplay = rawget(p, "infoDisplay")
       local old = type(infoDisplay) == "table" and rawget(infoDisplay, "guildMemberList")
       if type(old) ~= "table" then return end
-      -- Non-raw read, so the active profile gets AceDB's defaults-backed table; other profiles get a new one.
       local new = infoDisplay.guildieList
       if type(new) ~= "table" then
         new = {}
