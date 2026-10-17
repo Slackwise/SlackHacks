@@ -98,6 +98,13 @@ function isClassic()
   end
 end
 
+--- Returns whether this is a client with Retail's modern UI: Retail itself, or WoW Forever, which is built on the
+--- Retail client and ships the same FrameXML (DamageMeter, Objective Tracker, Blizzard_Menu, ScrollBox, UnitPopup).
+---@return boolean modern True on Retail or Forever.
+function isRetailOrForever()
+  return isRetail() or isForever()
+end
+
 function getGameType()
   if isRetail() then
     return "RETAIL"

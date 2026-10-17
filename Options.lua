@@ -282,6 +282,10 @@ RETAIL_MODULES = {
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
+}
+
+-- Modules that need Retail's modern UI, which WoW Forever shares since it's built on the Retail client.
+RETAIL_OR_FOREVER_MODULES = {
   { key = { "infoDisplay", "guildieList" }, name = "Guildie List" },
   { key = { "infoDisplay", "friendsList" }, name = "Friends List" },
 }
@@ -336,6 +340,12 @@ local function hideNonRetailOptions()
     local group = resolveOptionGroup(mod.key)
     if group then
       group.hidden = function() return not isRetail() end
+    end
+  end
+  for _, mod in ipairs(RETAIL_OR_FOREVER_MODULES) do
+    local group = resolveOptionGroup(mod.key)
+    if group then
+      group.hidden = function() return not isRetailOrForever() end
     end
   end
 end
@@ -2360,7 +2370,7 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          hidden = function() return not isRetail() end,
+          hidden = function() return not isRetailOrForever() end,
           get = function() return db.profile.infoDisplay.playersOnline.stacked end,
           set = function(_, value) Self.InfoDisplay:SetStackLists(value) end,
           order = 0.1
@@ -2371,7 +2381,7 @@ options = {
           type = "select",
           values = { friends = "Friends, Guildies", guildies = "Guildies, Friends" },
           sorting = { "friends", "guildies" },
-          hidden = function() return not isRetail() end,
+          hidden = function() return not isRetailOrForever() end,
           disabled = function() return not db.profile.infoDisplay.playersOnline.stacked end,
           get = function() return db.profile.infoDisplay.playersOnline.stackOrder end,
           set = function(_, value) Self.InfoDisplay:SetStackOrder(value) end,
