@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 4
+CONFIG_VERSION = 7
 
 function getAddonVersion()
   return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
@@ -192,6 +192,102 @@ CONFIG_MIGRATIONS = {
         if p.quest[key] == nil then
           p.quest[key] = value
         end
+      end
+    end
+
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+      end
+    end
+    if Self.db.profile then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  [5] = function()
+    -- Rename movableWindows -> windows and split it into nested `movable` and `scaling` tables. The old
+    -- single `enabled` switch becomes both the overall Windows switch and the Movable Windows switch, so
+    -- existing users keep the exact behavior they had.
+    local function migrateProfile(p)
+      if not p or type(p) ~= "table" then return end
+      local old = p.movableWindows
+      if type(old) ~= "table" then return end
+      local enabled = old.enabled == true
+      -- Merge into any existing `windows` table (AceDB may already have filled defaults into the current
+      -- profile) and only copy values that were actually saved: AceDB strips default values on logout, so
+      -- old fields are often nil, and every table the module indexes must exist afterwards.
+      local w = type(p.windows) == "table" and p.windows or {}
+      p.windows = w
+      w.enabled = enabled
+      w.movable = type(w.movable) == "table" and w.movable or {}
+      w.scaling = type(w.scaling) == "table" and w.scaling or {}
+      local function copy(dst, key, value)
+        if value ~= nil then dst[key] = value end
+      end
+      w.movable.enabled = enabled
+      copy(w.movable, "moveToasts", old.moveToasts)
+      copy(w.movable, "modifierKey", old.modifierKey)
+      copy(w.movable, "savePositionStrategy", old.savePositionStrategy)
+      copy(w.movable, "toastPoints", old.toastPoints)
+      w.movable.points = old.points or w.movable.points or {}
+      copy(w.scaling, "enabled", old.enableScaling)
+      copy(w.scaling, "modifierKey", old.scaleModifierKey)
+      copy(w.scaling, "saveStrategy", old.saveScaleStrategy)
+      w.scaling.scales = old.scales or w.scaling.scales or {}
+      p.movableWindows = nil
+    end
+
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+      end
+    end
+    if Self.db.profile then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  [6] = function()
+    -- Toast moving and its saved position move up from windows.movable to the Windows level, and Zone Map
+    -- scaling gets its own switch (defaulting on, since it was previously always active).
+    local function migrateProfile(p)
+      if not p or type(p) ~= "table" or type(p.windows) ~= "table" then return end
+      local w = p.windows
+      if type(w.movable) == "table" then
+        -- A value saved under movable always wins: AceDB may already have copied a default into `windows`.
+        if w.movable.moveToasts ~= nil then w.moveToasts = w.movable.moveToasts end
+        if w.movable.toastPoints ~= nil then w.toastPoints = w.movable.toastPoints end
+        w.movable.moveToasts = nil
+        w.movable.toastPoints = nil
+      end
+      if rawget(w, "zoneMapScaling") == nil then w.zoneMapScaling = true end
+      w.movable = type(w.movable) == "table" and w.movable or {}
+      w.movable.points = w.movable.points or {}
+      w.scaling = type(w.scaling) == "table" and w.scaling or {}
+      w.scaling.scales = w.scaling.scales or {}
+    end
+
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+      end
+    end
+    if Self.db.profile then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  [7] = function()
+    -- Rename windows.moveToasts -> windows.movableToasts and windows.zoneMapScaling -> windows.scalingZoneMap.
+    -- Only saved (raw) values are moved, so AceDB defaults never overwrite a user's choice.
+    local function migrateProfile(p)
+      if not p or type(p) ~= "table" or type(p.windows) ~= "table" then return end
+      local w = p.windows
+      if rawget(w, "moveToasts") ~= nil then
+        w.movableToasts = rawget(w, "moveToasts")
+        w.moveToasts = nil
+      end
+      if rawget(w, "zoneMapScaling") ~= nil then
+        w.scalingZoneMap = rawget(w, "zoneMapScaling")
+        w.zoneMapScaling = nil
       end
     end
 

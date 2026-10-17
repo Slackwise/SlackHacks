@@ -1,9 +1,10 @@
 setfenv(1, _G.SlackHacks)
 
 --=====================================================================
--- Movable Windows
+-- Windows
 --=====================================================================
--- Lets you drag most Blizzard windows around by their title bar, and resize them with the mouse wheel.
+-- Window tweaks, split into "Movable Windows" (dragging) and "Scaling" (mouse-wheel resizing) features
+-- under one overall Windows enable. Lets you drag most Blizzard windows around by their title bar, and resize them with the mouse wheel.
 -- Reviewed directly against Blizzard's own FrameXML, specifically `PanelDragBarMixin`
 -- (Blizzard_SharedXML/SharedUIPanelTemplates.lua) -- the exact native drag-bar mixin Blizzard's own
 -- movable panels use. Every registered window gets the same unprotected child overlay, sized to just its
@@ -19,8 +20,8 @@ setfenv(1, _G.SlackHacks)
 -- the real Edit Mode) and the Zone Map (moved by its own tab, with a "Change Scale" tab-menu slider). See
 -- their own sections below for why.
 
-local module = Self:NewModule("MovableWindows", "AceEvent-3.0", "AceHook-3.0")
-Self.MovableWindows = module
+local module = Self:NewModule("Windows", "AceEvent-3.0", "AceHook-3.0")
+Self.Windows = module
 
 --=====================================================================
 -- Constants & state
@@ -32,7 +33,7 @@ local DEFAULT_TITLE_BAR_HEIGHT = 20 -- matches most Blizzard windows' native tit
 -- placed at up to frame:GetFrameLevel()+510 (see PortraitFrameMixin:SetFrameLevelsFromBaseLevel); the drag
 -- handle sits above that artwork, but its hit rectangle must exclude the native close button.
 local TITLE_BAR_HANDLE_LEVEL_OFFSET = 1000
-local FAKE_UI_PARENT_NAME = "SlackHacksMovableWindowsFakeUIParent"
+local FAKE_UI_PARENT_NAME = "SlackHacksWindowsFakeUIParent"
 -- Blizzard's alert/toast popups -- achievements, notable items (mounts/toys/recipes/BoE epics/etc.), honor,
 -- garrison, etc. -- all get anchored under this one global container frame.
 local TOAST_FRAME_NAME = "AlertFrame"
@@ -68,10 +69,22 @@ local setupZoneMap, setZoneMapScale
 -- Settings helpers
 --=====================================================================
 --- Shorthand for this module's slice of the saved-variables DB. Centralized in one place (rather than
---- inlining `db.profile.movableWindows` everywhere) so the DB layout only has to be known here.
----@return table settings - The module's profile settings table.
+--- inlining `db.profile.windows` everywhere) so the DB layout only has to be known here.
+---@return table settings - The module's profile settings table (`enabled`, `movable`, `scaling`).
 local function settings()
-  return db.profile.movableWindows
+  return db.profile.windows
+end
+
+--- The "Movable Windows" feature's settings (dragging, saved positions, toasts).
+---@return table movable
+local function movable()
+  return settings().movable
+end
+
+--- The "Scaling" feature's settings (mouse-wheel resizing, saved scales).
+---@return table scaling
+local function scaling()
+  return settings().scaling
 end
 
 --- Whether the module's own on/off switch is enabled. Checked before doing any work so a disabled module
@@ -93,16 +106,18 @@ local function isModifierKeyDown(key)
   return true -- "NONE": no modifier required
 end
 
---- Whether the user's configured "move" modifier key is currently held.
+--- Whether the user's configured "move" modifier key is currently held. Always false when the Movable
+--- Windows feature is off, which is what gates every drag path.
 ---@return boolean isDown
 local function isMoveModifierDown()
-  return isModifierKeyDown(settings().modifierKey)
+  if not movable().enabled then return false end
+  return isModifierKeyDown(movable().modifierKey)
 end
 
 --- Whether the user's configured "scale" (mouse-wheel-resize) modifier key is currently held.
 ---@return boolean isDown
 local function isScaleModifierDown()
-  return isModifierKeyDown(settings().scaleModifierKey)
+  return isModifierKeyDown(scaling().modifierKey)
 end
 
 --=====================================================================
@@ -376,7 +391,7 @@ end
 
 --- Wires up frameData.storage.points, the in-memory table that tracks a frame's drag/detach state. Under
 --- the "session" save strategy this is just a plain scratch table (cleared on reload). Under "permanent"
---- it's instead aliased *by reference* to settings().points[frameName], so any later mutation (a drag, a
+--- it's instead aliased *by reference* to movable().points[frameName], so any later mutation (a drag, a
 --- detach) is automatically persisted with no separate save step, and is naturally restored next login
 --- since the same (already-populated) saved-variable table gets re-aliased here again. Also validates any
 --- previously-saved detachPoints on load: if the frame it was detached-anchored to no longer exists (e.g.
@@ -389,15 +404,15 @@ local function setupPointStorage(frame, frameData)
   local frameName = frameData.storage.frameName
   if not frameName then return false end
 
-  if settings().savePositionStrategy ~= "permanent" then
+  if movable().savePositionStrategy ~= "permanent" then
     frameData.storage.points = frameData.storage.points or {}
     return true
   end
 
-  if frameData.storage.points and frameData.storage.points == settings().points[frameName] then return true end
+  if frameData.storage.points and frameData.storage.points == movable().points[frameName] then return true end
 
-  settings().points[frameName] = settings().points[frameName] or {}
-  frameData.storage.points = settings().points[frameName]
+  movable().points[frameName] = movable().points[frameName] or {}
+  frameData.storage.points = movable().points[frameName]
 
   if frameData.storage.points.detachPoints then
     local firstPoint = frameData.storage.points.detachPoints[1]
@@ -483,7 +498,10 @@ local function setFrameScale(frame, requestedScale)
   end
 
   local frameName = frameData.storage.frameName
-  settings().scales[frameName] = newScale
+  -- "off" keeps the scale only while the window is open, so nothing is saved for later.
+  if scaling().saveStrategy ~= "off" then
+    scaling().scales[frameName] = newScale
+  end
   sessionScales[frameName] = newScale
   frame:SetScale(newScale)
 
@@ -621,7 +639,7 @@ local function doOnMouseUp(frame, button, moveHandle)
       frameData.storage.isMoving = nil
       returnValue = true
 
-      -- When strategy == "permanent", storage.points IS (by reference) settings().points[frameName], so
+      -- When strategy == "permanent", storage.points IS (by reference) movable().points[frameName], so
       -- this mutation is already persisted -- no separate save step needed (see setupPointStorage above).
       setFramePoints(frame, frameData.storage.points.dragPoints)
 
@@ -702,7 +720,7 @@ end
 ---@param frame Frame
 ---@param delta number
 function onMouseWheel(frame, delta)
-  if not settings().enableScaling or not isScaleModifierDown() then return false end
+  if not scaling().enabled or not isScaleModifierDown() then return false end
   return doOnMouseWheel(frame, delta)
 end
 
@@ -749,9 +767,17 @@ function onShow(frame, skipRerun)
   -- Position isn't restored here -- it's handled entirely by the onSetPoint watchdog below, which
   -- reasserts frameData.storage.points.dragPoints (in-memory for "session", saved-variable-backed via
   -- table aliasing for "permanent") whenever Blizzard's own code re-anchors the frame, e.g. on every Show.
-  local scaleStrategy = settings().saveScaleStrategy
-  if scaleStrategy == "permanent" and settings().scales[frameName] then
-    setFrameScale(frame, settings().scales[frameName])
+  local scaleStrategy = scaling().saveStrategy
+  if scaleStrategy == "off" then
+    -- Forget the previous scale and return to the native one each time the window is shown.
+    sessionScales[frameName] = nil
+    local nativeScale = frameData.storage.nativeState and frameData.storage.nativeState.scale
+    if nativeScale and getFrameScale(frame) ~= nativeScale then
+      setFrameScale(frame, nativeScale)
+      sessionScales[frameName] = nil
+    end
+  elseif scaleStrategy == "permanent" and scaling().scales[frameName] then
+    setFrameScale(frame, scaling().scales[frameName])
   elseif sessionScales[frameName] then
     setFrameScale(frame, sessionScales[frameName])
   end
@@ -816,7 +842,7 @@ end
 function onSetPoint(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
-  if settings().savePositionStrategy == "off" then return end
+  if movable().savePositionStrategy == "off" then return end
   if ignoreSetPointHook then return end
 
   frameData.storage.points = frameData.storage.points or {}
@@ -824,7 +850,7 @@ function onSetPoint(frame)
     frameData.storage.points.dragged
     and (not frameData.storage.frameParent or frameData.storage.detached)
   then
-    if settings().savePositionStrategy ~= "permanent" then
+    if movable().savePositionStrategy ~= "permanent" then
       setFramePoints(frame, frameData.storage.points.dragPoints)
     else
       addToSetFramePointsQueue(frame, frameData.storage.points.dragPoints)
@@ -871,9 +897,9 @@ local function onUpdateScaleForFit(frame)
   end
 
   local frameName = frameData.storage.frameName
-  local scaleStrategy = settings().saveScaleStrategy
-  if scaleStrategy == "permanent" and settings().scales[frameName] then
-    setFrameScale(frame, settings().scales[frameName])
+  local scaleStrategy = scaling().saveStrategy
+  if scaleStrategy == "permanent" and scaling().scales[frameName] then
+    setFrameScale(frame, scaling().scales[frameName])
   elseif sessionScales[frameName] then
     setFrameScale(frame, sessionScales[frameName])
   end
@@ -897,7 +923,7 @@ function checkMouseWheelCapture()
   if not mouseWheelCaptureFrame then return end
   mouseWheelCaptureFrame:EnableMouseWheel(false)
 
-  if not isModuleEnabled() or not settings().enableScaling then return end
+  if not isModuleEnabled() or not scaling().enabled then return end
   if not isScaleModifierDown() or not next(mouseoverFrames) then return end
 
   local foci = GetMouseFoci and GetMouseFoci() or {}
@@ -939,7 +965,7 @@ end
 --- brief moments checkMouseWheelCapture() decides scaling should actually happen -- otherwise it stays
 --- disabled and every wheel event passes through to whatever's normally below it, completely unaffected.
 local function initMouseWheelCaptureFrame()
-  mouseWheelCaptureFrame = CreateFrame("Frame", "SlackHacksMovableWindowsMouseWheelCapture")
+  mouseWheelCaptureFrame = CreateFrame("Frame", "SlackHacksWindowsMouseWheelCapture")
   mouseWheelCaptureFrame:SetPoint("TOPLEFT")
   mouseWheelCaptureFrame:SetPoint("BOTTOMRIGHT")
   mouseWheelCaptureFrame:SetScript("OnEvent", checkMouseWheelCapture)
@@ -1266,7 +1292,7 @@ function module:ApplyAll()
       processFrame(frameName, frameData)
     end
   end
-  if settings().moveToasts and not toastHooked then
+  if settings().movableToasts and not toastHooked then
     registerToastEditMode()
   end
   setupZoneMap()
@@ -1275,7 +1301,7 @@ end
 --- Slash-command/options-panel action: forgets every saved drag position for every registered frame
 --- (including detach anchors), reverting everything back to Blizzard's own default anchors on next Show.
 function module:ResetPositions()
-  wipe(settings().points)
+  wipe(movable().points)
 end
 
 --- Slash-command/options-panel action: forgets every saved AND session scale for every registered frame,
@@ -1283,7 +1309,7 @@ end
 --- The Zone Map is snapped back to 1.0 immediately instead, since it isn't a registry frame and so has no
 --- onShow() hook that would pick up the wiped scale later.
 function module:ResetScales()
-  wipe(settings().scales)
+  wipe(scaling().scales)
   wipe(sessionScales)
   if isModuleEnabled() then
     setZoneMapScale(1)
@@ -1383,7 +1409,7 @@ local function resetToastSelection()
   local selection = toastSelection
   if not selection then return end
 
-  if settings().moveToasts and EditModeManagerFrame:IsShown() then
+  if settings().movableToasts and EditModeManagerFrame:IsShown() then
     selection:ShowHighlighted()
   else
     selection:Hide()
@@ -1495,7 +1521,7 @@ end
 --- integration leaves its toast anchor in place.
 ---@param enabled boolean
 function module:SetMoveToastsEnabled(enabled)
-  settings().moveToasts = enabled
+  settings().movableToasts = enabled
   if not isModuleEnabled() then return end -- picked up on next Enable via registerDefaultFrames()
   if enabled then
     registerToastEditMode()
@@ -1523,7 +1549,7 @@ end
 --   enabled" part), reusing Blizzard's own tab-position persistence rather than our own points table.
 -- - Add a "Change Scale" entry to the tab's right-click menu, right under Blizzard's own "Change Opacity",
 --   opening a slider panel that's a 1:1 clone of Blizzard's OpacityFrame (the panel "Change Opacity"
---   opens), stored in the same settings().scales/sessionScales tables as every other window's scale.
+--   opens), stored in the same scaling().scales/sessionScales tables as every other window's scale.
 -- Only the map frame is scaled, not the tab: the map is anchored by its TOPLEFT to the tab's BOTTOMLEFT, so
 -- scaling the map grows/shrinks it down and to the right from that fixed corner while the tab stays put.
 local ZONE_MAP_FRAME_NAME = "BattlefieldMapFrame"
@@ -1548,8 +1574,8 @@ end
 --- registry window's onShow() does.
 ---@return number scale - 1 if nothing has been saved yet.
 local function getZoneMapScale()
-  if settings().saveScaleStrategy == "permanent" and settings().scales[ZONE_MAP_FRAME_NAME] then
-    return settings().scales[ZONE_MAP_FRAME_NAME]
+  if scaling().saveStrategy == "permanent" and scaling().scales[ZONE_MAP_FRAME_NAME] then
+    return scaling().scales[ZONE_MAP_FRAME_NAME]
   end
   return sessionScales[ZONE_MAP_FRAME_NAME] or 1
 end
@@ -1560,7 +1586,9 @@ end
 ---@param scale number
 function setZoneMapScale(scale)
   scale = roundScale(math.max(MIN_SCALE, math.min(MAX_SCALE, scale)))
-  settings().scales[ZONE_MAP_FRAME_NAME] = scale
+  if scaling().saveStrategy ~= "off" then
+    scaling().scales[ZONE_MAP_FRAME_NAME] = scale
+  end
   sessionScales[ZONE_MAP_FRAME_NAME] = scale
   local map = _G[ZONE_MAP_FRAME_NAME]
   if map then
@@ -1697,7 +1725,7 @@ local function modifyZoneMapMenu()
   if zoneMapMenuModified or not (Menu and Menu.ModifyMenu) then return end
   zoneMapMenuModified = true
   Menu.ModifyMenu(ZONE_MAP_MENU_TAG, function(owner, rootDescription)
-    if not isModuleEnabled() then return end
+    if not isModuleEnabled() or not settings().scalingZoneMap then return end
     rootDescription:CreateButton(ZONE_MAP_SCALE_LABEL, showZoneMapScale)
   end)
 end
@@ -1713,13 +1741,36 @@ function setupZoneMap()
     zoneMapHooked = true
     hookScript(tab, "OnDragStart", onZoneMapTabDragStart)
     hookScript(tab, "OnDragStop", onZoneMapTabDragStop)
+    -- "Do Not Remember": every time the map is shown again it starts back at its native scale.
+    hookScript(map, "OnShow", function()
+      if settings().scalingZoneMap and scaling().saveStrategy == "off" then
+        sessionScales[ZONE_MAP_FRAME_NAME] = nil
+        map:SetScale(1)
+      end
+    end)
   end
 
   modifyZoneMapMenu()
 
-  if not zoneMapScaleApplied then
+  if not zoneMapScaleApplied and settings().scalingZoneMap then
     zoneMapScaleApplied = true
     map:SetScale(getZoneMapScale())
+  end
+end
+
+--- Enable/disable Zone Map scaling (the "Change Scale" tab-menu slider and the saved scale being applied).
+--- Disabling immediately returns the map to its native scale; the saved scale is kept for re-enabling.
+---@param enabled boolean
+function module:SetZoneMapScalingEnabled(enabled)
+  settings().scalingZoneMap = enabled
+  if not isModuleEnabled() then return end
+  local map = _G[ZONE_MAP_FRAME_NAME]
+  if enabled then
+    setupZoneMap()
+  else
+    if map and zoneMapScaleApplied then map:SetScale(1) end
+    if zoneMapScaleFrame then zoneMapScaleFrame:Hide() end
+    zoneMapScaleApplied = nil
   end
 end
 
@@ -1788,7 +1839,7 @@ local function registerDefaultFrames()
     end
   end
 
-  if settings().moveToasts then
+  if settings().movableToasts then
     registerToastEditMode()
   end
 end
@@ -1796,24 +1847,12 @@ end
 --=====================================================================
 -- Lifecycle
 --=====================================================================
---- Turns the whole module on/off (the top-level "Enable Movable Windows" checkbox), via Ace3's standard
+--- Turns the whole module on/off (the top-level "Enable Windows" checkbox), via Ace3's standard
 --- Enable()/Disable() (which in turn call OnEnable()/OnDisable() below).
 ---@param enabled boolean
 function module:SetEnabled(enabled)
   settings().enabled = enabled
   if enabled then self:Enable() else self:Disable() end
-end
-
---- Slash-command toggle for the whole module's on/off state, with a chat confirmation printed since this
---- (unlike the options-panel checkbox, which is already visible feedback) is typically invoked "blind".
-function module:Toggle()
-  self:SetEnabled(not settings().enabled)
-  prn("Movable Windows " .. (settings().enabled and "enabled" or "disabled"))
-end
-
---- Global slash-command entry point (bound in Bindings.xml/Core.lua) for toggling the module.
-function toggleMovableWindows()
-  Self.MovableWindows:Toggle()
 end
 
 --- AceAddon lifecycle: runs once, at addon load. Disables the whole module outright on any client that's
@@ -1829,9 +1868,9 @@ function module:OnInitialize()
   end
   -- One-time cleanup: earlier versions registered ContainerFrame1..13 as position-persisted, which could
   -- have saved a stale dragged position fighting Blizzard's own bag layout; drop any leftover entries.
-  for frameName in pairs(settings().points) do
+  for frameName in pairs(movable().points) do
     if frameName:match("^ContainerFrame%d*$") then
-      settings().points[frameName] = nil
+      movable().points[frameName] = nil
     end
   end
   registerDefaultFrames()

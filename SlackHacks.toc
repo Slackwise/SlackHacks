@@ -6,7 +6,7 @@
 ## AddonCompartmentFuncOnEnter: SlackHacks_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: SlackHacks_OnAddonCompartmentLeave
 ## Author: Slack — Moon Guard
-## Version: 9
+## Version: 10
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
@@ -23,7 +23,7 @@ Buffs.lua
 Weeklies.lua
 ListviewBag.lua
 Minimap.lua
-MovableWindows.lua
+Windows.lua
 Controls.lua
 Graphics.lua
 MouseRing.lua
