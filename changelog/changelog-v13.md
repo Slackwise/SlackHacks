@@ -1,5 +1,9 @@
 # SlackHacks v13
 
+## Info Display
+- "Enable Info Display Module" is now a master switch that turns all Info Display features on or off: Char Sheet, Weeklies, the Guildie and Friends lists, and Players Online. It's on by default.
+- Gear Stats has its own setting now. Profiles that had the Info Display off keep Gear Stats hidden.
+
 ## Guildie List
 - Renamed from "Guild Member List" (existing settings are migrated)
 - Window title is now "Guildies (N)"
