@@ -9,4 +9,4 @@
 ## Ace3 configuration and saved data
 
 - Before changing Ace3/AceDB defaults, options, profiles, or the saved-variable data shape, check the impact on existing user configurations.
-- When a saved-config data change requires migration, update `CONFIG_VERSION` and add the corresponding version transition to `CONFIG_MIGRATIONS` in `Init.lua`. Preserve existing user settings where possible, and verify the migration path for older saved data.
+- When a saved-config data change requires migration, update `CONFIG_VERSION` and add the corresponding version transition to `CONFIG_MIGRATIONS` in `Init.lua`. Bump `CONFIG_VERSION` at most once per release: if it has already been bumped since the last release (check the `## Version` in `SlackHacks.toc` and the comment on the newest migration), extend that unreleased migration instead of adding another. Preserve existing user settings where possible, and verify the migration path for older saved data.
