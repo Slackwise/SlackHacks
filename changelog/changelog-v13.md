@@ -7,7 +7,7 @@
 ## Guildie List
 - Renamed from "Guild Member List" (existing settings are migrated)
 - Window title is now "Guildies (N)"
-- Added a left/right-click context menu with Invite, Whisper, and View Houses
+- Added a left/right-click context menu with Invite, Whisper, and View Houses (View Houses is Retail only)
 - Names now use all of the window's width when it's resized, and windows can be resized up to full screen height
 - Now available in WoW Forever as well as Retail
 
