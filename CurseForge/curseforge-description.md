@@ -51,9 +51,10 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Junk Marking:** Mark specific items to be automatically sold at merchants or vendored with Blizzard's "Sell All Junk" button.
 
 ### Info Display
+One "Enable Info Display Module" switch turns all Info Display features on or off at once: Char Sheet, Weeklies, and the Guildie, Friends, and Players Online lists. Each feature also has its own on/off setting. The Guildie, Friends, and Players Online lists work in both Retail and WoW Forever.
 
 #### Char Sheet
-* **Gear Stats Overlay:** Adds a "Gear Stats" checkbox directly inside the Blizzard Character Sheet.
+* **Gear Stats Overlay:** Adds a "Gear Stats" checkbox directly inside the Blizzard Character Sheet (also toggleable from the minimap icon menu).
 * **Item Level Overlays:** Displays item level on each equipment slot, with coloring based on item quality or upgrade track watermark tiers.
 * **Upgrade Track Progress:** Displays current track progression (e.g., `6/6 C`) below the item level, with an option to display a star icon when fully upgraded.
 * **Watermark & Stat Totals:** Displays slot high-watermark item levels alongside aggregate Critical Strike, Haste, Mastery, and Versatility ratings and percentages.
@@ -69,27 +70,29 @@ An alternate list-based view for player bags that can replace the default grid b
 
 #### Guildie List
 * **Online Guild Members:** A movable, resizable window styled after Blizzard's Damage Meter, listing online guild members (class-colored) and their zone in two columns. Hovering a member shows a player tooltip like Blizzard's: name and AFK/DND status, guild and rank, level, race and class, faction, location, and guild notes.
-* **Context Menu:** Left- or right-click a member for the guild roster's Invite, Whisper, and View Houses options (Invite is hidden when they can't be invited, e.g. on mobile).
+* **Context Menu:** Left- or right-click a member for the guild roster's Invite, Whisper, and View Houses options (Invite is hidden when they can't be invited, e.g. on mobile; View Houses is Retail only). Your own row has no menu.
 * **Instance Icons:** Members inside a dungeon, raid, or delve get the world map's Dungeon/Raid/Delve icon after their zone (toggleable).
 * **Rank Icons:** The guild roster's crown icon after the Guild Master's name and its assistant icon after officers' names (toggleable).
 * **Faction Icons:** A Horde/Alliance icon after member names for cross-faction guilds; by default only shown for members of the opposite faction to your character (toggleable).
+* **In-Group Indicator:** Quick Join's group icon at the end of the name of anyone already in a group, the same information Blizzard uses to offer "Request to Join Group" instead of "Invite" (toggleable, on by default).
 * **Sorting:** Sort the list by name (default) or by location.
 * **Fit to Content:** Optionally size the window automatically to fit its members and their locations.
 * **Collapsible:** Collapse the window down to its header (which still shows the online count) using the same minimize button as the Damage Meter.
 * **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, the sort order, and the icon toggles.
+* **Minimap Toggle:** Turn the list on or off from the "Guildies List" checkbox in the minimap icon menu.
 
 #### Friends List
 * **Online Friends:** The same Damage Meter-style window as the Guildie List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
-* **Context Menu:** Left- or right-click a friend for the Friends list's Invite, Whisper, and View Houses options (Invite is hidden for friends in another game or WoW version).
+* **Context Menu:** Left- or right-click a friend for the Friends list's Invite, Whisper, and View Houses options (Invite is hidden for friends in another game or WoW version; View Houses is Retail only).
 * **Filters:** Only Favorite Friends (default on), Only Playing WoW, and Only Same WoW Version (e.g. hide Classic players while you're on Retail). With Only Favorite Friends off, character friends are listed too.
 * **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name, for friends who aren't in the same game as you, including other WoW versions (toggleable).
-* **Instance and Faction Icons:** The same toggleable Dungeon/Raid/Delve and Horde/Alliance icons as the Guildie List.
-* **Sorting, Fit to Content, Collapsible, Settings Cog:** Same as the Guildie List, with the filters also in the cog menu. Name sorting follows the Friends list's order.
+* **Instance, Faction, and In-Group Icons:** The same toggleable Dungeon/Raid/Delve, Horde/Alliance, and in-group icons as the Guildie List.
+* **Sorting, Fit to Content, Collapsible, Settings Cog, Minimap Toggle:** Same as the Guildie List, with the filters also in the cog menu. Name sorting follows the Friends list's order. The minimap checkbox is "Friends List".
 
 #### Players Online
 * **Stacked Lists:** Turn on "Stack Friends and Guildie Lists" to show both lists in one "Players Online (N)" window, where N counts everyone online once, even if they're both a friend and a guildie.
 * **Objective Tracker Sections:** Each list gets an Objective Tracker-style section header that collapses just that list. "List Stack Order" picks which list is on top.
-* **Settings Cogs:** The window's cog has Fit to Content, "Change Opacity", and "Split Friend/Guildie Lists". Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer "Stack Friend/Guildie Lists".
+* **Settings Cogs:** The window's cog has Fit to Content, "Change Opacity", "Split Friend/Guildie Lists", and "Friends List"/"Guildies List" checkboxes to turn each list on or off (turning both off also turns stacking off). Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer "Stack Friend/Guildie Lists".
 * **Collapsible:** Same as the individual lists.
 
 ### Mouse Ring
