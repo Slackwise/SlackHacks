@@ -390,7 +390,8 @@ local function initRow(row, friend)
   row.Zone:SetText(friend.zoneText)
 end
 
---- Returns the widest rendered width of a field across the friend entries, measured in the rows' font.
+--- Returns the widest rendered width of a field across the friend entries, measured in the rows' font. Names are
+--- measured both as displayed and as their `measureName` stand-in, since protected Battle.net names measure short.
 ---@param friends table Friend entries from populate().
 ---@param field string The entry field to measure ("name" or "zoneText").
 ---@return number width The widest width in whole pixels, plus one so rounding never truncates it (0 when empty).
@@ -399,6 +400,10 @@ local function measureWidest(friends, field)
   for _, friend in ipairs(friends) do
     window.Measure:SetText(friend[field])
     width = math.max(width, window.Measure:GetUnboundedStringWidth())
+    if field == "name" and friend.measureName then
+      window.Measure:SetText(friend.measureName)
+      width = math.max(width, window.Measure:GetUnboundedStringWidth())
+    end
   end
   return width > 0 and math.ceil(width) + 1 or 0
 end
@@ -484,18 +489,26 @@ end
 ---@param settings table This module's saved settings.
 ---@param playerFaction string|nil The player's faction group ("Horde"/"Alliance").
 ---@return string name The display text.
+---@return string measureName The same text with the protected Battle.net name swapped for the plain BattleTag,
+---for measuring the column width.
 local function formatAccountName(account, classColor, settings, playerFaction)
   local game = account.gameAccountInfo
-  local name = FRIENDS_BNET_NAME_COLOR:WrapTextInColorCode(BNet_GetBNetAccountName(account))
   local isWoW = game.clientProgram == BNET_CLIENT_WOW
+  local suffix = ""
   if isWoW and game.characterName and game.characterName ~= "" then
     local characterName = classColor and classColor:WrapTextInColorCode(game.characterName) or game.characterName
-    name = name .. " (" .. characterName .. ")"
+    suffix = " (" .. characterName .. ")"
   end
   if settings.showGameIcons and not (isWoW and game.wowProjectID == WOW_PROJECT_ID) then
-    name = name .. " " .. BNet_GetClientEmbeddedAtlas(game.clientProgram, ICON_SIZE, ICON_SIZE)
+    suffix = suffix .. " " .. BNet_GetClientEmbeddedAtlas(game.clientProgram, ICON_SIZE, ICON_SIZE)
   end
-  return isWoW and addFactionIcon(name, game.factionName, settings, playerFaction) or name
+  if isWoW then suffix = addFactionIcon(suffix, game.factionName, settings, playerFaction) end
+  -- The account name is a protected "|K...|k" string that only the renderer can resolve, and string width
+  -- measurement doesn't see the resolved name, so the window was sized as if it were much shorter. The BattleTag
+  -- is a plain string with the same name for BattleTag friends (a Real ID name may still differ).
+  local battleTag = BNet_GetTruncatedBattleTag(account.battleTag)
+  return FRIENDS_BNET_NAME_COLOR:WrapTextInColorCode(BNet_GetBNetAccountName(account)) .. suffix,
+    FRIENDS_BNET_NAME_COLOR:WrapTextInColorCode(battleTag) .. suffix
 end
 
 --- Returns 0, 1 or 2 for available, AFK or DND.
@@ -528,8 +541,10 @@ local function addAccountFriends(friends, settings, icons, playerFaction)
       local zone, zoneText = formatZone(inThisGame and game.areaName or game.richPresence, inThisGame and icons or {})
       local classInfo = isWoW and game.classID and C_CreatureInfo.GetClassInfo(game.classID)
       local classColor = classInfo and C_ClassColor.GetClassColor(classInfo.classFile)
+      local name, measureName = formatAccountName(account, classColor, settings, playerFaction)
       friends[#friends + 1] = {
-        name = formatAccountName(account, classColor, settings, playerFaction),
+        name = name,
+        measureName = measureName, -- Measurable stand-in for `name`; see formatAccountName.
         sortIndex = i,
         zone = zone, -- Plain text for sorting; zoneText is what's displayed.
         zoneText = zoneText,
