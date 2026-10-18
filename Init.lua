@@ -21,6 +21,21 @@ SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
 CONFIG_VERSION = 9
 
+-- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
+-- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
+-- it at runtime. Config version 1 covers every release before v2. Add an entry whenever CONFIG_VERSION is bumped.
+CONFIG_VERSION_RELEASES = {
+  [1] = 1,
+  [2] = 2,
+  [3] = 4,
+  [4] = 7,
+  [5] = 10, -- Config v5-v7 predate the once-per-release rule and all shipped together.
+  [6] = 10,
+  [7] = 10,
+  [8] = 12,
+  [9] = 13,
+}
+
 function getAddonVersion()
   return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
     or (GetAddOnMetadata and GetAddOnMetadata("SlackHacks", "Version"))
@@ -111,11 +126,12 @@ function icon(size)
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
--- Each entry notes the addon release (`## Version` in SlackHacks.toc) that first shipped it. Config version 1
--- covers every release before v2.
+-- CONFIG_VERSION_RELEASES records the addon release that first ships each one; the "Config vN, addon vX"
+-- comments below mirror it.
 --
--- Bump CONFIG_VERSION at most ONCE per release. The first saved-data change after a release bumps it and adds
--- the new entry; any further changes before the next release extend that same entry instead of bumping again.
+-- Bump CONFIG_VERSION at most ONCE per release. If CONFIG_VERSION_RELEASES[CONFIG_VERSION] is already the
+-- upcoming (unreleased) addon version, extend that entry instead of bumping again; otherwise bump it, add the
+-- new migration here, and map it to the upcoming release in CONFIG_VERSION_RELEASES.
 -- (Config v5-v7 predate this rule and all shipped together in addon v10.)
 CONFIG_MIGRATIONS = {
   -- Config v2, shipped in addon v2.
@@ -312,7 +328,7 @@ CONFIG_MIGRATIONS = {
       migrateProfile(Self.db.profile)
     end
   end,
-  -- Config v8, next release after addon v11.
+  -- Config v8, addon v12.
   --- Adds the opt-in Spacebar shortcut to every saved profile.
   [8] = function()
     --- Adds the opt-in Spacebar shortcut without changing existing quest settings.
@@ -327,7 +343,7 @@ CONFIG_MIGRATIONS = {
     end
     migrateProfile(Self.db.profile)
   end,
-  -- Config v9, next release after addon v11.
+  -- Config v9, addon v13.
   --- Moves the renamed Guild Member List's settings (infoDisplay.guildMemberList) to the Guildie List
   --- (infoDisplay.guildieList) in every saved profile.
   [9] = function()
