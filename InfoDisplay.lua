@@ -253,6 +253,9 @@ end
 ---@param header Frame A pooled header frame from the ScrollBox.
 ---@param data table Element data: { key, text, collapsed, spacing }.
 local function initSectionHeader(header, data)
+  -- Set before the cog is created: DropdownButtonMixin:SetupMenu runs buildSectionMenu right away when the cog is
+  -- shown (Retail and Forever alike), and the menu reads the section from its header's key.
+  header.key = data.key
   if not header.Text then
     local center = SECTION_HEADER_HEIGHT / 2
     local background = header:CreateTexture(nil, "BACKGROUND")
@@ -285,7 +288,6 @@ local function initSectionHeader(header, data)
     header.Text:SetPoint("LEFT", header, "BOTTOMLEFT", sectionOverhang + HEADER_TEXT_INSET, center)
     header.Text:SetPoint("RIGHT", cog, "LEFT", -2, 0)
   end
-  header.key = data.key
   header.Text:SetText(data.text)
   local atlas = data.collapsed and "ui-questtrackerbutton-secondary-expand" or "ui-questtrackerbutton-secondary-collapse"
   header.MinimizeButton:SetNormalAtlas(atlas)
