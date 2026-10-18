@@ -3,7 +3,7 @@ setfenv(1, _G.SlackHacks)
 --=====================================================================
 -- Quest / NPC
 --=====================================================================
--- NPC dialog automation (auto-accept, auto-complete, auto-click first option), number-key shortcuts for dialog
+-- NPC dialog automation (auto-accept, auto-complete, auto-click first option), number/Spacebar shortcuts for dialog
 -- options, and an "Extra Action Button" style button for quest items usable in the current quest area.
 --
 -- Design decisions worth calling out:
@@ -63,28 +63,124 @@ end
 -- Dialog Number Keys
 --=====================================================================
 
-local dialogKeyOwner -- Secure state handler that owns (and clears in combat) the number-key override bindings.
-local dialogKeyButton -- Plain button the number keys click; the mouse button name carries the entry index.
+local dialogKeyOwner -- Secure state handler that owns (and clears in combat) the dialog override bindings.
+local dialogKeyButton -- Plain shortcut button; the mouse button name carries the selection/action.
 local dialogEntries = {} -- Current dialog's selectable entries, in on-screen order: { select = function }.
 local isDialogOpen = false
+local dialogStage
+local numberedButtons = {}
 
+--- Restores labels without overwriting text Blizzard has already replaced on a reused button.
+local function clearDialogLabels()
+  for button, label in pairs(numberedButtons) do
+    if button:GetText() == label.numbered then
+      button:SetText(label.original)
+      if button.Resize then
+        button:Resize()
+      else
+        button:SetHeight(math.max(button:GetTextHeight() + 2, button.Icon:GetHeight()))
+      end
+    end
+  end
+  wipe(numberedButtons)
+end
+
+--- Numbers a rendered selection, preserving its icon and any leading inline icon markup.
+---@param button table Blizzard dialog button.
+---@param index number One-based selection index (10 is bound to 0).
+local function numberDialogButton(button, index)
+  if index > MAX_DIALOG_KEYS then return end
+  local text = button:GetText()
+  local previous = numberedButtons[button]
+  if previous and text == previous.numbered then text = previous.original end
+  if not text then return end
+  -- Some clients embed the icon in the text instead of using a separate Icon texture.
+  local prefix, title = "", text
+  while true do
+    local icon, rest = title:match("^(%s*|T.-|t%s*)(.*)$")
+    if not icon then icon, rest = title:match("^(%s*|A.-|a%s*)(.*)$") end
+    if not icon then break end
+    prefix, title = prefix .. icon, rest
+  end
+  local numbered = prefix .. tostring(index % 10) .. ". " .. title
+  numberedButtons[button] = { original = text, numbered = numbered }
+  button:SetText(numbered)
+  if button.Resize then
+    button:Resize()
+  else
+    button:SetHeight(math.max(button:GetTextHeight() + 2, button.Icon:GetHeight()))
+  end
+end
+
+--- Updates a gossip row after Blizzard initializes or recycles it, including rows reached by scrolling.
+---@param button table Rendered gossip row.
+---@param data table ScrollBox element data.
+local function numberGossipButton(button, data)
+  if not module:IsEnabled() or not settings().numberKeys or InCombatLockdown()
+    or dialogStage ~= "gossip" then return end
+  if data.buttonType == GOSSIP_BUTTON_TYPE_AVAILABLE_QUEST
+    or data.buttonType == GOSSIP_BUTTON_TYPE_ACTIVE_QUEST or data.buttonType == GOSSIP_BUTTON_TYPE_OPTION then
+    -- Blizzard's element index already spans all three selection groups, excluding headers/dividers.
+    numberDialogButton(button, data.index)
+  end
+end
+
+--- Re-applies labels to currently visible rows, or removes them when shortcuts are inactive.
+local function updateDialogLabels()
+  clearDialogLabels()
+  if not module:IsEnabled() or not settings().numberKeys or InCombatLockdown() then return end
+  if dialogStage == "gossip" and GossipFrame and GossipFrame.GreetingPanel then
+    GossipFrame.GreetingPanel.ScrollBox:ForEachFrame(numberGossipButton)
+  elseif dialogStage == "greeting" and QuestFrameGreetingPanel and QuestFrameGreetingPanel.titleButtonPool then
+    for button in QuestFrameGreetingPanel.titleButtonPool:EnumerateActive() do
+      local index = button:GetID()
+      if button.isActive ~= 1 then index = index + GetNumActiveQuests() end
+      numberDialogButton(button, index)
+    end
+  end
+end
+
+--- Returns whether the current turn-in requires a manual reward choice.
+---@return boolean
+local function hasRewardChoices()
+  return dialogStage == "complete" and GetNumQuestChoices() > 1
+end
+
+--- Finds the normal Blizzard action button for the current quest page.
+---@return table|nil
+local function getQuestActionButton()
+  if dialogStage == "detail" then return QuestFrameAcceptButton end
+  if dialogStage == "progress" then return QuestFrameCompleteButton end
+  if dialogStage == "complete" and not hasRewardChoices() then return QuestFrameCompleteQuestButton end
+end
+
+--- Clears dialog shortcuts, selections, and labels.
 local function clearDialogKeys()
   wipe(dialogEntries)
+  clearDialogLabels()
   if dialogKeyOwner and not InCombatLockdown() then
     ClearOverrideBindings(dialogKeyOwner)
   end
 end
 
+--- Applies only shortcuts appropriate to the current page; reward choices remain entirely manual.
 local function bindDialogKeys()
   if not dialogKeyOwner or InCombatLockdown() then return end
   ClearOverrideBindings(dialogKeyOwner)
-  if not settings().numberKeys then return end
-  for index = 1, math.min(#dialogEntries, MAX_DIALOG_KEYS) do
-    local key = tostring(index % 10)
-    SetOverrideBindingClick(dialogKeyOwner, true, key, dialogKeyButton:GetName(), tostring(index))
+  updateDialogLabels()
+  if not module:IsEnabled() or hasRewardChoices() then return end
+  if settings().numberKeys then
+    for index = 1, math.min(#dialogEntries, MAX_DIALOG_KEYS) do
+      local key = tostring(index % 10)
+      SetOverrideBindingClick(dialogKeyOwner, true, key, dialogKeyButton:GetName(), tostring(index))
+    end
+  end
+  if settings().spacebar and getQuestActionButton() then
+    SetOverrideBindingClick(dialogKeyOwner, true, "SPACE", dialogKeyButton:GetName(), "Spacebar")
   end
 end
 
+--- Creates the combat-safe binding owner and the key-up-only shortcut dispatcher.
 local function createDialogKeyFrames()
   if dialogKeyOwner then return end
 
@@ -100,16 +196,26 @@ local function createDialogKeyFrames()
   -- Key-up only: if the dialog changes between key-down and key-up, the leftover key-up can't fall
   -- through to an action button that fires on key-up.
   dialogKeyButton:RegisterForClicks("AnyUp")
+  --- Dispatches a shortcut only while its dialog is still safe to interact with.
+  ---@param _ table Shortcut button.
+  ---@param mouseButton string Selection index or Spacebar.
   dialogKeyButton:SetScript("OnClick", function(_, mouseButton)
+    if not module:IsEnabled() or InCombatLockdown() or not isDialogOpen or hasRewardChoices() then return end
+    if mouseButton == "Spacebar" then
+      local button = settings().spacebar and getQuestActionButton()
+      if button and button:IsShown() and button:IsEnabled() then button:Click() end
+      return
+    end
+    if not settings().numberKeys then return end
     local entry = dialogEntries[tonumber(mouseButton)]
     if entry then entry.select() end
   end)
 end
 
---- Called out of combat to start/stop the combat-clearing state driver for the number keys.
+--- Called out of combat to start/stop the combat-clearing state driver for dialog shortcuts.
 local function applyDialogKeySecureState()
   createDialogKeyFrames()
-  if module:IsEnabled() and settings().numberKeys then
+  if module:IsEnabled() and (settings().numberKeys or settings().spacebar) then
     RegisterStateDriver(dialogKeyOwner, "combat", "[combat] combat; nocombat")
   else
     UnregisterStateDriver(dialogKeyOwner, "combat")
@@ -117,15 +223,31 @@ local function applyDialogKeySecureState()
   end
 end
 
-local function setDialogEntries(entries)
+--- Sets the current selection list in the same order Blizzard displays it.
+---@param entries table Selectable entries.
+---@param stage string Dialog page.
+local function setDialogEntries(entries, stage)
+  clearDialogKeys()
   dialogEntries = entries
+  dialogStage = stage
   isDialogOpen = true
   bindDialogKeys()
 end
 
+--- Releases all shortcuts when leaving a dialog page.
 local function onDialogClosed()
   isDialogOpen = false
+  dialogStage = nil
   clearDialogKeys()
+end
+
+--- Opens a quest action page without retaining any previous numbered selections.
+---@param stage string Quest page.
+local function setQuestAction(stage)
+  onDialogClosed()
+  dialogStage = stage
+  isDialogOpen = true
+  bindDialogKeys()
 end
 
 --=====================================================================
@@ -184,7 +306,9 @@ local function automateGossip(availableQuests, activeQuests, options)
   return false
 end
 
+--- Builds shortcuts for gossip selections, unless automation advances the dialog.
 function module:GOSSIP_SHOW()
+  onDialogClosed()
   local availableQuests = C_GossipInfo.GetAvailableQuests() or {}
   local activeQuests = C_GossipInfo.GetActiveQuests() or {}
   local options = C_GossipInfo.GetOptions() or {}
@@ -205,10 +329,12 @@ function module:GOSSIP_SHOW()
   for _, option in ipairs(options) do
     entries[#entries + 1] = { select = function() selectGossipOption(option) end }
   end
-  setDialogEntries(entries)
+  setDialogEntries(entries, "gossip")
 end
 
+--- Builds shortcuts for quest greetings, unless automation advances the dialog.
 function module:QUEST_GREETING()
+  onDialogClosed()
   local s = settings()
   local numActive = GetNumActiveQuests()
   local numAvailable = GetNumAvailableQuests()
@@ -237,11 +363,12 @@ function module:QUEST_GREETING()
   for index = 1, numAvailable do
     entries[#entries + 1] = { select = function() SelectAvailableQuest(index) end }
   end
-  setDialogEntries(entries)
+  setDialogEntries(entries, "greeting")
 end
 
+--- Offers manual acceptance through Spacebar or applies auto-accept.
 function module:QUEST_DETAIL()
-  onDialogClosed() -- The greeting/gossip list (if any) has been replaced.
+  setQuestAction("detail")
   if not settings().autoAccept or isAutomationSuppressed() then return end
   if QuestGetAutoAccept and QuestGetAutoAccept() then
     AcknowledgeAutoAcceptQuest()
@@ -250,16 +377,19 @@ function module:QUEST_DETAIL()
   end
 end
 
+--- Offers the normal quest-progress action or automatically advances a free turn-in.
 function module:QUEST_PROGRESS()
-  onDialogClosed()
+  setQuestAction("progress")
   if not settings().autoComplete or isAutomationSuppressed() then return end
   if IsQuestCompletable() and GetQuestMoneyToGet() == 0 then
     CompleteQuest()
   end
 end
 
+--- Leaves reward choices manual; otherwise offers Spacebar or automatic completion.
 function module:QUEST_COMPLETE()
-  onDialogClosed()
+  setQuestAction("complete")
+  if hasRewardChoices() then return end
   if not settings().autoComplete or isAutomationSuppressed() then return end
   local numChoices = GetNumQuestChoices()
   if numChoices <= 1 and GetQuestMoneyToGet() == 0 then
@@ -571,7 +701,7 @@ end
 --- Re-applies all current `db.profile.quest` settings. Called on enable and whenever an option changes.
 function module:Refresh()
   local s = settings()
-  local dialogFeatures = s.autoAccept or s.autoComplete or s.autoClickFirstOption or s.numberKeys
+  local dialogFeatures = s.autoAccept or s.autoComplete or s.autoClickFirstOption or s.numberKeys or s.spacebar
   for _, event in ipairs(DIALOG_EVENTS) do
     if dialogFeatures then self:RegisterEvent(event) else self:UnregisterEvent(event) end
   end
@@ -580,6 +710,7 @@ function module:Refresh()
   setQuestItemEventsRegistered(isQuestItemButtonActive())
   self:UpdateQuestItem()
   applySecureState()
+  if isDialogOpen then bindDialogKeys() end
 end
 
 --- Enables or disables the whole module and persists that choice. Called from the "Enable" checkbox.
@@ -669,17 +800,33 @@ function toggleAllQuestAutomation()
   announceToggle(ALL_AUTOMATION_LABEL, enabled)
 end
 
+--- Creates secure frames and installs label hooks before dialog events begin.
 function module:OnInitialize()
   -- Create secure frames up front (load time is never in combat), so enabling later in combat is safe.
   createDialogKeyFrames()
+  if GossipFrame and GossipFrame.GreetingPanel then
+    GossipFrame.GreetingPanel.ScrollBox:RegisterCallback(
+      ScrollBoxListMixin.Event.OnInitializedFrame,
+      --- Updates a row after its original text has been set, even if the ScrollBox view changes.
+      ---@param _ table Callback owner.
+      ---@param button table Gossip row.
+      ---@param data table Element data.
+      function(_, button, data) numberGossipButton(button, data) end, module)
+    hooksecurefunc(GossipFrame, "Update", updateDialogLabels)
+  end
+  if QuestFrameGreetingPanel_OnShow then
+    hooksecurefunc("QuestFrameGreetingPanel_OnShow", updateDialogLabels)
+  end
   if self:IsQuestItemButtonSupported() then createItemButton() end
   if not settings().enabled then self:Disable() end
 end
 
+--- Registers dialog and combat handling while enabled.
 function module:OnEnable()
   -- Always listened to while enabled (a rare event): applies secure changes deferred during combat and
-  -- restores number keys if a dialog is still open after combat ends.
+  -- restores dialog shortcuts if a dialog is still open after combat ends.
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
+  self:RegisterEvent("PLAYER_REGEN_DISABLED", updateDialogLabels)
   self:Refresh()
 end
 
