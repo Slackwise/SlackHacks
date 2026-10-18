@@ -80,6 +80,7 @@ dbDefaults = {
       autoComplete = false,
       autoClickFirstOption = false,
       numberKeys = false,
+      spacebar = false,
       questItemButton = false
     },
     combat = {
@@ -2816,8 +2817,8 @@ options = {
           order = 3
         },
         numberKeys = {
-          name = "Map NPC Dialog Options to Number Keys",
-          desc = "Maps NPC dialog options to the number keys when interacting.",
+          name = "Keybind NPC Dialog Options to Number Keys",
+          desc = "Keybind NPC dialog options to the number keys and shows each shortcut before its text.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -2825,6 +2826,24 @@ options = {
           get = function() return db.profile.quest.numberKeys end,
           set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
           order = 4
+        },
+        spacebar = {
+          name = "Use Spacebar to Accept/Complete Quest",
+          desc = "keybinds Spacebar to accept or complete the current quest. Disabled when choosing between quest rewards.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Disables the control while its module is off.
+          ---@return boolean
+          disabled = function() return not db.profile.quest.enabled end,
+          --- Reads the profile's Spacebar shortcut setting.
+          ---@return boolean
+          get = function() return db.profile.quest.spacebar end,
+          --- Applies the Spacebar shortcut setting.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean
+          set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
+          order = 4.5
         },
         questItemButton = {
           name = "Use 'Extra Action Button' for Quest Items",
@@ -2881,4 +2900,3 @@ function registerOptions()
   Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
   updateMinimapIcon()
 end
-
