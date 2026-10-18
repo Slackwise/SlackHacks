@@ -11,7 +11,9 @@ Self.GuildMemberList = module
 
 local HEADER_HEIGHT = 32 -- Explicit header height from the Blizzard template so the scroll box can anchor to it.
 local ROW_HEIGHT = 18
-local NAME_COLUMN_WIDTH = 120 -- Fits a 12-character name plus rank and faction icons; the zone column takes the rest.
+-- When a row is too narrow for both columns, the name column keeps at least this share of the row (or its full
+-- width, if smaller) and the zone column is truncated first.
+local NAME_COLUMN_MIN_SHARE = 0.6
 local COLUMN_GAP = 6
 local ROW_PADDING = 5 -- Space between a row's edges and its text.
 -- Scroll list insets inside the window (from DamageMeterSessionWindowMixin:InitializeScrollBox).
@@ -21,7 +23,9 @@ local LIST_RIGHT_INSET = 1
 local LIST_BOTTOM_INSET = 6
 local SCROLL_BAR_SPACE = 15 -- Extra right inset while the scroll bar is showing.
 local HEADER_BUTTONS_WIDTH = 62 -- Header space beside the title: title inset, cog, minimize button and gaps.
-local MAX_HEIGHT = 400
+local MIN_WIDTH = 200
+local MIN_HEIGHT = 120
+local MAX_FIT_HEIGHT = 400 -- Fit to content stops growing here and scrolls; manual resizing can go to full screen.
 local INSTANCE_ICON_SIZE = 12
 -- Inline icons from the world map's pins (delves-regular is the Map Legend's delve icon).
 local INSTANCE_ICONS = {
@@ -80,6 +84,8 @@ local window
 local opacityPanel
 local populate
 local instanceIcons -- Zone name -> inline icon markup; built once by getInstanceIcons().
+-- Untruncated widths of the widest name and zone, measured by populate().
+local nameColumnWidth, zoneColumnWidth = 0, 0
 local memberClubInfo = {} -- Member GUID -> { faction, race, role, timerunningSeasonID }; filled by scanMemberClubInfo().
 
 --- Returns the Enum.PvPFaction for a race, used when club member info omits the faction (it often comes back nil).
@@ -331,15 +337,26 @@ local function createCell(row)
   return cell
 end
 
+--- Sizes a row's name column for the list's current width. The name gets its full measured width when it fits
+--- beside the widest zone; otherwise the zone gives up space first, down to NAME_COLUMN_MIN_SHARE of the row.
+--- Every row gets the same width for the same list width, so the zones stay lined up in a column.
+---@param row Frame A list row created by initRow().
+local function layoutRow(row)
+  -- Rows stretch to the ScrollBox's width, but a freshly bound row isn't anchored yet and reports a width of 0, so
+  -- the ScrollBox's own width is used instead.
+  local available = window.ScrollBox:GetWidth() - 2 * ROW_PADDING - COLUMN_GAP
+  local width = math.min(nameColumnWidth, math.max(available - zoneColumnWidth, available * NAME_COLUMN_MIN_SHARE))
+  -- A FontString width of 0 means "unbounded", which would stop the name truncating in a very narrow row.
+  row.Name:SetWidth(math.max(width, 1))
+end
+
 --- ScrollBox element initializer; builds a row's two columns (name, zone) once and then binds it to a member.
 ---@param row Frame A pooled row frame from the ScrollBox.
 ---@param member table Member entry built by populate().
 local function initRow(row, member)
   if not row.Name then
-    -- A fixed-width name column keeps every zone lined up in a second column that grows with the window.
     row.Name = createCell(row)
     row.Name:SetPoint("LEFT", ROW_PADDING, 0)
-    row.Name:SetWidth(NAME_COLUMN_WIDTH)
     row.Zone = createCell(row)
     row.Zone:SetPoint("LEFT", row.Name, "RIGHT", COLUMN_GAP, 0)
     row.Zone:SetPoint("RIGHT", -ROW_PADDING, 0)
@@ -349,26 +366,36 @@ local function initRow(row, member)
     row:SetMouseMotionEnabled(true)
     row:SetMouseClickEnabled(false)
   end
+  -- Re-applied on every bind since populate() re-measures the columns.
+  layoutRow(row)
   row.member = member
   row.Name:SetText(member.name)
   row.Zone:SetText(member.zoneText)
 end
 
---- When the `fitToContent` setting is on, sizes the window to fit the title, the widest location and every row.
---- The height stops at MAX_HEIGHT, after which the list scrolls as usual. The window is only moved when its new
---- size would run off the screen.
----@param members table Member entries from populate(), used to measure the widest location.
+--- Returns the widest rendered width of a field across the member entries, measured in the rows' font.
+---@param members table Member entries from populate().
+---@param field string The entry field to measure ("name" or "zoneText").
+---@return number width The widest width in whole pixels, plus one so rounding never truncates it (0 when empty).
+local function measureWidest(members, field)
+  local width = 0
+  for _, member in ipairs(members) do
+    window.Measure:SetText(member[field])
+    width = math.max(width, window.Measure:GetUnboundedStringWidth())
+  end
+  return width > 0 and math.ceil(width) + 1 or 0
+end
+
+--- When the `fitToContent` setting is on, sizes the window to fit the title, the widest name and zone, and every
+--- row. The height stops at MAX_FIT_HEIGHT, after which the list scrolls as usual, and the width at the screen's
+--- width. The window is only moved when its new size would run off the screen.
+---@param members table Member entries from populate().
 local function fitToContent(members)
   if not getSettings().fitToContent then return end
-  local zoneWidth = 0
-  for _, member in ipairs(members) do
-    window.Measure:SetText(member.zoneText)
-    zoneWidth = math.max(zoneWidth, window.Measure:GetUnboundedStringWidth())
-  end
   -- Show at least one empty row so a guildless/empty window doesn't collapse to just its header.
   local height = HEADER_HEIGHT + LIST_TOP_GAP + math.max(#members, 1) * ROW_HEIGHT + LIST_BOTTOM_INSET
-  local scrollBarSpace = height > MAX_HEIGHT and SCROLL_BAR_SPACE or 0
-  local listWidth = LIST_LEFT_INSET + ROW_PADDING + NAME_COLUMN_WIDTH + COLUMN_GAP + zoneWidth + ROW_PADDING
+  local scrollBarSpace = height > MAX_FIT_HEIGHT and SCROLL_BAR_SPACE or 0
+  local listWidth = LIST_LEFT_INSET + ROW_PADDING + nameColumnWidth + COLUMN_GAP + zoneColumnWidth + ROW_PADDING
     + LIST_RIGHT_INSET + scrollBarSpace
   local titleWidth = window.Title:GetUnboundedStringWidth() + HEADER_BUTTONS_WIDTH
 
@@ -376,7 +403,8 @@ local function fitToContent(members)
   -- size would push it past the right or bottom of the screen, so a window against an edge or in a corner
   -- stays fully on screen. Pinning the top-left also stops the window growing around its saved anchor (e.g.
   -- CENTER), which would make it drift as members come and go.
-  local width, fitHeight = math.ceil(math.max(listWidth, titleWidth)), math.min(height, MAX_HEIGHT)
+  local width = math.min(math.ceil(math.max(listWidth, titleWidth, MIN_WIDTH)), UIParent:GetWidth())
+  local fitHeight = math.min(height, MAX_FIT_HEIGHT)
   local left, top = window:GetLeft(), window:GetTop()
   if left then
     local newLeft = math.max(math.min(left, UIParent:GetWidth() - width), 0)
@@ -463,6 +491,8 @@ function populate()
   end
   table.sort(members, SORT_COMPARATORS[settings.sortBy] or SORT_COMPARATORS.name)
 
+  nameColumnWidth = measureWidest(members, "name")
+  zoneColumnWidth = measureWidest(members, "zoneText")
   window.Title:SetText("Guild Members Online: " .. #members)
   window.ScrollBox:SetDataProvider(CreateDataProvider(members), ScrollBoxConstants.RetainScrollPosition)
   fitToContent(members)
@@ -569,7 +599,7 @@ local function createWindow()
   window:SetClampedToScreen(true)
   window:SetMovable(true)
   window:SetResizable(true)
-  window:SetResizeBounds(200, 120, 600, MAX_HEIGHT)
+  window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT)
   window:EnableMouse(true)
   window:RegisterForDrag("LeftButton")
   window:SetScript("OnDragStart", window.StartMoving)
@@ -636,6 +666,9 @@ local function createWindow()
   view:SetElementExtent(ROW_HEIGHT)
   view:SetElementInitializer("Frame", initRow)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
+  -- Re-split the columns of every visible row whenever the list changes width (window resizes and the scroll bar
+  -- showing or hiding). Hooked, since the ScrollBox uses its own OnSizeChanged to re-layout.
+  scrollBox:HookScript("OnSizeChanged", function(self) self:ForEachFrame(layoutRow) end)
 
   -- Same anchors as DamageMeterSessionWindowMixin:InitializeScrollBox: the list widens to fill the space
   -- when the scroll bar hides itself because everything fits.
@@ -657,6 +690,8 @@ local function createWindow()
     self:SetButtonState("PUSHED", true)
     self:GetHighlightTexture():Hide()
     window.isResizing = true
+    -- Let the window grow up to the whole screen, measured now since the UI scale or resolution can change.
+    window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT, UIParent:GetWidth(), UIParent:GetHeight())
     window:StartSizing("BOTTOMRIGHT")
   end)
   resizeButton:SetScript("OnMouseUp", function(self, mouseButton)

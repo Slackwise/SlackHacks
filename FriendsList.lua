@@ -16,10 +16,9 @@ Self.FriendsList = module
 
 local HEADER_HEIGHT = 32 -- Explicit header height from the Blizzard template so the scroll box can anchor to it.
 local ROW_HEIGHT = 18
--- The name column fits the widest name (Battle.net name, character name and icons) between these widths; the
--- location column takes the rest.
-local MIN_NAME_COLUMN_WIDTH = 80
-local MAX_NAME_COLUMN_WIDTH = 240
+-- When a row is too narrow for both columns, the name column keeps at least this share of the row (or its full
+-- width, if smaller) and the location column is truncated first.
+local NAME_COLUMN_MIN_SHARE = 0.6
 local COLUMN_GAP = 6
 local ROW_PADDING = 5 -- Space between a row's edges and its text.
 -- Scroll list insets inside the window (from DamageMeterSessionWindowMixin:InitializeScrollBox).
@@ -29,7 +28,9 @@ local LIST_RIGHT_INSET = 1
 local LIST_BOTTOM_INSET = 6
 local SCROLL_BAR_SPACE = 15 -- Extra right inset while the scroll bar is showing.
 local HEADER_BUTTONS_WIDTH = 62 -- Header space beside the title: title inset, cog, minimize button and gaps.
-local MAX_HEIGHT = 400
+local MIN_WIDTH = 200
+local MIN_HEIGHT = 120
+local MAX_FIT_HEIGHT = 400 -- Fit to content stops growing here and scrolls; manual resizing can go to full screen.
 local ICON_SIZE = 12
 -- Inline icons from the world map's pins (delves-regular is the Map Legend's delve icon).
 local INSTANCE_ICONS = {
@@ -89,7 +90,8 @@ local window
 local opacityPanel
 local populate
 local instanceIcons -- Zone name -> inline icon markup; built once by getInstanceIcons().
-local nameColumnWidth = MIN_NAME_COLUMN_WIDTH -- Measured by populate() to fit the widest name.
+-- Untruncated widths of the widest name and location, measured by populate().
+local nameColumnWidth, zoneColumnWidth = 0, 0
 local refreshPending = false
 
 --- Returns a lookup from instance name to its inline Dungeon/Raid/Delve icon, built once from local game data
@@ -332,6 +334,19 @@ local function createCell(row)
   return cell
 end
 
+--- Sizes a row's name column for the list's current width. The name gets its full measured width when it fits
+--- beside the widest location; otherwise the location gives up space first, down to NAME_COLUMN_MIN_SHARE of the
+--- row. Every row gets the same width for the same list width, so the locations stay lined up in a column.
+---@param row Frame A list row created by initRow().
+local function layoutRow(row)
+  -- Rows stretch to the ScrollBox's width, but a freshly bound row isn't anchored yet and reports a width of 0, so
+  -- the ScrollBox's own width is used instead.
+  local available = window.ScrollBox:GetWidth() - 2 * ROW_PADDING - COLUMN_GAP
+  local width = math.min(nameColumnWidth, math.max(available - zoneColumnWidth, available * NAME_COLUMN_MIN_SHARE))
+  -- A FontString width of 0 means "unbounded", which would stop the name truncating in a very narrow row.
+  row.Name:SetWidth(math.max(width, 1))
+end
+
 --- ScrollBox element initializer; builds a row's two columns (name, location) once and then binds it to a friend.
 ---@param row Frame A pooled row frame from the ScrollBox.
 ---@param friend table Friend entry built by populate().
@@ -348,8 +363,8 @@ local function initRow(row, friend)
     row:SetMouseMotionEnabled(true)
     row:SetMouseClickEnabled(false)
   end
-  -- Re-applied on every bind since populate() re-measures it; one shared width keeps the locations lined up.
-  row.Name:SetWidth(nameColumnWidth)
+  -- Re-applied on every bind since populate() re-measures the columns.
+  layoutRow(row)
   row.friend = friend
   row.Name:SetText(friend.name)
   row.Zone:SetText(friend.zoneText)
@@ -358,27 +373,26 @@ end
 --- Returns the widest rendered width of a field across the friend entries, measured in the rows' font.
 ---@param friends table Friend entries from populate().
 ---@param field string The entry field to measure ("name" or "zoneText").
----@return number width The widest width in pixels (0 for an empty list).
+---@return number width The widest width in whole pixels, plus one so rounding never truncates it (0 when empty).
 local function measureWidest(friends, field)
   local width = 0
   for _, friend in ipairs(friends) do
     window.Measure:SetText(friend[field])
     width = math.max(width, window.Measure:GetUnboundedStringWidth())
   end
-  return width
+  return width > 0 and math.ceil(width) + 1 or 0
 end
 
---- When the `fitToContent` setting is on, sizes the window to fit the title, the widest location and every row.
---- The height stops at MAX_HEIGHT, after which the list scrolls as usual. The window is only moved when its new
---- size would run off the screen.
----@param friends table Friend entries from populate(), used to measure the widest location.
+--- When the `fitToContent` setting is on, sizes the window to fit the title, the widest name and location, and
+--- every row. The height stops at MAX_FIT_HEIGHT, after which the list scrolls as usual, and the width at the
+--- screen's width. The window is only moved when its new size would run off the screen.
+---@param friends table Friend entries from populate().
 local function fitToContent(friends)
   if not getSettings().fitToContent then return end
-  local zoneWidth = measureWidest(friends, "zoneText")
   -- Show at least one empty row so an empty window doesn't collapse to just its header.
   local height = HEADER_HEIGHT + LIST_TOP_GAP + math.max(#friends, 1) * ROW_HEIGHT + LIST_BOTTOM_INSET
-  local scrollBarSpace = height > MAX_HEIGHT and SCROLL_BAR_SPACE or 0
-  local listWidth = LIST_LEFT_INSET + ROW_PADDING + nameColumnWidth + COLUMN_GAP + zoneWidth + ROW_PADDING
+  local scrollBarSpace = height > MAX_FIT_HEIGHT and SCROLL_BAR_SPACE or 0
+  local listWidth = LIST_LEFT_INSET + ROW_PADDING + nameColumnWidth + COLUMN_GAP + zoneColumnWidth + ROW_PADDING
     + LIST_RIGHT_INSET + scrollBarSpace
   local titleWidth = window.Title:GetUnboundedStringWidth() + HEADER_BUTTONS_WIDTH
 
@@ -386,7 +400,8 @@ local function fitToContent(friends)
   -- size would push it past the right or bottom of the screen, so a window against an edge or in a corner
   -- stays fully on screen. Pinning the top-left also stops the window growing around its saved anchor (e.g.
   -- CENTER), which would make it drift as friends come and go.
-  local width, fitHeight = math.ceil(math.max(listWidth, titleWidth)), math.min(height, MAX_HEIGHT)
+  local width = math.min(math.ceil(math.max(listWidth, titleWidth, MIN_WIDTH)), UIParent:GetWidth())
+  local fitHeight = math.min(height, MAX_FIT_HEIGHT)
   local left, top = window:GetLeft(), window:GetTop()
   if left then
     local newLeft = math.max(math.min(left, UIParent:GetWidth() - width), 0)
@@ -557,8 +572,8 @@ function populate()
   addCharacterFriends(friends, settings, icons, playerFaction)
   table.sort(friends, SORT_COMPARATORS[settings.sortBy] or SORT_COMPARATORS.name)
 
-  nameColumnWidth = math.ceil(math.min(math.max(measureWidest(friends, "name"), MIN_NAME_COLUMN_WIDTH),
-    MAX_NAME_COLUMN_WIDTH))
+  nameColumnWidth = measureWidest(friends, "name")
+  zoneColumnWidth = measureWidest(friends, "zoneText")
   if settings.onlyFavorites and not BNConnected() then
     window.Title:SetText(BATTLENET_UNAVAILABLE or "Battle.net Unavailable")
   else
@@ -653,11 +668,6 @@ local function createSettingsDropdown()
       function() return getSettings().fitToContent end,
       function() setFitToContent(not getSettings().fitToContent) end)
     rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
-    addCheckboxes(rootDescription, "Show", {
-      { key = "onlyFavorites", text = "Only Favorite Friends" },
-      { key = "onlyWoW", text = "Only Playing WoW" },
-      { key = "onlySameWoWVersion", text = "Only Same WoW Version", requires = "onlyWoW" },
-    })
     rootDescription:CreateDivider()
     rootDescription:CreateTitle("Sort By")
     for _, option in ipairs(SORT_OPTIONS) do
@@ -666,6 +676,11 @@ local function createSettingsDropdown()
         setSortBy,
         option.key)
     end
+    addCheckboxes(rootDescription, "Show", {
+      { key = "onlyFavorites", text = "Only Favorite Friends" },
+      { key = "onlyWoW", text = "Only Playing WoW" },
+      { key = "onlySameWoWVersion", text = "Only Same WoW Version", requires = "onlyWoW" },
+    })
     addCheckboxes(rootDescription, "Icons", {
       { key = "showInstanceIcons", text = "Instance Icons" },
       { key = "showGameIcons", text = "Game Icons" },
@@ -685,7 +700,7 @@ local function createWindow()
   window:SetClampedToScreen(true)
   window:SetMovable(true)
   window:SetResizable(true)
-  window:SetResizeBounds(200, 120, 600, MAX_HEIGHT)
+  window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT)
   window:EnableMouse(true)
   window:RegisterForDrag("LeftButton")
   window:SetScript("OnDragStart", window.StartMoving)
@@ -754,6 +769,9 @@ local function createWindow()
   view:SetElementExtent(ROW_HEIGHT)
   view:SetElementInitializer("Frame", initRow)
   ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
+  -- Re-split the columns of every visible row whenever the list changes width (window resizes and the scroll bar
+  -- showing or hiding). Hooked, since the ScrollBox uses its own OnSizeChanged to re-layout.
+  scrollBox:HookScript("OnSizeChanged", function(self) self:ForEachFrame(layoutRow) end)
 
   -- Same anchors as DamageMeterSessionWindowMixin:InitializeScrollBox: the list widens to fill the space
   -- when the scroll bar hides itself because everything fits.
@@ -775,6 +793,8 @@ local function createWindow()
     self:SetButtonState("PUSHED", true)
     self:GetHighlightTexture():Hide()
     window.isResizing = true
+    -- Let the window grow up to the whole screen, measured now since the UI scale or resolution can change.
+    window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT, UIParent:GetWidth(), UIParent:GetHeight())
     window:StartSizing("BOTTOMRIGHT")
   end)
   resizeButton:SetScript("OnMouseUp", function(self, mouseButton)
