@@ -502,7 +502,10 @@ local function formatAccountName(account, classColor, settings, playerFaction)
   if settings.showGameIcons and not (isWoW and game.wowProjectID == WOW_PROJECT_ID) then
     suffix = suffix .. " " .. BNet_GetClientEmbeddedAtlas(game.clientProgram, ICON_SIZE, ICON_SIZE)
   end
-  if isWoW then suffix = addFactionIcon(suffix, game.factionName, settings, playerFaction) end
+  if isWoW then
+    suffix = addFactionIcon(suffix, game.factionName, settings, playerFaction)
+    suffix = addGroupIcon(suffix, game.playerGuid)
+  end
   -- The account name is a protected "|K...|k" string that only the renderer can resolve, and string width
   -- measurement doesn't see the resolved name, so the window was sized as if it were much shorter. The BattleTag
   -- is a plain string with the same name for BattleTag friends (a Real ID name may still differ).
@@ -580,7 +583,7 @@ local function addCharacterFriends(friends, settings, icons, playerFaction)
       -- No game icon: character friends are always in this game and WoW version.
       local zone, zoneText = formatZone(info.area, icons)
       friends[#friends + 1] = {
-        name = addFactionIcon(name, playerFaction, settings, playerFaction),
+        name = addGroupIcon(addFactionIcon(name, playerFaction, settings, playerFaction), info.guid),
         sortIndex = CHARACTER_FRIEND_SORT_OFFSET + i,
         zone = zone,
         zoneText = zoneText,
@@ -916,9 +919,10 @@ function module:OnEnable()
   setOpacity(getSettings().opacity)
   setFitToContent(getSettings().fitToContent) -- Window is still hidden, so the fit itself happens in OnShow.
   -- The same events the FriendsFrame refreshes its list on; favoriting/unfavoriting a friend fires
-  -- BN_FRIEND_INFO_CHANGED, and FRIENDLIST_UPDATE covers character friends.
+  -- BN_FRIEND_INFO_CHANGED, and FRIENDLIST_UPDATE covers character friends. SOCIAL_QUEUE_UPDATE updates the group
+  -- icons (addGroupIcon) when a friend joins or leaves a group.
   for _, event in ipairs({ "BN_FRIEND_INFO_CHANGED", "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE",
-    "BN_FRIEND_LIST_SIZE_CHANGED", "BN_CONNECTED", "BN_DISCONNECTED", "FRIENDLIST_UPDATE" }) do
+    "BN_FRIEND_LIST_SIZE_CHANGED", "BN_CONNECTED", "BN_DISCONNECTED", "FRIENDLIST_UPDATE", "SOCIAL_QUEUE_UPDATE" }) do
     self:RegisterEvent(event, scheduleRefresh)
   end
   self:UpdateWindowShown()

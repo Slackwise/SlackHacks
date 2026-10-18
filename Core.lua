@@ -683,6 +683,24 @@ local PLAYER_MENU_ENTRIES = {
 }
 local registeredPlayerMenus = {}
 
+-- Quick Join's icon for a friend's or guildie's group (Blizzard_QuickJoin/QuickJoin.lua), as inline text markup.
+local GROUP_ICON = CreateAtlasMarkup("socialqueuing-icon-group", 13, 12)
+
+--- Appends Quick Join's group icon to a list name when the player is in a group. Uses the same check Blizzard's
+--- GetDisplayedInviteType (Blizzard_LFGUtil) makes to offer "Request to Join Group" instead of "Invite":
+--- C_SocialQueue tracks the groups of friends and guild members, and a "solo queue party" is only the hidden group
+--- the server makes for someone queued alone, so it doesn't count.
+---@param name string The name text, already carrying any other icons (the group icon goes last).
+---@param guid string|nil The player's GUID.
+---@return string name The name with the group icon appended when they're grouped.
+function addGroupIcon(name, guid)
+  if guid and C_SocialQueue then
+    local groupGUID, isSoloQueueParty = C_SocialQueue.GetGroupForPlayer(guid)
+    if groupGUID and not isSoloQueueParty then return name .. " " .. GROUP_ICON end
+  end
+  return name
+end
+
 --- Opens one of the PLAYER_MENU_ENTRIES context menus at the cursor, the way the Communities guild roster does
 --- (CommunitiesMemberListMixin:OnClubMemberButtonClicked -> UnitPopup_OpenMenu). The menu is registered with
 --- UnitPopupManager on first use, like Blizzard's own RAF_RECRUIT menu.

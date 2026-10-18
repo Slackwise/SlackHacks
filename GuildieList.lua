@@ -480,6 +480,7 @@ local function buildMembers()
         and not (settings.factionIconsOppositeOnly and PLAYER_FACTION_GROUP[faction] == playerFaction) then
         displayName = displayName .. " " .. FACTION_ICONS[faction]
       end
+      displayName = addGroupIcon(displayName, guid)
       zone = zone or UNKNOWN
       local icon = icons[zone]
       members[#members + 1] = {
@@ -794,6 +795,7 @@ function module:OnEnable()
   setFitToContent(getSettings().fitToContent) -- Window is still hidden, so the fit itself happens in OnShow.
   self:RegisterEvent("PLAYER_ENTERING_WORLD", function() C_Timer.After(ROSTER_REQUEST_DELAY, requestRoster) end)
   self:RegisterEvent("GUILD_ROSTER_UPDATE", refresh)
+  self:RegisterEvent("SOCIAL_QUEUE_UPDATE", refresh) -- A member joined or left a group (see addGroupIcon).
   self:UpdateWindowShown()
   Self.InfoDisplay:RefreshPlayersOnline()
 end
