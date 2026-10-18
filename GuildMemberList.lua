@@ -2,8 +2,8 @@ setfenv(1, _G.SlackHacks)
 
 -- Guild Member List: a movable, resizable, collapsible list of online guild members.
 -- The roster logic is the same as the GuildMembersOnline addon (GetGuildRosterInfo -> class-colored name and
--- zone), shown as two columns and sorted by name or zone, with a full player tooltip, optional faction icons
--- after names and instance icons after zones. The window recreates Blizzard's
+-- zone), shown as two columns and sorted by name or zone, with a full player tooltip, optional rank and faction
+-- icons after names and instance icons after zones. The window recreates Blizzard's
 -- DamageMeterSessionWindowTemplate (Blizzard_DamageMeter/DamageMeterSessionWindow.xml) in Lua, including
 -- its MinimizeButton, which collapses the window down to its header bar, and its SettingsDropdown cog menu.
 local module = Self:NewModule("GuildMemberList", "AceEvent-3.0")
@@ -11,7 +11,7 @@ Self.GuildMemberList = module
 
 local HEADER_HEIGHT = 32 -- Explicit header height from the Blizzard template so the scroll box can anchor to it.
 local ROW_HEIGHT = 18
-local NAME_COLUMN_WIDTH = 106 -- Fits a 12-character name plus a faction icon; the zone column takes the rest.
+local NAME_COLUMN_WIDTH = 120 -- Fits a 12-character name plus rank and faction icons; the zone column takes the rest.
 local COLUMN_GAP = 6
 local ROW_PADDING = 5 -- Space between a row's edges and its text.
 -- Scroll list insets inside the window (from DamageMeterSessionWindowMixin:InitializeScrollBox).
@@ -36,6 +36,16 @@ local INSTANCE_ICONS = {
 local FACTION_ICONS = {
   [0] = CreateAtlasMarkup("questlog-questtypeicon-horde", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
   [1] = CreateAtlasMarkup("questlog-questtypeicon-alliance", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
+}
+-- Inline rank icons keyed by Enum.ClubRoleIdentifier, the same textures the guild roster
+-- (CommunitiesMemberListEntryMixin:UpdateRank) shows: a crown for the Guild Master and an assistant icon for officers.
+local RANK_ICONS = {
+  [Enum.ClubRoleIdentifier.Owner] = CreateTextureMarkup("Interface\\GroupFrame\\UI-Group-LeaderIcon", 16, 16,
+    INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE, 0, 1, 0, 1),
+  [Enum.ClubRoleIdentifier.Leader] = CreateTextureMarkup("Interface\\GroupFrame\\UI-Group-LeaderIcon", 16, 16,
+    INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE, 0, 1, 0, 1),
+  [Enum.ClubRoleIdentifier.Moderator] = CreateTextureMarkup("Interface\\GroupFrame\\UI-Group-AssistantIcon", 16, 16,
+    INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE, 0, 1, 0, 1),
 }
 local OPACITY_STEP = 0.05
 local SCROLL_BAR_IDLE_ALPHA = 0.3 -- The scroll bar is dimmed until the window is hovered, like the DamageMeter.
@@ -70,7 +80,7 @@ local window
 local opacityPanel
 local populate
 local instanceIcons -- Zone name -> inline icon markup; built once by getInstanceIcons().
-local memberClubInfo = {} -- Member GUID -> { faction, race, timerunningSeasonID }; filled by scanMemberClubInfo().
+local memberClubInfo = {} -- Member GUID -> { faction, race, role, timerunningSeasonID }; filled by scanMemberClubInfo().
 
 --- Returns the Enum.PvPFaction for a race, used when club member info omits the faction (it often comes back nil).
 --- Neutral races (e.g. Pandaren, Dracthyr) have no fixed faction, so they return nil.
@@ -95,6 +105,7 @@ local function scanMemberClubInfo()
       memberClubInfo[info.guid] = {
         faction = info.faction or factionFromRace(info.race),
         race = info.race,
+        role = info.role,
         timerunningSeasonID = info.timerunningSeasonID,
       }
     end
@@ -422,6 +433,8 @@ function populate()
         scannedClubInfo = true
       end
       local clubInfo = guid and memberClubInfo[guid]
+      local rankIcon = settings.showRankIcons and clubInfo and RANK_ICONS[clubInfo.role]
+      if rankIcon then displayName = displayName .. " " .. rankIcon end
       local faction = clubInfo and clubInfo.faction
       if showFaction and faction and FACTION_ICONS[faction]
         and not (settings.factionIconsOppositeOnly and PLAYER_FACTION_GROUP[faction] == playerFaction) then
@@ -532,6 +545,7 @@ local function createSettingsDropdown()
     rootDescription:CreateTitle("Icons")
     for _, toggle in ipairs({
       { key = "showInstanceIcons", text = "Instance Icons" },
+      { key = "showRankIcons", text = "Rank Icons" },
       { key = "showFactionIcons", text = "Faction Icons" },
       { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
     }) do
@@ -685,7 +699,7 @@ function module:SetSortBy(sortBy)
 end
 
 --- Saves an icon/display toggle and redraws the list (used by the options panel).
----@param key string "showInstanceIcons", "showFactionIcons" or "factionIconsOppositeOnly".
+---@param key string "showInstanceIcons", "showRankIcons", "showFactionIcons" or "factionIconsOppositeOnly".
 ---@param value boolean The new value.
 function module:SetDisplaySetting(key, value)
   setDisplaySetting(key, value)
