@@ -57,15 +57,6 @@ local SCROLL_BAR_IDLE_ALPHA = 0.3 -- The scroll bar is dimmed until the window i
 local FADE_DURATION = 0.25
 local ROSTER_REQUEST_DELAY = 2 -- GuildMembersOnline waits for roster data to settle after a loading screen.
 local SETTINGS_MENU_TAG = "MENU_SLACKHACKS_GUILDIE_LIST_SETTINGS"
--- Cog atlases per button state, from DamageMeterSettingsDropdownButtonTemplate's KeyValues.
-local SETTINGS_ICON_ATLAS = {
-  disabled = "common-dropdown-a-button-settings-disabled-shadowless",
-  normal = "common-dropdown-a-button-settings-shadowless",
-  pressed = "common-dropdown-a-button-settings-pressed-shadowless",
-  hover = "common-dropdown-a-button-settings-hover-shadowless",
-  hoverPressed = "common-dropdown-a-button-settings-pressedhover-shadowless",
-  open = "common-dropdown-a-button-settings-open-shadowless",
-}
 
 -- Sort choices in menu order; `key` is the saved `sortBy` value.
 local SORT_OPTIONS = {
@@ -175,19 +166,25 @@ local function showOpacityPanel()
   opacityPanel:Open(getSettings().opacity, "TOPLEFT", window, "TOPRIGHT", 0, 7)
 end
 
---- Saves the list's sort order and re-sorts the window if it's showing.
+--- Redraws the list wherever it's showing: this module's own window and the stacked Players Online window.
+local function refresh()
+  if window and window:IsVisible() then populate() end
+  Self.InfoDisplay:RefreshPlayersOnline()
+end
+
+--- Saves the list's sort order and re-sorts the list wherever it's showing.
 ---@param sortBy string A SORT_COMPARATORS key: "name" or "zone".
 local function setSortBy(sortBy)
   getSettings().sortBy = sortBy
-  if window and window:IsVisible() then populate() end
+  refresh()
 end
 
---- Saves a display setting (e.g. an icon toggle) and redraws the list if it's showing.
+--- Saves a display setting (e.g. an icon toggle) and redraws the list wherever it's showing.
 ---@param key string The `guildieList` setting to change.
 ---@param value any The new value.
 local function setDisplaySetting(key, value)
   getSettings()[key] = value
-  if window and window:IsVisible() then populate() end
+  refresh()
 end
 
 --- Saves the window's current anchor and size so it is restored on the next login. The size is skipped while
@@ -276,13 +273,12 @@ end
 --- tooltip (CommunitiesMemberListEntryMixin:OnEnter: rank, notes, mobile presence, Timerunning icon). The real
 --- unit tooltip is built by the game client from a unit token (e.g. "target"), which a guild member elsewhere in
 --- the world doesn't have, so the lines are assembled here from the roster and club data instead.
----@param row Frame The hovered list row.
-local function showMemberTooltip(row)
-  onWindowEnter()
-  local member = row.member
+---@param owner Frame The hovered row the tooltip anchors to.
+---@param member table Member entry built by buildMembers().
+local function showMemberTooltip(owner, member)
   local club = member.clubInfo or {}
   local white = HIGHLIGHT_FONT_COLOR
-  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
 
   local name = member.fullName
   if club.timerunningSeasonID and TimerunningUtil then name = TimerunningUtil.AddSmallIcon(name) end
@@ -331,9 +327,8 @@ end
 --- Opens the member's context menu (Invite, Whisper, View Houses) with the same context data the Communities
 --- guild roster passes for a guild member (CommunitiesMemberListMixin:OnClubMemberButtonClicked). Blizzard's
 --- invite options hide themselves for mobile members and pick Invite, Suggest Invite or Request Invite.
----@param row Frame The clicked list row.
-local function openMemberMenu(row)
-  local member = row.member
+---@param member table Member entry built by buildMembers().
+local function openMemberMenu(member)
   GameTooltip:Hide()
   openPlayerMenu("SLACKHACKS_PLAYER", {
     name = member.fullName,
@@ -369,7 +364,7 @@ end
 
 --- ScrollBox element initializer; builds a row's two columns (name, zone) once and then binds it to a member.
 ---@param row Frame A pooled row frame from the ScrollBox.
----@param member table Member entry built by populate().
+---@param member table Member entry built by buildMembers().
 local function initRow(row, member)
   if not row.Name then
     row.Name = createCell(row)
@@ -377,10 +372,13 @@ local function initRow(row, member)
     row.Zone = createCell(row)
     row.Zone:SetPoint("LEFT", row.Name, "RIGHT", COLUMN_GAP, 0)
     row.Zone:SetPoint("RIGHT", -ROW_PADDING, 0)
-    row:SetScript("OnEnter", showMemberTooltip)
+    row:SetScript("OnEnter", function(self)
+      onWindowEnter()
+      showMemberTooltip(self, self.member)
+    end)
     row:SetScript("OnLeave", GameTooltip_Hide)
     row:SetMouseMotionEnabled(true)
-    enableRowClicks(row, window, openMemberMenu)
+    enableRowClicks(row, window, function(self) openMemberMenu(self.member) end)
   end
   -- Re-applied on every bind since populate() re-measures the columns.
   layoutRow(row)
@@ -449,15 +447,11 @@ local function setFitToContent(enabled)
   end
 end
 
---- Rebuilds the list of online members from the client's guild roster cache (GuildMembersOnline logic),
---- sorted by the saved `sortBy` setting. Assigned to the forward-declared local so setSortBy can call it.
-function populate()
-  if not IsInGuild() then
-    window.Title:SetText("No Guild")
-    window.ScrollBox:SetDataProvider(CreateDataProvider())
-    fitToContent({})
-    return
-  end
+--- Builds the sorted list of online members from the client's guild roster cache (GuildMembersOnline logic),
+--- ordered by the saved `sortBy` setting. Shared by this window and the stacked Players Online window.
+---@return table|nil members Member entries, or nil when the player isn't in a guild.
+local function buildMembers()
+  if not IsInGuild() then return nil end
 
   local settings = getSettings()
   local members = {}
@@ -507,6 +501,19 @@ function populate()
     end
   end
   table.sort(members, SORT_COMPARATORS[settings.sortBy] or SORT_COMPARATORS.name)
+  return members
+end
+
+--- Redraws this module's window from buildMembers(). Assigned to the forward-declared local so refresh() can
+--- call it.
+function populate()
+  local members = buildMembers()
+  if not members then
+    window.Title:SetText("No Guild")
+    window.ScrollBox:SetDataProvider(CreateDataProvider())
+    fitToContent({})
+    return
+  end
 
   nameColumnWidth = measureWidest(members, "name")
   zoneColumnWidth = measureWidest(members, "zoneText")
@@ -521,90 +528,38 @@ local function requestRoster()
   if IsInGuild() then C_GuildInfo.GuildRoster() end
 end
 
---- Builds the header's cog button, a Lua copy of Blizzard's DamageMeterSettingsDropdownButtonTemplate
---- (Blizzard_DamageMeter/DamageMeterSettingsDropdownButton.xml/.lua), and fills its settings menu.
----@return DropdownButton button The cog button.
-local function createSettingsDropdown()
-  -- "DropdownButton" is the intrinsic behind Blizzard's <DropdownButton> XML tag (Blizzard_Menu): it brings
-  -- DropdownButtonMixin (SetupMenu, opening/closing the menu on click) plus intrinsic script handlers that
-  -- keep running alongside the scripts set below. ButtonStateBehaviorMixin tracks hover/pressed state.
-  local button = CreateFrame("DropdownButton", nil, window)
-  Mixin(button, ButtonStateBehaviorMixin)
-  button:SetSize(27, 27)
-  button.Icon = button:CreateTexture(nil, "ARTWORK")
-  button.Icon:SetAllPoints()
-
-  --- Shows the cog atlas for the button's current state; copy of DamageMeterSettingsDropdownButton:GetIconAtlas().
-  function button:OnButtonStateChanged()
-    local atlas
-    if not self:IsEnabled() then
-      atlas = SETTINGS_ICON_ATLAS.disabled
-    elseif self:IsDownOver() then
-      atlas = SETTINGS_ICON_ATLAS.hoverPressed
-    elseif self:IsOver() then
-      atlas = SETTINGS_ICON_ATLAS.hover
-    elseif self:IsDown() then
-      atlas = SETTINGS_ICON_ATLAS.pressed
-    elseif self:IsMenuOpen() then
-      atlas = SETTINGS_ICON_ATLAS.open
-    else
-      atlas = SETTINGS_ICON_ATLAS.normal
+--- Fills the header cog's settings menu, the Lua equivalent of the DamageMeter's SettingsDropdown menu.
+---@param _ Frame The cog button (unused).
+---@param rootDescription table The menu's root description.
+local function buildSettingsMenu(_, rootDescription)
+  rootDescription:SetTag(SETTINGS_MENU_TAG)
+  rootDescription:CreateCheckbox("Fit to Content",
+    function() return getSettings().fitToContent end,
+    function() setFitToContent(not getSettings().fitToContent) end)
+  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
+  rootDescription:CreateDivider()
+  rootDescription:CreateTitle("Sort By")
+  for _, option in ipairs(SORT_OPTIONS) do
+    rootDescription:CreateRadio(option.text,
+      function(key) return (getSettings().sortBy or "name") == key end,
+      setSortBy,
+      option.key)
+  end
+  rootDescription:CreateDivider()
+  rootDescription:CreateTitle("Icons")
+  for _, toggle in ipairs({
+    { key = "showInstanceIcons", text = "Instance Icons" },
+    { key = "showRankIcons", text = "Rank Icons" },
+    { key = "showFactionIcons", text = "Faction Icons" },
+    { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
+  }) do
+    local checkbox = rootDescription:CreateCheckbox(toggle.text,
+      function() return getSettings()[toggle.key] end,
+      function() setDisplaySetting(toggle.key, not getSettings()[toggle.key]) end)
+    if toggle.requires then
+      checkbox:SetEnabled(function() return getSettings()[toggle.requires] end)
     end
-    self.Icon:SetAtlas(atlas, TextureKitConstants.UseAtlasSize)
   end
-
-  --- Extends DropdownButtonMixin:OnMenuOpened to switch to the "open" cog.
-  ---@param menu Frame The opened menu.
-  function button:OnMenuOpened(menu)
-    DropdownButtonMixin.OnMenuOpened(self, menu)
-    self:OnButtonStateChanged()
-  end
-
-  --- Extends DropdownButtonMixin:OnMenuClosed to switch back from the "open" cog.
-  ---@param menu Frame The closed menu.
-  ---@param closeReason number Why the menu closed.
-  function button:OnMenuClosed(menu, closeReason)
-    DropdownButtonMixin.OnMenuClosed(self, menu, closeReason)
-    self:OnButtonStateChanged()
-  end
-
-  -- The template's <Scripts> block: all of these are ButtonStateBehaviorMixin methods.
-  for _, script in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave", "OnEnable", "OnDisable" }) do
-    button:SetScript(script, button[script])
-  end
-  button:OnButtonStateChanged() -- ButtonStateBehaviorMixin:OnLoad()
-
-  button:SetupMenu(function(_, rootDescription)
-    rootDescription:SetTag(SETTINGS_MENU_TAG)
-    rootDescription:CreateCheckbox("Fit to Content",
-      function() return getSettings().fitToContent end,
-      function() setFitToContent(not getSettings().fitToContent) end)
-    rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
-    rootDescription:CreateDivider()
-    rootDescription:CreateTitle("Sort By")
-    for _, option in ipairs(SORT_OPTIONS) do
-      rootDescription:CreateRadio(option.text,
-        function(key) return (getSettings().sortBy or "name") == key end,
-        setSortBy,
-        option.key)
-    end
-    rootDescription:CreateDivider()
-    rootDescription:CreateTitle("Icons")
-    for _, toggle in ipairs({
-      { key = "showInstanceIcons", text = "Instance Icons" },
-      { key = "showRankIcons", text = "Rank Icons" },
-      { key = "showFactionIcons", text = "Faction Icons" },
-      { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
-    }) do
-      local checkbox = rootDescription:CreateCheckbox(toggle.text,
-        function() return getSettings()[toggle.key] end,
-        function() setDisplaySetting(toggle.key, not getSettings()[toggle.key]) end)
-      if toggle.requires then
-        checkbox:SetEnabled(function() return getSettings()[toggle.requires] end)
-      end
-    end
-  end)
-  return button
 end
 
 --- Builds the window, following DamageMeterSessionWindowTemplate: a Header bar holding the title,
@@ -646,7 +601,7 @@ local function createWindow()
   minimizeButton:SetScript("OnClick", function() setMinimized(not getSettings().minimized) end)
   window.MinimizeButton = minimizeButton
 
-  local settingsDropdown = createSettingsDropdown()
+  local settingsDropdown = createSettingsCog(window, buildSettingsMenu)
   settingsDropdown:SetPoint("RIGHT", minimizeButton, "LEFT", -2, -2)
   window.SettingsDropdown = settingsDropdown
 
@@ -759,6 +714,42 @@ function module:SetDisplaySetting(key, value)
   setDisplaySetting(key, value)
 end
 
+--- Returns the online members for the stacked Players Online window.
+---@return table members Sorted member entries (empty when the player isn't in a guild).
+---@return string|nil unavailableTitle "No Guild" when there's no roster to show, otherwise nil.
+function module:GetEntries()
+  local members = buildMembers()
+  if not members then return {}, "No Guild" end
+  return members
+end
+
+--- Shows a member's tooltip (used by the stacked Players Online window's rows).
+---@param owner Frame The row the tooltip anchors to.
+---@param member table A member entry from GetEntries().
+function module:ShowTooltip(owner, member)
+  showMemberTooltip(owner, member)
+end
+
+--- Opens a member's context menu (used by the stacked Players Online window's rows).
+---@param member table A member entry from GetEntries().
+function module:OpenMenu(member)
+  openMemberMenu(member)
+end
+
+--- Asks the server for fresh roster data (used when the stacked Players Online window is shown).
+function module:RequestRoster()
+  requestRoster()
+end
+
+--- Shows this module's own window unless the list is stacked into the Players Online window, in which case the
+--- window (and its opacity panel) stay hidden while the module keeps listening for roster changes.
+function module:UpdateWindowShown()
+  if not window then return end
+  local stacked = Self.InfoDisplay:IsPlayersOnlineStacked()
+  window:SetShown(not stacked)
+  if stacked and opacityPanel then opacityPanel:Hide() end
+end
+
 --- AceAddon initialization hook; keeps the module disabled when turned off or outside Retail, since the
 --- DamageMeter atlases and ScrollBox templates the window relies on only exist there.
 function module:OnInitialize()
@@ -778,15 +769,16 @@ function module:OnEnable()
   setOpacity(getSettings().opacity)
   setFitToContent(getSettings().fitToContent) -- Window is still hidden, so the fit itself happens in OnShow.
   self:RegisterEvent("PLAYER_ENTERING_WORLD", function() C_Timer.After(ROSTER_REQUEST_DELAY, requestRoster) end)
-  self:RegisterEvent("GUILD_ROSTER_UPDATE", function()
-    if window:IsVisible() then populate() end
-  end)
-  window:Show()
+  self:RegisterEvent("GUILD_ROSTER_UPDATE", refresh)
+  self:UpdateWindowShown()
+  Self.InfoDisplay:RefreshPlayersOnline()
 end
 
---- Stops listening for roster changes and hides the window and its opacity panel.
+--- Stops listening for roster changes, hides the window and its opacity panel, and drops the Guildies section
+--- from the stacked Players Online window.
 function module:OnDisable()
   self:UnregisterAllEvents()
   if window then window:Hide() end
   if opacityPanel then opacityPanel:Hide() end
+  Self.InfoDisplay:RefreshPlayersOnline()
 end

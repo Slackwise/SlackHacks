@@ -9,3 +9,6 @@
 ## Friends List
 - New Info Display window listing online friends, titled "Friends (N)", with Only Favorite Friends, Only Playing WoW, and Only Same WoW Version filters
 - Left/right-click context menu with Invite, Whisper, and View Houses
+
+## Players Online
+- New "Stack Friends and Guildie Lists" Info Display option that stacks both lists in one "Players Online (N)" window, with Objective Tracker-style collapsible section headers, a "List Stack Order" choice, and a Fit to Content cog option

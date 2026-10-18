@@ -582,6 +582,74 @@ function createSliderPanel(name, label, minValue, maxValue, step, onValueChanged
   return frame
 end
 
+-- Cog atlases per button state, from DamageMeterSettingsDropdownButtonTemplate's KeyValues.
+local SETTINGS_COG_ATLAS = {
+  disabled = "common-dropdown-a-button-settings-disabled-shadowless",
+  normal = "common-dropdown-a-button-settings-shadowless",
+  pressed = "common-dropdown-a-button-settings-pressed-shadowless",
+  hover = "common-dropdown-a-button-settings-hover-shadowless",
+  hoverPressed = "common-dropdown-a-button-settings-pressedhover-shadowless",
+  open = "common-dropdown-a-button-settings-open-shadowless",
+}
+
+--- Creates a settings cog button with a dropdown menu, a Lua copy of Blizzard's
+--- DamageMeterSettingsDropdownButtonTemplate (Blizzard_DamageMeter/DamageMeterSettingsDropdownButton.xml/.lua).
+---@param parent Frame The frame the button belongs to (anchor it afterwards).
+---@param menuGenerator fun(owner: Frame, rootDescription: table) Fills the menu; passed to DropdownButton:SetupMenu.
+---@return DropdownButton button The cog button.
+function createSettingsCog(parent, menuGenerator)
+  -- "DropdownButton" is the intrinsic behind Blizzard's <DropdownButton> XML tag (Blizzard_Menu): it brings
+  -- DropdownButtonMixin (SetupMenu, opening/closing the menu on click) plus intrinsic script handlers that
+  -- keep running alongside the scripts set below. ButtonStateBehaviorMixin tracks hover/pressed state.
+  local button = CreateFrame("DropdownButton", nil, parent)
+  Mixin(button, ButtonStateBehaviorMixin)
+  button:SetSize(27, 27)
+  button.Icon = button:CreateTexture(nil, "ARTWORK")
+  button.Icon:SetAllPoints()
+
+  --- Shows the cog atlas for the button's current state; copy of DamageMeterSettingsDropdownButton:GetIconAtlas().
+  function button:OnButtonStateChanged()
+    local atlas
+    if not self:IsEnabled() then
+      atlas = SETTINGS_COG_ATLAS.disabled
+    elseif self:IsDownOver() then
+      atlas = SETTINGS_COG_ATLAS.hoverPressed
+    elseif self:IsOver() then
+      atlas = SETTINGS_COG_ATLAS.hover
+    elseif self:IsDown() then
+      atlas = SETTINGS_COG_ATLAS.pressed
+    elseif self:IsMenuOpen() then
+      atlas = SETTINGS_COG_ATLAS.open
+    else
+      atlas = SETTINGS_COG_ATLAS.normal
+    end
+    self.Icon:SetAtlas(atlas, TextureKitConstants.UseAtlasSize)
+  end
+
+  --- Extends DropdownButtonMixin:OnMenuOpened to switch to the "open" cog.
+  ---@param menu Frame The opened menu.
+  function button:OnMenuOpened(menu)
+    DropdownButtonMixin.OnMenuOpened(self, menu)
+    self:OnButtonStateChanged()
+  end
+
+  --- Extends DropdownButtonMixin:OnMenuClosed to switch back from the "open" cog.
+  ---@param menu Frame The closed menu.
+  ---@param closeReason number Why the menu closed.
+  function button:OnMenuClosed(menu, closeReason)
+    DropdownButtonMixin.OnMenuClosed(self, menu, closeReason)
+    self:OnButtonStateChanged()
+  end
+
+  -- The template's <Scripts> block: all of these are ButtonStateBehaviorMixin methods.
+  for _, script in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave", "OnEnable", "OnDisable" }) do
+    button:SetScript(script, button[script])
+  end
+  button:OnButtonStateChanged() -- ButtonStateBehaviorMixin:OnLoad()
+  button:SetupMenu(menuGenerator)
+  return button
+end
+
 -- Player context menus for the Info Display lists (Guildie List, Friends List), keyed by UnitPopup menu name.
 -- Each returns a trimmed-down entry list from Blizzard's own menus (Blizzard_UnitPopup's
 -- UnitPopupMenuCommunitiesGuildMember and UnitPopupMenuBnFriend), so the buttons keep Blizzard's logic: e.g. the

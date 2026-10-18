@@ -224,6 +224,20 @@ dbDefaults = {
         y = 0,
         width = 300,
         height = 200,
+      },
+      -- The Players Online window that stacks the Friends and Guildie lists (InfoDisplay.lua).
+      playersOnline = {
+        stacked = false,
+        stackOrder = "friends", -- "friends" (Friends, Guildies) or "guildies" (Guildies, Friends)
+        minimized = false,
+        fitToContent = true,
+        collapsed = { friends = false, guildies = false }, -- Per-list section collapse state.
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = 0,
+        width = 300,
+        height = 300,
       }
     }
   }
@@ -2337,6 +2351,30 @@ options = {
           get = function() return db.profile.infoDisplay.enabled end,
           set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
           order = 0.05
+        },
+        stackPeopleLists = {
+          name = "Stack Friends and Guildie Lists",
+          desc = "Show the Friends and Guildie lists stacked in one collapsible \"Players Online\" window, " ..
+            "like the Objective Tracker's sections, instead of in their own windows.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          hidden = function() return not isRetail() end,
+          get = function() return db.profile.infoDisplay.playersOnline.stacked end,
+          set = function(_, value) Self.InfoDisplay:SetStackPeopleLists(value) end,
+          order = 0.1
+        },
+        stackOrder = {
+          name = "List Stack Order",
+          desc = "Which list is shown on top in the Players Online window.",
+          type = "select",
+          values = { friends = "Friends, Guildies", guildies = "Guildies, Friends" },
+          sorting = { "friends", "guildies" },
+          hidden = function() return not isRetail() end,
+          disabled = function() return not db.profile.infoDisplay.playersOnline.stacked end,
+          get = function() return db.profile.infoDisplay.playersOnline.stackOrder end,
+          set = function(_, value) Self.InfoDisplay:SetStackOrder(value) end,
+          order = 0.2
         },
         charSheet = {
           type = "group",
