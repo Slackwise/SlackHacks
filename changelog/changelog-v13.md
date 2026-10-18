@@ -5,10 +5,12 @@
 - Window title is now "Guildies (N)"
 - Added a left/right-click context menu with Invite, Whisper, and View Houses
 - Names now use all of the window's width when it's resized, and windows can be resized up to full screen height
+- Now available in WoW Forever as well as Retail
 
 ## Friends List
 - New Info Display window listing online friends, titled "Friends (N)", with Only Favorite Friends, Only Playing WoW, and Only Same WoW Version filters
 - Left/right-click context menu with Invite, Whisper, and View Houses
+- Available in Retail and WoW Forever, as are the Guildie List and Players Online
 
 ## Players Online
 - New "Stack Friends and Guildie Lists" Info Display option that stacks both lists in one "Players Online (N)" window, with Objective Tracker-style collapsible section headers, a "List Stack Order" choice, and a Fit to Content cog option

@@ -586,11 +586,11 @@ local function createWindow()
   setFitToContent(settings.fitToContent)
 end
 
---- Returns whether the Friends and Guildie lists are stacked into the Players Online window (Retail only, like the
---- lists themselves).
+--- Returns whether the Friends and Guildie lists are stacked into the Players Online window (Retail and Forever
+--- only, like the lists themselves).
 ---@return boolean stacked
 function module:IsPlayersOnlineStacked()
-  return isRetail() and getSettings().stacked
+  return isRetailOrForever() and getSettings().stacked
 end
 
 --- Shows, redraws or hides the Players Online window: it shows while stacking is on and at least one of the lists
@@ -623,7 +623,7 @@ end
 --- (with just one there's nothing to stack).
 ---@param rootDescription table The list's cog menu description.
 function module:AddStackMenuButton(rootDescription)
-  if isRetail() and Self.GuildieList:IsEnabled() and Self.FriendsList:IsEnabled() then
+  if isRetailOrForever() and Self.GuildieList:IsEnabled() and Self.FriendsList:IsEnabled() then
     rootDescription:CreateButton("Stack Friend/Guildie Lists", function() self:SetStackLists(true) end)
   end
 end

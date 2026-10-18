@@ -889,16 +889,16 @@ function module:UpdateWindowShown()
   if stacked and opacityPanel then opacityPanel:Hide() end
 end
 
---- AceAddon initialization hook; keeps the module disabled when turned off or outside Retail, since the
---- DamageMeter atlases and ScrollBox templates the window relies on only exist there.
+--- AceAddon initialization hook; keeps the module disabled when turned off or outside Retail and Forever, since
+--- the DamageMeter atlases and ScrollBox templates the window relies on only exist there.
 function module:OnInitialize()
-  if not getSettings().enabled or not isRetail() then self:Disable() end
+  if not getSettings().enabled or not isRetailOrForever() then self:Disable() end
 end
 
 --- Shows the window (creating it on first use) and listens for friend list changes.
 function module:OnEnable()
   -- Addon-wide re-enables (e.g. profile reset) enable every module, so re-check the saved setting.
-  if not getSettings().enabled or not isRetail() then
+  if not getSettings().enabled or not isRetailOrForever() then
     self:SetEnabledState(false)
     return
   end
