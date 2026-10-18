@@ -204,6 +204,26 @@ dbDefaults = {
         y = 0,
         width = 260,
         height = 200,
+      },
+      friendsList = {
+        enabled = false,
+        minimized = false,
+        fitToContent = true,
+        opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
+        sortBy = "name", -- "name" (the friends list's order) or "zone"
+        onlyFavorites = true,
+        onlyWoW = true,
+        onlySameWoWVersion = false, -- Only applies while onlyWoW is on.
+        showInstanceIcons = true,
+        showGameIcons = true,
+        showFactionIcons = true,
+        factionIconsOppositeOnly = true,
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 280, -- Beside the Guild Member List's default spot rather than on top of it.
+        y = 0,
+        width = 300,
+        height = 200,
       }
     }
   }
@@ -248,6 +268,7 @@ RETAIL_MODULES = {
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
   { key = { "infoDisplay", "guildMemberList" }, name = "Guild Member List" },
+  { key = { "infoDisplay", "friendsList" }, name = "Friends List" },
 }
 
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
@@ -2616,7 +2637,7 @@ options = {
               order = 4
             },
             factionIconsOppositeOnly = {
-              name = "Only Show Opposite Faction",
+              name = "Only Show Opposite Faction Icon",
               desc = "Only show the faction icon for members of the opposite faction to your current character. Also available from the window's cog menu.",
               descStyle = "inline",
               type = "toggle",
@@ -2627,6 +2648,144 @@ options = {
               end,
               get = function() return db.profile.infoDisplay.guildMemberList.factionIconsOppositeOnly end,
               set = function(_, value) Self.GuildMemberList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
+              order = 5
+            }
+          }
+        },
+        friendsList = {
+          type = "group",
+          name = "Friends List",
+          desc = "A collapsible window listing online friends.",
+          order = 4,
+          args = {
+            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online friends and their locations."),
+            enabled = {
+              name = "Enable Friends List Module",
+              desc = "Show the online friends window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.infoDisplay.friendsList.enabled end,
+              set = function(_, value) Self.FriendsList:SetEnabled(value) end,
+              order = 0.05
+            },
+            fitToContent = {
+              name = "Fit Window to Content",
+              desc = "Automatically size the window to fit its friends and locations (up to a maximum height, after which the list scrolls). Turns off manual resizing while enabled. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.fitToContent end,
+              set = function(_, value) Self.FriendsList:SetFitToContent(value) end,
+              order = 0.5
+            },
+            opacity = {
+              name = "Background Opacity",
+              desc = "How opaque the window's background is. Also available from the window's cog menu.",
+              type = "range",
+              isPercent = true,
+              min = 0,
+              max = 1,
+              step = 0.05,
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.opacity end,
+              set = function(_, value) Self.FriendsList:SetOpacity(value) end,
+              order = 1
+            },
+            onlyFavorites = {
+              name = "Only Favorite Friends",
+              desc = "Only list Battle.net friends you've marked as favorites. Turn off to list all online friends, including character friends. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.onlyFavorites end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("onlyFavorites", value) end,
+              order = 1.5
+            },
+            onlyWoW = {
+              name = "Only Playing WoW",
+              desc = "Only list friends currently playing World of Warcraft, hiding those in other Blizzard games or the Battle.net app. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.onlyWoW end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("onlyWoW", value) end,
+              order = 1.6
+            },
+            onlySameWoWVersion = {
+              name = "Only Same WoW Version",
+              desc = "Only list friends playing the same version of WoW as you (e.g. hide Classic players while you're on Retail). Requires Only Playing WoW. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function()
+                local settings = db.profile.infoDisplay.friendsList
+                return not settings.enabled or not settings.onlyWoW
+              end,
+              get = function() return db.profile.infoDisplay.friendsList.onlySameWoWVersion end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("onlySameWoWVersion", value) end,
+              order = 1.7
+            },
+            sortBy = {
+              name = "Sort By",
+              desc = "Sort the list by name (the Friends list's order) or by location. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "select",
+              values = { name = "Name", zone = "Location" },
+              sorting = { "name", "zone" },
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.sortBy end,
+              set = function(_, value) Self.FriendsList:SetSortBy(value) end,
+              order = 2
+            },
+            showInstanceIcons = {
+              name = "Show Instance Icons",
+              desc = "Show a Dungeon, Raid, or Delve icon after the location of friends inside one. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showInstanceIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showInstanceIcons", value) end,
+              order = 3
+            },
+            showGameIcons = {
+              name = "Show Game Icons",
+              desc = "Show the icon of the Blizzard game or app each friend is in after their name, like the Friends list. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showGameIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showGameIcons", value) end,
+              order = 3.5
+            },
+            showFactionIcons = {
+              name = "Show Faction Icons",
+              desc = "Show a Horde or Alliance icon after the names of friends playing WoW. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showFactionIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showFactionIcons", value) end,
+              order = 4
+            },
+            factionIconsOppositeOnly = {
+              name = "Only Show Opposite Faction Icon",
+              desc = "Only show the faction icon for friends on the opposite faction to your current character. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function()
+                local settings = db.profile.infoDisplay.friendsList
+                return not settings.enabled or not settings.showFactionIcons
+              end,
+              get = function() return db.profile.infoDisplay.friendsList.factionIconsOppositeOnly end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
               order = 5
             }
           }
