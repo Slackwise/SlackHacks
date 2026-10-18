@@ -33,9 +33,11 @@ local LIST_LEFT_INSET = 5
 local LIST_RIGHT_INSET = 1
 local LIST_BOTTOM_INSET = 6
 -- The ScrollBox spans the window's full width so the section headers line up with the window header like the
--- tracker's module headers do (the ScrollBox clips anything outside it); the list insets move into the rows.
+-- tracker's module headers do; the list insets move into the rows. It's also widened past both window edges by
+-- `sectionOverhang`, since it clips its contents and the section header art overhangs like the window header's.
 local ROW_LEFT_INSET = LIST_LEFT_INSET + ROW_PADDING
 local ROW_RIGHT_INSET = LIST_RIGHT_INSET + ROW_PADDING
+local SECTION_ATLAS = "UI-QuestTracker-Secondary-Objective-Header"
 local SCROLL_BAR_SPACE = 15
 local HEADER_BUTTONS_WIDTH = 62 -- Header space beside the title: title inset, cog, minimize button and gaps.
 local MIN_WIDTH = 200
@@ -60,6 +62,8 @@ local window
 local opacityPanel
 -- Untruncated widths of the widest name and zone across both lists, so the columns line up between sections.
 local nameColumnWidth, zoneColumnWidth = 0, 0
+-- How far the section header art overhangs each side of the window, measured from the atlas in createWindow.
+local sectionOverhang = 0
 
 --- Returns the font both Objective Tracker header templates use. It's defined by Blizzard_ObjectiveTracker, which
 --- may load after this addon, so it's looked up when a header is built, with a similar stock font as a fallback.
@@ -186,7 +190,8 @@ end
 ---@param row Button A person row created by initRow().
 local function layoutRow(row)
   -- A freshly bound row isn't anchored yet and reports a width of 0, so the ScrollBox's width is used instead.
-  local available = window.ScrollBox:GetWidth() - ROW_LEFT_INSET - ROW_RIGHT_INSET - COLUMN_GAP
+  local available = window.ScrollBox:GetWidth() - 2 * sectionOverhang - ROW_LEFT_INSET - ROW_RIGHT_INSET
+    - COLUMN_GAP
   local width = math.max(available - zoneColumnWidth, math.min(nameColumnWidth, available * NAME_COLUMN_MIN_SHARE))
   row.Name:SetWidth(math.max(width, 1)) -- A width of 0 would mean "unbounded" and stop truncation.
 end
@@ -200,12 +205,14 @@ local function initRow(row, data)
     row.Name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.Name:SetJustifyH("LEFT")
     row.Name:SetWordWrap(false)
-    row.Name:SetPoint("LEFT", ROW_LEFT_INSET, 0)
+    row.Name:SetPoint("LEFT", sectionOverhang + ROW_LEFT_INSET, 0)
     row.Zone = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.Zone:SetJustifyH("LEFT")
     row.Zone:SetWordWrap(false)
     row.Zone:SetPoint("LEFT", row.Name, "RIGHT", COLUMN_GAP, 0)
-    row.Zone:SetPoint("RIGHT", -ROW_RIGHT_INSET, 0)
+    row.Zone:SetPoint("RIGHT", -sectionOverhang - ROW_RIGHT_INSET, 0)
+    -- Rows span the widened ScrollBox; keep their mouse area inside the window.
+    row:SetHitRectInsets(sectionOverhang, sectionOverhang, 0, 0)
     row:SetScript("OnEnter", function(self)
       onWindowEnter()
       self.listModule:ShowTooltip(self, self.entry)
@@ -250,9 +257,9 @@ local function initSectionHeader(header, data)
   if not header.Text then
     local center = SECTION_HEADER_HEIGHT / 2
     local background = header:CreateTexture(nil, "BACKGROUND")
-    background:SetAtlas("UI-QuestTracker-Secondary-Objective-Header", TextureKitConstants.UseAtlasSize)
-    -- Stretched across the full-width list (the template centers it at a fixed size on a header as wide as the
-    -- tracker) since this window can be resized.
+    background:SetAtlas(SECTION_ATLAS, TextureKitConstants.UseAtlasSize)
+    -- Spans the widened header, so it overhangs the window by `sectionOverhang` on each side like the template's
+    -- centered, fixed-size art overhangs its 260-wide header; stretched since this window can be resized.
     background:SetPoint("LEFT", header, "BOTTOMLEFT", 0, center)
     background:SetPoint("RIGHT", header, "BOTTOMRIGHT", 0, center)
 
@@ -260,7 +267,7 @@ local function initSectionHeader(header, data)
     button:SetSize(SECTION_BUTTON_SIZE, SECTION_BUTTON_SIZE)
     -- Centered under the window header's 18px MinimizeButton (at -1), as the tracker's module buttons sit under
     -- its "All Objectives" button.
-    button:SetPoint("RIGHT", header, "BOTTOMRIGHT", -2, center)
+    button:SetPoint("RIGHT", header, "BOTTOMRIGHT", -sectionOverhang - 2, center)
     button:SetHighlightAtlas("ui-questtrackerbutton-yellow-highlight", "ADD")
     button:SetScript("OnClick", function(self) toggleSection(self:GetParent().key) end)
     -- Entering the button skips the window's own OnEnter, so it has to start the hover fades itself.
@@ -276,7 +283,7 @@ local function initSectionHeader(header, data)
     header.Text = header:CreateFontString(nil, "ARTWORK", getHeaderFont())
     header.Text:SetJustifyH("LEFT")
     header.Text:SetWordWrap(false)
-    header.Text:SetPoint("LEFT", header, "BOTTOMLEFT", HEADER_TEXT_INSET, center)
+    header.Text:SetPoint("LEFT", header, "BOTTOMLEFT", sectionOverhang + HEADER_TEXT_INSET, center)
     header.Text:SetPoint("RIGHT", cog, "LEFT", -2, 0)
   end
   header.key = data.key
@@ -509,10 +516,17 @@ local function createWindow()
   background:SetAllPoints()
   window.Background = background
 
+  -- Measures the section header art the same way as the window header's, before any section header is built.
+  local sectionBackground = container:CreateTexture()
+  sectionBackground:SetAtlas(SECTION_ATLAS, TextureKitConstants.UseAtlasSize)
+  sectionOverhang = math.max((sectionBackground:GetWidth() - HEADER_TEMPLATE_WIDTH) / 2, 0)
+  sectionBackground:Hide()
+
   local scrollBox = CreateFrame("Frame", nil, container, "WowScrollBoxList")
   local scrollBar = CreateFrame("EventFrame", nil, container, "MinimalScrollBar")
-  scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 0, 0)
-  scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 0, 8)
+  -- Pulled back over the ScrollBox's overhang so the bar sits inside the window.
+  scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", -sectionOverhang, 0)
+  scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", -sectionOverhang, 8)
   window.ScrollBox = scrollBox
 
   -- Headers and rows are different frame types, so the ScrollBox's frame factory pools them separately.
@@ -529,10 +543,10 @@ local function createWindow()
     self:ForEachFrame(function(frame) if frame.Name then layoutRow(frame) end end)
   end)
 
-  local topLeft = CreateAnchor("TOPLEFT", header, "BOTTOMLEFT", 0, -LIST_TOP_GAP)
+  local topLeft = CreateAnchor("TOPLEFT", header, "BOTTOMLEFT", -sectionOverhang, -LIST_TOP_GAP)
   ScrollUtil.AddManagedScrollBarVisibilityBehavior(scrollBox, scrollBar,
-    { topLeft, CreateAnchor("BOTTOMRIGHT", -SCROLL_BAR_SPACE, LIST_BOTTOM_INSET) },
-    { topLeft, CreateAnchor("BOTTOMRIGHT", 0, LIST_BOTTOM_INSET) })
+    { topLeft, CreateAnchor("BOTTOMRIGHT", sectionOverhang - SCROLL_BAR_SPACE, LIST_BOTTOM_INSET) },
+    { topLeft, CreateAnchor("BOTTOMRIGHT", sectionOverhang, LIST_BOTTOM_INSET) })
 
   local resizeButton = CreateFrame("Button", nil, container)
   resizeButton:SetSize(60, 60)
