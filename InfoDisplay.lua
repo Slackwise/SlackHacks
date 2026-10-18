@@ -3,7 +3,8 @@ setfenv(1, _G.SlackHacks)
 -- Info Display: switches the Char Sheet overlays on and off, and hosts the "Players Online" window, which stacks the
 -- Friends and Guildie lists into one window the way Blizzard's Objective Tracker ("All Objectives",
 -- Blizzard_ObjectiveTracker) stacks its modules: each list gets a module header (ObjectiveTrackerModuleHeaderTemplate)
--- whose secondary minimize button collapses just that list. The window's header bar copies the tracker's own
+-- whose secondary minimize button collapses just that list, with a cog for that list's own options beside it. The
+-- window's header bar copies the tracker's own
 -- "All Objectives" header (ObjectiveTrackerContainerHeaderTemplate), and the rest of the window is the same
 -- DamageMeterSessionWindowTemplate recreation the lists use on their own (background, cog, resize handle). The
 -- list modules still build their entries, tooltips and menus; this window only lays them out. Unlike
@@ -12,10 +13,16 @@ local module = Self:NewModule("InfoDisplay")
 Self.InfoDisplay = module
 
 local HEADER_HEIGHT = 32 -- Window header bar, from ObjectiveTrackerContainerHeaderTemplate.
+local HEADER_TEMPLATE_WIDTH = 260 -- ObjectiveTrackerContainerHeaderTemplate's width, which its art overhangs.
+local HEADER_ATLAS = "ui-questtracker-primary-objective-header"
 local SECTION_HEADER_HEIGHT = 26 -- ObjectiveTrackerModuleHeaderTemplate's height.
 local SECTION_SPACING = 10 -- The Objective Tracker container's spacing between modules.
 local HEADER_TEXT_INSET = 7 -- Both Objective Tracker header templates' Text offset.
 local SECTION_BUTTON_SIZE = 16 -- The module header's MinimizeButton size.
+local COG_SIZE = 27 -- DamageMeterSettingsDropdownButtonTemplate's size.
+local COG_Y_OFFSET = -2 -- The DamageMeter's SettingsDropdown offset from its MinimizeButton.
+-- Section cogs are scaled down to suit the smaller section header and button, like the tracker's own buttons.
+local SECTION_COG_SIZE = 22
 local ROW_HEIGHT = 18
 -- Column layout, matching the standalone lists so names and zones look the same.
 local NAME_COLUMN_MIN_SHARE = 0.6
@@ -30,7 +37,7 @@ local HEADER_BUTTONS_WIDTH = 62 -- Header space beside the title: title inset, c
 local MIN_WIDTH = 200
 local MIN_HEIGHT = 120
 local MAX_FIT_HEIGHT = 600 -- Taller than a single list's limit since it holds both; beyond this the list scrolls.
-local BACKGROUND_ALPHA = 0.5 -- Edit Mode's default DamageMeter "Background Transparency".
+local OPACITY_STEP = 0.05
 local SCROLL_BAR_IDLE_ALPHA = 0.3
 local FADE_DURATION = 0.25
 local SETTINGS_MENU_TAG = "MENU_SLACKHACKS_PLAYERS_ONLINE_SETTINGS"
@@ -46,6 +53,7 @@ local STACK_ORDERS = {
 }
 
 local window
+local opacityPanel
 -- Untruncated widths of the widest name and zone across both lists, so the columns line up between sections.
 local nameColumnWidth, zoneColumnWidth = 0, 0
 
@@ -218,6 +226,16 @@ local function toggleSection(key)
   populate()
 end
 
+--- Fills a section header cog's menu with its list's own options (sorting, filters, icons), the same ones the
+--- list's standalone cog has apart from the window-wide Fit to Content and opacity.
+---@param cog DropdownButton The section's cog; its parent header knows which section it belongs to.
+---@param rootDescription table The menu's root description.
+local function buildSectionMenu(cog, rootDescription)
+  local key = cog:GetParent().key
+  rootDescription:SetTag(SETTINGS_MENU_TAG .. "_" .. key:upper())
+  Self[SECTIONS[key].module]:AddListOptions(rootDescription)
+end
+
 --- ScrollBox initializer for a section header, a Lua copy of ObjectiveTrackerModuleHeaderTemplate
 --- (Blizzard_ObjectiveTracker/Blizzard_ObjectiveTrackerModule.xml): the secondary header art, the list's title
 --- and a MinimizeButton whose atlases swap like ObjectiveTrackerModuleHeaderMixin:SetCollapsed. The element is
@@ -242,11 +260,17 @@ local function initSectionHeader(header, data)
     button:SetScript("OnEnter", onWindowEnter)
     header.MinimizeButton = button
 
+    -- The list's settings cog, placed and nudged like the window header's, scaled to the smaller section button.
+    local cog = createSettingsCog(header, buildSectionMenu)
+    cog:SetSize(SECTION_COG_SIZE, SECTION_COG_SIZE)
+    cog:SetPoint("RIGHT", button, "LEFT", -2, COG_Y_OFFSET * SECTION_COG_SIZE / COG_SIZE)
+    cog:HookScript("OnEnter", onWindowEnter)
+
     header.Text = header:CreateFontString(nil, "ARTWORK", getHeaderFont())
     header.Text:SetJustifyH("LEFT")
     header.Text:SetWordWrap(false)
     header.Text:SetPoint("LEFT", header, "BOTTOMLEFT", HEADER_TEXT_INSET, center)
-    header.Text:SetPoint("RIGHT", button, "LEFT", -2, 0)
+    header.Text:SetPoint("RIGHT", cog, "LEFT", -2, 0)
   end
   header.key = data.key
   header.Text:SetText(data.text)
@@ -351,11 +375,49 @@ local function setFitToContent(enabled)
   end
 end
 
+--- Saves and applies the background opacity; like the standalone lists, only the background fades, so the
+--- headers and names stay readable.
+---@param opacity number Background alpha from 0 to 1; rounded to OPACITY_STEP to drop slider float noise.
+local function setOpacity(opacity)
+  opacity = math.floor(opacity / OPACITY_STEP + 0.5) * OPACITY_STEP
+  getSettings().opacity = opacity
+  if window then window.Background:SetAlpha(opacity) end
+end
+
+--- Opens the same opacity slider panel the standalone lists use, to the right of the window.
+local function showOpacityPanel()
+  opacityPanel = opacityPanel
+    or createSliderPanel("SlackHacksPlayersOnlineOpacityFrame", OPACITY or "Opacity", 0, 1, OPACITY_STEP, setOpacity)
+  opacityPanel:Open(getSettings().opacity, "TOPLEFT", window, "TOPRIGHT", 0, 7)
+end
+
+--- Fills the window header cog's menu with the settings that apply to the whole window. Each list's own options
+--- are in its section header's cog instead.
+---@param _ Frame The cog button (unused).
+---@param rootDescription table The menu's root description.
+local function buildSettingsMenu(_, rootDescription)
+  rootDescription:SetTag(SETTINGS_MENU_TAG)
+  rootDescription:CreateCheckbox("Fit to Content",
+    function() return getSettings().fitToContent end,
+    function() setFitToContent(not getSettings().fitToContent) end)
+  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
+  rootDescription:CreateButton("Split Friend/Guildie Lists", function() module:SetStackLists(false) end)
+end
+
+--- Publishes a fully built window to the module-level `window` upvalue, which createWindow's local shadows.
+---@param frame Frame The finished Players Online window.
+local function setWindow(frame)
+  window = frame
+end
+
 --- Builds the Players Online window: an Objective Tracker container header (title, cog and MinimizeButton) over the
 --- DamageMeterSessionWindowTemplate body the standalone lists use (a MinimizeContainer with the background, scroll
 --- list and resize handle), with a ScrollBox that mixes section headers and person rows.
 local function createWindow()
-  window = CreateFrame("Frame", "SlackHacksPlayersOnline", UIParent)
+  -- Built in a local that shadows the module's `window`, which is only set once construction finishes: if a build
+  -- step errors, the next refresh retries (and shows the real error) instead of using a half-built window, whose
+  -- missing fields would otherwise surface as misleading errors elsewhere.
+  local window = CreateFrame("Frame", "SlackHacksPlayersOnline", UIParent)
   window:Hide() -- New frames start shown; hiding lets the first Show() fire OnShow.
   window:SetClampedToScreen(true)
   window:SetMovable(true)
@@ -377,15 +439,26 @@ local function createWindow()
   end)
 
   -- The header bar is a Lua copy of ObjectiveTrackerContainerHeaderTemplate, the "All Objectives" header
-  -- (ObjectiveTrackerFrame.Header, Blizzard_ObjectiveTracker/Blizzard_ObjectiveTrackerContainer.xml). Its
-  -- background is stretched across the window rather than centered at a fixed size, since the window resizes.
-  local header = window:CreateTexture(nil, "BACKGROUND")
-  header:SetAtlas("ui-questtracker-primary-objective-header")
+  -- (ObjectiveTrackerFrame.Header, Blizzard_ObjectiveTracker/Blizzard_ObjectiveTrackerContainer.xml): an invisible
+  -- HEADER_HEIGHT frame holding the text and buttons, with a Background drawn at the atlas's own size, centered on
+  -- it, so the art overhangs the frame on every side. Here the header spans the resizable window, so the art keeps
+  -- the template's overhang (atlas size minus the 260x32 frame) instead of its fixed size.
+  local header = CreateFrame("Frame", nil, window)
   header:SetHeight(HEADER_HEIGHT)
   header:SetPoint("TOPLEFT")
   header:SetPoint("TOPRIGHT")
+  header:SetUsingParentLevel(true)
+  local headerBackground = window:CreateTexture(nil, "BACKGROUND")
+  -- The atlas's native size comes from drawing it at that size, not C_Texture.GetAtlasInfo: that API resolves
+  -- Vector2DMixin from the caller's environment, which is SlackHacks (setfenv) rather than _G, and errors.
+  headerBackground:SetAtlas(HEADER_ATLAS, TextureKitConstants.UseAtlasSize)
+  local atlasWidth, atlasHeight = headerBackground:GetSize()
+  local overhangX = (atlasWidth - HEADER_TEMPLATE_WIDTH) / 2
+  local overhangY = (atlasHeight - HEADER_HEIGHT) / 2
+  headerBackground:SetPoint("TOPLEFT", header, "TOPLEFT", -overhangX, overhangY)
+  headerBackground:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", overhangX, -overhangY)
 
-  local minimizeButton = CreateFrame("Button", nil, window)
+  local minimizeButton = CreateFrame("Button", nil, header)
   minimizeButton:SetSize(18, 19)
   minimizeButton:SetPoint("RIGHT", header, "RIGHT", -1, 0)
   minimizeButton:SetNormalAtlas("ui-questtrackerbutton-collapse-all")
@@ -394,16 +467,14 @@ local function createWindow()
   minimizeButton:SetScript("OnClick", function() setMinimized(not getSettings().minimized) end)
   window.MinimizeButton = minimizeButton
 
-  local settingsDropdown = createSettingsCog(window, function(_, rootDescription)
-    rootDescription:SetTag(SETTINGS_MENU_TAG)
-    rootDescription:CreateCheckbox("Fit to Content",
-      function() return getSettings().fitToContent end,
-      function() setFitToContent(not getSettings().fitToContent) end)
-  end)
-  -- Where the container header's (hidden) FilterButton sits: just left of the MinimizeButton.
-  settingsDropdown:SetPoint("RIGHT", minimizeButton, "LEFT", -2, 0)
+  local settingsDropdown = createSettingsCog(header, buildSettingsMenu)
+  -- Where the container header's (hidden) FilterButton sits, just left of the MinimizeButton. The cog art sits
+  -- high inside its 27x27 button, so it's nudged down by the same 2px the DamageMeter uses to line it up with the
+  -- MinimizeButton (DamageMeterSessionWindowTemplate's SettingsDropdown anchor).
+  settingsDropdown:SetPoint("RIGHT", minimizeButton, "LEFT", -2, COG_Y_OFFSET)
+  settingsDropdown:HookScript("OnEnter", onWindowEnter)
 
-  local title = window:CreateFontString(nil, "ARTWORK", getHeaderFont())
+  local title = header:CreateFontString(nil, "ARTWORK", getHeaderFont())
   title:SetJustifyH("LEFT")
   title:SetWordWrap(false)
   title:SetPoint("LEFT", header, "LEFT", HEADER_TEXT_INSET, 0)
@@ -424,7 +495,7 @@ local function createWindow()
   local background = container:CreateTexture(nil, "BACKGROUND")
   background:SetAtlas("damagemeters-background")
   background:SetAllPoints()
-  background:SetAlpha(BACKGROUND_ALPHA)
+  window.Background = background
 
   local scrollBox = CreateFrame("Frame", nil, container, "WowScrollBoxList")
   local scrollBar = CreateFrame("EventFrame", nil, container, "MinimalScrollBar")
@@ -479,11 +550,13 @@ local function createWindow()
 
   container.ShowResizeButton = createFade(resizeButton, 0)
   container.EmphasizeScrollBar = createFade(scrollBar, SCROLL_BAR_IDLE_ALPHA)
+  setWindow(window)
 
   local settings = getSettings()
   window:SetPoint(settings.point, UIParent, settings.relativePoint, settings.x, settings.y)
   window:SetSize(settings.width, settings.height)
   setMinimized(settings.minimized)
+  setOpacity(settings.opacity)
   setFitToContent(settings.fitToContent)
 end
 
@@ -499,6 +572,7 @@ end
 function module:RefreshPlayersOnline()
   if not (self:IsPlayersOnlineStacked() and (Self.GuildieList:IsEnabled() or Self.FriendsList:IsEnabled())) then
     if window then window:Hide() end
+    if opacityPanel then opacityPanel:Hide() end
     return
   end
   if not window then createWindow() end
@@ -506,14 +580,26 @@ function module:RefreshPlayersOnline()
 end
 
 --- Saves whether the lists are stacked, then swaps the lists' own windows for the Players Online window (or back).
+--- Also called from the cog menus, so the options panel is told to redraw its checkbox.
 ---@param stacked boolean Whether to stack the Friends and Guildie lists.
-function module:SetStackPeopleLists(stacked)
+function module:SetStackLists(stacked)
   getSettings().stacked = stacked
   for _, section in pairs(SECTIONS) do
     local listModule = Self[section.module]
     if listModule:IsEnabled() then listModule:UpdateWindowShown() end
   end
   self:RefreshPlayersOnline()
+  local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
+end
+
+--- Adds a "Stack Friend/Guildie Lists" button to a standalone list's cog menu, only when both lists are enabled
+--- (with just one there's nothing to stack).
+---@param rootDescription table The list's cog menu description.
+function module:AddStackMenuButton(rootDescription)
+  if isRetail() and Self.GuildieList:IsEnabled() and Self.FriendsList:IsEnabled() then
+    rootDescription:CreateButton("Stack Friend/Guildie Lists", function() self:SetStackLists(true) end)
+  end
 end
 
 --- Saves which list is stacked on top and redraws the Players Online window.

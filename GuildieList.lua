@@ -528,16 +528,10 @@ local function requestRoster()
   if IsInGuild() then C_GuildInfo.GuildRoster() end
 end
 
---- Fills the header cog's settings menu, the Lua equivalent of the DamageMeter's SettingsDropdown menu.
----@param _ Frame The cog button (unused).
----@param rootDescription table The menu's root description.
-local function buildSettingsMenu(_, rootDescription)
-  rootDescription:SetTag(SETTINGS_MENU_TAG)
-  rootDescription:CreateCheckbox("Fit to Content",
-    function() return getSettings().fitToContent end,
-    function() setFitToContent(not getSettings().fitToContent) end)
-  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
-  rootDescription:CreateDivider()
+--- Adds this list's own options to a menu: Sort By and the icon toggles. Shared by this window's cog and the
+--- Guildies section cog in the stacked Players Online window.
+---@param rootDescription table The menu description to add to.
+local function addListOptions(rootDescription)
   rootDescription:CreateTitle("Sort By")
   for _, option in ipairs(SORT_OPTIONS) do
     rootDescription:CreateRadio(option.text,
@@ -560,6 +554,20 @@ local function buildSettingsMenu(_, rootDescription)
       checkbox:SetEnabled(function() return getSettings()[toggle.requires] end)
     end
   end
+end
+
+--- Fills the header cog's settings menu, the Lua equivalent of the DamageMeter's SettingsDropdown menu.
+---@param _ Frame The cog button (unused).
+---@param rootDescription table The menu's root description.
+local function buildSettingsMenu(_, rootDescription)
+  rootDescription:SetTag(SETTINGS_MENU_TAG)
+  rootDescription:CreateCheckbox("Fit to Content",
+    function() return getSettings().fitToContent end,
+    function() setFitToContent(not getSettings().fitToContent) end)
+  rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
+  Self.InfoDisplay:AddStackMenuButton(rootDescription)
+  rootDescription:CreateDivider()
+  addListOptions(rootDescription)
 end
 
 --- Builds the window, following DamageMeterSessionWindowTemplate: a Header bar holding the title,
@@ -734,6 +742,12 @@ end
 ---@param member table A member entry from GetEntries().
 function module:OpenMenu(member)
   openMemberMenu(member)
+end
+
+--- Adds this list's Sort By and icon options to a menu (used by the Players Online window's Guildies section cog).
+---@param rootDescription table The menu description to add to.
+function module:AddListOptions(rootDescription)
+  addListOptions(rootDescription)
 end
 
 --- Asks the server for fresh roster data (used when the stacked Players Online window is shown).
