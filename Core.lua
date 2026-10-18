@@ -492,6 +492,96 @@ function initBagsFrameHiding()
   applyHideBagsFrame()
 end
 
+--- Builds a clone of Blizzard's OpacityFrame (Blizzard_ColorPickerFrame/Mainline/ColorPickerFrame.xml) in
+--- Lua: same 80x180 dialog-bordered panel, same 16x128 vertical slider with the same backdrop/thumb art, the
+--- same "-"/"+" markers, and the same invisible full-screen "click anywhere else to close" button behind it.
+--- We clone it rather than reusing OpacityFrame itself because OpacityFrame is a single shared global (Blizzard
+--- also uses it for chat frames etc.) hardcoded to a 0..1 range with an "Opacity" label.
+--- Vertical sliders put their MIN value at the TOP, but we want the bigger value next to "+" at the top, so the
+--- slider's raw value is inverted: reported value = minValue + maxValue - rawValue.
+---@param name string Global frame name; the slider is named `name .. "Slider"`.
+---@param label string Text shown above the slider.
+---@param minValue number Value at the bottom ("-") end.
+---@param maxValue number Value at the top ("+") end.
+---@param step number Slider value step.
+---@param onValueChanged fun(value: number) Called with the (un-inverted) value whenever the user drags the slider.
+---@return Frame panel The hidden panel; open it with `panel:Open(value, SetPoint args...)`.
+function createSliderPanel(name, label, minValue, maxValue, step, onValueChanged)
+  -- Retail's OpacityFrame uses DialogBorderTemplate; older clients only have the equivalent backdrop.
+  local hasDialogBorder = C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("DialogBorderTemplate")
+  local frameTemplate = (not hasDialogBorder and BackdropTemplateMixin) and "BackdropTemplate" or nil
+  local frame = CreateFrame("Frame", name, UIParent, frameTemplate)
+  frame:SetSize(80, 180)
+  frame:SetToplevel(true)
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:SetClampedToScreen(true)
+  frame:Hide()
+  if hasDialogBorder then
+    frame.Border = CreateFrame("Frame", nil, frame, "DialogBorderTemplate")
+  elseif frame.SetBackdrop and BACKDROP_DIALOG_32_32 then
+    frame:SetBackdrop(BACKDROP_DIALOG_32_32)
+  end
+
+  local slider = CreateFrame("Slider", name .. "Slider", frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  slider:SetOrientation("VERTICAL")
+  slider:SetSize(16, 128)
+  slider:SetPoint("TOP", -10, -35)
+  if slider.SetBackdrop and BACKDROP_SLIDER_8_8 then
+    slider:SetBackdrop(BACKDROP_SLIDER_8_8)
+  end
+  slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Vertical")
+  slider:GetThumbTexture():SetSize(32, 32)
+  slider:SetMinMaxValues(minValue, maxValue)
+  slider:SetValueStep(step)
+  slider:SetObeyStepOnDrag(true)
+  frame.Slider = slider
+
+  local title = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  title:SetPoint("TOP", frame, "TOP", 0, -15)
+  title:SetText(label)
+
+  local minus = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+  minus:SetPoint("BOTTOMLEFT", slider, "BOTTOMRIGHT", 8, 3)
+  minus:SetText("-")
+  minus:SetTextColor(1, 1, 1)
+
+  local plus = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+  plus:SetPoint("TOPLEFT", slider, "TOPRIGHT", 6, -3)
+  plus:SetText("+")
+  plus:SetTextColor(1, 1, 1)
+
+  slider:SetScript("OnValueChanged", function(_, value)
+    if frame.ignoreValueChanged then return end
+    onValueChanged(minValue + maxValue - value)
+  end)
+
+  -- Same trick as OpacityFrameCloseButton: a full-screen button one level below the panel catches any click
+  -- outside it and closes the panel.
+  local closeButton = CreateFrame("Button", nil, UIParent)
+  closeButton:SetAllPoints(UIParent)
+  closeButton:SetFrameLevel(math.max(0, closeButton:GetFrameLevel() - 1))
+  closeButton:RegisterForClicks("LeftButtonDown", "RightButtonDown")
+  closeButton:SetScript("OnClick", function() frame:Hide() end)
+  closeButton:Hide()
+  frame:SetScript("OnShow", function() closeButton:Show() end)
+  frame:SetScript("OnHide", function() closeButton:Hide() end)
+
+  --- Anchors and shows the panel with the slider set to `value`, without firing onValueChanged.
+  ---@param value number The current value to display.
+  ---@param ... any Arguments passed to SetPoint().
+  function frame:Open(value, ...)
+    self:ClearAllPoints()
+    self:SetPoint(...)
+    self.ignoreValueChanged = true
+    self.Slider:SetValue(minValue + maxValue - value)
+    self.ignoreValueChanged = nil
+    self:Show()
+  end
+
+  return frame
+end
+
 
 --- Trim outer whitespace and leading indentation after each newline.
 ---@param str string - The multiline string to trim.
