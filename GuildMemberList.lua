@@ -2,7 +2,8 @@ setfenv(1, _G.SlackHacks)
 
 -- Guild Member List: a movable, resizable, collapsible list of online guild members.
 -- The roster logic is the same as the GuildMembersOnline addon (GetGuildRosterInfo -> class-colored name and
--- zone, with a name/level tooltip), shown as two columns and sorted by name or zone. The window recreates Blizzard's
+-- zone), shown as two columns and sorted by name or zone, with a full player tooltip, optional faction icons
+-- after names and instance icons after zones. The window recreates Blizzard's
 -- DamageMeterSessionWindowTemplate (Blizzard_DamageMeter/DamageMeterSessionWindow.xml) in Lua, including
 -- its MinimizeButton, which collapses the window down to its header bar, and its SettingsDropdown cog menu.
 local module = Self:NewModule("GuildMemberList", "AceEvent-3.0")
@@ -10,7 +11,7 @@ Self.GuildMemberList = module
 
 local HEADER_HEIGHT = 32 -- Explicit header height from the Blizzard template so the scroll box can anchor to it.
 local ROW_HEIGHT = 18
-local NAME_COLUMN_WIDTH = 90 -- Fits a 12-character name; the zone column takes the rest of the row.
+local NAME_COLUMN_WIDTH = 106 -- Fits a 12-character name plus a faction icon; the zone column takes the rest.
 local COLUMN_GAP = 6
 local ROW_PADDING = 5 -- Space between a row's edges and its text.
 -- Scroll list insets inside the window (from DamageMeterSessionWindowMixin:InitializeScrollBox).
@@ -27,6 +28,11 @@ local INSTANCE_ICONS = {
   dungeon = CreateAtlasMarkup("Dungeon", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
   raid = CreateAtlasMarkup("Raid", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
   delve = CreateAtlasMarkup("delves-regular", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
+}
+-- Inline faction icons keyed by Enum.PvPFaction (0 = Horde, 1 = Alliance), the atlases the Mount Journal uses.
+local FACTION_ICONS = {
+  [0] = CreateAtlasMarkup("MountJournalIcons-Horde", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
+  [1] = CreateAtlasMarkup("MountJournalIcons-Alliance", INSTANCE_ICON_SIZE, INSTANCE_ICON_SIZE),
 }
 local OPACITY_STEP = 0.05
 local SCROLL_BAR_IDLE_ALPHA = 0.3 -- The scroll bar is dimmed until the window is hovered, like the DamageMeter.
@@ -61,6 +67,27 @@ local window
 local opacityPanel
 local populate
 local instanceIcons -- Zone name -> inline icon markup; built once by getInstanceIcons().
+local memberClubInfo = {} -- Member GUID -> { faction, race, timerunningSeasonID }; filled by scanMemberClubInfo().
+
+--- Records each guild member's faction, race and Timerunning season, keyed by GUID. The legacy guild roster
+--- (GetGuildRosterInfo) has none of these, but cross-faction guilds made the guild a Communities club whose member
+--- info does, so this reads it the way Blizzard's Communities member list does. None of these change, so results
+--- are cached for the session and this only re-runs when an online member isn't cached yet (e.g. someone joined).
+local function scanMemberClubInfo()
+  local clubId = C_Club.GetGuildClubId()
+  if not clubId then return end
+  for _, memberId in ipairs(C_Club.GetClubMembers(clubId) or {}) do
+    local info = C_Club.GetMemberInfo(clubId, memberId)
+    -- GUIDs can be secret values in restricted (combat) contexts, and secret values can't be used as table keys.
+    if info and info.guid and not (_G.issecretvalue and _G.issecretvalue(info.guid)) then
+      memberClubInfo[info.guid] = {
+        faction = info.faction,
+        race = info.race,
+        timerunningSeasonID = info.timerunningSeasonID,
+      }
+    end
+  end
+end
 
 --- Returns a lookup from instance name to its inline Dungeon/Raid/Delve icon, built once from local game data
 --- (the Encounter Journal), so it costs no server requests.
@@ -122,6 +149,14 @@ end
 ---@param sortBy string A SORT_COMPARATORS key: "name" or "zone".
 local function setSortBy(sortBy)
   getSettings().sortBy = sortBy
+  if window and window:IsVisible() then populate() end
+end
+
+--- Saves a display setting (e.g. an icon toggle) and redraws the list if it's showing.
+---@param key string The `guildMemberList` setting to change.
+---@param value any The new value.
+local function setDisplaySetting(key, value)
+  getSettings()[key] = value
   if window and window:IsVisible() then populate() end
 end
 
@@ -206,13 +241,60 @@ local function createFade(region, fromAlpha)
   return group
 end
 
---- Shows the member's full name (with realm) and level, same as the GuildMembersOnline tooltip.
+--- Shows a player tooltip for the member, modeled on Blizzard's default unit tooltip for a player (name with
+--- AFK/DND, guild, "Level N Race Class", faction, zone) plus the guild details from the Communities member list
+--- tooltip (CommunitiesMemberListEntryMixin:OnEnter: rank, notes, mobile presence, Timerunning icon). The real
+--- unit tooltip is built by the game client from a unit token (e.g. "target"), which a guild member elsewhere in
+--- the world doesn't have, so the lines are assembled here from the roster and club data instead.
 ---@param row Frame The hovered list row.
 local function showMemberTooltip(row)
   onWindowEnter()
+  local member = row.member
+  local club = member.clubInfo or {}
+  local white = HIGHLIGHT_FONT_COLOR
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-  GameTooltip:SetText(row.member.fullName)
-  GameTooltip:AddLine(LEVEL .. ": " .. row.member.level, 1, 1, 1)
+
+  local name = member.fullName
+  if club.timerunningSeasonID and TimerunningUtil then name = TimerunningUtil.AddSmallIcon(name) end
+  if member.status == 1 then
+    name = name .. " " .. (CHAT_FLAG_AFK or "<AFK>")
+  elseif member.status == 2 then
+    name = name .. " " .. (CHAT_FLAG_DND or "<DND>")
+  end
+  local classColor = C_ClassColor.GetClassColor(member.classFile) or white
+  GameTooltip:SetText(name, classColor:GetRGB())
+
+  local guildName = GetGuildInfo("player")
+  if guildName then GameTooltip:AddLine("<" .. guildName .. ">", white:GetRGB()) end
+  if member.rankName then GameTooltip:AddLine(member.rankName) end
+
+  local raceInfo = club.race and C_CreatureInfo.GetRaceInfo(club.race)
+  if raceInfo then
+    GameTooltip:AddLine(COMMUNITY_MEMBER_CHARACTER_INFO_FORMAT:format(member.level, raceInfo.raceName,
+      member.className), white:GetRGB())
+  else
+    GameTooltip:AddLine(LEVEL .. " " .. member.level .. " " .. member.className, white:GetRGB())
+  end
+
+  if club.faction and FACTION_LABELS[club.faction] then
+    GameTooltip:AddLine(FACTION_LABELS[club.faction], white:GetRGB())
+  end
+
+  if member.isMobile then
+    GameTooltip:AddLine(COMMUNITIES_PRESENCE_MOBILE_CHAT, white:GetRGB())
+  else
+    GameTooltip:AddLine(member.zone, white:GetRGB())
+  end
+
+  if member.note and member.note ~= "" then
+    GameTooltip:AddLine(COMMUNITY_MEMBER_NOTE_FORMAT:format(member.note), NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g,
+      NORMAL_FONT_COLOR.b, true)
+  end
+  -- The roster only returns officer notes to ranks allowed to read them.
+  if member.officerNote and member.officerNote ~= "" and C_GuildInfo.CanViewOfficerNote() then
+    GameTooltip:AddLine("Officer Note: " .. member.officerNote, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g,
+      NORMAL_FONT_COLOR.b, true)
+  end
   GameTooltip:Show()
 end
 
@@ -310,26 +392,51 @@ function populate()
     return
   end
 
+  local settings = getSettings()
   local members = {}
-  local icons = getInstanceIcons()
+  local icons = settings.showInstanceIcons and getInstanceIcons() or {}
+  local showFaction = settings.showFactionIcons
+  local playerFaction = UnitFactionGroup("player")
+  local scannedClubInfo = false
   for i = 1, GetNumGuildMembers() do
-    local name, _, _, level, _, zone, _, _, online, _, classFile = GetGuildRosterInfo(i)
+    local name, rankName, _, level, className, zone, note, officerNote, online, status, classFile, _, _, isMobile, _,
+      _, guid = GetGuildRosterInfo(i)
     if online and name then
       local shortName = name:match("[^%-]+") -- Strip the realm.
       local classColor = C_ClassColor.GetClassColor(classFile)
+      local displayName = classColor and classColor:WrapTextInColorCode(shortName) or shortName
+      if guid and memberClubInfo[guid] == nil and not scannedClubInfo then
+        scanMemberClubInfo() -- At most once per refresh, even if several members are still unknown.
+        scannedClubInfo = true
+      end
+      local clubInfo = guid and memberClubInfo[guid]
+      local faction = clubInfo and clubInfo.faction
+      if showFaction and faction and FACTION_ICONS[faction]
+        and not (settings.factionIconsOppositeOnly and PLAYER_FACTION_GROUP[faction] == playerFaction) then
+        displayName = displayName .. " " .. FACTION_ICONS[faction]
+      end
       zone = zone or UNKNOWN
       local icon = icons[zone]
       members[#members + 1] = {
-        name = classColor and classColor:WrapTextInColorCode(shortName) or shortName,
+        name = displayName,
         sortName = shortName:lower(),
         zone = zone, -- Plain text for sorting; zoneText is what's displayed.
         zoneText = icon and (zone .. " " .. icon) or zone,
+        -- Everything below is only for the tooltip.
         fullName = name,
         level = level,
+        rankName = rankName,
+        className = className,
+        classFile = classFile,
+        note = note,
+        officerNote = officerNote,
+        status = status,
+        isMobile = isMobile,
+        clubInfo = clubInfo,
       }
     end
   end
-  table.sort(members, SORT_COMPARATORS[getSettings().sortBy] or SORT_COMPARATORS.name)
+  table.sort(members, SORT_COMPARATORS[settings.sortBy] or SORT_COMPARATORS.name)
 
   window.Title:SetText("Guild Members Online: " .. #members)
   window.ScrollBox:SetDataProvider(CreateDataProvider(members), ScrollBoxConstants.RetainScrollPosition)
@@ -408,6 +515,20 @@ local function createSettingsDropdown()
         function(key) return (getSettings().sortBy or "name") == key end,
         setSortBy,
         option.key)
+    end
+    rootDescription:CreateDivider()
+    rootDescription:CreateTitle("Icons")
+    for _, toggle in ipairs({
+      { key = "showInstanceIcons", text = "Instance Icons" },
+      { key = "showFactionIcons", text = "Faction Icons" },
+      { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
+    }) do
+      local checkbox = rootDescription:CreateCheckbox(toggle.text,
+        function() return getSettings()[toggle.key] end,
+        function() setDisplaySetting(toggle.key, not getSettings()[toggle.key]) end)
+      if toggle.requires then
+        checkbox:SetEnabled(function() return getSettings()[toggle.requires] end)
+      end
     end
   end)
   return button
@@ -549,6 +670,13 @@ end
 ---@param sortBy string "name" or "zone".
 function module:SetSortBy(sortBy)
   setSortBy(sortBy)
+end
+
+--- Saves an icon/display toggle and redraws the list (used by the options panel).
+---@param key string "showInstanceIcons", "showFactionIcons" or "factionIconsOppositeOnly".
+---@param value boolean The new value.
+function module:SetDisplaySetting(key, value)
+  setDisplaySetting(key, value)
 end
 
 --- AceAddon initialization hook; keeps the module disabled when turned off or outside Retail, since the

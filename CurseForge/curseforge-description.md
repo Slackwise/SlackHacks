@@ -68,11 +68,13 @@ An alternate list-based view for player bags that can replace the default grid b
   * Context menu for detailed progress breakdowns.
 
 #### Guild Member List
-* **Online Guild Members:** A movable, resizable window styled after Blizzard's Damage Meter, listing online guild members (class-colored) and their zone in two columns, with their level on hover. Members inside a dungeon, raid, or delve get the world map's Dungeon/Raid/Delve icon after their zone.
+* **Online Guild Members:** A movable, resizable window styled after Blizzard's Damage Meter, listing online guild members (class-colored) and their zone in two columns. Hovering a member shows a player tooltip like Blizzard's: name and AFK/DND status, guild and rank, level, race and class, faction, location, and guild notes.
+* **Instance Icons:** Members inside a dungeon, raid, or delve get the world map's Dungeon/Raid/Delve icon after their zone (toggleable).
+* **Faction Icons:** A Horde/Alliance icon after member names for cross-faction guilds; by default only shown for members of the opposite faction to your character (toggleable).
 * **Sorting:** Sort the list by name (default) or by location.
 * **Fit to Content:** Optionally size the window automatically to fit its members and their locations.
 * **Collapsible:** Collapse the window down to its header (which still shows the online count) using the same minimize button as the Damage Meter.
-* **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, and the sort order.
+* **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, the sort order, and the icon toggles.
 
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.
