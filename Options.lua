@@ -188,7 +188,7 @@ dbDefaults = {
         enchants = true,
         gemSockets = true,
       },
-      guildMemberList = {
+      guildieList = {
         enabled = false,
         minimized = false,
         fitToContent = false,
@@ -220,7 +220,7 @@ dbDefaults = {
         factionIconsOppositeOnly = true,
         point = "CENTER",
         relativePoint = "CENTER",
-        x = 280, -- Beside the Guild Member List's default spot rather than on top of it.
+        x = 280, -- Beside the Guildie List's default spot rather than on top of it.
         y = 0,
         width = 300,
         height = 200,
@@ -267,7 +267,7 @@ RETAIL_MODULES = {
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
-  { key = { "infoDisplay", "guildMemberList" }, name = "Guild Member List" },
+  { key = { "infoDisplay", "guildieList" }, name = "Guildie List" },
   { key = { "infoDisplay", "friendsList" }, name = "Friends List" },
 }
 
@@ -2550,21 +2550,21 @@ options = {
             }
           }
         },
-        guildMemberList = {
+        guildieList = {
           type = "group",
-          name = "Guild Member List",
+          name = "Guildie List",
           desc = "A collapsible window listing online guild members.",
           order = 3,
           args = {
-            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online guild members and their zones."),
+            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online guild members and their zones. Click a member for Invite, Whisper, and View Houses."),
             enabled = {
-              name = "Enable Guild Member List Module",
+              name = "Enable Guildie List Module",
               desc = "Show the online guild member window.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.infoDisplay.guildMemberList.enabled end,
-              set = function(_, value) Self.GuildMemberList:SetEnabled(value) end,
+              get = function() return db.profile.infoDisplay.guildieList.enabled end,
+              set = function(_, value) Self.GuildieList:SetEnabled(value) end,
               order = 0.05
             },
             fitToContent = {
@@ -2573,9 +2573,9 @@ options = {
               descStyle = "inline",
               type = "toggle",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.fitToContent end,
-              set = function(_, value) Self.GuildMemberList:SetFitToContent(value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.fitToContent end,
+              set = function(_, value) Self.GuildieList:SetFitToContent(value) end,
               order = 0.5
             },
             opacity = {
@@ -2586,9 +2586,9 @@ options = {
               min = 0,
               max = 1,
               step = 0.05,
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.opacity end,
-              set = function(_, value) Self.GuildMemberList:SetOpacity(value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.opacity end,
+              set = function(_, value) Self.GuildieList:SetOpacity(value) end,
               order = 1
             },
             sortBy = {
@@ -2598,9 +2598,9 @@ options = {
               type = "select",
               values = { name = "Name", zone = "Location" },
               sorting = { "name", "zone" },
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.sortBy end,
-              set = function(_, value) Self.GuildMemberList:SetSortBy(value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.sortBy end,
+              set = function(_, value) Self.GuildieList:SetSortBy(value) end,
               order = 2
             },
             showInstanceIcons = {
@@ -2609,9 +2609,9 @@ options = {
               descStyle = "inline",
               type = "toggle",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.showInstanceIcons end,
-              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showInstanceIcons", value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showInstanceIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showInstanceIcons", value) end,
               order = 3
             },
             showRankIcons = {
@@ -2620,9 +2620,9 @@ options = {
               descStyle = "inline",
               type = "toggle",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.showRankIcons end,
-              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showRankIcons", value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showRankIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showRankIcons", value) end,
               order = 3.5
             },
             showFactionIcons = {
@@ -2631,9 +2631,9 @@ options = {
               descStyle = "inline",
               type = "toggle",
               width = "full",
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.showFactionIcons end,
-              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("showFactionIcons", value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showFactionIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showFactionIcons", value) end,
               order = 4
             },
             factionIconsOppositeOnly = {
@@ -2643,11 +2643,11 @@ options = {
               type = "toggle",
               width = "full",
               disabled = function()
-                local settings = db.profile.infoDisplay.guildMemberList
+                local settings = db.profile.infoDisplay.guildieList
                 return not settings.enabled or not settings.showFactionIcons
               end,
-              get = function() return db.profile.infoDisplay.guildMemberList.factionIconsOppositeOnly end,
-              set = function(_, value) Self.GuildMemberList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
+              get = function() return db.profile.infoDisplay.guildieList.factionIconsOppositeOnly end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
               order = 5
             }
           }

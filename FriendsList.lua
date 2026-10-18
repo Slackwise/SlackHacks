@@ -1,13 +1,14 @@
 setfenv(1, _G.SlackHacks)
 
 -- Friends List: a movable, resizable, collapsible list of online friends.
--- A copy of the Guild Member List window (GuildMemberList.lua) fed by the FriendsFrame's friends list instead
+-- A copy of the Guildie List window (GuildieList.lua) fed by the FriendsFrame's friends list instead
 -- of the guild roster: Battle.net friends (C_BattleNet) plus character-only WoW friends (C_FriendList), filtered
 -- by the "Only Favorite Friends", "Only Playing WoW" and "Only Same WoW Version" settings. Favorites are a
 -- Battle.net-only feature (accountInfo.isFavorite), so character friends only appear when that filter is off.
 -- Battle.net rows show the Battle.net name with the class-colored character name (like Blizzard_FriendsFrame's
 -- FriendsFrame_GetBNetAccountNameAndStatus) and their location, with optional game, faction and instance icons
--- and a tooltip modeled on the FriendsFrame's (FriendsListButtonMixin:OnEnter).
+-- and a tooltip modeled on the FriendsFrame's (FriendsListButtonMixin:OnEnter). Left- or right-clicking a friend
+-- opens a context menu with Invite, Whisper and View Houses.
 -- The window recreates Blizzard's DamageMeterSessionWindowTemplate
 -- (Blizzard_DamageMeter/DamageMeterSessionWindow.xml) in Lua, including its MinimizeButton, which collapses the
 -- window down to its header bar, and its SettingsDropdown cog menu.
@@ -38,7 +39,7 @@ local INSTANCE_ICONS = {
   raid = CreateAtlasMarkup("Raid", ICON_SIZE, ICON_SIZE),
   delve = CreateAtlasMarkup("delves-regular", ICON_SIZE, ICON_SIZE),
 }
--- Inline faction icons keyed by faction group. Same quest log atlases as the Guild Member List.
+-- Inline faction icons keyed by faction group. Same quest log atlases as the Guildie List.
 local FACTION_ICONS = {
   Horde = CreateAtlasMarkup("questlog-questtypeicon-horde", ICON_SIZE, ICON_SIZE),
   Alliance = CreateAtlasMarkup("questlog-questtypeicon-alliance", ICON_SIZE, ICON_SIZE),
@@ -324,6 +325,25 @@ local function showFriendTooltip(row)
   GameTooltip:Show()
 end
 
+--- Opens the friend's context menu (Invite, Whisper, View Houses) with the same context data the FriendsFrame
+--- passes (FriendsFrame_ShowBNDropdown / FriendsFrame_ShowDropdown). Battle.net friends who can't be grouped
+--- with, e.g. because they're in another game or WoW version, get a menu without the invite buttons.
+---@param row Frame The clicked list row.
+local function openFriendMenu(row)
+  local account, info = row.friend.accountInfo, row.friend.friendInfo
+  GameTooltip:Hide()
+  if account then
+    local canInvite = CanGroupWithAccount(account.bnetAccountID)
+    openPlayerMenu(canInvite and "SLACKHACKS_BN_FRIEND" or "SLACKHACKS_BN_FRIEND_NO_INVITE", {
+      name = account.accountName,
+      bnetIDAccount = account.bnetAccountID,
+      battleTag = account.battleTag,
+    })
+  else
+    openPlayerMenu("SLACKHACKS_PLAYER", { name = info.name, guid = info.guid })
+  end
+end
+
 --- Creates a single-line, left-justified text cell for a row; long text is truncated instead of wrapping.
 ---@param row Frame The row the cell belongs to.
 ---@return FontString cell The new text cell.
@@ -360,9 +380,8 @@ local function initRow(row, friend)
     row.Zone:SetPoint("RIGHT", -ROW_PADDING, 0)
     row:SetScript("OnEnter", showFriendTooltip)
     row:SetScript("OnLeave", GameTooltip_Hide)
-    -- Rows only need hover for tooltips; letting clicks through means dragging a row moves the window.
     row:SetMouseMotionEnabled(true)
-    row:SetMouseClickEnabled(false)
+    enableRowClicks(row, window, openFriendMenu)
   end
   -- Re-applied on every bind since populate() re-measures the columns.
   layoutRow(row)
@@ -577,7 +596,7 @@ function populate()
   if settings.onlyFavorites and not BNConnected() then
     window.Title:SetText(BATTLENET_UNAVAILABLE or "Battle.net Unavailable")
   else
-    window.Title:SetText((settings.onlyFavorites and "Favorite Friends Online: " or "Friends Online: ") .. #friends)
+    window.Title:SetText("Friends (" .. #friends .. ")")
   end
   window.ScrollBox:SetDataProvider(CreateDataProvider(friends), ScrollBoxConstants.RetainScrollPosition)
   fitToContent(friends)
