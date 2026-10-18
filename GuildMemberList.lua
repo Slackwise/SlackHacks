@@ -250,7 +250,8 @@ local function initRow(row, member)
 end
 
 --- When the `fitToContent` setting is on, sizes the window to fit the title, the widest location and every row.
---- The height stops at MAX_HEIGHT, after which the list scrolls as usual.
+--- The height stops at MAX_HEIGHT, after which the list scrolls as usual. The window is only moved when its new
+--- size would run off the screen.
 ---@param members table Member entries from populate(), used to measure the widest location.
 local function fitToContent(members)
   if not getSettings().fitToContent then return end
@@ -266,15 +267,20 @@ local function fitToContent(members)
     + LIST_RIGHT_INSET + scrollBarSpace
   local titleWidth = window.Title:GetUnboundedStringWidth() + HEADER_BUTTONS_WIDTH
 
-  -- Re-anchor by the top-left corner first so the window grows and shrinks downward/rightward instead of
-  -- around its saved anchor (e.g. CENTER), which would make the header jump as members come and go.
+  -- Grow down and to the right from the window's current top-left corner, and only shift the window when the new
+  -- size would push it past the right or bottom of the screen, so a window against an edge or in a corner
+  -- stays fully on screen. Pinning the top-left also stops the window growing around its saved anchor (e.g.
+  -- CENTER), which would make it drift as members come and go.
+  local width, fitHeight = math.ceil(math.max(listWidth, titleWidth)), math.min(height, MAX_HEIGHT)
   local left, top = window:GetLeft(), window:GetTop()
-  if left and top then
+  if left then
+    local newLeft = math.max(math.min(left, UIParent:GetWidth() - width), 0)
+    local newTop = math.min(math.max(top, fitHeight), UIParent:GetHeight())
     window:ClearAllPoints()
-    window:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    window:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", newLeft, newTop)
     saveLayout()
   end
-  window:SetSize(math.ceil(math.max(listWidth, titleWidth)), math.min(height, MAX_HEIGHT))
+  window:SetSize(width, fitHeight)
   updateHitRect()
 end
 
