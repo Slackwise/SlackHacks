@@ -20,6 +20,50 @@ my $script_dir = $FindBin::Bin;
 my $repo_root  = abs_path(File::Spec->catdir($script_dir, ".."));
 chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 
+my $dry_run = 0;
+my $cleanup_pending = 1;
+my $release_merge_started = 0;
+$| = 1; # Prompts must remain visible while waiting for input, including through task runners.
+
+# END covers early validation failures, EOF, explicit exits, and exceptions as well as the release phase.
+# Never force checkout or discard user changes; abort only a merge started by this invocation.
+sub return_to_dev {
+    if ($dry_run) {
+        print "Would return to branch 'dev'.\n";
+        return 1;
+    }
+    if ($release_merge_started) {
+        my $merge_head = git_output('rev-parse', '--git-path', 'MERGE_HEAD');
+        if (-f $merge_head && system("git", "merge", "--abort") != 0) {
+            warn "Error: Could not abort the release merge before returning to 'dev'.\n";
+            return 0;
+        }
+    }
+    print "Returning to branch 'dev'...\n";
+    if (system("git", "checkout", "dev") != 0) {
+        warn "Error: Could not return to branch 'dev'. Resolve the Git state and run 'git checkout dev'.\n";
+        return 0;
+    }
+    return 1;
+}
+
+END {
+    if ($cleanup_pending) {
+        my $status = $?;
+        # A second interrupt must not interrupt the recovery checkout itself.
+        local $SIG{INT} = 'IGNORE';
+        local $SIG{TERM} = 'IGNORE';
+        local $SIG{HUP} = 'IGNORE';
+        my $restored = eval { return_to_dev() };
+        warn "Error: Branch cleanup failed: $@" if $@;
+        $? = $status || ($restored ? 0 : 1);
+    }
+}
+
+for my $signal (qw(INT TERM HUP)) {
+    $SIG{$signal} = sub { die "Error: Release interrupted by SIG$signal.\n" };
+}
+
 # Helper to load .env file if present
 sub load_dotenv {
     my ($file) = @_;
@@ -46,7 +90,6 @@ load_dotenv($defaults_file);
 # ------------------------------------------------------------------------------
 # Options
 # ------------------------------------------------------------------------------
-my $dry_run       = 0;
 my $push          = (!defined $ENV{RELEASE_PUSH} || $ENV{RELEASE_PUSH} !~ /^(0|false|no)$/i) ? 1 : 0;
 my $force         = 0;
 my $rerelease     = 0;
@@ -87,6 +130,8 @@ Options:
       --source <name>  Source branch to merge from (default: current branch)
       --target <name>  Target production branch (default: TARGET_COMMITISH in scripts/defaults.env)
   -h, --help           Show this help message
+
+Returns to dev on completion, errors, EOF, or handled interrupts (except in dry-run mode).
 
 HELP
     exit 0;
@@ -322,11 +367,15 @@ eval {
         run_cmd("git", "merge", "--ff-only", "refs/tags/$tag_name");
     } else {
         print "Merging '$source_branch' into '$target_branch'...\n";
+        die "Error: A merge is already in progress; resolve it before releasing.\n"
+            if !$dry_run && -f git_output('rev-parse', '--git-path', 'MERGE_HEAD');
+        $release_merge_started = !$dry_run;
         run_cmd(
             "git", "merge", $source_branch,
             "-m", "Release v$version",
             "-m", "Merge branch '$source_branch' into $target_branch"
         );
+        $release_merge_started = 0;
 
         die "Error: Merged production TOC version differs from planned release $version.\n"
             if !$dry_run && read_toc_version($toc_file) ne $version;
@@ -363,21 +412,10 @@ eval {
     1;
 } or $release_error = $@ || "Error: Release operation failed.\n";
 
-# Always restore the caller's branch, including after a deployment failure.
-if ($dry_run) {
-    print "Would return to original branch '$current_branch'.\n";
-} else {
-    print "Returning to original branch '$current_branch'...\n";
-    my $checkout_status = system("git", "checkout", $current_branch);
-    if ($checkout_status != 0) {
-        my $checkout_error =
-            "Error: Could not return to original branch '$current_branch' (exit code " .
-            ($checkout_status >> 8) . ").\n";
-        die defined $release_error ? "$release_error$checkout_error" : $checkout_error;
-    }
-}
-
 die $release_error if defined $release_error;
+
+die "Error: Release finished but branch cleanup failed.\n" unless return_to_dev();
+$cleanup_pending = 0;
 
 print "\nRelease complete! Successfully merged '$source_branch' into '$target_branch' and tagged '$tag_name'.\n";
 if ($push) {

@@ -1596,80 +1596,13 @@ function setZoneMapScale(scale)
   end
 end
 
---- Lazily builds our clone of Blizzard's OpacityFrame (Blizzard_ColorPickerFrame/Mainline/ColorPickerFrame.xml)
---- in Lua: same 80x180 dialog-bordered panel, same 16x128 vertical slider with the same backdrop/thumb art,
---- the same "-"/"+" markers, and the same invisible full-screen "click anywhere else to close" button behind
---- it. We clone it rather than reusing OpacityFrame itself because OpacityFrame is a single shared global
---- (Blizzard also uses it for chat frames etc.) hardcoded to a 0..1 range with an "Opacity" label.
---- Vertical sliders put their MIN value at the TOP; OpacityFrame relies on that (opacity 0 = fully visible
---- is at the top, next to "+"). For scale we want bigger at the top too, so the slider's raw value is
---- inverted: displayed scale = MIN_SCALE + MAX_SCALE - rawValue.
+--- Lazily builds the "Scale" slider panel, our shared OpacityFrame clone (see createSliderPanel() in Core.lua),
+--- ranged MIN_SCALE..MAX_SCALE in the same 0.1 steps as wheel-scaling, with the bigger scale next to "+".
 ---@return Frame scaleFrame
 local function ensureZoneMapScaleFrame()
-  if zoneMapScaleFrame then return zoneMapScaleFrame end
-
-  -- Retail's OpacityFrame uses DialogBorderTemplate; older clients only have the equivalent backdrop.
-  local hasDialogBorder = C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("DialogBorderTemplate")
-  local frameTemplate = (not hasDialogBorder and BackdropTemplateMixin) and "BackdropTemplate" or nil
-  local frame = CreateFrame("Frame", "SlackHacksZoneMapScaleFrame", UIParent, frameTemplate)
-  frame:SetSize(80, 180)
-  frame:SetToplevel(true)
-  frame:SetMovable(true)
-  frame:EnableMouse(true)
-  frame:SetClampedToScreen(true)
-  frame:Hide()
-  if hasDialogBorder then
-    frame.Border = CreateFrame("Frame", nil, frame, "DialogBorderTemplate")
-  elseif frame.SetBackdrop and BACKDROP_DIALOG_32_32 then
-    frame:SetBackdrop(BACKDROP_DIALOG_32_32)
-  end
-
-  local slider = CreateFrame("Slider", "SlackHacksZoneMapScaleFrameSlider", frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  slider:SetOrientation("VERTICAL")
-  slider:SetSize(16, 128)
-  slider:SetPoint("TOP", -10, -35)
-  if slider.SetBackdrop and BACKDROP_SLIDER_8_8 then
-    slider:SetBackdrop(BACKDROP_SLIDER_8_8)
-  end
-  slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Vertical")
-  slider:GetThumbTexture():SetSize(32, 32)
-  slider:SetMinMaxValues(MIN_SCALE, MAX_SCALE)
-  slider:SetValueStep(0.1)
-  slider:SetObeyStepOnDrag(true)
-  frame.Slider = slider
-
-  local label = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-  label:SetPoint("TOP", frame, "TOP", 0, -15)
-  label:SetText("Scale")
-
-  local minus = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
-  minus:SetPoint("BOTTOMLEFT", slider, "BOTTOMRIGHT", 8, 3)
-  minus:SetText("-")
-  minus:SetTextColor(1, 1, 1)
-
-  local plus = slider:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
-  plus:SetPoint("TOPLEFT", slider, "TOPRIGHT", 6, -3)
-  plus:SetText("+")
-  plus:SetTextColor(1, 1, 1)
-
-  slider:SetScript("OnValueChanged", function(self, value)
-    if frame.ignoreValueChanged then return end
-    setZoneMapScale(MIN_SCALE + MAX_SCALE - value)
-  end)
-
-  -- Same trick as OpacityFrameCloseButton: a full-screen button one level below the panel catches any click
-  -- outside it and closes the panel.
-  local closeButton = CreateFrame("Button", nil, UIParent)
-  closeButton:SetAllPoints(UIParent)
-  closeButton:SetFrameLevel(math.max(0, closeButton:GetFrameLevel() - 1))
-  closeButton:RegisterForClicks("LeftButtonDown", "RightButtonDown")
-  closeButton:SetScript("OnClick", function() frame:Hide() end)
-  closeButton:Hide()
-  frame:SetScript("OnShow", function() closeButton:Show() end)
-  frame:SetScript("OnHide", function() closeButton:Hide() end)
-
-  zoneMapScaleFrame = frame
-  return frame
+  zoneMapScaleFrame = zoneMapScaleFrame
+    or createSliderPanel("SlackHacksZoneMapScaleFrame", "Scale", MIN_SCALE, MAX_SCALE, 0.1, setZoneMapScale)
+  return zoneMapScaleFrame
 end
 
 --- Opens the scale slider panel. Mirrors BattlefieldMapTabMixin:ShowOpacity() exactly: same anchor (the
@@ -1682,12 +1615,7 @@ local function showZoneMapScale()
   if OpacityFrame and OpacityFrame:IsShown() then
     OpacityFrame:Hide() -- both panels anchor to the exact same spot
   end
-  frame:ClearAllPoints()
-  frame:SetPoint("TOPRIGHT", map, "TOPLEFT", 0, 7)
-  frame.ignoreValueChanged = true
-  frame.Slider:SetValue(MIN_SCALE + MAX_SCALE - getZoneMapScale())
-  frame.ignoreValueChanged = nil
-  frame:Show()
+  frame:Open(getZoneMapScale(), "TOPRIGHT", map, "TOPLEFT", 0, 7)
 end
 
 --- Post-hook on the tab's OnDragStart. Blizzard's own handler only moves anything while the map is

@@ -186,6 +186,17 @@ dbDefaults = {
         highWatermarkColoring = true,
         enchants = true,
         gemSockets = true,
+      },
+      guildMemberList = {
+        enabled = false,
+        minimized = false,
+        opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = 0,
+        width = 260,
+        height = 200,
       }
     }
   }
@@ -229,6 +240,7 @@ RETAIL_MODULES = {
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
+  { key = { "infoDisplay", "guildMemberList" }, name = "Guild Member List" },
 }
 
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
@@ -2506,6 +2518,38 @@ options = {
               get = function() return db.profile.infoDisplay.weeklies.trackDelves end,
               set = function(_, value) Self.Weeklies:SetTrackDelves(value) end,
               disabled = function() return not db.profile.infoDisplay.weeklies.enabled end,
+              order = 1
+            }
+          }
+        },
+        guildMemberList = {
+          type = "group",
+          name = "Guild Member List",
+          desc = "A collapsible window listing online guild members.",
+          order = 3,
+          args = {
+            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online guild members and their zones."),
+            enabled = {
+              name = "Enable Guild Member List Module",
+              desc = "Show the online guild member window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.infoDisplay.guildMemberList.enabled end,
+              set = function(_, value) Self.GuildMemberList:SetEnabled(value) end,
+              order = 0.05
+            },
+            opacity = {
+              name = "Background Opacity",
+              desc = "How opaque the window's background is. Also available from the window's cog menu.",
+              type = "range",
+              isPercent = true,
+              min = 0,
+              max = 1,
+              step = 0.05,
+              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
+              get = function() return db.profile.infoDisplay.guildMemberList.opacity end,
+              set = function(_, value) Self.GuildMemberList:SetOpacity(value) end,
               order = 1
             }
           }
