@@ -198,6 +198,7 @@ dbDefaults = {
         showRankIcons = true,
         showFactionIcons = true,
         factionIconsOppositeOnly = true,
+        showGroupIcons = true,
         point = "CENTER",
         relativePoint = "CENTER",
         x = 0,
@@ -218,6 +219,7 @@ dbDefaults = {
         showGameIcons = true,
         showFactionIcons = true,
         factionIconsOppositeOnly = true,
+        showGroupIcons = true,
         point = "CENTER",
         relativePoint = "CENTER",
         x = 280, -- Beside the Guildie List's default spot rather than on top of it.
@@ -2737,6 +2739,17 @@ options = {
               get = function() return db.profile.infoDisplay.guildieList.factionIconsOppositeOnly end,
               set = function(_, value) Self.GuildieList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
               order = 5
+            },
+            showGroupIcons = {
+              name = "Show In-Group Indicator Icon",
+              desc = "Show a group icon after the names of members who are in a group. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showGroupIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showGroupIcons", value) end,
+              order = 6
             }
           }
         },
@@ -2876,6 +2889,17 @@ options = {
               get = function() return db.profile.infoDisplay.friendsList.factionIconsOppositeOnly end,
               set = function(_, value) Self.FriendsList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
               order = 5
+            },
+            showGroupIcons = {
+              name = "Show In-Group Indicator Icon",
+              desc = "Show a group icon after the names of friends who are in a group. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showGroupIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showGroupIcons", value) end,
+              order = 6
             }
           }
         }

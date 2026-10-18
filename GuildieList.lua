@@ -480,7 +480,7 @@ local function buildMembers()
         and not (settings.factionIconsOppositeOnly and PLAYER_FACTION_GROUP[faction] == playerFaction) then
         displayName = displayName .. " " .. FACTION_ICONS[faction]
       end
-      displayName = addGroupIcon(displayName, guid)
+      if settings.showGroupIcons then displayName = addGroupIcon(displayName, guid) end
       zone = zone or UNKNOWN
       local icon = icons[zone]
       members[#members + 1] = {
@@ -549,6 +549,7 @@ local function addListOptions(rootDescription)
     { key = "showRankIcons", text = "Rank Icons" },
     { key = "showFactionIcons", text = "Faction Icons" },
     { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
+    { key = "showGroupIcons", text = "In-Group Indicator" },
   }) do
     local checkbox = rootDescription:CreateCheckbox(toggle.text,
       function() return getSettings()[toggle.key] end,
@@ -721,7 +722,8 @@ function module:SetSortBy(sortBy)
 end
 
 --- Saves an icon/display toggle and redraws the list (used by the options panel).
----@param key string "showInstanceIcons", "showRankIcons", "showFactionIcons" or "factionIconsOppositeOnly".
+---@param key string "showInstanceIcons", "showRankIcons", "showFactionIcons", "factionIconsOppositeOnly" or
+--- "showGroupIcons".
 ---@param value boolean The new value.
 function module:SetDisplaySetting(key, value)
   setDisplaySetting(key, value)

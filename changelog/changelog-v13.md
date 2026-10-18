@@ -16,7 +16,7 @@
 - Left/right-click context menu with Invite, Whisper, and View Houses
 - Available in Retail and WoW Forever, as are the Guildie List and Players Online
 - The Friends and Guildie lists can be turned on/off from the minimap button's menu ("Friends List" and "Guildies List" under "Display Gear Stats")
-- Friends and guildies who are already in a group get Quick Join's group icon after their name
+- Friends and guildies who are already in a group get Quick Join's group icon after their name ("Show In-Group Indicator Icon" option, on by default)
 
 ## Players Online
 - New "Stack Friends and Guildie Lists" Info Display option that stacks both lists in one "Players Online (N)" window, with Objective Tracker-style collapsible section headers, a "List Stack Order" choice, and a Fit to Content cog option

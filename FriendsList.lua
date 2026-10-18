@@ -504,7 +504,7 @@ local function formatAccountName(account, classColor, settings, playerFaction)
   end
   if isWoW then
     suffix = addFactionIcon(suffix, game.factionName, settings, playerFaction)
-    suffix = addGroupIcon(suffix, game.playerGuid)
+    if settings.showGroupIcons then suffix = addGroupIcon(suffix, game.playerGuid) end
   end
   -- The account name is a protected "|K...|k" string that only the renderer can resolve, and string width
   -- measurement doesn't see the resolved name, so the window was sized as if it were much shorter. The BattleTag
@@ -579,11 +579,13 @@ local function addCharacterFriends(friends, settings, icons, playerFaction)
       if info.guid then _, classFile, _, raceName = GetPlayerInfoByGUID(info.guid) end
       local classColor = classFile and C_ClassColor.GetClassColor(classFile)
       local shortName = info.name:match("[^%-]+") -- Strip the realm.
-      local name = classColor and classColor:WrapTextInColorCode(shortName) or shortName
+      local name = addFactionIcon(classColor and classColor:WrapTextInColorCode(shortName) or shortName,
+        playerFaction, settings, playerFaction)
+      if settings.showGroupIcons then name = addGroupIcon(name, info.guid) end
       -- No game icon: character friends are always in this game and WoW version.
       local zone, zoneText = formatZone(info.area, icons)
       friends[#friends + 1] = {
-        name = addGroupIcon(addFactionIcon(name, playerFaction, settings, playerFaction), info.guid),
+        name = name,
         sortIndex = CHARACTER_FRIEND_SORT_OFFSET + i,
         zone = zone,
         zoneText = zoneText,
@@ -679,6 +681,7 @@ local function addListOptions(rootDescription)
     { key = "showGameIcons", text = "Game Icons" },
     { key = "showFactionIcons", text = "Faction Icons" },
     { key = "factionIconsOppositeOnly", text = "Opposite Faction Only", requires = "showFactionIcons" },
+    { key = "showGroupIcons", text = "In-Group Indicator" },
   })
 end
 
@@ -847,7 +850,7 @@ end
 
 --- Saves a filter or icon toggle and redraws the list (used by the options panel).
 ---@param key string "onlyFavorites", "onlyWoW", "onlySameWoWVersion", "showInstanceIcons", "showGameIcons",
---- "showFactionIcons" or "factionIconsOppositeOnly".
+--- "showFactionIcons", "factionIconsOppositeOnly" or "showGroupIcons".
 ---@param value boolean The new value.
 function module:SetDisplaySetting(key, value)
   setDisplaySetting(key, value)
