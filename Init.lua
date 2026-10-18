@@ -19,7 +19,22 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 8
+CONFIG_VERSION = 9
+
+-- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
+-- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
+-- it at runtime. Config version 1 covers every release before v2. Add an entry whenever CONFIG_VERSION is bumped.
+CONFIG_VERSION_RELEASES = {
+  [1] = 1,
+  [2] = 2,
+  [3] = 4,
+  [4] = 7,
+  [5] = 10, -- Config v5-v7 predate the once-per-release rule and all shipped together.
+  [6] = 10,
+  [7] = 10,
+  [8] = 12,
+  [9] = 13,
+}
 
 function getAddonVersion()
   return tostring((C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("SlackHacks", "Version"))
@@ -83,6 +98,13 @@ function isClassic()
   end
 end
 
+--- Returns whether this is a client with Retail's modern UI: Retail itself, or WoW Forever, which is built on the
+--- Retail client and ships the same FrameXML (DamageMeter, Objective Tracker, Blizzard_Menu, ScrollBox, UnitPopup).
+---@return boolean modern True on Retail or Forever.
+function isRetailOrForever()
+  return isRetail() or isForever()
+end
+
 function getGameType()
   if isRetail() then
     return "RETAIL"
@@ -111,11 +133,12 @@ function icon(size)
 end
 
 -- Maps a target config version to the function that migrates from (target - 1) to it.
--- Each entry notes the addon release (`## Version` in SlackHacks.toc) that first shipped it. Config version 1
--- covers every release before v2.
+-- CONFIG_VERSION_RELEASES records the addon release that first ships each one; the "Config vN, addon vX"
+-- comments below mirror it.
 --
--- Bump CONFIG_VERSION at most ONCE per release. The first saved-data change after a release bumps it and adds
--- the new entry; any further changes before the next release extend that same entry instead of bumping again.
+-- Bump CONFIG_VERSION at most ONCE per release. If CONFIG_VERSION_RELEASES[CONFIG_VERSION] is already the
+-- upcoming (unreleased) addon version, extend that entry instead of bumping again; otherwise bump it, add the
+-- new migration here, and map it to the upcoming release in CONFIG_VERSION_RELEASES.
 -- (Config v5-v7 predate this rule and all shipped together in addon v10.)
 CONFIG_MIGRATIONS = {
   -- Config v2, shipped in addon v2.
@@ -312,7 +335,7 @@ CONFIG_MIGRATIONS = {
       migrateProfile(Self.db.profile)
     end
   end,
-  -- Config v8, next release after addon v11.
+  -- Config v8, addon v12.
   --- Adds the opt-in Spacebar shortcut to every saved profile.
   [8] = function()
     --- Adds the opt-in Spacebar shortcut without changing existing quest settings.
@@ -321,6 +344,51 @@ CONFIG_MIGRATIONS = {
       if type(p) ~= "table" then return end
       if type(p.quest) ~= "table" then p.quest = {} end
       if p.quest.spacebar == nil then p.quest.spacebar = false end
+    end
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
+    end
+    migrateProfile(Self.db.profile)
+  end,
+  -- Config v9, addon v13.
+  --- Moves the renamed Guild Member List's settings (infoDisplay.guildMemberList) to the Guildie List
+  --- (infoDisplay.guildieList) in every saved profile, and splits Gear Stats from the Info Display's switch.
+  [9] = function()
+    --- Carries over the profile's saved Guild Member List settings under the Guildie List's key, and moves the
+    --- Info Display's old on/off state to Gear Stats.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      -- Before v13 `infoDisplay.enabled` (default false) only meant "Gear Stats", kept in sync with
+      -- charSheet.gearStats. It's now the master switch for every Info Display module (default true), so a profile
+      -- that had it off keeps Gear Stats hidden instead and the other modules follow their own settings.
+      -- Non-raw read, so the active profile gets AceDB's defaults-backed table; other profiles get a new one.
+      local rawInfoDisplay = rawget(p, "infoDisplay")
+      local wasEnabled = type(rawInfoDisplay) == "table" and rawget(rawInfoDisplay, "enabled") == true
+      if not wasEnabled then
+        local display = p.infoDisplay
+        if type(display) ~= "table" then
+          display = {}
+          p.infoDisplay = display
+        end
+        if type(display.charSheet) ~= "table" then display.charSheet = {} end
+        display.charSheet.gearStats = false
+        -- Clear an explicit false so the new default (on) applies. A cleared value reads as on when the active
+        -- profile is also iterated in Self.db.profiles; re-running this then only re-hides Gear Stats, so it's safe.
+        display.enabled = nil
+      end
+
+      local infoDisplay = rawget(p, "infoDisplay")
+      local old = type(infoDisplay) == "table" and rawget(infoDisplay, "guildMemberList")
+      if type(old) ~= "table" then return end
+      local new = infoDisplay.guildieList
+      if type(new) ~= "table" then
+        new = {}
+        infoDisplay.guildieList = new
+      end
+      -- Only the raw (user-saved) values are copied, so unset keys keep falling back to the defaults.
+      for key, value in pairs(old) do new[key] = value end
+      infoDisplay.guildMemberList = nil
     end
     if Self.db.profiles then
       for _, p in pairs(Self.db.profiles) do migrateProfile(p) end

@@ -169,7 +169,7 @@ dbDefaults = {
       }
     },
     infoDisplay = {
-      enabled = false,
+      enabled = true,
       weeklies = {
         enabled = false,
         trackDelves = false
@@ -188,16 +188,59 @@ dbDefaults = {
         enchants = true,
         gemSockets = true,
       },
-      guildMemberList = {
+      guildieList = {
         enabled = false,
         minimized = false,
+        fitToContent = true,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
+        sortBy = "name", -- "name" or "zone"
+        showInstanceIcons = true,
+        showRankIcons = true,
+        showFactionIcons = true,
+        factionIconsOppositeOnly = true,
+        showGroupIcons = true,
         point = "CENTER",
         relativePoint = "CENTER",
         x = 0,
         y = 0,
         width = 260,
         height = 200,
+      },
+      friendsList = {
+        enabled = false,
+        minimized = false,
+        fitToContent = true,
+        opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
+        sortBy = "name", -- "name" (the friends list's order) or "zone"
+        onlyFavorites = true,
+        onlyWoW = true,
+        onlySameWoWVersion = false, -- Only applies while onlyWoW is on.
+        showInstanceIcons = true,
+        showGameIcons = true,
+        showFactionIcons = true,
+        factionIconsOppositeOnly = true,
+        showGroupIcons = true,
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 280, -- Beside the Guildie List's default spot rather than on top of it.
+        y = 0,
+        width = 300,
+        height = 200,
+      },
+      -- The Players Online window that stacks the Friends and Guildie lists (InfoDisplay.lua).
+      playersOnline = {
+        stacked = false,
+        stackOrder = "friends", -- "friends" (Friends, Guildies) or "guildies" (Guildies, Friends)
+        minimized = false,
+        opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency".
+        fitToContent = true,
+        collapsed = { friends = false, guildies = false }, -- Per-list section collapse state.
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = 0,
+        width = 300,
+        height = 300,
       }
     }
   }
@@ -241,7 +284,12 @@ RETAIL_MODULES = {
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
-  { key = { "infoDisplay", "guildMemberList" }, name = "Guild Member List" },
+}
+
+-- Modules that need Retail's modern UI, which WoW Forever shares since it's built on the Retail client.
+RETAIL_OR_FOREVER_MODULES = {
+  { key = { "infoDisplay", "guildieList" }, name = "Guildie List" },
+  { key = { "infoDisplay", "friendsList" }, name = "Friends List" },
 }
 
 -- mod.key is a plain string for a top-level options.args entry, or a table of keys to walk through
@@ -294,6 +342,12 @@ local function hideNonRetailOptions()
     local group = resolveOptionGroup(mod.key)
     if group then
       group.hidden = function() return not isRetail() end
+    end
+  end
+  for _, mod in ipairs(RETAIL_OR_FOREVER_MODULES) do
+    local group = resolveOptionGroup(mod.key)
+    if group then
+      group.hidden = function() return not isRetailOrForever() end
     end
   end
 end
@@ -390,32 +444,27 @@ local function toggleSquareMinimap()
   if acr then acr:NotifyChange("SlackHacks") end
 end
 
+--- Returns whether Gear Stats overlays are currently showing (the Info Display, Char Sheet and Gear Stats are all on).
+---@return boolean active
 local function isGearStatsActive()
-  local profile = Self.db and Self.db.profile
-  return profile and profile.infoDisplay and profile.infoDisplay.enabled
-    and profile.infoDisplay.charSheet and profile.infoDisplay.charSheet.gearStats
+  local infoDisplay = Self.db and Self.db.profile.infoDisplay
+  return (infoDisplay and infoDisplay.enabled and infoDisplay.charSheet.enabled and infoDisplay.charSheet.gearStats)
+    and true or false
 end
 
+--- Minimap toggle for Gear Stats. Turning it on also turns on whatever it depends on (the Info Display master
+--- switch and the Char Sheet module); turning it off only hides Gear Stats so the other Info Display features stay.
 local function toggleGearStats()
-  local profile = Self.db and Self.db.profile
-  if not profile then return end
-  if not profile.infoDisplay then profile.infoDisplay = {} end
-  if not profile.infoDisplay.charSheet then profile.infoDisplay.charSheet = {} end
-  local isGearStats = profile.infoDisplay.enabled and profile.infoDisplay.charSheet.gearStats
-  local newState = not isGearStats
-  profile.infoDisplay.enabled = newState
-  profile.infoDisplay.charSheet.enabled = newState
-  profile.infoDisplay.charSheet.gearStats = newState
-  if newState then
-    if Self.CharSheet and not Self.CharSheet:IsEnabled() then Self.CharSheet:Enable() end
-    if Self.CharSheet and Self.CharSheet.SetCharSheetEnabled then Self.CharSheet:SetCharSheetEnabled(true) end
-    if Self.InfoDisplay then Self.InfoDisplay:SetEnabled(true) end
-  else
-    if Self.InfoDisplay then Self.InfoDisplay:SetEnabled(false) end
-    if Self.CharSheet and Self.CharSheet.SetCharSheetEnabled then Self.CharSheet:SetCharSheetEnabled(false) end
+  if not Self.db or not Self.CharSheet or not Self.InfoDisplay then return end
+  local infoDisplay = Self.db.profile.infoDisplay
+  if isGearStatsActive() then
+    Self.CharSheet:SetGearStatsEnabled(false)
+    return
   end
-  local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
-  if acr then acr:NotifyChange("SlackHacks") end
+  -- Enable the Char Sheet first so the master switch's sub-module Enable() doesn't immediately abort it.
+  if not infoDisplay.charSheet.enabled then Self.CharSheet:SetCharSheetEnabled(true) end
+  if not infoDisplay.enabled then Self.InfoDisplay:SetEnabled(true) end
+  Self.CharSheet:SetGearStatsEnabled(true)
 end
 
 local function isMouseRingActive()
@@ -434,28 +483,57 @@ local function toggleMouseRing()
   if acr then acr:NotifyChange("SlackHacks") end
 end
 
+--- Returns whether the Delves weekly tracker is showing (the Info Display, Weeklies and Track Delves are all on).
+---@return boolean active
 local function isTrackDelvesActive()
-  local profile = Self.db and Self.db.profile
-  return profile and profile.infoDisplay and profile.infoDisplay.weeklies
-    and profile.infoDisplay.weeklies.enabled and profile.infoDisplay.weeklies.trackDelves
+  local infoDisplay = Self.db and Self.db.profile.infoDisplay
+  return (infoDisplay and infoDisplay.enabled and infoDisplay.weeklies.enabled and infoDisplay.weeklies.trackDelves)
+    and true or false
 end
 
+--- Minimap toggle for the Delves tracker. Turning it on also turns on the Info Display master switch and the
+--- Weeklies module; turning it off disables Weeklies and Track Delves but leaves the rest of the Info Display alone.
 local function toggleTrackDelves()
-  local profile = Self.db and Self.db.profile
-  if not profile then return end
-  if not profile.infoDisplay then profile.infoDisplay = {} end
-  if not profile.infoDisplay.weeklies then profile.infoDisplay.weeklies = {} end
-  local isTracking = profile.infoDisplay.weeklies.enabled and profile.infoDisplay.weeklies.trackDelves
-  local newState = not isTracking
-  profile.infoDisplay.weeklies.enabled = newState
-  profile.infoDisplay.weeklies.trackDelves = newState
-  if Self.Weeklies then
-    Self.Weeklies:SetEnabled(newState)
-    Self.Weeklies:SetTrackDelves(newState)
-  end
+  if not Self.db or not Self.Weeklies or not Self.InfoDisplay then return end
+  local newState = not isTrackDelvesActive()
+  -- Save Weeklies' settings before the master switch enables sub-modules, so its Enable() isn't aborted.
+  Self.Weeklies:SetTrackDelves(newState)
+  Self.Weeklies:SetEnabled(newState)
+  if newState and not Self.db.profile.infoDisplay.enabled then Self.InfoDisplay:SetEnabled(true) end
   local acr = LibStub and LibStub("AceConfigRegistry-3.0", true)
   if acr then acr:NotifyChange("SlackHacks") end
 end
+
+--- Returns a minimap checkbox's "is checked" callback for a Players Online list (Friends or Guildie List): checked
+--- while both the Info Display master switch and the list are on.
+---@param key string The list's `infoDisplay` settings key: "friendsList" or "guildieList".
+---@return fun(): boolean isActive
+local function listActiveChecker(key)
+  return function()
+    local infoDisplay = Self.db and Self.db.profile.infoDisplay
+    return (infoDisplay and infoDisplay.enabled and infoDisplay[key].enabled) and true or false
+  end
+end
+
+--- Returns a minimap checkbox's toggle callback for a Players Online list. Turning a list on also turns on the Info
+--- Display master switch; turning it off only disables that list.
+---@param key string The list's `infoDisplay` settings key: "friendsList" or "guildieList".
+---@param moduleName string The list's AceModule name on Self: "FriendsList" or "GuildieList".
+---@return fun() toggle
+local function listToggler(key, moduleName)
+  local isActive = listActiveChecker(key)
+  return function()
+    local listModule = Self[moduleName]
+    if not Self.db or not listModule or not Self.InfoDisplay then return end
+    local newState = not isActive()
+    -- Saved before the master switch enables sub-modules, so the list's Enable() isn't aborted.
+    listModule:SetEnabled(newState)
+    if newState and not Self.db.profile.infoDisplay.enabled then Self.InfoDisplay:SetEnabled(true) end
+  end
+end
+
+local isFriendsListActive, toggleFriendsList = listActiveChecker("friendsList"), listToggler("friendsList", "FriendsList")
+local isGuildieListActive, toggleGuildieList = listActiveChecker("guildieList"), listToggler("guildieList", "GuildieList")
 
 local function openMinimapContextMenu(anchor)
   if InCombatLockdown() then return end
@@ -473,6 +551,10 @@ local function openMinimapContextMenu(anchor)
       rootDescription:CreateCheckbox("Listview Bag", isListviewBagActive, toggleListviewBag)
       rootDescription:CreateCheckbox("Square Minimap", isSquareMinimapActive, toggleSquareMinimap)
       rootDescription:CreateCheckbox("Display Gear Stats", isGearStatsActive, toggleGearStats)
+      if isRetailOrForever() then
+        rootDescription:CreateCheckbox("Friends List", isFriendsListActive, toggleFriendsList)
+        rootDescription:CreateCheckbox("Guildies List", isGuildieListActive, toggleGuildieList)
+      end
       rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
       rootDescription:CreateCheckbox("All NPC Auto-Interacts", isAllQuestAutomationEnabled, toggleAllQuestAutomation)
       if isRetail and isRetail() then
@@ -828,6 +910,12 @@ local function openEditMode()
   if EditModeManagerFrame then
     ShowUIPanel(EditModeManagerFrame)
   end
+end
+
+--- AceConfig `disabled` callback: Info Display options are greyed out while its master switch is off.
+---@return boolean disabled
+local function infoDisplayDisabled()
+  return not db.profile.infoDisplay.enabled
 end
 
 local function infoDisplayCharSheetDisabled()
@@ -2303,7 +2391,8 @@ options = {
         overview = goldModuleOverview("Display item levels, upgrade tracks, stats, enchants, and gems directly on equipment icons."),
         enabled = {
           name = "Enable Info Display Module",
-          desc = "Enable Info Display overlays on equipment slots.",
+          desc = "Enable all Info Display features: Char Sheet, Weeklies, and the Guildie and Friends lists. " ..
+            "Turning this off disables all of them.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -2311,11 +2400,37 @@ options = {
           set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
           order = 0.05
         },
+        stackPlayerLists = {
+          name = "Stacked Friends/Guildies List ('Players Online' Window)",
+          desc = "Show the Friends and Guildie lists stacked in one collapsible \"Players Online\" window, " ..
+            "like the Objective Tracker's sections, instead of in their own windows.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          hidden = function() return not isRetailOrForever() end,
+          disabled = infoDisplayDisabled,
+          get = function() return db.profile.infoDisplay.playersOnline.stacked end,
+          set = function(_, value) Self.InfoDisplay:SetStackLists(value) end,
+          order = 0.1
+        },
+        stackOrder = {
+          name = "List Stack Order",
+          desc = "Which list is shown on top in the Players Online window.",
+          type = "select",
+          values = { friends = "Friends, Guildies", guildies = "Guildies, Friends" },
+          sorting = { "friends", "guildies" },
+          hidden = function() return not isRetailOrForever() end,
+          disabled = function() return infoDisplayDisabled() or not db.profile.infoDisplay.playersOnline.stacked end,
+          get = function() return db.profile.infoDisplay.playersOnline.stackOrder end,
+          set = function(_, value) Self.InfoDisplay:SetStackOrder(value) end,
+          order = 0.2
+        },
         charSheet = {
           type = "group",
           name = "Char Sheet",
           desc = "Character Sheet equipment overlay options.",
           order = 1,
+          disabled = infoDisplayDisabled,
           args = {
             overview = goldModuleOverview("Display Gear Stats on the character sheet with configurable item-level, upgrade, stat, enchant, and gem details."),
             enabled = {
@@ -2335,8 +2450,8 @@ options = {
               descStyle = "inline",
               width = "full",
               get = function() return db.profile.infoDisplay.charSheet.gearStats end,
-              set = function(_, value) Self.InfoDisplay:SetEnabled(value) end,
-              disabled = function() return not db.profile.infoDisplay.charSheet.enabled end,
+              set = function(_, value) Self.CharSheet:SetGearStatsEnabled(value) end,
+              disabled = infoDisplayCharSheetDisabled,
               order = 1.5
             },
             itemLevel = {
@@ -2497,6 +2612,7 @@ options = {
           name = "Weeklies",
           desc = "Track weekly quest completions and activities.",
           order = 2,
+          disabled = infoDisplayDisabled,
           args = {
             overview = goldModuleOverview("Track weekly activities and show their progress in the Objective Tracker."),
             enabled = {
@@ -2523,22 +2639,34 @@ options = {
             }
           }
         },
-        guildMemberList = {
+        guildieList = {
           type = "group",
-          name = "Guild Member List",
+          name = "Guildie List",
           desc = "A collapsible window listing online guild members.",
           order = 3,
+          disabled = infoDisplayDisabled,
           args = {
-            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online guild members and their zones."),
+            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online guild members and their zones. Click a member for Invite, Whisper, and View Houses (Retail)."),
             enabled = {
-              name = "Enable Guild Member List Module",
+              name = "Enable Guildie List Module",
               desc = "Show the online guild member window.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.infoDisplay.guildMemberList.enabled end,
-              set = function(_, value) Self.GuildMemberList:SetEnabled(value) end,
+              get = function() return db.profile.infoDisplay.guildieList.enabled end,
+              set = function(_, value) Self.GuildieList:SetEnabled(value) end,
               order = 0.05
+            },
+            fitToContent = {
+              name = "Fit Window to Content",
+              desc = "Automatically size the window to fit its members and locations (up to a maximum height, after which the list scrolls). Turns off manual resizing while enabled. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.fitToContent end,
+              set = function(_, value) Self.GuildieList:SetFitToContent(value) end,
+              order = 0.5
             },
             opacity = {
               name = "Background Opacity",
@@ -2548,10 +2676,230 @@ options = {
               min = 0,
               max = 1,
               step = 0.05,
-              disabled = function() return not db.profile.infoDisplay.guildMemberList.enabled end,
-              get = function() return db.profile.infoDisplay.guildMemberList.opacity end,
-              set = function(_, value) Self.GuildMemberList:SetOpacity(value) end,
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.opacity end,
+              set = function(_, value) Self.GuildieList:SetOpacity(value) end,
               order = 1
+            },
+            sortBy = {
+              name = "Sort By",
+              desc = "Sort the list by member name or by location. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "select",
+              values = { name = "Name", zone = "Location" },
+              sorting = { "name", "zone" },
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.sortBy end,
+              set = function(_, value) Self.GuildieList:SetSortBy(value) end,
+              order = 2
+            },
+            showInstanceIcons = {
+              name = "Show Instance Icons",
+              desc = "Show a Dungeon, Raid, or Delve icon after the location of members inside one. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showInstanceIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showInstanceIcons", value) end,
+              order = 3
+            },
+            showRankIcons = {
+              name = "Show Rank Icons",
+              desc = "Show the guild roster's crown icon after the Guild Master's name and its assistant icon after officers' names. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showRankIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showRankIcons", value) end,
+              order = 3.5
+            },
+            showFactionIcons = {
+              name = "Show Faction Icons",
+              desc = "Show a Horde or Alliance icon after member names. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showFactionIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showFactionIcons", value) end,
+              order = 4
+            },
+            factionIconsOppositeOnly = {
+              name = "Only Show Opposite Faction Icon",
+              desc = "Only show the faction icon for members of the opposite faction to your current character. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function()
+                local settings = db.profile.infoDisplay.guildieList
+                return not settings.enabled or not settings.showFactionIcons
+              end,
+              get = function() return db.profile.infoDisplay.guildieList.factionIconsOppositeOnly end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
+              order = 5
+            },
+            showGroupIcons = {
+              name = "Show In-Group Indicator Icon",
+              desc = "Show a group icon after the names of members who are in a group. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.guildieList.enabled end,
+              get = function() return db.profile.infoDisplay.guildieList.showGroupIcons end,
+              set = function(_, value) Self.GuildieList:SetDisplaySetting("showGroupIcons", value) end,
+              order = 6
+            }
+          }
+        },
+        friendsList = {
+          type = "group",
+          name = "Friends List",
+          desc = "A collapsible window listing online friends.",
+          order = 4,
+          disabled = infoDisplayDisabled,
+          args = {
+            overview = goldModuleOverview("Show a movable, resizable, collapsible window listing your online friends and their locations."),
+            enabled = {
+              name = "Enable Friends List Module",
+              desc = "Show the online friends window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.infoDisplay.friendsList.enabled end,
+              set = function(_, value) Self.FriendsList:SetEnabled(value) end,
+              order = 0.05
+            },
+            fitToContent = {
+              name = "Fit Window to Content",
+              desc = "Automatically size the window to fit its friends and locations (up to a maximum height, after which the list scrolls). Turns off manual resizing while enabled. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.fitToContent end,
+              set = function(_, value) Self.FriendsList:SetFitToContent(value) end,
+              order = 0.5
+            },
+            opacity = {
+              name = "Background Opacity",
+              desc = "How opaque the window's background is. Also available from the window's cog menu.",
+              type = "range",
+              isPercent = true,
+              min = 0,
+              max = 1,
+              step = 0.05,
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.opacity end,
+              set = function(_, value) Self.FriendsList:SetOpacity(value) end,
+              order = 1
+            },
+            onlyFavorites = {
+              name = "Only Favorite Friends",
+              desc = "Only list Battle.net friends you've marked as favorites. Turn off to list all online friends, including character friends. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.onlyFavorites end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("onlyFavorites", value) end,
+              order = 1.5
+            },
+            onlyWoW = {
+              name = "Only Playing WoW",
+              desc = "Only list friends currently playing World of Warcraft, hiding those in other Blizzard games or the Battle.net app. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.onlyWoW end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("onlyWoW", value) end,
+              order = 1.6
+            },
+            onlySameWoWVersion = {
+              name = "Only Same WoW Version",
+              desc = "Only list friends playing the same version of WoW as you (e.g. hide Classic players while you're on Retail). Requires Only Playing WoW. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function()
+                local settings = db.profile.infoDisplay.friendsList
+                return not settings.enabled or not settings.onlyWoW
+              end,
+              get = function() return db.profile.infoDisplay.friendsList.onlySameWoWVersion end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("onlySameWoWVersion", value) end,
+              order = 1.7
+            },
+            sortBy = {
+              name = "Sort By",
+              desc = "Sort the list by name (the Friends list's order) or by location. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "select",
+              values = { name = "Name", zone = "Location" },
+              sorting = { "name", "zone" },
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.sortBy end,
+              set = function(_, value) Self.FriendsList:SetSortBy(value) end,
+              order = 1.2
+            },
+            showInstanceIcons = {
+              name = "Show Instance Icons",
+              desc = "Show a Dungeon, Raid, or Delve icon after the location of friends inside one. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showInstanceIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showInstanceIcons", value) end,
+              order = 3
+            },
+            showGameIcons = {
+              name = "Show Game Icons",
+              desc = "Show the icon of the Blizzard game or app each friend is in after their name, like the Friends list. Only shown for friends not in the same game as you (other WoW versions still show it). Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showGameIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showGameIcons", value) end,
+              order = 3.5
+            },
+            showFactionIcons = {
+              name = "Show Faction Icons",
+              desc = "Show a Horde or Alliance icon after the names of friends playing WoW. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showFactionIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showFactionIcons", value) end,
+              order = 4
+            },
+            factionIconsOppositeOnly = {
+              name = "Only Show Opposite Faction Icon",
+              desc = "Only show the faction icon for friends on the opposite faction to your current character. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function()
+                local settings = db.profile.infoDisplay.friendsList
+                return not settings.enabled or not settings.showFactionIcons
+              end,
+              get = function() return db.profile.infoDisplay.friendsList.factionIconsOppositeOnly end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("factionIconsOppositeOnly", value) end,
+              order = 5
+            },
+            showGroupIcons = {
+              name = "Show In-Group Indicator Icon",
+              desc = "Show a group icon after the names of friends who are in a group. Also available from the window's cog menu.",
+              descStyle = "inline",
+              type = "toggle",
+              width = "full",
+              disabled = function() return not db.profile.infoDisplay.friendsList.enabled end,
+              get = function() return db.profile.infoDisplay.friendsList.showGroupIcons end,
+              set = function(_, value) Self.FriendsList:SetDisplaySetting("showGroupIcons", value) end,
+              order = 6
             }
           }
         }

@@ -582,6 +582,164 @@ function createSliderPanel(name, label, minValue, maxValue, step, onValueChanged
   return frame
 end
 
+-- Cog atlases per button state, from DamageMeterSettingsDropdownButtonTemplate's KeyValues.
+local SETTINGS_COG_ATLAS = {
+  disabled = "common-dropdown-a-button-settings-disabled-shadowless",
+  normal = "common-dropdown-a-button-settings-shadowless",
+  pressed = "common-dropdown-a-button-settings-pressed-shadowless",
+  hover = "common-dropdown-a-button-settings-hover-shadowless",
+  hoverPressed = "common-dropdown-a-button-settings-pressedhover-shadowless",
+  open = "common-dropdown-a-button-settings-open-shadowless",
+}
+
+--- Creates a settings cog button with a dropdown menu, a Lua copy of Blizzard's
+--- DamageMeterSettingsDropdownButtonTemplate (Blizzard_DamageMeter/DamageMeterSettingsDropdownButton.xml/.lua).
+---@param parent Frame The frame the button belongs to (anchor it afterwards).
+---@param menuGenerator fun(owner: Frame, rootDescription: table) Fills the menu; passed to DropdownButton:SetupMenu.
+---@return DropdownButton button The cog button.
+function createSettingsCog(parent, menuGenerator)
+  -- "DropdownButton" is the intrinsic behind Blizzard's <DropdownButton> XML tag (Blizzard_Menu): it brings
+  -- DropdownButtonMixin (SetupMenu, opening/closing the menu on click) plus intrinsic script handlers that
+  -- keep running alongside the scripts set below. ButtonStateBehaviorMixin tracks hover/pressed state.
+  local button = CreateFrame("DropdownButton", nil, parent)
+  Mixin(button, ButtonStateBehaviorMixin)
+  button:SetSize(27, 27)
+  button.Icon = button:CreateTexture(nil, "ARTWORK")
+  button.Icon:SetAllPoints()
+
+  --- Shows the cog atlas for the button's current state; copy of DamageMeterSettingsDropdownButton:GetIconAtlas().
+  function button:OnButtonStateChanged()
+    local atlas
+    if not self:IsEnabled() then
+      atlas = SETTINGS_COG_ATLAS.disabled
+    elseif self:IsDownOver() then
+      atlas = SETTINGS_COG_ATLAS.hoverPressed
+    elseif self:IsOver() then
+      atlas = SETTINGS_COG_ATLAS.hover
+    elseif self:IsDown() then
+      atlas = SETTINGS_COG_ATLAS.pressed
+    elseif self:IsMenuOpen() then
+      atlas = SETTINGS_COG_ATLAS.open
+    else
+      atlas = SETTINGS_COG_ATLAS.normal
+    end
+    self.Icon:SetAtlas(atlas, TextureKitConstants.UseAtlasSize)
+  end
+
+  --- Extends DropdownButtonMixin:OnMenuOpened to switch to the "open" cog.
+  ---@param menu Frame The opened menu.
+  function button:OnMenuOpened(menu)
+    DropdownButtonMixin.OnMenuOpened(self, menu)
+    self:OnButtonStateChanged()
+  end
+
+  --- Extends DropdownButtonMixin:OnMenuClosed to switch back from the "open" cog.
+  ---@param menu Frame The closed menu.
+  ---@param closeReason number Why the menu closed.
+  function button:OnMenuClosed(menu, closeReason)
+    DropdownButtonMixin.OnMenuClosed(self, menu, closeReason)
+    self:OnButtonStateChanged()
+  end
+
+  -- The template's <Scripts> block: all of these are ButtonStateBehaviorMixin methods.
+  for _, script in ipairs({ "OnMouseDown", "OnMouseUp", "OnEnter", "OnLeave", "OnEnable", "OnDisable" }) do
+    button:SetScript(script, button[script])
+  end
+  button:OnButtonStateChanged() -- ButtonStateBehaviorMixin:OnLoad()
+  button:SetupMenu(menuGenerator)
+  return button
+end
+
+-- Player context menus for the Info Display lists (Guildie List, Friends List), keyed by UnitPopup menu name.
+-- Each returns a trimmed-down entry list from Blizzard's own menus (Blizzard_UnitPopup's
+-- UnitPopupMenuCommunitiesGuildMember and UnitPopupMenuBnFriend), so the buttons keep Blizzard's logic: e.g. the
+-- invite options hide themselves for offline/mobile players and swap between Invite, Suggest Invite and Request
+-- Invite. They're functions because the mixins are only read when a menu opens, after Blizzard_UnitPopup loads.
+
+--- Appends View Houses to a menu's entries, except in WoW Forever: its UI source still defines the button's mixin,
+--- but Housing doesn't exist there.
+---@param entries table UnitPopup entry mixins.
+---@return table entries The same table.
+local function withViewHouses(entries)
+  if not isForever() then table.insert(entries, UnitPopupViewHousesButtonMixin) end
+  return entries
+end
+
+local PLAYER_MENU_ENTRIES = {
+  -- A WoW character, by name and GUID (guild members, character-only friends).
+  SLACKHACKS_PLAYER = function()
+    return withViewHouses({ UnitPopupMenuFriendlyPlayerInviteOptions, UnitPopupWhisperButtonMixin })
+  end,
+  -- A Battle.net friend who can be grouped with (in this WoW version).
+  SLACKHACKS_BN_FRIEND = function()
+    return withViewHouses({ UnitPopupBnetInviteButtonMixin, UnitPopupBnetSuggestInviteButtonMixin,
+      UnitPopupBnetRequestInviteButtonMixin, UnitPopupWhisperButtonMixin })
+  end,
+  -- A Battle.net friend who can't be grouped with (another game or WoW version). Blizzard's BN invite buttons
+  -- would only be disabled there, so they're left out entirely.
+  SLACKHACKS_BN_FRIEND_NO_INVITE = function()
+    return withViewHouses({ UnitPopupWhisperButtonMixin })
+  end,
+}
+local registeredPlayerMenus = {}
+
+-- Quick Join's icon for a friend's or guildie's group (Blizzard_QuickJoin/QuickJoin.lua), as inline text markup.
+local GROUP_ICON = CreateAtlasMarkup("socialqueuing-icon-group", 13, 12)
+
+--- Appends Quick Join's group icon to a list name when the player is in a group. Uses the same check Blizzard's
+--- GetDisplayedInviteType (Blizzard_LFGUtil) makes to offer "Request to Join Group" instead of "Invite":
+--- C_SocialQueue tracks the groups of friends and guild members, and a "solo queue party" is only the hidden group
+--- the server makes for someone queued alone, so it doesn't count.
+---@param name string The name text, already carrying any other icons (the group icon goes last).
+---@param guid string|nil The player's GUID.
+---@return string name The name with the group icon appended when they're grouped.
+function addGroupIcon(name, guid)
+  if guid and C_SocialQueue then
+    local groupGUID, isSoloQueueParty = C_SocialQueue.GetGroupForPlayer(guid)
+    if groupGUID and not isSoloQueueParty then return name .. " " .. GROUP_ICON end
+  end
+  return name
+end
+
+--- Opens one of the PLAYER_MENU_ENTRIES context menus at the cursor, the way the Communities guild roster does
+--- (CommunitiesMemberListMixin:OnClubMemberButtonClicked -> UnitPopup_OpenMenu). The menu is registered with
+--- UnitPopupManager on first use, like Blizzard's own RAF_RECRUIT menu.
+---@param which string A PLAYER_MENU_ENTRIES key.
+---@param contextData table UnitPopup context: `name` ("Name-Realm" or a Battle.net name) plus `guid`,
+--- `bnetIDAccount`, `battleTag`, `isMobile` and `isGuildMember` as applicable. Don't set `accountInfo`, which
+--- UnitPopupManager:OpenMenu fills in from `bnetIDAccount`.
+function openPlayerMenu(which, contextData)
+  if not registeredPlayerMenus[which] then
+    local menu = CreateFromMixins(UnitPopupTopLevelMenuMixin)
+    menu.GetEntries = PLAYER_MENU_ENTRIES[which]
+    UnitPopupManager:RegisterMenu(which, menu)
+    registeredPlayerMenus[which] = true
+  end
+  UnitPopup_OpenMenu(which, contextData)
+end
+
+--- Makes a list row open a menu on left- or right-click while still letting a left-drag move its window.
+--- A drag that started on a row is forwarded to the window's own drag handlers, and the click is dropped.
+---@param row Frame The list row.
+---@param window Frame The movable window the row belongs to; its OnDragStart/OnDragStop scripts are reused.
+---@param onClick fun(row: Frame) Called when the row is clicked (released over the row without dragging).
+function enableRowClicks(row, window, onClick)
+  row:SetMouseClickEnabled(true)
+  row:RegisterForDrag("LeftButton")
+  -- Reset on press rather than release, since OnMouseUp and OnDragStop don't fire in a guaranteed order.
+  row:SetScript("OnMouseDown", function(self) self.dragged = false end)
+  row:SetScript("OnDragStart", function(self)
+    self.dragged = true
+    window:GetScript("OnDragStart")(window)
+  end)
+  row:SetScript("OnDragStop", function() window:GetScript("OnDragStop")(window) end)
+  row:SetScript("OnMouseUp", function(self, button)
+    if not self.dragged and (button == "LeftButton" or button == "RightButton") and self:IsMouseOver() then
+      onClick(self)
+    end
+  end)
+end
+
 
 --- Trim outer whitespace and leading indentation after each newline.
 ---@param str string - The multiline string to trim.
