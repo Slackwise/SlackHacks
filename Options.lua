@@ -2754,7 +2754,7 @@ options = {
             },
             showGameIcons = {
               name = "Show Game Icons",
-              desc = "Show the icon of the Blizzard game or app each friend is in after their name, like the Friends list. Also available from the window's cog menu.",
+              desc = "Show the icon of the Blizzard game or app each friend is in after their name, like the Friends list. Only shown for friends not in the same game as you (other WoW versions still show it). Also available from the window's cog menu.",
               descStyle = "inline",
               type = "toggle",
               width = "full",

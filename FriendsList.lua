@@ -458,7 +458,8 @@ end
 
 --- Builds a Battle.net friend's name column text the way the FriendsFrame does
 --- (FriendsFrame_GetBNetAccountNameAndStatus): the Battle.net name, then the WoW character's name in parentheses
---- (class-colored here), then the enabled game and faction icons.
+--- (class-colored here), then the enabled game and faction icons. The game icon is left off for friends in the
+--- same game and WoW version as the player, so it only marks friends somewhere else (including other WoW versions).
 ---@param account table The friend's BNetAccountInfo.
 ---@param classColor ColorMixin|nil The WoW character's class color, if they're on a WoW character.
 ---@param settings table This module's saved settings.
@@ -472,7 +473,7 @@ local function formatAccountName(account, classColor, settings, playerFaction)
     local characterName = classColor and classColor:WrapTextInColorCode(game.characterName) or game.characterName
     name = name .. " (" .. characterName .. ")"
   end
-  if settings.showGameIcons then
+  if settings.showGameIcons and not (isWoW and game.wowProjectID == WOW_PROJECT_ID) then
     name = name .. " " .. BNet_GetClientEmbeddedAtlas(game.clientProgram, ICON_SIZE, ICON_SIZE)
   end
   return isWoW and addFactionIcon(name, game.factionName, settings, playerFaction) or name
@@ -542,9 +543,7 @@ local function addCharacterFriends(friends, settings, icons, playerFaction)
       local classColor = classFile and C_ClassColor.GetClassColor(classFile)
       local shortName = info.name:match("[^%-]+") -- Strip the realm.
       local name = classColor and classColor:WrapTextInColorCode(shortName) or shortName
-      if settings.showGameIcons then
-        name = name .. " " .. BNet_GetClientEmbeddedAtlas(BNET_CLIENT_WOW, ICON_SIZE, ICON_SIZE)
-      end
+      -- No game icon: character friends are always in this game and WoW version.
       local zone, zoneText = formatZone(info.area, icons)
       friends[#friends + 1] = {
         name = addFactionIcon(name, playerFaction, settings, playerFaction),
