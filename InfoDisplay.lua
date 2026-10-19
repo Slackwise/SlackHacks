@@ -422,8 +422,10 @@ local function buildSettingsMenu(_, rootDescription)
     function() return getSettings().fitToContent end,
     function() setFitToContent(not getSettings().fitToContent) end)
   rootDescription:CreateButton(BATTLEFIELDMINIMAP_OPACITY_LABEL or "Change Opacity", showOpacityPanel)
-  rootDescription:CreateButton("Split Friend/Guildie Lists", function() module:SetStackLists(false) end)
   rootDescription:CreateDivider()
+  rootDescription:CreateCheckbox("Stack Friend/Guildie List",
+    function() return getSettings().stacked end,
+    function() module:SetStackLists(not getSettings().stacked) end)
   for _, key in ipairs(STACK_ORDERS[getSettings().stackOrder] or STACK_ORDERS.friends) do
     local listModule = Self[SECTIONS[key].module]
     rootDescription:CreateCheckbox(SECTIONS[key].listName,
@@ -628,12 +630,14 @@ function module:SetStackLists(stacked)
   if registry then registry:NotifyChange("SlackHacks") end
 end
 
---- Adds a "Stack Friend/Guildie Lists" button to a standalone list's cog menu, only when both lists are enabled
+--- Adds a "Stack Friend/Guildie List" checkbox to a standalone list's cog menu, only when both lists are enabled
 --- (with just one there's nothing to stack).
 ---@param rootDescription table The list's cog menu description.
 function module:AddStackMenuButton(rootDescription)
   if isRetailOrForever() and Self.GuildieList:IsEnabled() and Self.FriendsList:IsEnabled() then
-    rootDescription:CreateButton("Stack Friend/Guildie Lists", function() self:SetStackLists(true) end)
+    rootDescription:CreateCheckbox("Stack Friend/Guildie List",
+      function() return getSettings().stacked end,
+      function() self:SetStackLists(not getSettings().stacked) end)
   end
 end
 
