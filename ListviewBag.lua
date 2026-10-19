@@ -285,7 +285,10 @@ local expandedGroups = {}
 local viewToggleButton
 local bagKeyBindingButton
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
-local sellMarkedTrashItems
+local sellMarkedTrashItems, updateSellTrashButton
+-- Tracked from MERCHANT_SHOW/MERCHANT_CLOSED rather than MerchantFrame:IsShown(), because Blizzard's
+-- frame may not have shown/hidden yet when our handler for the same event runs.
+local merchantOpen = false
 
 -- Distributes the header/row widths for the currently reorderable columns, giving the "name" column
 -- whatever space is left over. Non-reorderable cells (collapse arrow, lock/trash status) are pinned.
@@ -405,6 +408,7 @@ local function cycleStatus(key, statusInfo)
     settings().protectedItems[key] = statusInfo
   end
   renderRows()
+  updateSellTrashButton()
 end
 
 local function createRow(index)
@@ -794,7 +798,7 @@ local function createFooter()
   footer.sellTrashButton:SetSize(80, 20)
   footer.sellTrashButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
   footer.sellTrashButton:SetText("Sell Trash")
-  footer.sellTrashButton:SetEnabled(MerchantFrame and MerchantFrame:IsShown())
+  footer.sellTrashButton:SetEnabled(false)
   footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
 
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
@@ -1165,20 +1169,45 @@ end
 -- Mirrors sellGreyItems()'s existing pattern in Core.lua (C_Container.UseContainerItem at a merchant
 -- sells the item) but drives off the player's own per-item/per-armor-piece "trash" flags instead of
 -- quality.
-sellMarkedTrashItems = function()
+
+--- Visit every bag slot holding a marked-trash item that a merchant would actually buy right now.
+-- Shared by selling and the Sell Trash button state so the button is only enabled when clicking it
+-- would sell something. Skips items with no vendor value (merchants refuse them, so they'd keep the
+-- button lit forever) and locked items (already mid-sale or otherwise in use, so they'd be counted
+-- again before the bag update that removes them arrives).
+-- @param callback function|nil called as callback(bagID, slot) for each sellable slot.
+-- @return number count of sellable trash slots found.
+local function forEachSellableTrashSlot(callback)
+  local count = 0
   for _, bagID in ipairs(bagIDs()) do
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID then
+      if info and info.itemID and not info.hasNoValue and not info.isLocked then
         local itemName, itemLink, _, itemLevel = C_Item.GetItemInfo(info.hyperlink)
         local upgradeTrack = getUpgradeTrack(bagID, slot)
         local key = itemStatusKey(itemName or info.itemName, info.quality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
         if isTrashItem(key) and not isProtectedItem(key) then
-          C_Container.UseContainerItem(bagID, slot)
+          count = count + 1
+          if callback then callback(bagID, slot) end
         end
       end
     end
   end
+  return count
+end
+
+--- Enable the Sell Trash button only while a merchant is open and there's sellable marked trash.
+updateSellTrashButton = function()
+  if not footer or not footer.sellTrashButton then return end
+  footer.sellTrashButton:SetEnabled(merchantOpen and forEachSellableTrashSlot() > 0)
+end
+
+--- Sell every marked-trash item a merchant will buy, then refresh the Sell Trash button state.
+sellMarkedTrashItems = function()
+  forEachSellableTrashSlot(C_Container.UseContainerItem)
+  -- UseContainerItem locks each slot immediately, so the sold items are already excluded here even
+  -- though the bag update that removes them arrives later.
+  updateSellTrashButton()
 end
 
 local merchantJunkHooked = false
@@ -1211,6 +1240,8 @@ function module:OnEnable()
   end
   installBagMenuOptions()
   buildFrame()
+  merchantOpen = MerchantFrame and MerchantFrame:IsShown() or false
+  updateSellTrashButton()
   hookMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
@@ -1235,6 +1266,7 @@ function module:OnDisable()
 end
 
 function module:MERCHANT_SHOW()
+  merchantOpen = true
   if settings().showListviewBag then
     hideDefaultBags()
     frame:Show()
@@ -1242,16 +1274,13 @@ function module:MERCHANT_SHOW()
   if settings().autoSellMarkedItems then
     sellMarkedTrashItems()
   end
-  if footer and footer.sellTrashButton then
-    footer.sellTrashButton:SetEnabled(true)
-  end
+  updateSellTrashButton()
   renderRows()
 end
 
 function module:MERCHANT_CLOSED()
-  if footer and footer.sellTrashButton then
-    footer.sellTrashButton:SetEnabled(false)
-  end
+  merchantOpen = false
+  updateSellTrashButton()
   renderRows()
 end
 
@@ -1274,6 +1303,7 @@ end
 function module:Refresh()
   if not frame then return end
   renderRows()
+  updateSellTrashButton()
   if frame:IsShown() then
     updateFooter()
   end
