@@ -87,6 +87,11 @@ local chatRequestModes = {
 
 local SELF_VENDOR_ALLOWED_WORDS = { "and", "give", "need", "please" }
 
+--- Parse a chat message into the set of Self Vendor modes it requests.
+-- Multi-word phrases ("vantus rune", "augment rune", "<stat> flask") are matched before single
+-- words so the trailing word isn't also counted as its own request.
+-- @param message string raw chat message text.
+-- @return table|nil set of requested Enum.SelfVendorMode values (mode -> true), string|nil reason when nothing matched.
 function module:ParseChatRequest(message)
   if type(message) ~= "string" then return nil, "message is not text" end
   if not db.profile.selfVendor.enabled then return nil, "Self Vendor is disabled" end
@@ -108,6 +113,12 @@ function module:ParseChatRequest(message)
     local mode = chatRequestModes[word]
     if (word == "vantus" or word == "augment") and (nextWord == "rune" or nextWord == "runes") then
       mode = word == "vantus" and VendorMode.VANTUS_RUNE or VendorMode.AUGMENT_RUNES
+      wordIndex = wordIndex + 1
+    end
+    -- "crit flask" means one crit flask; without consuming "flask" it would also queue the generic
+    -- Flask mode and hand out a second (spec-recommended) flask.
+    local modeDetails = mode and SELF_VENDOR_MODES[mode]
+    if modeDetails and modeDetails.flaskItemName and (nextWord == "flask" or nextWord == "flasks") then
       wordIndex = wordIndex + 1
     end
     if not mode and not tContains(SELF_VENDOR_ALLOWED_WORDS, word) then
