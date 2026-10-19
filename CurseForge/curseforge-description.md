@@ -92,7 +92,7 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 #### Players Online
 * **Stacked Lists:** Turn on "Stack Friends and Guildie Lists" to show both lists in one "Players Online (N)" window, where N counts everyone online once, even if they're both a friend and a guildie.
 * **Objective Tracker Sections:** Each list gets an Objective Tracker-style section header that collapses just that list. "List Stack Order" picks which list is on top.
-* **Settings Cogs:** The window's cog has Fit to Content, "Change Opacity", "Split Friend/Guildie Lists", and "Friends List"/"Guildies List" checkboxes to turn each list on or off (turning both off also turns stacking off). Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer "Stack Friend/Guildie Lists".
+* **Settings Cogs:** The window's cog has Fit to Content and "Change Opacity", followed by a "Stack Friend/Guildie List" checkbox grouped with the "Friends List"/"Guildies List" visibility checkboxes. Uncheck stacking to split the lists into their own windows; turning both lists off also turns stacking off. Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer the same stacking checkbox.
 * **Collapsible:** Same as the individual lists.
 
 ### Mouse Ring
@@ -123,7 +123,7 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 * Hold `Shift` while interacting to skip all automation.
 
 ### Self Vendor
-* **Chat Request Handling:** Listens in party, raid, and instance chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`).
+* **Chat Request Handling:** Listens in party, raid, instance, say, and whisper chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`). Enable **Only Serve to Fellow Guildies** to ignore requests from non-guild members.
 * **Spec Matching:** Selects the recommended Flask and Weapon Oil for the requesting player's class and specialization using data from Wowhead or Icy Veins.
 * **Asynchronous Trade Queue:** Enqueues requests and handles item stack splitting via a FIFO queue to prevent trade window conflicts.
 * **Configuration:** Granular toggles for Flasks, Oils, Augment Runes, and Vantus Runes, with configurable rune stack counts and optional chat prefix enforcement.

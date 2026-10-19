@@ -1,8 +1,9 @@
 --[[
   SelfVendor.lua
 
-  Lets group members request scripted trades using item keywords in party, raid, or
-  instance chat. Multiple keywords combine into one queued request.
+  Lets players request scripted trades using item keywords in party, raid, instance, say, or
+  whisper chat. Multiple keywords combine into one queued request. Requests can optionally be
+  restricted to guild members (`selfVendor.guildOnly`).
 
   Design decisions worth remembering:
   - Everything funnels through a FIFO queue (`self.tradeQueue`) so only one trade is ever
@@ -86,6 +87,11 @@ local chatRequestModes = {
 
 local SELF_VENDOR_ALLOWED_WORDS = { "and", "give", "need", "please" }
 
+--- Parse a chat message into the set of Self Vendor modes it requests.
+-- Multi-word phrases ("vantus rune", "augment rune", "<stat> flask") are matched before single
+-- words so the trailing word isn't also counted as its own request.
+-- @param message string raw chat message text.
+-- @return table|nil set of requested Enum.SelfVendorMode values (mode -> true), string|nil reason when nothing matched.
 function module:ParseChatRequest(message)
   if type(message) ~= "string" then return nil, "message is not text" end
   if not db.profile.selfVendor.enabled then return nil, "Self Vendor is disabled" end
@@ -107,6 +113,12 @@ function module:ParseChatRequest(message)
     local mode = chatRequestModes[word]
     if (word == "vantus" or word == "augment") and (nextWord == "rune" or nextWord == "runes") then
       mode = word == "vantus" and VendorMode.VANTUS_RUNE or VendorMode.AUGMENT_RUNES
+      wordIndex = wordIndex + 1
+    end
+    -- "crit flask" means one crit flask; without consuming "flask" it would also queue the generic
+    -- Flask mode and hand out a second (spec-recommended) flask.
+    local modeDetails = mode and SELF_VENDOR_MODES[mode]
+    if modeDetails and modeDetails.flaskItemName and (nextWord == "flask" or nextWord == "flasks") then
       wordIndex = wordIndex + 1
     end
     if not mode and not tContains(SELF_VENDOR_ALLOWED_WORDS, word) then
@@ -248,14 +260,63 @@ local function buildBISEnhancementRecommendation(data, flaskName)
   }
 end
 
---- Determine whether a named player is allowed to request a Self Vendor trade.
--- Eligibility is intentionally limited to people in your current group/raid or your guild
--- (not, say, "anyone who whispers you") so random players can't request trades to drain your
--- consumables/enchant mats.
+--- Determine whether a named player is allowed to request a Self Vendor trade via slash command.
+-- Eligibility is intentionally limited to people in your current group/raid or your guild so a
+-- manual `/slack vendor` on an arbitrary target doesn't hand out consumables/enchant mats.
+-- Chat requests use `chatSenderIsEligible` instead.
 -- @param name string player name (with or without realm).
 -- @return boolean|string truthy if eligible: a unit token from groupUnitFor, or true-ish guild match.
 local function senderIsEligible(name)
   return groupUnitFor(name) or guildMember(name)
+end
+
+local GROUP_CHAT_EVENTS = {
+  CHAT_MSG_PARTY = true, CHAT_MSG_PARTY_LEADER = true,
+  CHAT_MSG_RAID = true, CHAT_MSG_RAID_LEADER = true,
+  CHAT_MSG_INSTANCE_CHAT = true, CHAT_MSG_INSTANCE_CHAT_LEADER = true,
+}
+
+--- Determine whether a chat request sender should be served.
+-- Group channels only accept group members; say/whisper accept anyone nearby. The optional
+-- guild-only setting is applied on top of both.
+-- @param event string chat event name that carried the request.
+-- @param sender string sender name (with or without realm).
+-- @return boolean true if eligible, string|nil reason when not eligible.
+local function chatSenderIsEligible(event, sender)
+  if GROUP_CHAT_EVENTS[event] and not groupUnitFor(sender) then
+    return false, "sender is not in the group"
+  end
+  if db.profile.selfVendor.guildOnly and not guildMember(sender) then
+    return false, "sender is not a guild member"
+  end
+  return true
+end
+
+--- Find a unit token currently pointing at the named player.
+-- Say/whisper requesters usually aren't grouped, and InitiateTrade/CheckInteractDistance need a
+-- real unit token, so fall back to target/focus/mouseover and then visible nameplates.
+-- @param name string player name (with or without realm).
+-- @return string|nil unit token, or nil if the player can't be resolved to a unit right now.
+local function unitForName(name)
+  local unit = groupUnitFor(name)
+  if unit then return unit end
+  for _, candidate in ipairs({ "target", "focus", "mouseover" }) do
+    if UnitIsPlayer(candidate) and sameName(UnitName(candidate), name) then return candidate end
+  end
+  for index = 1, 40 do
+    local plate = "nameplate" .. index
+    if UnitIsPlayer(plate) and sameName(UnitName(plate), name) then return plate end
+  end
+end
+
+--- Ensure `module.pendingUnit` still refers to the pending player.
+-- Nameplate/mouseover tokens are transient and can be reassigned to someone else while trade
+-- items are being prepared asynchronously, so re-resolve whenever the token no longer matches.
+-- @param module table the SelfVendor module.
+local function refreshPendingUnit(module)
+  if not module.pendingName then return end
+  if module.pendingUnit and sameName(UnitName(module.pendingUnit), module.pendingName) then return end
+  module.pendingUnit = unitForName(module.pendingName)
 end
 
 --- Compute the full BIS recommendation (gear + consumables) for a unit, given a data source.
@@ -709,6 +770,8 @@ function module:OnEnable()
   self:RegisterEvent("CHAT_MSG_RAID_LEADER", "CHAT_MSG_GROUP")
   self:RegisterEvent("CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_GROUP")
   self:RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_SAY", "CHAT_MSG_GROUP")
+  self:RegisterEvent("CHAT_MSG_WHISPER", "CHAT_MSG_GROUP")
   self:RegisterEvent("TRADE_SHOW")
   self:RegisterEvent("INSPECT_READY")
   self:RegisterEvent("UI_INFO_MESSAGE")
@@ -849,11 +912,16 @@ function module:BeginChatTrade(sender, mode)
   self:StartNextQueuedTrade()
 end
 
+--- Handle a potential Self Vendor request from group, say, or whisper chat.
+-- @param event string chat event name.
+-- @param message string chat message text.
+-- @param sender string sender name (usually "Name-Realm").
 function module:CHAT_MSG_GROUP(event, message, sender)
   if not sender then return end
   if sameName(sender, UnitName("player")) then return end
-  if not groupUnitFor(sender) then
-    log("Self Vendor ignored " .. event .. " from " .. sender .. ": sender is not in the group")
+  local eligible, ineligibleReason = chatSenderIsEligible(event, sender)
+  if not eligible then
+    log("Self Vendor ignored " .. event .. " from " .. sender .. ": " .. ineligibleReason)
     return
   end
   local request, reason = self:ParseChatRequest(message)
@@ -921,11 +989,16 @@ function module:TRADE_REQUEST_CANCEL()
   end
 end
 
+--- Begin servicing the next queued player, or refresh the queue window when nobody is left.
+-- Every path that ends a service funnels through here, so this is also where the window's
+-- "Now serving" row is kept in sync.
 function module:StartNextQueuedTrade()
-  if not self.tradeQueue or #self.tradeQueue == 0 then return end
+  if not self.tradeQueue or #self.tradeQueue == 0 then
+    self:RefreshQueueWindow()
+    return
+  end
   local queuedTrade = table.remove(self.tradeQueue, 1)
   removeQueueEntries(self.tradeQueue, queuedTrade.name)
-  self:RefreshQueueWindow()
   self.activeTradeName = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
@@ -933,8 +1006,8 @@ function module:StartNextQueuedTrade()
   self.pendingTradeInitiated = nil
   self.pendingName = queuedTrade.name
   self.pendingMode = queuedTrade.mode
-  self.pendingUnit = groupUnitFor(queuedTrade.name)
-  if not self.pendingUnit and sameName(UnitName("target"), queuedTrade.name) then self.pendingUnit = "target" end
+  self:RefreshQueueWindow()
+  self.pendingUnit = unitForName(queuedTrade.name)
   if requestIncludesMode(queuedTrade.mode, VendorMode.AUGMENTS) and self.pendingUnit then
     self.inspectGUID = UnitGUID(self.pendingUnit)
     NotifyInspect(self.pendingUnit)
@@ -1087,6 +1160,7 @@ function module:CheckAndInitiateTrade()
     log("Trade check skipped because there is no pending player")
     return
   end
+  refreshPendingUnit(self)
   if self.pendingUnit and not inTradeRange(self.pendingUnit) then
     log(self.pendingName .. " is out of trade range; notifying and skipping")
     self:NotifyTradeUnavailable(self.pendingName)
@@ -1152,6 +1226,7 @@ function module:PrepareTradeItems(required)
   local function prepareNextItem()
     if not self.pendingName then return end
     if itemIndex > #itemIDs then
+      refreshPendingUnit(self)
       if self.pendingUnit and not inTradeRange(self.pendingUnit) then
         log(self.pendingName .. " moved out of trade range during item prep")
         self:FailPendingTrade(self.pendingName .. " moved out of trade range")
@@ -1274,11 +1349,14 @@ end
 --=====================================================================
 -- Queue window ("Self Vendor Queue")
 --=====================================================================
--- A standard Blizzard bordered window (BasicFrameTemplateWithInset) listing who's waiting, in
--- order, and what they requested. There is no slash command for it: it shows itself automatically
--- whenever the queue is non-empty and hides itself once it's empty. Each row has its own
--- close-style button to drop just that person; closing the window itself (its own CloseButton)
--- clears the whole queue, matching the "X" semantics used everywhere else in this addon.
+-- A standard Blizzard bordered window (BasicFrameTemplateWithInset) showing who is currently being
+-- served plus who's waiting, in order, and what they requested. There is no slash command for it:
+-- it shows itself as soon as any request is being handled (even a single one with nobody waiting)
+-- and hides itself once nobody is being served or waiting. Each waiting row has its own close-style
+-- button to drop just that person; the "Now serving" row has none because cancelling mid-service
+-- would race the async bag prep/inspect callbacks keyed off `pendingName`. Closing the window itself
+-- (its own CloseButton) clears the waiting queue, matching the "X" semantics used everywhere else in
+-- this addon; the window reappears on the next refresh if someone is still being served.
 -- The frame itself lives on `self.queueFrame` (not a file-local) so OnDisable, defined earlier in
 -- this file, can still reach it to hide it when the module is turned off.
 
@@ -1292,7 +1370,8 @@ local function ensureQueueFrame(module)
   if queueFrame then return queueFrame end
   queueFrame = CreateFrame("Frame", "SlackHacksSelfVendorQueueFrame", UIParent, "BasicFrameTemplateWithInset")
   module.queueFrame = queueFrame
-  queueFrame:SetSize(300, TITLE_BAR_HEIGHT + 10 + MAX_QUEUE_ROWS * ROW_HEIGHT)
+  -- One extra row is reserved for the "Now serving" entry above the waiting list.
+  queueFrame:SetSize(300, TITLE_BAR_HEIGHT + 10 + (MAX_QUEUE_ROWS + 1) * ROW_HEIGHT)
   queueFrame:SetPoint("CENTER")
   queueFrame:SetFrameStrata("DIALOG")
   queueFrame:SetMovable(true)
@@ -1329,26 +1408,39 @@ local function ensureQueueRow(module, index)
   return row
 end
 
---- Show/hide the queue window to match whether anyone is waiting, and redraw its rows.
--- Called after every queue mutation (enqueue, dequeue, manual removal, clear) so the window is
--- always in sync without any slash command driving it.
+--- Show/hide the queue window to match whether anyone is being served or waiting, and redraw its rows.
+-- Called after every queue mutation (enqueue, dequeue, manual removal, clear) and whenever service
+-- starts or ends, so the window is always in sync without any slash command driving it.
 function module:RefreshQueueWindow()
   local queue = self.tradeQueue or {}
-  if #queue == 0 then
+  local servingName = self.activeTradeName or self.pendingName
+  local servingMode = self.activeTradeName and self.activeTradeMode or self.pendingMode
+  if #queue == 0 and not servingName then
     if self.queueFrame then self.queueFrame:Hide() end
     return
   end
   local queueFrame = ensureQueueFrame(self)
   if not queueFrame:IsShown() then queueFrame:Show() end
+  local rowIndex = 0
+  if servingName then
+    rowIndex = 1
+    local row = ensureQueueRow(self, rowIndex)
+    row.name = nil
+    row.text:SetText("|cff00ff00Now serving:|r  " .. servingName .. " - " .. requestLabel(servingMode))
+    row.removeButton:Hide()
+    row:Show()
+  end
   local shown = math.min(#queue, MAX_QUEUE_ROWS)
   for index = 1, shown do
     local entry = queue[index]
-    local row = ensureQueueRow(self, index)
+    rowIndex = rowIndex + 1
+    local row = ensureQueueRow(self, rowIndex)
     row.name = entry.name
     row.text:SetText("#" .. index .. "  " .. entry.name .. " - " .. requestLabel(entry.mode))
+    row.removeButton:Show()
     row:Show()
   end
-  for index = shown + 1, (queueRows and #queueRows or 0) do
+  for index = rowIndex + 1, (queueRows and #queueRows or 0) do
     queueRows[index]:Hide()
   end
   queueFrame.overflowText:SetText(#queue > MAX_QUEUE_ROWS and ("+" .. (#queue - MAX_QUEUE_ROWS) .. " more waiting") or "")
