@@ -368,6 +368,8 @@ end
 ---@param row Frame A pooled row frame from the ScrollBox.
 ---@param member table Member entry built by buildMembers().
 local function initRow(row, member)
+  -- Restore pooled input state before binding, so newly initialized handlers become the restoration baseline.
+  setListMouseInteraction(row, false)
   if not row.Name then
     row.Name = createCell(row)
     row.Name:SetPoint("LEFT", ROW_PADDING, 0)
@@ -387,6 +389,8 @@ local function initRow(row, member)
   row.member = member
   row.Name:SetText(member.name)
   row.Zone:SetText(member.zoneText)
+  -- ScrollBox can initialize pooled rows after populate() returns, including while click-through is on.
+  setListMouseInteraction(row, getSettings().nonInteractive)
 end
 
 --- Returns the widest rendered width of a field across the member entries, measured in the rows' font.
@@ -515,6 +519,7 @@ function populate()
     window.Title:SetText("No Guild")
     window.ScrollBox:SetDataProvider(CreateDataProvider())
     fitToContent({})
+    applyListWindowInteraction(window, getSettings())
     return
   end
 
@@ -523,6 +528,7 @@ function populate()
   window.Title:SetText("Guildies (" .. #members .. ")")
   window.ScrollBox:SetDataProvider(CreateDataProvider(members), ScrollBoxConstants.RetainScrollPosition)
   fitToContent(members)
+  applyListWindowInteraction(window, getSettings())
 end
 
 --- Asks the server for fresh roster data; GUILD_ROSTER_UPDATE fires when it arrives.
@@ -565,6 +571,7 @@ end
 ---@param rootDescription table The menu's root description.
 local function buildSettingsMenu(_, rootDescription)
   rootDescription:SetTag(SETTINGS_MENU_TAG)
+  Self.InfoDisplay:AddListWindowOptions(rootDescription, "guildieList")
   rootDescription:CreateCheckbox("Fit to Content",
     function() return getSettings().fitToContent end,
     function() setFitToContent(not getSettings().fitToContent) end)
@@ -586,7 +593,9 @@ local function createWindow()
   window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT)
   window:EnableMouse(true)
   window:RegisterForDrag("LeftButton")
-  window:SetScript("OnDragStart", window.StartMoving)
+  window:SetScript("OnDragStart", function(self)
+    if self:IsMovable() then self:StartMoving() end
+  end)
   window:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     saveLayout()
@@ -703,6 +712,11 @@ function module:SetEnabled(enabled)
   Self.InfoDisplay:OnListEnabledChanged()
 end
 
+--- Applies the standalone window's interaction settings, if it has been created.
+function module:RefreshWindowInteraction()
+  if window then applyListWindowInteraction(window, getSettings()) end
+end
+
 --- Saves and applies whether the window sizes itself to its content (used by the options panel).
 ---@param enabled boolean Whether to fit the window to its content.
 function module:SetFitToContent(enabled)
@@ -795,6 +809,7 @@ function module:OnEnable()
   setMinimized(getSettings().minimized)
   setOpacity(getSettings().opacity)
   setFitToContent(getSettings().fitToContent) -- Window is still hidden, so the fit itself happens in OnShow.
+  applyListWindowInteraction(window, getSettings())
   self:RegisterEvent("PLAYER_ENTERING_WORLD", function() C_Timer.After(ROSTER_REQUEST_DELAY, requestRoster) end)
   self:RegisterEvent("GUILD_ROSTER_UPDATE", refresh)
   self:RegisterEvent("SOCIAL_QUEUE_UPDATE", refresh) -- A member joined or left a group (see addGroupIcon).

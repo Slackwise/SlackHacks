@@ -80,6 +80,7 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 * **Collapsible:** Collapse the window down to its header (which still shows the online count) using the same minimize button as the Damage Meter.
 * **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, the sort order, and the icon toggles.
 * **Minimap Toggle:** Turn the list on or off from the "Guildies List" checkbox in the minimap icon menu.
+* **Window Interaction:** Settings and the cog menu offer **Lock Position** to prevent dragging and **Make Non-Interactive** to pass mouse input through to the world. Only the settings cog remains interactive.
 
 #### Friends List
 * **Online Friends:** The same Damage Meter-style window as the Guildie List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
@@ -87,13 +88,14 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 * **Filters:** Only Favorite Friends (default on), Only Playing WoW, and Only Same WoW Version (e.g. hide Classic players while you're on Retail). With Only Favorite Friends off, character friends are listed too.
 * **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name, for friends who aren't in the same game as you, including other WoW versions (toggleable).
 * **Instance, Faction, and In-Group Icons:** The same toggleable Dungeon/Raid/Delve, Horde/Alliance, and in-group icons as the Guildie List.
-* **Sorting, Fit to Content, Collapsible, Settings Cog, Minimap Toggle:** Same as the Guildie List, with the filters also in the cog menu. Name sorting follows the Friends list's order. The minimap checkbox is "Friends List".
+* **Sorting, Fit to Content, Collapsible, Settings Cog, Window Interaction, Minimap Toggle:** Same as the Guildie List, including Lock Position and Make Non-Interactive, with the filters also in the cog menu. Name sorting follows the Friends list's order. The minimap checkbox is "Friends List".
 
 #### Players Online
 * **Stacked Lists:** Turn on "Stack Friends and Guildie Lists" to show both lists in one "Players Online (N)" window, where N counts everyone online once, even if they're both a friend and a guildie.
 * **Objective Tracker Sections:** Each list gets an Objective Tracker-style section header that collapses just that list. "List Stack Order" picks which list is on top.
 * **Settings Cogs:** The window's cog has Fit to Content and "Change Opacity", followed by a "Stack Friend/Guildie List" checkbox grouped with the "Friends List"/"Guildies List" visibility checkboxes. Uncheck stacking to split the lists into their own windows; turning both lists off also turns stacking off. Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer the same stacking checkbox.
 * **Collapsible:** Same as the individual lists.
+* **Window Interaction:** Lock Position and Make Non-Interactive apply to the entire stacked window, independently of the standalone windows' settings. Only the topmost cog offers these options and remains interactive when click-through is on.
 
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.

@@ -200,6 +200,7 @@ end
 ---@param row Button A pooled row from the ScrollBox.
 ---@param data table Element data: { entry, listModule }.
 local function initRow(row, data)
+  setListMouseInteraction(row, false)
   if not row.Name then
     row.Name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.Name:SetJustifyH("LEFT")
@@ -223,6 +224,8 @@ local function initRow(row, data)
   layoutRow(row)
   row.Name:SetText(data.entry.name)
   row.Zone:SetText(data.entry.zoneText)
+  -- Initializers also run on pooled frames after deferred ScrollBox layout.
+  setListMouseInteraction(row, getSettings().nonInteractive)
 end
 
 local populate
@@ -253,6 +256,7 @@ end
 ---@param header Frame A pooled header frame from the ScrollBox.
 ---@param data table Element data: { key, text, collapsed, spacing }.
 local function initSectionHeader(header, data)
+  setListMouseInteraction(header, false)
   -- Set before the cog is created: DropdownButtonMixin:SetupMenu runs buildSectionMenu right away when the cog is
   -- shown (Retail and Forever alike), and the menu reads the section from its header's key.
   header.key = data.key
@@ -292,6 +296,7 @@ local function initSectionHeader(header, data)
   local atlas = data.collapsed and "ui-questtrackerbutton-secondary-expand" or "ui-questtrackerbutton-secondary-collapse"
   header.MinimizeButton:SetNormalAtlas(atlas)
   header.MinimizeButton:SetPushedAtlas(atlas .. "-pressed")
+  setListMouseInteraction(header, getSettings().nonInteractive)
 end
 
 --- Returns the widest rendered width of a field across entries, measured in the rows' font. Friends' names are
@@ -377,6 +382,7 @@ function populate()
   window.Title:SetText("Players Online (" .. total .. ")")
   window.ScrollBox:SetDataProvider(CreateDataProvider(elements), ScrollBoxConstants.RetainScrollPosition)
   fitToContent(contentHeight)
+  applyListWindowInteraction(window, settings)
 end
 
 --- Saves the fit-to-content setting and applies it: fits the window now, or restores the manual size. The resize
@@ -418,6 +424,7 @@ end
 ---@param rootDescription table The menu's root description.
 local function buildSettingsMenu(_, rootDescription)
   rootDescription:SetTag(SETTINGS_MENU_TAG)
+  module:AddListWindowOptions(rootDescription, "playersOnline")
   rootDescription:CreateCheckbox("Fit to Content",
     function() return getSettings().fitToContent end,
     function() setFitToContent(not getSettings().fitToContent) end)
@@ -455,7 +462,9 @@ local function createWindow()
   window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT)
   window:EnableMouse(true)
   window:RegisterForDrag("LeftButton")
-  window:SetScript("OnDragStart", window.StartMoving)
+  window:SetScript("OnDragStart", function(self)
+    if self:IsMovable() then self:StartMoving() end
+  end)
   window:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     saveLayout()
@@ -503,6 +512,7 @@ local function createWindow()
   -- MinimizeButton (DamageMeterSessionWindowTemplate's SettingsDropdown anchor).
   settingsDropdown:SetPoint("RIGHT", minimizeButton, "LEFT", -2, COG_Y_OFFSET)
   settingsDropdown:HookScript("OnEnter", onWindowEnter)
+  window.SettingsDropdown = settingsDropdown
 
   local title = header:CreateFontString(nil, "ARTWORK", getHeaderFont())
   title:SetJustifyH("LEFT")
@@ -595,6 +605,7 @@ local function createWindow()
   setMinimized(settings.minimized)
   setOpacity(settings.opacity)
   setFitToContent(settings.fitToContent)
+  applyListWindowInteraction(window, settings)
 end
 
 --- Returns whether the Friends and Guildie lists are stacked into the Players Online window (Retail and Forever
@@ -602,6 +613,52 @@ end
 ---@return boolean stacked
 function module:IsPlayersOnlineStacked()
   return isRetailOrForever() and getSettings().stacked
+end
+
+--- Returns interaction settings for a standalone list, or the whole Players Online window while stacked.
+---@param key string "friendsList", "guildieList", or "playersOnline".
+---@return table settings The profile table controlling the visible window.
+local function interactionSettings(key)
+  if module:IsPlayersOnlineStacked() then key = "playersOnline" end
+  return db.profile.infoDisplay[key]
+end
+
+--- Reads a window interaction option, using the shared window's value while stacked.
+---@param key string The list's profile key.
+---@param option string "lockPosition" or "nonInteractive".
+---@return boolean enabled Whether the option is on.
+function module:GetListWindowOption(key, option)
+  return interactionSettings(key)[option]
+end
+
+--- Saves and immediately applies a window interaction option, keeping settings and cog menus synchronized.
+---@param key string The list's profile key.
+---@param option string "lockPosition" or "nonInteractive".
+---@param enabled boolean Whether to enable the option.
+function module:SetListWindowOption(key, option, enabled)
+  interactionSettings(key)[option] = enabled
+  if key == "playersOnline" or self:IsPlayersOnlineStacked() then
+    self:RefreshPlayersOnline()
+  else
+    local listModule = key == "friendsList" and Self.FriendsList or Self.GuildieList
+    listModule:RefreshWindowInteraction()
+  end
+  local registry = LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
+end
+
+--- Adds window-wide interaction settings to a standalone cog or the stacked window's topmost cog only.
+---@param rootDescription table The cog menu description.
+---@param key string The window's profile key.
+function module:AddListWindowOptions(rootDescription, key)
+  for _, option in ipairs({
+    { key = "lockPosition", name = "Lock Position" },
+    { key = "nonInteractive", name = "Make Non-Interactive" },
+  }) do
+    rootDescription:CreateCheckbox(option.name,
+      function() return self:GetListWindowOption(key, option.key) end,
+      function() self:SetListWindowOption(key, option.key, not self:GetListWindowOption(key, option.key)) end)
+  end
 end
 
 --- Shows, redraws or hides the Players Online window: it shows while stacking is on and at least one of the lists

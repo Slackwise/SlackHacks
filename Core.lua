@@ -740,6 +740,59 @@ function enableRowClicks(row, window, onClick)
   end)
 end
 
+local listMouseStates = setmetatable({}, { __mode = "k" })
+
+--- Applies click-through to a frame and its children, preserving their original mouse settings for restoration.
+--- Disabling only the parent leaves buttons, ScrollBox rows, and scroll bars able to consume world input.
+---@param frame Frame The frame subtree to update.
+---@param nonInteractive boolean Whether to disable clicks, hover, and wheel input.
+---@param cog Frame|nil The one settings cog that must remain interactive, including its children.
+function setListMouseInteraction(frame, nonInteractive, cog)
+  if frame == cog then return end
+  local state = listMouseStates[frame]
+  if nonInteractive then
+    if not state then
+      listMouseStates[frame] = {
+        click = frame:IsMouseClickEnabled(),
+        motion = frame:IsMouseMotionEnabled(),
+        wheel = frame:IsMouseWheelEnabled(),
+      }
+    end
+    frame:SetMouseClickEnabled(false)
+    frame:SetMouseMotionEnabled(false)
+    frame:EnableMouseWheel(false)
+  elseif state then
+    frame:SetMouseClickEnabled(state.click)
+    frame:SetMouseMotionEnabled(state.motion)
+    frame:EnableMouseWheel(state.wheel)
+    listMouseStates[frame] = nil
+  end
+  for _, child in ipairs({ frame:GetChildren() }) do
+    setListMouseInteraction(child, nonInteractive, cog)
+  end
+end
+
+--- Applies a player list window's drag lock and click-through settings without disabling its settings cog.
+--- Like FloatingChatFrame's uninteractable mode, configuration remains accessible while content ignores input.
+---@param window Frame The standalone list or stacked Players Online window.
+---@param settings table Saved settings containing lockPosition and nonInteractive.
+function applyListWindowInteraction(window, settings)
+  local movable = not settings.lockPosition and not settings.nonInteractive
+  if not movable and window:IsMovable() then window:StopMovingOrSizing() end
+  window:SetMovable(movable)
+  setListMouseInteraction(window, settings.nonInteractive, window.SettingsDropdown)
+  if settings.nonInteractive and GameTooltip:GetOwner() then
+    local owner = GameTooltip:GetOwner()
+    while owner do
+      if owner == window then
+        GameTooltip:Hide()
+        break
+      end
+      owner = owner:GetParent()
+    end
+  end
+end
+
 
 --- Trim outer whitespace and leading indentation after each newline.
 ---@param str string - The multiline string to trim.

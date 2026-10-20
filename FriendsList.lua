@@ -369,6 +369,8 @@ end
 ---@param row Frame A pooled row frame from the ScrollBox.
 ---@param friend table Friend entry built by buildFriends().
 local function initRow(row, friend)
+  -- Restore pooled input state before binding, so newly initialized handlers become the restoration baseline.
+  setListMouseInteraction(row, false)
   if not row.Name then
     row.Name = createCell(row)
     row.Name:SetPoint("LEFT", ROW_PADDING, 0)
@@ -388,6 +390,8 @@ local function initRow(row, friend)
   row.friend = friend
   row.Name:SetText(friend.name)
   row.Zone:SetText(friend.zoneText)
+  -- ScrollBox can initialize pooled rows after populate() returns, including while click-through is on.
+  setListMouseInteraction(row, getSettings().nonInteractive)
 end
 
 --- Returns the widest rendered width of a field across the friend entries, measured in the rows' font. Names are
@@ -630,6 +634,7 @@ function populate()
   window.Title:SetText(getUnavailableTitle() or ("Friends (" .. #friends .. ")"))
   window.ScrollBox:SetDataProvider(CreateDataProvider(friends), ScrollBoxConstants.RetainScrollPosition)
   fitToContent(friends)
+  applyListWindowInteraction(window, getSettings())
 end
 
 --- Queues a refresh() for REFRESH_DELAY seconds from now, so a burst of friend events causes one refresh. Runs
@@ -690,6 +695,7 @@ end
 ---@param rootDescription table The menu's root description.
 local function buildSettingsMenu(_, rootDescription)
   rootDescription:SetTag(SETTINGS_MENU_TAG)
+  Self.InfoDisplay:AddListWindowOptions(rootDescription, "friendsList")
   rootDescription:CreateCheckbox("Fit to Content",
     function() return getSettings().fitToContent end,
     function() setFitToContent(not getSettings().fitToContent) end)
@@ -711,7 +717,9 @@ local function createWindow()
   window:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT)
   window:EnableMouse(true)
   window:RegisterForDrag("LeftButton")
-  window:SetScript("OnDragStart", window.StartMoving)
+  window:SetScript("OnDragStart", function(self)
+    if self:IsMovable() then self:StartMoving() end
+  end)
   window:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     saveLayout()
@@ -830,6 +838,11 @@ function module:SetEnabled(enabled)
   Self.InfoDisplay:OnListEnabledChanged()
 end
 
+--- Applies the standalone window's interaction settings, if it has been created.
+function module:RefreshWindowInteraction()
+  if window then applyListWindowInteraction(window, getSettings()) end
+end
+
 --- Saves and applies whether the window sizes itself to its content (used by the options panel).
 ---@param enabled boolean Whether to fit the window to its content.
 function module:SetFitToContent(enabled)
@@ -921,6 +934,7 @@ function module:OnEnable()
   setMinimized(getSettings().minimized)
   setOpacity(getSettings().opacity)
   setFitToContent(getSettings().fitToContent) -- Window is still hidden, so the fit itself happens in OnShow.
+  applyListWindowInteraction(window, getSettings())
   -- The same events the FriendsFrame refreshes its list on; favoriting/unfavoriting a friend fires
   -- BN_FRIEND_INFO_CHANGED, and FRIENDLIST_UPDATE covers character friends. SOCIAL_QUEUE_UPDATE updates the group
   -- icons (addGroupIcon) when a friend joins or leaves a group.

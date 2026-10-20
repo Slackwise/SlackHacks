@@ -193,6 +193,8 @@ dbDefaults = {
       },
       guildieList = {
         enabled = false,
+        lockPosition = false,
+        nonInteractive = false,
         minimized = false,
         fitToContent = true,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
@@ -211,6 +213,8 @@ dbDefaults = {
       },
       friendsList = {
         enabled = false,
+        lockPosition = false,
+        nonInteractive = false,
         minimized = false,
         fitToContent = true,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
@@ -233,6 +237,8 @@ dbDefaults = {
       -- The Players Online window that stacks the Friends and Guildie lists (InfoDisplay.lua).
       playersOnline = {
         stacked = false,
+        lockPosition = false,
+        nonInteractive = false,
         stackOrder = "friends", -- "friends" (Friends, Guildies) or "guildies" (Guildies, Friends)
         minimized = false,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency".
@@ -2705,6 +2711,28 @@ options = {
               set = function(_, value) Self.GuildieList:SetEnabled(value) end,
               order = 0.05
             },
+            lockPosition = {
+              name = "Lock Position",
+              desc = "Prevent dragging the window. While stacked, this controls the whole Players Online window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return Self.InfoDisplay:GetListWindowOption("guildieList", "lockPosition") end,
+              set = function(_, value) Self.InfoDisplay:SetListWindowOption("guildieList", "lockPosition", value) end,
+              order = 0.1
+            },
+            nonInteractive = {
+              name = "Make Non-Interactive",
+              desc = "Let clicks, mouse movement, and scrolling pass through to the world beneath the window. " ..
+                "Only the settings cog stays interactive. While stacked, this controls the whole Players Online " ..
+                "window and only its topmost cog stays interactive.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return Self.InfoDisplay:GetListWindowOption("guildieList", "nonInteractive") end,
+              set = function(_, value) Self.InfoDisplay:SetListWindowOption("guildieList", "nonInteractive", value) end,
+              order = 0.2
+            },
             fitToContent = {
               name = "Fit Window to Content",
               desc = "Automatically size the window to fit its members and locations (up to a maximum height, after which the list scrolls). Turns off manual resizing while enabled. Also available from the window's cog menu.",
@@ -2818,6 +2846,28 @@ options = {
               get = function() return db.profile.infoDisplay.friendsList.enabled end,
               set = function(_, value) Self.FriendsList:SetEnabled(value) end,
               order = 0.05
+            },
+            lockPosition = {
+              name = "Lock Position",
+              desc = "Prevent dragging the window. While stacked, this controls the whole Players Online window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return Self.InfoDisplay:GetListWindowOption("friendsList", "lockPosition") end,
+              set = function(_, value) Self.InfoDisplay:SetListWindowOption("friendsList", "lockPosition", value) end,
+              order = 0.1
+            },
+            nonInteractive = {
+              name = "Make Non-Interactive",
+              desc = "Let clicks, mouse movement, and scrolling pass through to the world beneath the window. " ..
+                "Only the settings cog stays interactive. While stacked, this controls the whole Players Online " ..
+                "window and only its topmost cog stays interactive.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return Self.InfoDisplay:GetListWindowOption("friendsList", "nonInteractive") end,
+              set = function(_, value) Self.InfoDisplay:SetListWindowOption("friendsList", "nonInteractive", value) end,
+              order = 0.2
             },
             fitToContent = {
               name = "Fit Window to Content",
