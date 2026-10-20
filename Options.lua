@@ -160,6 +160,8 @@ dbDefaults = {
       requirePrefix = false,
       chatPrefix = "!",
       guildOnly = false,
+      autoTradeMode = 0,
+      autoTradeOffAfterGroup = false,
       modes = {
         [Enum.SelfVendorMode.CONSUMABLES] = { enabled = false },
         [Enum.SelfVendorMode.FLASK] = { enabled = false },
@@ -213,7 +215,7 @@ dbDefaults = {
         fitToContent = true,
         opacity = 0.5, -- Edit Mode's default DamageMeter "Background Transparency" (50 -> 0.5 alpha).
         sortBy = "name", -- "name" (the friends list's order) or "zone"
-        onlyFavorites = true,
+        onlyFavorites = false,
         onlyWoW = true,
         onlySameWoWVersion = false, -- Only applies while onlyWoW is on.
         showInstanceIcons = true,
@@ -745,6 +747,7 @@ local function printSlashHelp()
   print("  " .. color("FFFFFF")("/slack bugs") .. " - View and report error logs")
   print("  " .. color("FFFFFF")("/slack reset") .. " - Reset profile and addon state to defaults")
   print("  " .. color("FFFFFF")("/slack wipoff") .. " - Disable work-in-progress modules (" .. getWIPModuleNames() .. ")")
+  print("  " .. color("FFFFFF")("/slack vend <mode>") .. " - Set Self Vendor's Automatic Trade Response (e.g. vantus, flask, buffs, off)")
 end
 
 function disableWIPModules()
@@ -771,7 +774,11 @@ end
 
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
-  if command == "" then
+  -- "vendor" and "trade" are undocumented aliases of "vend"; everything after the word is the mode.
+  local vendCommand, vendArguments = command:match("^(%S+)%s*(.*)$")
+  if vendCommand == "vend" or vendCommand == "vendor" or vendCommand == "trade" then
+    Self.SelfVendor:HandleSlash(vendArguments)
+  elseif command == "" then
     openOptions()
     printSlashHelp()
   elseif command == "help" then
@@ -866,7 +873,7 @@ local function selfVendorModeOptions()
     order = 4,
   }
   args.guildOnly = {
-    name = "Only Serve to Fellow Guildies",
+    name = "Only Vend to Fellow Guildies",
     desc = "Ignore requests from players who aren't in your guild, including group members.",
     type = "toggle",
     descStyle = "inline",
@@ -900,6 +907,34 @@ local function selfVendorModeOptions()
       }
     end
   end
+  local autoTradeSorting = { 0 }
+  local autoTradeValues = { [0] = "Off" }
+  for _, mode in ipairs(selfVendorModeSorting) do
+    autoTradeSorting[#autoTradeSorting + 1] = mode
+    autoTradeValues[mode] = SELF_VENDOR_MODES[mode].name
+  end
+  args.autoTradeMode = {
+    name = "Automatic Trade Response",
+    desc = "When someone opens a trade with you, automatically trade them the items for this mode, even if its checkbox below is off. They're moved to the front of the queue. Set with /slack vend <mode>.",
+    descStyle = "inline",
+    type = "select",
+    values = autoTradeValues,
+    sorting = autoTradeSorting,
+    get = function() return db.profile.selfVendor.autoTradeMode or 0 end,
+    set = function(_, value) Self.SelfVendor:SetAutoTradeMode(value) end,
+    -- Between the source dropdown (5) and Only Vend to Fellow Guildies (5.5).
+    order = 5.2,
+  }
+  args.autoTradeOffAfterGroup = {
+    name = "Turn Off Automatic Trade Response After Leaving Group",
+    desc = "Set Automatic Trade Response to Off whenever you leave a party or raid.",
+    type = "toggle",
+    descStyle = "inline",
+    width = "full",
+    get = function() return db.profile.selfVendor.autoTradeOffAfterGroup end,
+    set = function(_, value) db.profile.selfVendor.autoTradeOffAfterGroup = value end,
+    order = 5.3,
+  }
   return args
 end
 

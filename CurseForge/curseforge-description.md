@@ -123,9 +123,10 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 * Hold `Shift` while interacting to skip all automation.
 
 ### Self Vendor
-* **Chat Request Handling:** Listens in party, raid, instance, say, and whisper chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`). Enable **Only Serve to Fellow Guildies** to ignore requests from non-guild members.
+* **Chat Request Handling:** Listens in party, raid, instance, say, and whisper chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`). Enable **Only Vend to Fellow Guildies** to ignore requests from non-guild members.
 * **Spec Matching:** Selects the recommended Flask and Weapon Oil for the requesting player's class and specialization using data from Wowhead or Icy Veins.
 * **Asynchronous Trade Queue:** Enqueues requests and handles item stack splitting via a FIFO queue to prevent trade window conflicts.
+* **Automatic Trade Response:** Pick a mode (or use `/slack vend <mode>`) and anyone who opens a trade with you is automatically handed those items, jumping to the front of the queue. Optionally turns itself Off when you leave your group.
 * **Configuration:** Granular toggles for Flasks, Oils, Augment Runes, and Vantus Runes, with configurable rune stack counts and optional chat prefix enforcement.
 
 ### Combat (**WIP!**)
@@ -144,14 +145,15 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 
 ## Slash Commands
 
-| Command         | Action                                            |
-| :-------------- | :------------------------------------------------ |
-| `/slack`        | Toggle the configuration panel                    |
-| `/slack help`   | List available slash commands                     |
-| `/slack bugs`   | Open the internal error log and report tool       |
-| `/slack debug`  | Toggle verbose debug logging to chat and database |
-| `/slack reset`  | Prompt to reset the active profile to defaults    |
-| `/slack wipoff` | Disable all experimental/WIP modules              |
+| Command              | Action                                                  |
+| :------------------- | :------------------------------------------------------ |
+| `/slack`             | Toggle the configuration panel                          |
+| `/slack help`        | List available slash commands                           |
+| `/slack bugs`        | Open the internal error log and report tool             |
+| `/slack debug`       | Toggle verbose debug logging to chat and database       |
+| `/slack reset`       | Prompt to reset the active profile to defaults          |
+| `/slack wipoff`      | Disable all experimental/WIP modules                    |
+| `/slack vend <mode>` | Set Self Vendor's Automatic Trade Response (or `off`)   |
 
 ---
 

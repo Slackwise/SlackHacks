@@ -3,12 +3,14 @@
 
   Lets players request scripted trades using item keywords in party, raid, instance, say, or
   whisper chat. Multiple keywords combine into one queued request. Requests can optionally be
-  restricted to guild members (`selfVendor.guildOnly`).
+  restricted to guild members (`selfVendor.guildOnly`). Automatic Trade Response
+  (`selfVendor.autoTradeMode`, also set via `/slack vend <mode>`) vends a fixed mode to anyone who
+  opens a trade with us, jumping the queue, independent of the chat request toggles.
 
   Design decisions worth remembering:
   - Everything funnels through a FIFO queue (`self.tradeQueue`) so only one trade is ever
     prepared/opened at a time. WoW's trade window, bag manipulation, and item-splitting APIs
-    are single-actor and asynchronous, so servicing multiple people concurrently would corrupt
+    are single-actor and asynchronous, so vending to multiple people concurrently would corrupt
     state (wrong items ending up in the wrong trade window).
   - We enqueue a requester *before* doing any async work (inspecting, bag polling) so their
     queue position is stable and can be reported back immediately, even though the inspect/bag
@@ -260,23 +262,13 @@ local function buildBISEnhancementRecommendation(data, flaskName)
   }
 end
 
---- Determine whether a named player is allowed to request a Self Vendor trade via slash command.
--- Eligibility is intentionally limited to people in your current group/raid or your guild so a
--- manual `/slack vendor` on an arbitrary target doesn't hand out consumables/enchant mats.
--- Chat requests use `chatSenderIsEligible` instead.
--- @param name string player name (with or without realm).
--- @return boolean|string truthy if eligible: a unit token from groupUnitFor, or true-ish guild match.
-local function senderIsEligible(name)
-  return groupUnitFor(name) or guildMember(name)
-end
-
 local GROUP_CHAT_EVENTS = {
   CHAT_MSG_PARTY = true, CHAT_MSG_PARTY_LEADER = true,
   CHAT_MSG_RAID = true, CHAT_MSG_RAID_LEADER = true,
   CHAT_MSG_INSTANCE_CHAT = true, CHAT_MSG_INSTANCE_CHAT_LEADER = true,
 }
 
---- Determine whether a chat request sender should be served.
+--- Determine whether a chat request sender should be vended to.
 -- Group channels only accept group members; say/whisper accept anyone nearby. The optional
 -- guild-only setting is applied on top of both.
 -- @param event string chat event name that carried the request.
@@ -300,7 +292,8 @@ end
 local function unitForName(name)
   local unit = groupUnitFor(name)
   if unit then return unit end
-  for _, candidate in ipairs({ "target", "focus", "mouseover" }) do
+  -- "NPC" is the open trade window's partner, which covers strangers who opened a trade with us.
+  for _, candidate in ipairs({ "target", "focus", "mouseover", "NPC" }) do
     if UnitIsPlayer(candidate) and sameName(UnitName(candidate), name) then return candidate end
   end
   for index = 1, 40 do
@@ -317,6 +310,52 @@ local function refreshPendingUnit(module)
   if not module.pendingName then return end
   if module.pendingUnit and sameName(UnitName(module.pendingUnit), module.pendingName) then return end
   module.pendingUnit = unitForName(module.pendingName)
+end
+
+--- Check whether the trade window is currently open with the named player.
+-- @param name string|nil player name (with or without realm).
+-- @return boolean true if a trade window is open and its partner is that player.
+local function tradeWindowOpenWith(name)
+  if not name or not (TradeFrame and TradeFrame:IsShown()) then return false end
+  return sameName(UnitName("NPC"), name)
+end
+
+--- Normalize a mode for Automatic Trade Response.
+-- Specific stat flasks aren't offered; they collapse to the dynamic Flask mode, which picks the
+-- flask from the selected Wowhead/Icy Veins source for the trade partner's spec.
+-- @param mode number|nil Enum.SelfVendorMode value.
+-- @return number|nil the mode to auto-trade, or nil if it isn't a known mode.
+local function autoTradeModeFor(mode)
+  local details = mode and SELF_VENDOR_MODES[mode]
+  if not details then return nil end
+  return details.flaskItemName and VendorMode.FLASK or mode
+end
+
+--- Read the configured Automatic Trade Response mode.
+-- @return number|nil Enum.SelfVendorMode value to auto-trade, or nil when the feature is Off.
+local function autoTradeMode()
+  local mode = db.profile.selfVendor.autoTradeMode
+  if mode and mode ~= 0 then return autoTradeModeFor(mode) end
+end
+
+--- Determine whether the module needs its events registered.
+-- Automatic Trade Response works even when chat requests (the "Enable Self Vendor Module" toggle)
+-- are off, so either one keeps the module active; ParseChatRequest still gates chat on `enabled`.
+-- @return boolean true if chat requests or Automatic Trade Response are on.
+local function moduleShouldBeActive()
+  return db.profile.selfVendor.enabled or autoTradeMode() ~= nil
+end
+
+--- Combine two Self Vendor requests into one set request.
+-- @param first table|number|nil request (Enum.SelfVendorMode value or set of values).
+-- @param second table|number|nil request (Enum.SelfVendorMode value or set of values).
+-- @return table set of every Enum.SelfVendorMode value included in either request.
+local function mergeRequests(first, second)
+  local merged = {}
+  for mode in pairs(SELF_VENDOR_MODES) do
+    if requestIncludesMode(first, mode) or requestIncludesMode(second, mode) then merged[mode] = true end
+  end
+  return merged
 end
 
 --- Compute the full BIS recommendation (gear + consumables) for a unit, given a data source.
@@ -352,7 +391,7 @@ end
 -- window) and the "trade in progress" phase tracked by UI_INFO_MESSAGE/TRADE_CLOSED. We
 -- snapshot pendingName/pendingMode into activeTradeName/activeTradeMode
 -- here (rather than leaving them in the pending* fields) so TRADE_CLOSED can
--- still report who/what was serviced even though the pending fields get cleared for the next
+-- still report who/what was vended to even though the pending fields get cleared for the next
 -- queued trade.
 -- @param module table the SelfVendor module (passed explicitly since this is a local function,
 --   not a method, so it can be called from contexts without `self`).
@@ -372,6 +411,7 @@ local function finishTradePopulation(module, added)
   module.pendingTradeItems = nil
   module.pendingTradeIndex = nil
   module.pendingTradeInitiated = nil
+  module.partnerOpenedTrade = nil
   module.activeTradeMode = module.pendingMode
   module.pendingMode = nil
 end
@@ -665,14 +705,33 @@ function module:SendAugsForClassSpec(input)
   prn("BIS enchants and gems for " .. displayClassName(classKey) .. " / " .. displaySpecName(resolvedSpec) .. " have been added to the letter.")
 end
 
---- Toggle the entire Self Vendor module on/off (persisted setting + Ace3 Enable/Disable).
+--- Toggle Self Vendor chat requests on/off (persisted setting + Ace3 Enable/Disable).
 -- Delegates to AceAddon's Enable/Disable so OnEnable/OnDisable run their event
--- (un)registration side effects consistently, rather than duplicating that logic here.
--- @param enabled boolean whether Self Vendor should be active.
+-- (un)registration side effects consistently, rather than duplicating that logic here. The module
+-- stays enabled while Automatic Trade Response is on, since that works without chat requests.
+-- @param enabled boolean whether Self Vendor chat requests should be accepted.
 function module:SetEnabled(enabled)
   db.profile.selfVendor.enabled = enabled
   log("Self Vendor enabled state changed to " .. tostring(enabled))
-  if enabled then self:Enable() else self:Disable() end
+  if moduleShouldBeActive() then self:Enable() else self:Disable() end
+end
+
+--- Set the Automatic Trade Response mode, which auto-trades that mode's items to anyone who opens a
+-- trade with us, regardless of which mode checkboxes are enabled.
+-- @param mode number|nil Enum.SelfVendorMode value, or 0/nil to turn the feature Off.
+-- @return boolean true if the mode was valid and applied.
+function module:SetAutoTradeMode(mode)
+  mode = tonumber(mode) or 0
+  if mode ~= 0 then
+    mode = autoTradeModeFor(mode)
+    if not mode then return false end
+  end
+  db.profile.selfVendor.autoTradeMode = mode
+  log("Self Vendor Automatic Trade Response changed to " .. tostring(mode))
+  if moduleShouldBeActive() then self:Enable() else self:Disable() end
+  local registry = LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
+  return true
 end
 
 --- Enable or disable a single vendor mode (e.g. turn off Vantus Rune requests without
@@ -710,47 +769,96 @@ function module:SetSource(sourceKey)
   return true
 end
 
+--- Stop vending to whoever is currently being vended to, without starting the next player.
+-- Bumps `serviceToken` so in-flight bag prep, stack polling, and trade population callbacks for the
+-- cancelled player stop, and closes any open trade window so it can't complete half-populated.
+-- @param keepTradeOpen boolean|nil leave the trade window open (used when a different player opened
+--   it with us and is about to be vended to through Automatic Trade Response).
+-- @return string|nil name of the cancelled player, table|number|nil their request (Enum.SelfVendorMode value or set of values).
+function module:CancelCurrentService(keepTradeOpen)
+  local name = self.activeTradeName or self.pendingName
+  if not name then return nil end
+  local mode = self.activeTradeName and self.activeTradeMode or self.pendingMode
+  self.serviceToken = (self.serviceToken or 0) + 1
+  if not keepTradeOpen and TradeFrame and TradeFrame:IsShown() then CloseTrade() end
+  -- Item prep may have left a split stack on the cursor; don't leave it there for the next player.
+  if GetCursorInfo() then ClearCursor() end
+  self.pendingName = nil
+  self.pendingUnit = nil
+  self.pendingMode = nil
+  self.pendingRequired = nil
+  self.pendingTradeItems = nil
+  self.pendingTradeIndex = nil
+  self.pendingTradeInitiated = nil
+  self.partnerOpenedTrade = nil
+  self.inspectGUID = nil
+  self.activeTradeName = nil
+  self.activeTradeMode = nil
+  self.tradeAccepted = nil
+  self.tradeSucceeded = nil
+  self.tradeCanceled = nil
+  self.tradeClosing = nil
+  log("Cancelled Self Vendor service for " .. name)
+  return name, mode
+end
+
+--- Clear the entire queue, including whoever is currently being vended to.
 function module:ClearQueue()
   local count = self.tradeQueue and #self.tradeQueue or 0
   self.tradeQueue = {}
+  if self:CancelCurrentService() then count = count + 1 end
   self:RefreshQueueWindow()
   log("Self Vendor queue manually cleared; removed " .. count .. " entries")
   prn("cleared " .. count .. " player(s) from the Self Vendor queue.")
 end
 
+--- Resolve typed slash command text into an Automatic Trade Response mode.
+-- Accepts chat request aliases ("vantus", "flask") and SELF_VENDOR_MODES commands ("vantusrune"),
+-- with spaces ignored so "vantus rune" works as well. Stat flask words ("crit flask") resolve to
+-- the dynamic Flask mode, since specific flasks aren't offered for Automatic Trade Response.
+-- @param text string lower-cased mode text.
+-- @return number|nil matching Enum.SelfVendorMode value.
+local function modeForSlashText(text)
+  local compact = text:gsub("%s+", "")
+  return autoTradeModeFor(chatRequestModes[compact] or modeForCommand(compact))
+end
+
+--- Print usage for the `/slack vend <mode>` slash command, including the current mode.
+local function printVendSlashUsage()
+  local commands = {}
+  for _, details in pairs(SELF_VENDOR_MODES) do
+    if not details.flaskItemName then commands[#commands + 1] = details.command end
+  end
+  table.sort(commands)
+  local mode = autoTradeMode()
+  prn("Automatic Trade Response is " .. (mode and SELF_VENDOR_MODES[mode].name or "Off") .. ".")
+  print("Usage: /slack vend <off|" .. table.concat(commands, "|") .. ">")
+end
+
+--- Handle `/slack vend <mode>` (also routed from `vendor` and `trade`): set the Automatic Trade
+-- Response mode. Also accepts `toggle` (chat requests on/off) and `clearqueue`.
+-- @param input string text after the slash command word.
 function module:HandleSlash(input)
   local command = strlower(strtrim(input or ""))
-  local requestedSource = command:match("%s+(%S+)$")
-  local sourceKey = requestedSource and enhancementSourceKey(requestedSource)
-  if sourceKey then
-    command = strtrim(command:sub(1, #command - #requestedSource))
-    self:SetSource(sourceKey)
-  end
-  local mode = modeForCommand(command)
-  if mode then
-    if not db.profile.selfVendor.enabled then
-      prn("Self Vendor is disabled.")
-      return
-    end
-    local targetName = UnitName("target")
-    if not targetName or not senderIsEligible(targetName) then
-      prn("target an eligible group, raid, or guild member first.")
-      return
-    end
-    if not modeConfiguration(mode).enabled then
-      prn(SELF_VENDOR_MODES[mode].name .. " is disabled.")
-      return
-    end
-    self:BeginChatTrade(targetName, mode)
-  elseif command == "mode" then
-    print("Usage: /slack vendor [buffs|flask|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins]")
+  if command == "" then
+    printVendSlashUsage()
+  elseif command == "off" or command == "none" or command == "0" then
+    self:SetAutoTradeMode(0)
+    prn("Automatic Trade Response: Off")
   elseif command == "toggle" then
     self:SetEnabled(not db.profile.selfVendor.enabled)
     prn("Self Vendor: " .. (db.profile.selfVendor.enabled and "ON" or "OFF"))
   elseif command == "clearqueue" then
     self:ClearQueue()
   else
-    print("Usage: /slack vendor [toggle|clearqueue|buffs|flask|oil|augmentrunes|augments|vantusrune] [wowhead|icyveins]")
+    local mode = modeForSlashText(command)
+    if mode then
+      self:SetAutoTradeMode(mode)
+      prn("Automatic Trade Response: " .. SELF_VENDOR_MODES[autoTradeModeFor(mode)].name)
+    else
+      prn("unknown Self Vendor mode '" .. command .. "'.")
+      printVendSlashUsage()
+    end
   end
 end
 
@@ -758,12 +866,19 @@ function module:OnInitialize()
   if db.profile.selfVendor.source ~= "wowhead" and db.profile.selfVendor.source ~= "icyveins" then
     db.profile.selfVendor.source = "icyveins"
   end
-  log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled))
-  if not db.profile.selfVendor.enabled then self:Disable() end
+  log("Self Vendor initialized; enabled=" .. tostring(db.profile.selfVendor.enabled) .. ", autoTradeMode=" .. tostring(db.profile.selfVendor.autoTradeMode))
+  -- TRADE_SHOW fires for trades we open too; remember who we last opened one with so Automatic
+  -- Trade Response only answers trades other players open with us, not our own manual trades.
+  hooksecurefunc("InitiateTrade", function(unitOrName)
+    module.selfInitiatedTradeName = unitOrName and UnitName(unitOrName) or unitOrName
+  end)
+  if not moduleShouldBeActive() then self:Disable() end
 end
 
 function module:OnEnable()
   log("Self Vendor enabled; registering events")
+  -- Chat events stay registered even when only Automatic Trade Response is on; ParseChatRequest
+  -- rejects them while chat requests are disabled.
   self:RegisterEvent("CHAT_MSG_PARTY", "CHAT_MSG_GROUP")
   self:RegisterEvent("CHAT_MSG_PARTY_LEADER", "CHAT_MSG_GROUP")
   self:RegisterEvent("CHAT_MSG_RAID", "CHAT_MSG_GROUP")
@@ -778,6 +893,21 @@ function module:OnEnable()
   self:RegisterEvent("TRADE_ACCEPT_UPDATE")
   self:RegisterEvent("TRADE_CLOSED")
   self:RegisterEvent("TRADE_REQUEST_CANCEL")
+  self:RegisterEvent("GROUP_ROSTER_UPDATE")
+  self.wasInGroup = IsInGroup()
+end
+
+--- Turn Automatic Trade Response Off after leaving a group, when that option is enabled.
+-- Tracks the previous group state because GROUP_ROSTER_UPDATE fires for every roster change, not
+-- just for leaving.
+function module:GROUP_ROSTER_UPDATE()
+  local inGroup = IsInGroup()
+  local leftGroup = self.wasInGroup and not inGroup
+  self.wasInGroup = inGroup
+  if not leftGroup or not db.profile.selfVendor.autoTradeOffAfterGroup or not autoTradeMode() then return end
+  log("Left group; turning Automatic Trade Response off")
+  prn("left group; Automatic Trade Response turned Off.")
+  self:SetAutoTradeMode(0)
 end
 
 function module:OnDisable()
@@ -786,6 +916,7 @@ function module:OnDisable()
   self.pendingBagUpdate = nil
   self.pendingMode = nil
   self.pendingTradeInitiated = nil
+  self.partnerOpenedTrade = nil
   self.activeTradeName = nil
   self.activeTradeMode = nil
   self.tradeAccepted = nil
@@ -798,8 +929,9 @@ end
 
 function module:PollPreparedStack(bag, slot, itemID, quantity, onSuccess, onFailure)
   local delay = 0.1
+  local token = self.serviceToken
   local function check()
-    if not self.pendingName then return end
+    if self.serviceToken ~= token or not self.pendingName then return end
     local info = C_Container.GetContainerItemInfo(bag, slot)
     local actualItemID = itemIDFromInfo(info)
     local actualQuantity = info and info.stackCount or 0
@@ -874,7 +1006,7 @@ local function queuePositionFor(queue, name)
   end
 end
 
--- A name should never be both actively serviced and sitting in the waiting array; purge stray duplicates whenever we notice one
+-- A name should never be both actively vended to and sitting in the waiting array; purge stray duplicates whenever we notice one
 local function removeQueueEntries(queue, name)
   if not queue then return end
   for index = #queue, 1, -1 do
@@ -888,8 +1020,8 @@ function module:BeginChatTrade(sender, mode)
   local label = requestLabel(mode)
   if sameName(self.pendingName, sender) or sameName(self.activeTradeName, sender) then
     removeQueueEntries(self.tradeQueue, sender)
-    prn(sender .. " is already being serviced.")
-    log(tostring(sender) .. " requested again (" .. label .. ") while already being serviced; ignoring duplicate")
+    prn("already vending to " .. sender .. ".")
+    log(tostring(sender) .. " requested again (" .. label .. ") while already being vended to; ignoring duplicate")
     return
   end
   local existingPosition = queuePositionFor(self.tradeQueue, sender)
@@ -904,7 +1036,7 @@ function module:BeginChatTrade(sender, mode)
   if self.pendingName or self.activeTradeName then
     local currentName = self.activeTradeName or self.pendingName
     local position = #self.tradeQueue
-    SendChatMessage("I'm busy servicing " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
+    SendChatMessage("I'm busy vending to " .. currentName .. " at the moment. You're position #" .. position .. " in the queue. Please stand still close to me and I'll auto-trade with you as soon as I can.", "WHISPER", nil, sender)
     prn(sender .. " joined the Self Vendor queue requesting " .. label .. " (" .. position .. " in queue).")
     log("Added " .. sender .. " to the Self Vendor queue requesting " .. label .. "; queue size=" .. position)
     return
@@ -944,9 +1076,59 @@ function module:INSPECT_READY(_, guid)
 end
 
 function module:TRADE_SHOW()
-  log("Trade window shown; pending player=" .. tostring(self.pendingName))
-  if not self.pendingName then return end
-  self:OpenPendingTrade()
+  local partner = UnitName("NPC")
+  local selfInitiated = sameName(partner, self.selfInitiatedTradeName)
+  self.selfInitiatedTradeName = nil
+  log("Trade window shown; partner=" .. tostring(partner) .. ", pending player=" .. tostring(self.pendingName))
+  if self.pendingName and (not partner or sameName(partner, self.pendingName)) then
+    if self.pendingTradeInitiated then
+      self:OpenPendingTrade()
+    else
+      -- They opened the trade before their items finished preparing; PrepareTradeItems populates
+      -- this window once prep is done instead of initiating a second trade.
+      self.partnerOpenedTrade = true
+      log(self.pendingName .. " opened the trade before item prep finished; populating once ready")
+    end
+    return
+  end
+  -- Any other partner (including a late-opening trade from a player whose service was cancelled)
+  -- only gets items through Automatic Trade Response; never load the pending requester's items
+  -- into a different player's trade window.
+  if partner and not selfInitiated and autoTradeMode() then
+    self:BeginAutoTrade(GetUnitName("NPC", true) or partner)
+    return
+  end
+  if self.pendingName then
+    log("Trade partner " .. tostring(partner) .. " is not the pending player; leaving the trade window alone")
+  end
+end
+
+--- Automatic Trade Response: vend the configured mode to a player who opened a trade with us.
+-- They jump the queue: whoever was being vended to is interrupted and re-queued at #1, and any
+-- request the partner already had queued is merged into this trade so they don't lose it.
+-- @param partner string trade partner name (with realm when cross-realm).
+function module:BeginAutoTrade(partner)
+  local mode = autoTradeMode()
+  if not mode then return end
+  if db.profile.selfVendor.guildOnly and not guildMember(partner) then
+    log("Automatic Trade Response ignored " .. partner .. ": not a guild member")
+    return
+  end
+  self.tradeQueue = self.tradeQueue or {}
+  local position = queuePositionFor(self.tradeQueue, partner)
+  local request = position and mergeRequests(self.tradeQueue[position].mode, mode) or mode
+  removeQueueEntries(self.tradeQueue, partner)
+  -- A trade that just closed is still settling (tradeClosing); it's finished, not interrupted.
+  local finishing = self.tradeClosing
+  local interruptedName, interruptedMode = self:CancelCurrentService(true)
+  if interruptedName and not finishing then
+    table.insert(self.tradeQueue, 1, { name = interruptedName, mode = interruptedMode })
+    prn("interrupted " .. interruptedName .. " (re-queued at #1) for Automatic Trade Response.")
+  end
+  table.insert(self.tradeQueue, 1, { name = partner, mode = request })
+  prn("Automatic Trade Response: vending " .. requestLabel(request) .. " to " .. partner .. ".")
+  log("Automatic Trade Response started for " .. partner .. " (" .. requestLabel(request) .. "); interrupted=" .. tostring(interruptedName))
+  self:StartNextQueuedTrade()
 end
 
 function module:UI_INFO_MESSAGE(_, _, message)
@@ -980,6 +1162,7 @@ end
 
 function module:TRADE_REQUEST_CANCEL()
   self.tradeCanceled = true
+  self.selfInitiatedTradeName = nil
   -- If InitiateTrade was already sent but the window never populated (target declined, timed
   -- out, out of range, etc.), TRADE_CLOSED never gets an activeTradeName to key off of, so this
   -- is the only reliable signal to fail the pending trade and move on to the next queued player.
@@ -989,9 +1172,9 @@ function module:TRADE_REQUEST_CANCEL()
   end
 end
 
---- Begin servicing the next queued player, or refresh the queue window when nobody is left.
--- Every path that ends a service funnels through here, so this is also where the window's
--- "Now serving" row is kept in sync.
+--- Start vending to the next queued player, or refresh the queue window when nobody is left.
+-- Every path that ends a trade funnels through here, so this is also where the window's
+-- "Now vending to" row is kept in sync.
 function module:StartNextQueuedTrade()
   if not self.tradeQueue or #self.tradeQueue == 0 then
     self:RefreshQueueWindow()
@@ -999,6 +1182,14 @@ function module:StartNextQueuedTrade()
   end
   local queuedTrade = table.remove(self.tradeQueue, 1)
   removeQueueEntries(self.tradeQueue, queuedTrade.name)
+  -- A failed Automatic Trade Response (missing items, bag errors) can leave the previous partner's
+  -- trade window open; close it so the next player's InitiateTrade isn't blocked by it.
+  if self.partnerOpenedTrade and not tradeWindowOpenWith(queuedTrade.name) and TradeFrame and TradeFrame:IsShown() then
+    CloseTrade()
+  end
+  -- New service generation: any delayed callbacks still running for a previous service see the
+  -- token change and stop instead of acting on this player.
+  self.serviceToken = (self.serviceToken or 0) + 1
   self.activeTradeName = nil
   self.tradeAccepted = nil
   self.tradeSucceeded = nil
@@ -1006,6 +1197,9 @@ function module:StartNextQueuedTrade()
   self.pendingTradeInitiated = nil
   self.pendingName = queuedTrade.name
   self.pendingMode = queuedTrade.mode
+  -- Set when this player already has a trade window open with us (Automatic Trade Response), so
+  -- item prep populates that window instead of initiating a new trade.
+  self.partnerOpenedTrade = tradeWindowOpenWith(queuedTrade.name) or nil
   self:RefreshQueueWindow()
   self.pendingUnit = unitForName(queuedTrade.name)
   if requestIncludesMode(queuedTrade.mode, VendorMode.AUGMENTS) and self.pendingUnit then
@@ -1021,6 +1215,13 @@ local function finishClosedTrade()
 end
 
 function module:TRADE_CLOSED()
+  if not self.activeTradeName and self.partnerOpenedTrade then
+    -- The partner closed their trade before items were ready; once prep finishes we initiate a
+    -- trade with them ourselves, like any queued request.
+    self.partnerOpenedTrade = nil
+    log("Trade closed before Self Vendor items were ready for " .. tostring(self.pendingName))
+    return
+  end
   if not self.activeTradeName or self.tradeClosing then return end
   self.tradeClosing = true
   -- The completion message can follow TRADE_CLOSED; keep this trade until its events settle.
@@ -1039,8 +1240,8 @@ function module:FinishClosedTrade()
   self.tradeCanceled = nil
   self.tradeClosing = nil
   if successful then
-    prn("finished servicing " .. servicedName .. " (" .. servicedLabel .. ").")
-    log("Finished servicing " .. servicedName .. " (" .. servicedLabel .. ")")
+    prn("finished vending to " .. servicedName .. " (" .. servicedLabel .. ").")
+    log("Finished vending to " .. servicedName .. " (" .. servicedLabel .. ")")
   else
     prn("trade with " .. servicedName .. " (" .. servicedLabel .. ") did not complete.")
     log("Trade with " .. servicedName .. " did not complete; moving to next queued player")
@@ -1161,7 +1362,8 @@ function module:CheckAndInitiateTrade()
     return
   end
   refreshPendingUnit(self)
-  if self.pendingUnit and not inTradeRange(self.pendingUnit) then
+  -- A player with an open trade window is already in range, even if no unit token resolves to them.
+  if not self.partnerOpenedTrade and self.pendingUnit and not inTradeRange(self.pendingUnit) then
     log(self.pendingName .. " is out of trade range; notifying and skipping")
     self:NotifyTradeUnavailable(self.pendingName)
     self.pendingName = nil
@@ -1223,10 +1425,17 @@ function module:PrepareTradeItems(required)
   self.pendingTradeIndex = 1
   local itemIndex = 1
   local remaining = required[itemIDs[itemIndex]]
+  local token = self.serviceToken
   local function prepareNextItem()
-    if not self.pendingName then return end
+    if self.serviceToken ~= token or not self.pendingName then return end
     if itemIndex > #itemIDs then
       refreshPendingUnit(self)
+      if self.partnerOpenedTrade and tradeWindowOpenWith(self.pendingName) then
+        log("Exact trade stacks prepared; populating the trade window " .. self.pendingName .. " opened")
+        self.pendingTradeInitiated = true
+        self:OpenPendingTrade()
+        return
+      end
       if self.pendingUnit and not inTradeRange(self.pendingUnit) then
         log(self.pendingName .. " moved out of trade range during item prep")
         self:FailPendingTrade(self.pendingName .. " moved out of trade range")
@@ -1305,7 +1514,9 @@ function module:OpenPendingTrade()
   end
   local itemIndex = self.pendingTradeIndex or 1
   local remaining = required[itemIDs[itemIndex]]
+  local token = self.serviceToken
   local function addNextItem()
+    if self.serviceToken ~= token or not self.pendingName then return end
     if itemIndex > #itemIDs then
       finishTradePopulation(self, added)
       return
@@ -1350,13 +1561,17 @@ end
 -- Queue window ("Self Vendor Queue")
 --=====================================================================
 -- A standard Blizzard bordered window (BasicFrameTemplateWithInset) showing who is currently being
--- served plus who's waiting, in order, and what they requested. There is no slash command for it:
+-- vended to plus who's waiting, in order, and what they requested. There is no slash command for it:
 -- it shows itself as soon as any request is being handled (even a single one with nobody waiting)
--- and hides itself once nobody is being served or waiting. Each waiting row has its own close-style
--- button to drop just that person; the "Now serving" row has none because cancelling mid-service
--- would race the async bag prep/inspect callbacks keyed off `pendingName`. Closing the window itself
--- (its own CloseButton) clears the waiting queue, matching the "X" semantics used everywhere else in
--- this addon; the window reappears on the next refresh if someone is still being served.
+-- and hides itself once nobody is being vended to or waiting. Every row, including "Now vending to", has:
+--   * a vend button: on a waiting row it vends to that player immediately (interrupting and
+--     re-queueing whoever is being vended to at #1); on the "Now vending to" row it retries that player
+--     from scratch, e.g. after they moved out of range or declined the trade.
+--   * a close-style button to drop just that player (cancelling their trade if it's in progress).
+-- Interrupting mid-trade is safe because CancelCurrentService bumps `serviceToken`, which every
+-- async prep/poll/populate callback checks before acting.
+-- Closing the window itself (its own CloseButton) clears the entire queue, including whoever is
+-- currently being vended to, matching the "X" semantics used everywhere else in this addon.
 -- The frame itself lives on `self.queueFrame` (not a file-local) so OnDisable, defined earlier in
 -- this file, can still reach it to hide it when the module is turned off.
 
@@ -1370,7 +1585,7 @@ local function ensureQueueFrame(module)
   if queueFrame then return queueFrame end
   queueFrame = CreateFrame("Frame", "SlackHacksSelfVendorQueueFrame", UIParent, "BasicFrameTemplateWithInset")
   module.queueFrame = queueFrame
-  -- One extra row is reserved for the "Now serving" entry above the waiting list.
+  -- One extra row is reserved for the "Now vending to" entry above the waiting list.
   queueFrame:SetSize(300, TITLE_BAR_HEIGHT + 10 + (MAX_QUEUE_ROWS + 1) * ROW_HEIGHT)
   queueFrame:SetPoint("CENTER")
   queueFrame:SetFrameStrata("DIALOG")
@@ -1382,11 +1597,23 @@ local function ensureQueueFrame(module)
   queueFrame.TitleText:SetText("Self Vendor Queue")
   queueFrame.overflowText = queueFrame:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
   queueFrame.overflowText:SetPoint("BOTTOMLEFT", queueFrame, "BOTTOMLEFT", 10, 8)
-  -- Closing the window is the only way to clear the whole queue; there's no slash command for it.
+  -- Closing the window clears the entire queue, including whoever is currently being vended to.
   queueFrame.CloseButton:HookScript("OnClick", function() module:ClearQueue() end)
   return queueFrame
 end
 
+--- Show a one-line tooltip for a queue row button, based on its `tooltipText` field.
+-- @param button table the hovered button frame.
+local function showQueueButtonTooltip(button)
+  GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+  GameTooltip:SetText(button.tooltipText)
+  GameTooltip:Show()
+end
+
+--- Get or lazily create the queue window row at a given position.
+-- @param module table the SelfVendor module.
+-- @param index number 1-based row position in the window.
+-- @return table the row frame, with `text`, `vendButton`, and `removeButton` children.
 local function ensureQueueRow(module, index)
   local queueFrame = module.queueFrame
   queueRows = queueRows or {}
@@ -1398,36 +1625,47 @@ local function ensureQueueRow(module, index)
   row:SetPoint("RIGHT", queueFrame, "RIGHT", -10, 0)
   row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
-  row.text:SetPoint("RIGHT", row, "RIGHT", -20, 0)
+  row.text:SetPoint("RIGHT", row, "RIGHT", -40, 0)
   row.text:SetJustifyH("LEFT")
   row.removeButton = CreateFrame("Button", nil, row, "UIPanelCloseButton")
   row.removeButton:SetSize(18, 18)
   row.removeButton:SetPoint("RIGHT", row, "RIGHT", 4, 0)
   row.removeButton:SetScript("OnClick", function() module:RemoveFromQueue(row.name) end)
+  row.removeButton:SetScript("OnEnter", showQueueButtonTooltip)
+  row.removeButton:SetScript("OnLeave", GameTooltip_Hide)
+  row.vendButton = CreateFrame("Button", nil, row)
+  row.vendButton:SetSize(16, 16)
+  row.vendButton:SetPoint("RIGHT", row.removeButton, "LEFT", -2, 0)
+  row.vendButton:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
+  row.vendButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  row.vendButton:SetScript("OnClick", function() module:VendNow(row.name) end)
+  row.vendButton:SetScript("OnEnter", showQueueButtonTooltip)
+  row.vendButton:SetScript("OnLeave", GameTooltip_Hide)
   queueRows[index] = row
   return row
 end
 
---- Show/hide the queue window to match whether anyone is being served or waiting, and redraw its rows.
--- Called after every queue mutation (enqueue, dequeue, manual removal, clear) and whenever service
+--- Show/hide the queue window to match whether anyone is being vended to or waiting, and redraw its rows.
+-- Called after every queue mutation (enqueue, dequeue, manual removal, clear) and whenever a trade
 -- starts or ends, so the window is always in sync without any slash command driving it.
 function module:RefreshQueueWindow()
   local queue = self.tradeQueue or {}
-  local servingName = self.activeTradeName or self.pendingName
-  local servingMode = self.activeTradeName and self.activeTradeMode or self.pendingMode
-  if #queue == 0 and not servingName then
+  local currentName = self.activeTradeName or self.pendingName
+  local currentMode = self.activeTradeName and self.activeTradeMode or self.pendingMode
+  if #queue == 0 and not currentName then
     if self.queueFrame then self.queueFrame:Hide() end
     return
   end
   local queueFrame = ensureQueueFrame(self)
   if not queueFrame:IsShown() then queueFrame:Show() end
   local rowIndex = 0
-  if servingName then
+  if currentName then
     rowIndex = 1
     local row = ensureQueueRow(self, rowIndex)
-    row.name = nil
-    row.text:SetText("|cff00ff00Now serving:|r  " .. servingName .. " - " .. requestLabel(servingMode))
-    row.removeButton:Hide()
+    row.name = currentName
+    row.text:SetText("|cff00ff00Now vending to:|r  " .. currentName .. " - " .. requestLabel(currentMode))
+    row.vendButton.tooltipText = "Retry vending to " .. currentName
+    row.removeButton.tooltipText = "Stop vending to " .. currentName .. " and remove them"
     row:Show()
   end
   local shown = math.min(#queue, MAX_QUEUE_ROWS)
@@ -1437,7 +1675,8 @@ function module:RefreshQueueWindow()
     local row = ensureQueueRow(self, rowIndex)
     row.name = entry.name
     row.text:SetText("#" .. index .. "  " .. entry.name .. " - " .. requestLabel(entry.mode))
-    row.removeButton:Show()
+    row.vendButton.tooltipText = "Vend to " .. entry.name .. " now"
+    row.removeButton.tooltipText = "Remove " .. entry.name .. " from the queue"
     row:Show()
   end
   for index = rowIndex + 1, (queueRows and #queueRows or 0) do
@@ -1446,15 +1685,53 @@ function module:RefreshQueueWindow()
   queueFrame.overflowText:SetText(#queue > MAX_QUEUE_ROWS and ("+" .. (#queue - MAX_QUEUE_ROWS) .. " more waiting") or "")
 end
 
---- Drop a single named entry from the queue (used by each row's own close button).
--- @param name string player name as stored in the tradeQueue entry.
+--- Drop a single named player from the queue (used by each row's own close button).
+-- If that player is currently being vended to, their trade is cancelled and the next queued
+-- player is started.
+-- @param name string player name as stored in the tradeQueue entry or the current trade.
 function module:RemoveFromQueue(name)
-  if not self.tradeQueue or not queuePositionFor(self.tradeQueue, name) then return end
+  if not name then return end
+  local vendingTo = sameName(name, self.activeTradeName or self.pendingName)
+  if not vendingTo and not (self.tradeQueue and queuePositionFor(self.tradeQueue, name)) then return end
   removeQueueEntries(self.tradeQueue, name)
+  if vendingTo then self:CancelCurrentService() end
   SendChatMessage("You've been removed from the Self Vendor queue.", "WHISPER", nil, name)
   prn("removed " .. name .. " from the Self Vendor queue.")
   log("Manually removed " .. name .. " from the Self Vendor queue via the queue window")
-  self:RefreshQueueWindow()
+  if vendingTo then
+    self:StartNextQueuedTrade()
+  else
+    self:RefreshQueueWindow()
+  end
+end
+
+--- Vend to a listed player immediately, or retry the player currently being vended to.
+-- Vending to a waiting player interrupts the current trade and puts that interrupted player back at
+-- the front of the queue, so nobody loses their place.
+-- @param name string player name shown in the queue window row.
+function module:VendNow(name)
+  if not name then return end
+  self.tradeQueue = self.tradeQueue or {}
+  local entry
+  if sameName(name, self.activeTradeName or self.pendingName) then
+    local currentName, currentMode = self:CancelCurrentService()
+    entry = { name = currentName, mode = currentMode }
+    prn("retrying " .. currentName .. ".")
+    log("Retrying Self Vendor trade for " .. currentName .. " via the queue window")
+  else
+    local position = queuePositionFor(self.tradeQueue, name)
+    if not position then return end
+    entry = table.remove(self.tradeQueue, position)
+    local interruptedName, interruptedMode = self:CancelCurrentService()
+    if interruptedName then
+      table.insert(self.tradeQueue, 1, { name = interruptedName, mode = interruptedMode })
+    end
+    prn("vending to " .. entry.name .. " now.")
+    log("Vending to " .. entry.name .. " out of order via the queue window; interrupted=" .. tostring(interruptedName))
+  end
+  removeQueueEntries(self.tradeQueue, entry.name)
+  table.insert(self.tradeQueue, 1, entry)
+  self:StartNextQueuedTrade()
 end
 
 
