@@ -320,11 +320,22 @@ local function tradeWindowOpenWith(name)
   return sameName(UnitName("NPC"), name)
 end
 
+--- Normalize a mode for Automatic Trade Response.
+-- Specific stat flasks aren't offered; they collapse to the dynamic Flask mode, which picks the
+-- flask from the selected Wowhead/Icy Veins source for the trade partner's spec.
+-- @param mode number|nil Enum.SelfVendorMode value.
+-- @return number|nil the mode to auto-trade, or nil if it isn't a known mode.
+local function autoTradeModeFor(mode)
+  local details = mode and SELF_VENDOR_MODES[mode]
+  if not details then return nil end
+  return details.flaskItemName and VendorMode.FLASK or mode
+end
+
 --- Read the configured Automatic Trade Response mode.
 -- @return number|nil Enum.SelfVendorMode value to auto-trade, or nil when the feature is Off.
 local function autoTradeMode()
   local mode = db.profile.selfVendor.autoTradeMode
-  if mode and mode ~= 0 and SELF_VENDOR_MODES[mode] then return mode end
+  if mode and mode ~= 0 then return autoTradeModeFor(mode) end
 end
 
 --- Determine whether the module needs its events registered.
@@ -711,7 +722,10 @@ end
 -- @return boolean true if the mode was valid and applied.
 function module:SetAutoTradeMode(mode)
   mode = tonumber(mode) or 0
-  if mode ~= 0 and not SELF_VENDOR_MODES[mode] then return false end
+  if mode ~= 0 then
+    mode = autoTradeModeFor(mode)
+    if not mode then return false end
+  end
   db.profile.selfVendor.autoTradeMode = mode
   log("Self Vendor Automatic Trade Response changed to " .. tostring(mode))
   if moduleShouldBeActive() then self:Enable() else self:Disable() end
@@ -798,20 +812,23 @@ function module:ClearQueue()
   prn("cleared " .. count .. " player(s) from the Self Vendor queue.")
 end
 
---- Resolve typed slash command text into a vendor mode.
--- Accepts chat request aliases ("vantus", "crit") and SELF_VENDOR_MODES commands ("vantusrune"),
--- with spaces ignored so "vantus rune" and "crit flask" work as well.
+--- Resolve typed slash command text into an Automatic Trade Response mode.
+-- Accepts chat request aliases ("vantus", "flask") and SELF_VENDOR_MODES commands ("vantusrune"),
+-- with spaces ignored so "vantus rune" works as well. Stat flask words ("crit flask") resolve to
+-- the dynamic Flask mode, since specific flasks aren't offered for Automatic Trade Response.
 -- @param text string lower-cased mode text.
 -- @return number|nil matching Enum.SelfVendorMode value.
 local function modeForSlashText(text)
   local compact = text:gsub("%s+", "")
-  return chatRequestModes[compact] or modeForCommand(compact)
+  return autoTradeModeFor(chatRequestModes[compact] or modeForCommand(compact))
 end
 
 --- Print usage for the `/slack vend <mode>` slash command, including the current mode.
 local function printVendSlashUsage()
   local commands = {}
-  for _, details in pairs(SELF_VENDOR_MODES) do commands[#commands + 1] = details.command end
+  for _, details in pairs(SELF_VENDOR_MODES) do
+    if not details.flaskItemName then commands[#commands + 1] = details.command end
+  end
   table.sort(commands)
   local mode = autoTradeMode()
   prn("Automatic Trade Response is " .. (mode and SELF_VENDOR_MODES[mode].name or "Off") .. ".")
@@ -837,7 +854,7 @@ function module:HandleSlash(input)
     local mode = modeForSlashText(command)
     if mode then
       self:SetAutoTradeMode(mode)
-      prn("Automatic Trade Response: " .. SELF_VENDOR_MODES[mode].name)
+      prn("Automatic Trade Response: " .. SELF_VENDOR_MODES[autoTradeModeFor(mode)].name)
     else
       prn("unknown Self Vendor mode '" .. command .. "'.")
       printVendSlashUsage()
