@@ -25,7 +25,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'Shared.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'ReleaseUtils.psm1') -Force
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 try { Invoke-ProjectRelease -Configuration (Import-ProjectConfiguration $root) -RepositoryPath $root @PSBoundParameters }

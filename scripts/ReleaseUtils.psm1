@@ -350,7 +350,7 @@ function New-ProjectArchive {
         Remove-Item -LiteralPath $folder -Recurse -Force
     }
     $null = New-Item -ItemType Directory -Path $folder -Force
-    Write-Utf8File -Path (Join-Path $folder '.release-staging') -Content 'Shared staging directory'
+    Write-Utf8File -Path (Join-Path $folder '.release-staging') -Content 'ReleaseUtils staging directory'
     foreach ($file in Get-ChildItem -LiteralPath $RepositoryPath -Recurse -File) {
         if ($file.FullName.StartsWith($dist + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { continue }
         $relative = [IO.Path]::GetRelativePath($RepositoryPath, $file.FullName)

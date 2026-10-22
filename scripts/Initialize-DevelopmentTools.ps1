@@ -7,7 +7,7 @@ Installs the repository's pinned Lua development tools on Windows x64.
 param()
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'Shared.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'ReleaseUtils.psm1') -Force
 if (-not $IsWindows -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'X64') {
     throw 'This bootstrap currently supports Windows x64 only.'
 }
