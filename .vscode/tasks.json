@@ -3,24 +3,14 @@
 	"tasks": [
 		{
 			"label": "Bootstrap",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Initialize-DevelopmentTools.ps1"
-			],
+			"type": "shell",
+			"command": "perl scripts/bootstrap.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Build SlackHacks",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Build-Addon.ps1"
-			],
+			"type": "shell",
+			"command": "bash scripts/build.sh",
 			"problemMatcher": [],
 			"group": {
 				"kind": "build",
@@ -29,107 +19,46 @@
 		},
 		{
 			"label": "Deploy",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Publish-Addon.ps1"
-			],
+			"type": "shell",
+			"command": "bash scripts/deploy.sh",
 			"problemMatcher": []
 		},
 		{
 			"label": "Deploy to GitHub",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Publish-GitHubRelease.ps1"
-			],
+			"type": "shell",
+			"command": "perl scripts/deploy-github.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Deploy to CurseForge",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Publish-CurseForgeRelease.ps1"
-			],
-			"problemMatcher": []
-		},
-		{
-			"label": "Bump Version",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Step-AddonVersion.ps1"
-			],
+			"type": "shell",
+			"command": "perl scripts/deploy-curseforge.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Bump Version (Blank Release)",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Step-AddonVersion.ps1",
-				"-Blank"
-			],
+			"type": "shell",
+			"command": "perl scripts/bump.pl --blank",
 			"problemMatcher": []
 		},
 		{
 			"label": "Bump Version (Copilot Summary)",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Step-AddonVersion.ps1",
-				"-GenerateChangelog:$true",
-				"-UseCopilot:$true"
-			],
-			"problemMatcher": []
-		},
-		{
-			"label": "Generate or Append Changelog",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\New-AddonChangelog.ps1"
-			],
+			"type": "shell",
+			"command": "perl scripts/bump.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Release",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Publish-Release.ps1"
-			],
+			"type": "shell",
+			"command": "perl scripts/release.pl",
 			"problemMatcher": []
 		},
 		{
 			"label": "Test release scripts",
-			"type": "process",
-			"command": "pwsh",
-			"args": [
-				"-NoProfile",
-				"-File",
-				"${workspaceFolder}\\scripts\\Test-ReleaseUtils.ps1"
-			],
+			"type": "shell",
+			"command": "node --test \"scripts\\release.test.cjs\"",
 			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
+			"problemMatcher": []
 		}
 	]
 }
