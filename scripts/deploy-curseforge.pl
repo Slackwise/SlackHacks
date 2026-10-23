@@ -64,14 +64,12 @@ my $toc_file                   = require_config("TOC_FILE");
 my $dist_dir                   = require_config("DIST_DIR");
 my $zip_name                   = require_config("ZIP_NAME");
 my $tag_prefix                 = require_config("TAG_PREFIX");
-my $changelog_dir              = require_config("CHANGELOG_DIR");
+my $changelog_file             = require_config("CHANGELOG_FILE");
 my $curseforge_display_name_prefix = require_config("CURSEFORGE_DISPLAY_NAME_PREFIX");
 
 my $curseforge_project_id      = require_config("CURSEFORGE_PROJECT_ID");
 my $release_type               = require_config("RELEASE_TYPE");
 my $changelog_type             = require_config("CHANGELOG_TYPE");
-my $changelog_file             = defined $ENV{CHANGELOG_FILE} ? $ENV{CHANGELOG_FILE}
-    : die "Error: Required setting CHANGELOG_FILE is missing. Check scripts/defaults.env.\n";
 
 # Proton Pass CLI settings
 my $proton_pass_item      = require_config("PROTON_PASS_ITEM_CURSEFORGE");
@@ -467,7 +465,7 @@ if ($dry_run) {
 # Step 5: Prepare Changelog
 # ------------------------------------------------------------------------------
 my $changelog_text;
-($changelog_file, $changelog_text) = read_changelog($changelog_file, $changelog_dir, $tag_name);
+($changelog_file, $changelog_text) = read_changelog($changelog_file, $tag_name);
 
 # ------------------------------------------------------------------------------
 # Step 6: Construct Metadata JSON & Upload
@@ -489,7 +487,7 @@ print "=== CurseForge Deployment Summary ===\n";
 print "Project ID:       $curseforge_project_id\n";
 print "Display Name:     $display_name\n";
 print "Release Type:     $release_type\n";
-print "Changelog File:   " . ($changelog_file ne "" ? $changelog_file : "(none)") . "\n";
+print "Changelog:        $changelog_file (## $tag_name)\n";
 print "Archive:          $zip_path\n";
 print "Upload URL:       $upload_url\n";
 print "TOC Interfaces:   " . join(", ", @toc_interfaces) . "\n";

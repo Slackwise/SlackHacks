@@ -42,7 +42,7 @@ both files, so CI can inject its own configuration and secrets.
 ### Publishing and retrying releases
 
 Run `perl scripts/release.pl` from a clean development branch after committing
-the version bump and the non-empty `changelog/changelog-v<VERSION>.md` file.
+the version bump and a non-empty `## v<VERSION>` section in `CHANGELOG.md`.
 The script merges into `prod`, creates an immutable version tag, atomically
 pushes `prod` and the tag, and deploys that production checkout before restoring
 your original branch (also on deployment failure). `--no-push` prepares only
@@ -81,8 +81,9 @@ the pushed version tag **before building or uploading**. Dry runs perform these
 read-only remote checks too, but do not build, retrieve secrets, or upload.
 The CurseForge `--list-versions` command remains available without a release.
 
-Release notes are automatically read from the versioned changelog, or from an
-explicit `CHANGELOG_FILE` override. Missing or empty changelogs are errors.
+Release notes are read from the `## v<VERSION>` section of `CHANGELOG.md` (or
+of the file named by `CHANGELOG_FILE`), without the heading. A missing file,
+missing section, or empty section is an error.
 GitHub's separate `generate_release_notes` feature is disabled so commit-derived
 notes are not appended; `GENERATE_RELEASE_NOTES` is no longer used.
 JSON request bodies and CurseForge metadata are sent from UTF-8 files to avoid
@@ -109,19 +110,24 @@ HTTP server, not publishing credentials or live release APIs.
 
 ### Version bumps and changelogs
 
-`perl scripts/bump.pl` increments the TOC version. If
-`changelog/changelog-v<VERSION>.md` does not exist yet, it asks whether to
-generate it (default yes) and then whether to use the GitHub Copilot CLI
-(yes/no; otherwise entries are built from `Area: description` commit subjects).
-Pass `--[no-]changelog` / `--[no-]copilot` to skip the questions, or `--blank`
-for a header-only changelog.
+All release notes live in the root `CHANGELOG.md`, newest release first, with
+one `## v<VERSION>` section per release and `### Area` subsections. It is kept
+in the repository only and is not packaged into the release ZIP.
 
-`perl scripts/changelog.pl` creates or extends the changelog for the current
-TOC version without bumping. An existing changelog is appended to: commits made
-since it was last committed (and not already mentioned) are merged into the
-matching `## ` sections. If the TOC version is already tagged, it offers to bump
-the version first (default yes). Use `--[no-]bump` and `--[no-]copilot` to skip
-the questions, and `--dry-run` to preview.
+`perl scripts/bump.pl` increments the TOC version. If `CHANGELOG.md` has no
+section for the new version yet, it asks whether to generate one (default yes)
+and then whether to use the GitHub Copilot CLI (yes/no; otherwise entries are
+built from `Area: description` commit subjects). Pass `--[no-]changelog` /
+`--[no-]copilot` to skip the questions, or `--blank` for an empty section to
+fill in by hand (it must be filled in before releasing).
+
+`perl scripts/changelog.pl` creates or extends the section for the current TOC
+version without bumping. An existing section is appended to: commits made since
+that section was last committed (and not already mentioned) are merged into the
+matching `### ` areas; other releases' sections are left untouched. If the TOC
+version is already tagged, it offers to bump the version first (default yes).
+Use `--[no-]bump` and `--[no-]copilot` to skip the questions, and `--dry-run`
+to preview.
 
 ## Lua development tools
 

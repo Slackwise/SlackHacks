@@ -23,6 +23,8 @@ my %git_env = (
     GIT_AUTHOR_NAME => 'Release Test', GIT_AUTHOR_EMAIL => 'test@example.invalid',
     GIT_COMMITTER_NAME => 'Release Test', GIT_COMMITTER_EMAIL => 'test@example.invalid',
 );
+# Release notes for the fixture's "## v1" CHANGELOG.md section (a character string).
+use constant V1_NOTES => "### Release \"one\"\n\nNotes with caf\x{e9} and \\\\paths.\n";
 
 # Runs a command with captured output, isolated STDIN, and a temporary environment.
 # @param %o cmd (array ref), cwd, env (hash ref), unset (array ref), stdin (string), ok (die on failure).
@@ -179,8 +181,7 @@ sub prepare_scripts {
     }
     spew("$repo/.gitignore", "dist/\n");
     spew("$repo/SlackHacks.toc", "## Version: 1\n## Interface: 120000\n");
-    make_path("$repo/changelog");
-    spew("$repo/changelog/changelog-v1.md", encode_utf8("# Release \"one\"\n\nNotes with caf\x{e9} and \\\\paths.\n"));
+    spew("$repo/CHANGELOG.md", encode_utf8("# SlackHacks Changelog\n\n## v1\n\n" . V1_NOTES));
     spew("$repo/scripts/build.sh", "#!/usr/bin/env bash\nset -euo pipefail\nmkdir -p dist\n" .
         "printf archive > dist/SlackHacks.zip\necho build >> dist/build-count\n");
     git($repo, 'add', '.');
@@ -253,7 +254,7 @@ sub handle {
     return (200, [{ id => 12, name => '12.0.0', gameVersionTypeID => 1 }]) if $url =~ m{/api/game/versions$};
     if ($url =~ m{/upload-file$}) {
         $s->{cfUploads}++;
-        my $needle = encode_utf8(qq{"changelog":"# Release \\"one\\"\\n\\nNotes with caf\x{e9}});
+        my $needle = encode_utf8(qq{"changelog":"### Release \\"one\\"\\n\\nNotes with caf\x{e9}});
         push @{ $s->{errors} }, 'multipart metadata part missing' unless $bytes =~ /name="metadata"/;
         push @{ $s->{errors} }, 'multipart changelog not preserved' if index($bytes, $needle) < 0;
         return $s->{cfFail} ? (500, { error => 'uncertain' }) : (200, { id => 22 });
@@ -392,11 +393,12 @@ test 'lightweight pushed tags are supported; mismatched remote tags are rejected
 
 test 'changelog notes preserve quotes, newlines, backslashes and UTF-8 through curl' => sub {
     my $dir = tempdir('slackhacks-json-XXXXXX', TMPDIR => 1, CLEANUP => 1);
-    my $changelog = "# Release\r\n\"Quotes\", \\\\paths\\\\, tabs\tand caf\x{e9} \x{2603}\n";
-    spew("$dir/changelog-v1.md", encode_utf8($changelog));
+    my $changelog = "### Release\r\n\"Quotes\", \\\\paths\\\\, tabs\tand caf\x{e9} \x{2603}\n";
+    spew("$dir/CHANGELOG.md", encode_utf8("# Changelog\r\n\r\n## v2\r\n\r\nnewer\r\n\r\n" .
+        "## v1\r\n\r\n$changelog\r\n## v0\r\n\r\nolder\r\n"));
     my ($url, $state_file) = start_server({ mode => 'echo' });
     my $code = <<'CODE';
-my ($file, $body) = ReleaseUtil::read_changelog("", $ARGV[0], "v1");
+my ($file, $body) = ReleaseUtil::read_changelog("$ARGV[0]/CHANGELOG.md", "v1");
 my $json = ReleaseUtil::json_file({body => $body, generate_release_notes => JSON::PP::false});
 my ($status, $response) = ReleaseUtil::curl_response("-H", "Content-Type: application/json",
     "--data-binary", "\@$json", $ARGV[1]);
@@ -407,14 +409,18 @@ CODE
     my $last = state_of($state_file)->{last};
     (my $expected = $changelog) =~ s/\r\n/\n/g;
     (my $received = $last->{json}{body} // '') =~ s/\r\n/\n/g;
-    is($received, $expected, 'body round-trips');
+    is($received, $expected, 'only the v1 section body round-trips');
     ok(JSON::PP::is_bool($last->{json}{generate_release_notes}) && !$last->{json}{generate_release_notes},
         'generate_release_notes is false');
     is($last->{content_type}, 'application/json');
-    spew("$dir/changelog-v1.md", '');
-    isnt(perl_code('ReleaseUtil::read_changelog("", $ARGV[0], "v1")', $dir, [$dir], 0)->{status}, 0,
-        'empty changelog fails');
-    isnt(perl_code('ReleaseUtil::read_changelog("missing.md", "", "v1")', $dir, [], 0)->{status}, 0,
+    my $read = sub { perl_code('ReleaseUtil::read_changelog("$ARGV[0]/CHANGELOG.md", "v1")', $dir, [$dir], 0) };
+    spew("$dir/CHANGELOG.md", "# Changelog\n\n## v1\n\n## v0\n\nolder\n");
+    isnt($read->()->{status}, 0, 'empty section fails');
+    spew("$dir/CHANGELOG.md", "# Changelog\n\n## v10\n\nnotes\n");
+    isnt($read->()->{status}, 0, 'missing section fails (v10 is not v1)');
+    spew("$dir/CHANGELOG.md", "# Changelog\n\n## v1 - 2025-01-01\n\nnotes\n");
+    is($read->()->{status}, 0, 'section heading may carry a date');
+    isnt(perl_code('ReleaseUtil::read_changelog("missing.md", "v1")', $dir, [], 0)->{status}, 0,
         'missing changelog fails');
 };
 
@@ -511,7 +517,7 @@ for my $signal (qw(SIGINT SIGTERM SIGHUP)) {
         my $repo = fixture();
         prepare_scripts($repo);
         git($repo, 'checkout', '-b', 'release-work');
-        unlink "$repo/changelog/changelog-v1.md";
+        spew("$repo/CHANGELOG.md", "# SlackHacks Changelog\n");
         # Deliver the signal from inside Perl when release.pl reads its prompt answer.
         spew("$repo/scripts/ReleaseTestInterrupt.pm",
             "package ReleaseTestInterrupt;\n" .
@@ -658,7 +664,7 @@ test 'deployers reconcile GitHub releases and guard completed or uncertain Curse
     is($state->()->{uploads}, 1);
     my $release = $state->()->{release};
     ok(JSON::PP::is_bool($release->{generate_release_notes}) && !$release->{generate_release_notes});
-    is($release->{body}, decode_utf8(slurp("$repo/changelog/changelog-v1.md")));
+    is($release->{body}, V1_NOTES, 'release notes are the v1 section body');
     update_state($state_file, sub { $_[0]{release}{body} = 'old notes' });
     $deploy->($repo, 'deploy-github.pl');
     is($state->()->{patches}, 1);
@@ -745,8 +751,9 @@ test 'deployers reconcile GitHub releases and guard completed or uncertain Curse
 # @return Repository path.
 sub changelog_fixture {
     my $repo = fixture();
-    make_path("$repo/scripts", "$repo/changelog");
-    spew("$repo/scripts/$_", slurp("$scripts/$_")) for qw(bump.pl changelog.pl ChangelogUtil.pm defaults.env);
+    make_path("$repo/scripts");
+    spew("$repo/scripts/$_", slurp("$scripts/$_"))
+        for qw(bump.pl changelog.pl ChangelogUtil.pm ReleaseUtil.pm defaults.env);
     spew("$repo/SlackHacks.toc", "## Interface: 120000\n## Version: 1\n");
     git($repo, 'add', '.');
     git($repo, 'commit', '-m', 'scripts');
@@ -784,22 +791,28 @@ test 'bump.pl asks to generate a changelog (default yes) and whether to use Copi
     like($result->{stdout}, qr/Generate changelog .*\[Y\/n\]/);
     like($result->{stdout}, qr/Use Copilot to generate the changelog\? \[y\/n\]/);
     like(slurp("$repo/SlackHacks.toc"), qr/## Version: 2/);
-    is(slurp("$repo/changelog/changelog-v2.md"), "# SlackHacks v2\n\n## Minimap\n- Fix zoom\n");
+    my $v2 = "## v2\n\n### Minimap\n- Fix zoom\n";
+    is(slurp("$repo/CHANGELOG.md"), "# SlackHacks Changelog\n\n$v2");
 
     my $declined = changelog_script($repo, 'bump.pl', [], "n\n");
     is($declined->{status}, 0) or diag $declined->{stderr};
     like(slurp("$repo/SlackHacks.toc"), qr/## Version: 3/);
-    ok(!-e "$repo/changelog/changelog-v3.md", 'declined changelog is not created');
+    unlike(slurp("$repo/CHANGELOG.md"), qr/## v3/, 'declined section is not created');
 
     my $invalid = changelog_script($repo, 'bump.pl', [], "\nmaybe\n");
     isnt($invalid->{status}, 0, 'Copilot question requires an explicit answer');
     like(slurp("$repo/SlackHacks.toc"), qr/## Version: 3/, 'aborted prompt leaves TOC untouched');
 
-    my $existing = "# custom\n";
-    spew("$repo/changelog/changelog-v4.md", $existing);
+    my $existing = "# SlackHacks Changelog\n\n## v4\n\ncustom\n\n$v2";
+    spew("$repo/CHANGELOG.md", $existing);
     my $skipped = changelog_script($repo, 'bump.pl', [], undef);
-    is($skipped->{status}, 0, 'existing changelog needs no prompt') or diag $skipped->{stderr};
-    is(slurp("$repo/changelog/changelog-v4.md"), $existing);
+    is($skipped->{status}, 0, 'existing section needs no prompt') or diag $skipped->{stderr};
+    is(slurp("$repo/CHANGELOG.md"), $existing);
+
+    my $blank = changelog_script($repo, 'bump.pl', ['--blank'], undef);
+    is($blank->{status}, 0) or diag $blank->{stderr};
+    is(slurp("$repo/CHANGELOG.md"), "# SlackHacks Changelog\n\n## v5\n\n## v4\n\ncustom\n\n$v2",
+        'new sections are inserted above older releases');
 };
 
 test 'changelog.pl offers a bump (default yes), then appends only new commits' => sub {
@@ -811,7 +824,7 @@ test 'changelog.pl offers a bump (default yes), then appends only new commits' =
     is($created->{status}, 0) or diag $created->{stderr};
     like($created->{stdout}, qr/Bump the version to 2\? \[Y\/n\]/);
     like(slurp("$repo/SlackHacks.toc"), qr/## Version: 2/);
-    is(slurp("$repo/changelog/changelog-v2.md"), "# SlackHacks v2\n\n## Minimap\n- Fix zoom\n");
+    is(slurp("$repo/CHANGELOG.md"), "# SlackHacks Changelog\n\n## v2\n\n### Minimap\n- Fix zoom\n");
 
     git($repo, 'add', '.');
     git($repo, 'commit', '-m', 'Bump to v2');
@@ -820,18 +833,59 @@ test 'changelog.pl offers a bump (default yes), then appends only new commits' =
     my $appended = changelog_script($repo, 'changelog.pl', [], "n\n");
     is($appended->{status}, 0) or diag $appended->{stderr};
     unlike($appended->{stdout}, qr/Bump the version/, 'unreleased version is not bumped');
-    is(slurp("$repo/changelog/changelog-v2.md"),
-        "# SlackHacks v2\n\n## Minimap\n- Fix zoom\n- Add border\n\n## Bags\n- Sort items\n");
+    like($appended->{stdout}, qr/Appending to existing '## v2' section/);
+    is(slurp("$repo/CHANGELOG.md"), "# SlackHacks Changelog\n\n## v2\n\n" .
+        "### Minimap\n- Fix zoom\n- Add border\n\n### Bags\n- Sort items\n");
 
     my $again = changelog_script($repo, 'changelog.pl', ['--no-copilot'], undef);
     is($again->{status}, 0) or diag $again->{stderr};
     like($again->{stdout}, qr/No new commits/);
+
+    # A later commit that only edits another release's section must not hide earlier
+    # commits from the next append.
+    git($repo, 'add', '.');
+    git($repo, 'commit', '-m', 'Changelog for v2');
+    commit_change($repo, 'Bags: fix count');
+    spew("$repo/CHANGELOG.md", slurp("$repo/CHANGELOG.md") . "\n## v1\n\n- Old notes\n");
+    git($repo, 'add', '.');
+    git($repo, 'commit', '-m', 'Docs: add v1 notes');
+    my $later = changelog_script($repo, 'changelog.pl', ['--no-copilot'], undef);
+    is($later->{status}, 0) or diag $later->{stderr};
+    like(slurp("$repo/CHANGELOG.md"), qr/### Bags\n- Sort items\n- Fix count\n/,
+        'commits before an unrelated section edit are still appended');
+    like(slurp("$repo/CHANGELOG.md"), qr/\n## v1\n\n- Old notes\n\z/, 'other sections are untouched');
 
     git($repo, 'tag', 'v2');
     my $kept = changelog_script($repo, 'changelog.pl', ['--no-copilot', '--dry-run'], "no\n");
     is($kept->{status}, 0) or diag $kept->{stderr};
     like($kept->{stdout}, qr/Keeping version 2/);
     like(slurp("$repo/SlackHacks.toc"), qr/## Version: 2/);
+};
+
+test 'release.pl requires a non-empty section for the TOC version' => sub {
+    my $repo = fixture();
+    prepare_scripts($repo);
+    spew("$repo/SlackHacks.toc", "## Version: 2\n## Interface: 120000\n");
+    spew("$repo/CHANGELOG.md", "# SlackHacks Changelog\n\n## v2\n\n## v1\n\nold\n");
+    git($repo, 'add', '.');
+    git($repo, 'commit', '-m', 'empty v2 section');
+    my $result = script($repo, 'release.pl', [], 0);
+    isnt($result->{status}, 0);
+    like($result->{stdout} . $result->{stderr}, qr/non-empty '## v2' section is required/);
+};
+
+test 'build.sh does not package CHANGELOG.md' => sub {
+    my $repo = tempdir('slackhacks-build-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+    run(['git', 'init', '-q', $repo], $repo);
+    make_path("$repo/scripts");
+    spew("$repo/scripts/$_", slurp("$scripts/$_")) for qw(build.sh load-env.sh defaults.env);
+    spew("$repo/SlackHacks.toc", "## Version: 1\n## Interface: 120000\n");
+    spew("$repo/Core.lua", "-- core\n");
+    spew("$repo/CHANGELOG.md", "# SlackHacks Changelog\n\n## v1\n\nnotes\n");
+    my $result = run(['bash', 'scripts/build.sh'], $repo, 0);
+    is($result->{status}, 0, 'build succeeds') or diag $result->{stdout} . $result->{stderr};
+    ok(-f "$repo/dist/SlackHacks/Core.lua", 'addon files are staged');
+    ok(!-e "$repo/dist/SlackHacks/CHANGELOG.md", 'CHANGELOG.md is not staged');
 };
 
 done_testing();

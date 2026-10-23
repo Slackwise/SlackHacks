@@ -64,7 +64,7 @@ my $toc_file               = require_config("TOC_FILE");
 my $dist_dir               = require_config("DIST_DIR");
 my $zip_name               = require_config("ZIP_NAME");
 my $tag_prefix             = require_config("TAG_PREFIX");
-my $changelog_dir          = require_config("CHANGELOG_DIR");
+my $changelog_file         = require_config("CHANGELOG_FILE");
 my $release_title_prefix   = require_config("RELEASE_TITLE_PREFIX");
 my $github_api_version     = require_config("GITHUB_API_VERSION");
 
@@ -73,8 +73,6 @@ my $target_commitish       = require_config("TARGET_COMMITISH");
 
 my $is_draft               = (require_config("IS_DRAFT") =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
 my $is_prerelease          = (require_config("IS_PRERELEASE") =~ /^(1|true|yes)$/i) ? JSON::PP::true : JSON::PP::false;
-my $changelog_file         = defined $ENV{CHANGELOG_FILE} ? $ENV{CHANGELOG_FILE}
-    : die "Error: Required setting CHANGELOG_FILE is missing. Check scripts/defaults.env.\n";
 
 # Proton Pass CLI settings
 my $proton_pass_item       = require_config("PROTON_PASS_ITEM_GITHUB");
@@ -239,7 +237,7 @@ if ($dry_run) {
 # Step 3: Prepare Release Notes / Body
 # ------------------------------------------------------------------------------
 my $release_body;
-($changelog_file, $release_body) = read_changelog($changelog_file, $changelog_dir, $tag_name);
+($changelog_file, $release_body) = read_changelog($changelog_file, $tag_name);
 # GitHub's generator appends commit-based notes; the changelog is the authoritative body.
 my $generate_release_notes = JSON::PP::false;
 
@@ -265,7 +263,7 @@ print "Repository:          $github_repo\n";
 print "Tag Name:            $tag_name\n";
 print "Target Commit/Branch:$target_commitish\n";
 print "Release Title:       $release_title\n";
-print "Changelog File:      " . ($changelog_file ne "" ? $changelog_file : "(none)") . "\n";
+print "Changelog:           $changelog_file (## $tag_name)\n";
 print "Draft:               " . ($is_draft ? "true" : "false") . "\n";
 print "Prerelease:          " . ($is_prerelease ? "true" : "false") . "\n";
 print "Auto Release Notes:  changelog file (GitHub commit generation disabled)\n";

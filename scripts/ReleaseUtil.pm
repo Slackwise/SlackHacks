@@ -8,7 +8,8 @@ use JSON::PP;
 use Digest::SHA qw(sha256_hex);
 use File::Path qw(make_path);
 
-our @EXPORT_OK = qw(git_output verify_release read_changelog json_file curl_response file_digest ensure_build);
+our @EXPORT_OK = qw(git_output verify_release read_changelog read_changelog_file changelog_section
+    find_changelog_section json_file curl_response file_digest ensure_build);
 
 sub git_output {
     my (@args) = @_;
@@ -42,14 +43,61 @@ sub verify_release {
     return $commit;
 }
 
-sub read_changelog {
-    my ($file, $dir, $tag) = @_;
-    $file = File::Spec->catfile($dir, "changelog-$tag.md") unless length $file;
+# Locates a release's "## <tag>" section in changelog lines.
+# The section ends at the next "# " or "## " heading; "### " area headings stay inside it.
+# @param $lines Array ref of changelog lines without line endings.
+# @param $tag Release tag such as "v17".
+# @return ($heading_index, $end_index) with $end_index exclusive, or an empty list when missing.
+sub find_changelog_section {
+    my ($lines, $tag) = @_;
+    my ($start) = grep { $lines->[$_] =~ /^##\s+\Q$tag\E(?:\s|$)/ } 0 .. $#$lines;
+    return unless defined $start;
+    my $end = $start + 1;
+    $end++ while $end < @$lines && $lines->[$end] !~ /^#{1,2}\s/;
+    return ($start, $end);
+}
+
+# Extracts a release's section body (without its heading) from changelog text.
+# @param $text Changelog Markdown.
+# @param $tag Release tag such as "v17".
+# @return Section body with trimmed blank lines and a trailing newline, "" when empty,
+#         or undef when the section is missing.
+sub changelog_section {
+    my ($text, $tag) = @_;
+    my @lines = split /\r?\n/, $text // '';
+    my ($start, $end) = find_changelog_section(\@lines, $tag);
+    return undef unless defined $start;
+    my @body = @lines[$start + 1 .. $end - 1];
+    shift @body while @body && $body[0] !~ /\S/;
+    pop @body while @body && $body[-1] !~ /\S/;
+    return @body ? join("\n", @body) . "\n" : '';
+}
+
+# Reads a UTF-8 changelog file, returning undef when it does not exist.
+# @param $file Changelog path.
+# @return File contents, or undef.
+sub read_changelog_file {
+    my ($file) = @_;
+    return undef unless -e $file;
     open my $fh, '<:encoding(UTF-8)', $file
-        or die "Error: Cannot read required changelog '$file': $!\n";
-    my $body = do { local $/; <$fh> };
+        or die "Error: Cannot read changelog '$file': $!\n";
+    my $text = do { local $/; <$fh> };
     close $fh or die "Error: Cannot close changelog '$file': $!\n";
-    die "Error: Changelog '$file' is empty.\n" unless defined $body && $body =~ /\S/;
+    return $text // '';
+}
+
+# Reads the release notes for a tag from the combined changelog.
+# Dies when the file or section is missing, or the section is empty.
+# @param $file Combined changelog path (e.g. CHANGELOG.md).
+# @param $tag Release tag such as "v17".
+# @return ($file, $notes).
+sub read_changelog {
+    my ($file, $tag) = @_;
+    my $text = read_changelog_file($file);
+    die "Error: Cannot read required changelog '$file': file not found.\n" unless defined $text;
+    my $body = changelog_section($text, $tag);
+    die "Error: Changelog '$file' has no '## $tag' section.\n" unless defined $body;
+    die "Error: Changelog section '## $tag' in '$file' is empty.\n" unless $body =~ /\S/;
     return ($file, $body);
 }
 

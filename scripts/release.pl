@@ -4,7 +4,7 @@ use warnings;
 use utf8;
 use FindBin;
 use lib $FindBin::Bin;
-use ReleaseUtil qw(git_output);
+use ReleaseUtil qw(git_output read_changelog_file changelog_section);
 use Cwd qw(abs_path);
 use File::Spec;
 use Getopt::Long qw(GetOptions);
@@ -168,7 +168,7 @@ if (defined $status_out && $status_out =~ /\S/) {
 my $addon_name = require_config("ADDON_NAME");
 my $toc_file   = require_config("TOC_FILE");
 my $tag_prefix = require_config("TAG_PREFIX");
-my $changelog_dir = require_config("CHANGELOG_DIR");
+my $changelog_file = require_config("CHANGELOG_FILE");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 sub read_toc_version {
@@ -204,7 +204,7 @@ sub latest_tagged_version {
 }
 
 sub release_requirements_met {
-    my ($version, $latest, $tag_prefix, $changelog_dir) = @_;
+    my ($version, $latest, $tag_prefix, $changelog_file) = @_;
     my @problems;
     if ($version !~ /^\d+$/) {
         push @problems, "TOC version '$version' is not a numeric release version.";
@@ -212,11 +212,9 @@ sub release_requirements_met {
         push @problems, "TOC version $version has not been bumped past the latest tagged version $latest.";
     }
 
-    my $changelog_file = File::Spec->catfile(
-        $changelog_dir, "changelog-$tag_prefix$version.md"
-    );
-    if (!-f $changelog_file || !-s $changelog_file) {
-        push @problems, "A non-empty changelog is required at '$changelog_file'.";
+    my $section = changelog_section(read_changelog_file($changelog_file), "$tag_prefix$version");
+    if (!defined $section || $section !~ /\S/) {
+        push @problems, "A non-empty '## $tag_prefix$version' section is required in '$changelog_file'.";
     }
     return @problems;
 }
@@ -240,7 +238,7 @@ if ($rerelease && length $remote_tag_oid && !length git_output('tag', '--list', 
 }
 my $latest_tagged_version = latest_tagged_version($tag_prefix);
 my @requirement_problems = release_requirements_met(
-    $version, $latest_tagged_version, $tag_prefix, $changelog_dir
+    $version, $latest_tagged_version, $tag_prefix, $changelog_file
 );
 
 if (@requirement_problems) {

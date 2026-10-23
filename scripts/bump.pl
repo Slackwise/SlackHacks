@@ -8,13 +8,13 @@ use File::Spec;
 use Cwd qw(abs_path);
 use Getopt::Long qw(GetOptions);
 use ChangelogUtil qw(load_config require_config ask_yes_no bump_toc_version
-    read_toc_version changelog_path update_changelog open_in_vscode);
+    read_toc_version has_changelog_section update_changelog open_in_vscode);
 
 # ==============================================================================
 # bump.pl
 #
 # 1. Bumps the addon version by 1 in SlackHacks.toc
-# 2. If changelog/changelog-v<NEW_VERSION>.md does not exist, asks whether to
+# 2. If CHANGELOG.md has no "## v<NEW_VERSION>" section, asks whether to
 #    generate it (default yes) and whether to use GitHub Copilot CLI (yes/no).
 #    Without Copilot, entries are built from commit subjects since the
 #    previous version tag. Use changelog.pl to extend the changelog later.
@@ -43,13 +43,13 @@ if ($help) {
 Usage: perl bump.pl [OPTIONS]
 
 Options:
-  -b, --blank         Create a blank release changelog with just the version header
+  -b, --blank         Add an empty "## v<VERSION>" changelog section to fill in manually
   -n, --dry-run       Show what would be done without modifying files
-      --changelog     Generate the changelog without asking
+      --changelog     Generate the changelog section without asking
       --no-changelog  Skip changelog generation without asking
       --copilot       Use Copilot CLI for the changelog without asking
       --no-copilot    Build the changelog from git log without asking
-  -f, --force         Overwrite existing changelog file if it already exists
+  -f, --force         Replace the version's changelog section if it already exists
       --no-open       Do not open the changelog file in VS Code after generating
   -h, --help          Show this help message
 
@@ -58,27 +58,27 @@ HELP
     exit 0;
 }
 
-my $addon_name    = require_config("ADDON_NAME");
-my $toc_file      = require_config("TOC_FILE");
-my $changelog_dir = require_config("CHANGELOG_DIR");
-my $tag_prefix    = require_config("TAG_PREFIX");
+my $addon_name     = require_config("ADDON_NAME");
+my $toc_file       = require_config("TOC_FILE");
+my $changelog_file = require_config("CHANGELOG_FILE");
+my $tag_prefix     = require_config("TAG_PREFIX");
 die "Error: $toc_file not found in $repo_root\n" unless -f $toc_file;
 
 my $old_version = read_toc_version($toc_file);
 my $new_version = $old_version + 1;
-my $changelog_path = changelog_path($changelog_dir, $tag_prefix, $new_version);
+my $section = "'## $tag_prefix$new_version' in '$changelog_file'";
 print "Current Version: $old_version\n";
 print "Target Version:  $new_version\n";
 
 # Ask every question before modifying files so an aborted prompt leaves the TOC untouched.
-my $exists = -f $changelog_path;
+my $exists = has_changelog_section($changelog_file, "$tag_prefix$new_version");
 my ($generate, $use_copilot) = (0, 0);
 if ($exists && !$force) {
-    print "Changelog '$changelog_path' already exists. Skipping changelog generation.\n";
+    print "Changelog section $section already exists. Skipping changelog generation.\n";
 } elsif ($blank) {
     $generate = 1;
 } else {
-    $generate = $changelog // ask_yes_no("Generate changelog '$changelog_path'?", 1);
+    $generate = $changelog // ask_yes_no("Generate changelog section $section?", 1);
     $use_copilot = $copilot // ask_yes_no("Use Copilot to generate the changelog?", undef)
         if $generate;
 }
@@ -86,12 +86,12 @@ if ($exists && !$force) {
 bump_toc_version($toc_file, $dry_run);
 
 if ($generate) {
-    print "Changelog '$changelog_path' already exists, but --force was specified. Overwriting.\n"
+    print "Changelog section $section already exists, but --force was specified. Replacing it.\n"
         if $exists;
     update_changelog(
         addon       => $addon_name,
         version     => $new_version,
-        dir         => $changelog_dir,
+        file        => $changelog_file,
         prefix      => $tag_prefix,
         use_copilot => $use_copilot,
         blank       => $blank,
@@ -100,7 +100,7 @@ if ($generate) {
         no_open     => $no_open,
     );
 } elsif ($exists) {
-    open_in_vscode($changelog_path) unless $dry_run || $no_open;
+    open_in_vscode($changelog_file) unless $dry_run || $no_open;
 } else {
     print "Skipped changelog generation. Run 'perl scripts/changelog.pl' to create it later.\n";
 }

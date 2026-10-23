@@ -4,19 +4,20 @@ use warnings;
 use utf8;
 use Exporter 'import';
 use File::Spec;
+use ReleaseUtil qw(read_changelog_file changelog_section find_changelog_section);
 
 # ==============================================================================
 # ChangelogUtil.pm
 #
 # Shared helpers for bump.pl and changelog.pl: configuration loading, TOC
 # version handling, git commit collection, Copilot/fallback changelog drafting,
-# and merging new entries into an existing changelog.
+# and maintaining "## v<VERSION>" sections in the combined CHANGELOG.md.
 # ==============================================================================
 
 our @EXPORT_OK = qw(
     load_config require_config ask_yes_no
     read_toc_version bump_toc_version latest_tagged_version
-    changelog_path update_changelog open_in_vscode
+    has_changelog_section update_changelog open_in_vscode
 );
 
 # Loads KEY=VALUE pairs from a dotenv file without overriding existing variables.
@@ -168,33 +169,64 @@ sub latest_tagged_version {
     return $latest;
 }
 
-# Builds the changelog path for a version. Forward slashes keep it usable as a git pathspec.
-# @param $changelog_dir Changelog directory.
-# @param $tag_prefix Tag prefix such as "v".
-# @param $version Version number.
-# @return Relative changelog path.
-sub changelog_path {
-    my ($changelog_dir, $tag_prefix, $version) = @_;
-    return "$changelog_dir/changelog-$tag_prefix$version.md";
+# Reports whether the combined changelog already has a section for a release.
+# @param $file Combined changelog path.
+# @param $tag Release tag such as "v17".
+# @return True when a "## <tag>" section exists (even if empty).
+sub has_changelog_section {
+    my ($file, $tag) = @_;
+    return defined changelog_section(read_changelog_file($file), $tag);
+}
+
+# Runs git with stderr suppressed.
+# @param @args Git arguments.
+# @return ($ok, $stdout).
+sub git_quiet {
+    my (@args) = @_;
+    open my $err_save, '>&', \*STDERR or die "Error: Cannot save STDERR: $!\n";
+    open STDERR, '>', File::Spec->devnull or die "Error: Cannot redirect STDERR: $!\n";
+    my $pid = open my $pipe, '-|', 'git', @args;
+    open STDERR, '>&', $err_save or die "Error: Cannot restore STDERR: $!\n";
+    return (0, '') unless $pid;
+    my $out = do { local $/; <$pipe> };
+    close $pipe;
+    return ($? == 0, $out // '');
+}
+
+# Returns a release's changelog section as committed in a revision.
+# @param $rev Git revision.
+# @param $file Changelog path relative to the repository root.
+# @param $tag Release tag.
+# @return Section body, or undef when the file or section is absent.
+sub committed_section {
+    my ($rev, $file, $tag) = @_;
+    (my $git_path = $file) =~ s{\\}{/}g;
+    my ($ok, $text) = git_quiet('show', "$rev:$git_path");
+    return $ok ? changelog_section($text, $tag) : undef;
 }
 
 # Chooses the git revision after which commits belong in a version's changelog.
-# Appends start after the last commit that touched the changelog, because
-# earlier commits were already available when it was last written.
+# Appends start after the last commit that changed this version's section,
+# because earlier commits were already available when it was last written.
+# Commits that only edit other versions' sections in the shared file are ignored.
 # @param $version Version being documented.
 # @param $tag_prefix Tag prefix such as "v".
-# @param $existing_path Existing changelog path when appending, otherwise undef.
+# @param $file Combined changelog path.
+# @param $append True when extending an existing section.
 # @return Base revision, or "" when no base exists.
 sub changelog_base {
-    my ($version, $tag_prefix, $existing_path) = @_;
+    my ($version, $tag_prefix, $file, $append) = @_;
     my $prev = latest_tagged_version($tag_prefix, $version);
     my $base = defined $prev ? "$tag_prefix$prev" : '';
-    if (defined $existing_path) {
-        my ($ok, $last) = git_lines('log', '-1', '--format=%H', '--', $existing_path);
-        if ($ok && defined $last && length $last &&
-            (!length $base || system('git', 'merge-base', '--is-ancestor', $base, $last) == 0)) {
-            $base = $last;
-        }
+    return $base unless $append;
+    my $tag = "$tag_prefix$version";
+    my ($ok, @revs) = git_lines('log', '--format=%H', length $base ? ("$base..HEAD") : (), '--', $file);
+    return $base unless $ok;
+    for my $rev (@revs) {
+        my $after  = committed_section($rev, $file, $tag);
+        my $before = committed_section("$rev^", $file, $tag);
+        next if (defined $after ? $after : "\0") eq (defined $before ? $before : "\0");
+        return $rev;
     }
     return $base;
 }
@@ -212,15 +244,16 @@ sub collect_commits {
     for my $c (@raw) {
         $c =~ s/^\s+|\s+$//g;
         next if $c eq '';
-        # Changelog-only commits describe the changelog itself, not user-facing changes.
-        next if $c =~ /^changelog-v\d+/i;
+        # Changelog-only commits ("changelog-v12", "Changelog: ...", "CHANGELOG.md ...")
+        # describe the changelog itself, not user-facing changes.
+        next if $c =~ /^changelog\b/i;
         push @commits, $c;
     }
     return @commits;
 }
 
-# Reports whether a commit's description already appears in a changelog.
-# @param $existing Existing changelog text.
+# Reports whether a commit's description already appears in a changelog section.
+# @param $existing Existing section text.
 # @param $commit Commit subject.
 # @return True when the description is already present.
 sub already_listed {
@@ -230,16 +263,17 @@ sub already_listed {
     return length $desc && index(lc $existing, lc $desc) >= 0;
 }
 
-# Splits changelog Markdown into "## " sections, ignoring "# " titles.
-# @param $markdown Changelog Markdown.
-# @return (\@section_order, \%section_lines).
-sub parse_sections {
+# Splits section Markdown into "### " area groups, ignoring "#"/"##" headings.
+# Lines before the first area heading are grouped under "Changes".
+# @param $markdown Section Markdown.
+# @return (\@area_order, \%area_lines).
+sub parse_areas {
     my ($markdown) = @_;
     my (@order, %items);
     my $current = 'Changes';
     for my $line (split /\r?\n/, $markdown) {
-        next if $line =~ /^#\s/;
-        if ($line =~ /^##\s+(.+?)\s*$/) {
+        next if $line =~ /^#{1,2}\s/;
+        if ($line =~ /^###\s+(.+?)\s*$/) {
             $current = $1;
             next;
         }
@@ -250,48 +284,49 @@ sub parse_sections {
     return (\@order, \%items);
 }
 
-# Merges new section entries into existing changelog text, appending bullets to
-# matching "## " sections and adding new sections at the end.
-# @param $existing Existing changelog text.
+# Merges new entries into a release section, appending bullets to matching
+# "### " areas and adding new areas at the end.
+# @param $body Array ref of existing section body lines.
 # @param $addition New Markdown entries.
-# @return Merged changelog text.
-sub merge_into_changelog {
-    my ($existing, $addition) = @_;
-    my @lines = split /\r?\n/, $existing, -1;
+# @return Merged section body lines.
+sub merge_into_section {
+    my ($body, $addition) = @_;
+    my @lines = @$body;
     pop @lines while @lines && $lines[-1] !~ /\S/;
-    my ($order, $sections) = parse_sections($addition);
+    my ($order, $areas) = parse_areas($addition);
     for my $heading (@$order) {
-        my @items = @{ $sections->{$heading} };
-        my ($start) = grep { $lines[$_] =~ /^##\s+\Q$heading\E\s*$/i } 0 .. $#lines;
+        my @items = @{ $areas->{$heading} };
+        my ($start) = grep { $lines[$_] =~ /^###\s+\Q$heading\E\s*$/i } 0 .. $#lines;
         if (defined $start) {
             my $end = $start + 1;
-            $end++ while $end < @lines && $lines[$end] !~ /^#{1,2}\s/;
+            $end++ while $end < @lines && $lines[$end] !~ /^#{1,3}\s/;
             $end-- while $end > $start + 1 && $lines[$end - 1] !~ /\S/;
             splice @lines, $end, 0, @items;
         } else {
-            push @lines, '', "## $heading", @items;
+            push @lines, '' if @lines;
+            push @lines, "### $heading", @items;
         }
     }
-    return join("\n", @lines) . "\n";
+    return @lines;
 }
 
-# Builds changelog sections from "Area: description" commit subjects.
+# Builds "### " area groups from "Area: description" commit subjects.
 # @param @commits Commit subjects.
-# @return Markdown sections without a title.
+# @return Markdown area groups without release or file headings.
 sub fallback_entries {
     my (@commits) = @_;
-    return "## Changes\n- Maintenance update and bug fixes\n" unless @commits;
-    my (@order, %sections);
+    return "### Changes\n- Maintenance update and bug fixes\n" unless @commits;
+    my (@order, %areas);
     for my $cmt (@commits) {
-        my ($section, $desc) = $cmt =~ /^([^:]+):\s*(.+)$/ ? ($1, $2) : ('Changes', $cmt);
-        $section =~ s/^\s+|\s+$//g;
+        my ($area, $desc) = $cmt =~ /^([^:]+):\s*(.+)$/ ? ($1, $2) : ('Changes', $cmt);
+        $area =~ s/^\s+|\s+$//g;
         $desc =~ s/^\s+|\s+$//g;
-        push @order, $section unless $sections{$section};
-        push @{ $sections{$section} }, ucfirst $desc;
+        push @order, $area unless $areas{$area};
+        push @{ $areas{$area} }, ucfirst $desc;
     }
     my $out = '';
-    for my $sec (@order) {
-        $out .= "## $sec\n" . join('', map { "- $_\n" } @{ $sections{$sec} }) . "\n";
+    for my $area (@order) {
+        $out .= "### $area\n" . join('', map { "- $_\n" } @{ $areas{$area} }) . "\n";
     }
     $out =~ s/\s+$//;
     return "$out\n";
@@ -481,19 +516,19 @@ sub copilot_entries {
     my $prompt = <<"PROMPT";
 Write release changelog entries in Markdown for $addon version $version.
 
-Group the changes by UI area or module (for example: "## Listview Bag", "## Minimap", "## Error Log", "## General", etc.) based on the commit subjects.
-Under each "## " section heading, list the changes as bullet points starting with "- ".
+Group the changes by UI area or module (for example: "### Listview Bag", "### Minimap", "### Error Log", "### General", etc.) based on the commit subjects.
+Under each "### " area heading, list the changes as bullet points starting with "- ".
 Keep bullets concise and user-facing.
-Do not include a top-level "# " title.
+Do not include "# " or "## " headings; the release heading is added separately.
 Do not wrap your response in markdown code block fences (no ```). Output plain markdown directly.
 PROMPT
     if (defined $existing) {
         $prompt .= <<"PROMPT";
 
-The changelog already contains the entries below. Only describe changes that are not already covered,
-and reuse the existing section headings where they fit.
+This release's changelog section already contains the entries below. Only describe changes that are not
+already covered, and reuse the existing area headings where they fit.
 
-Existing changelog:
+Existing entries:
 $existing
 PROMPT
     }
@@ -512,49 +547,40 @@ PROMPT
     }
     $output =~ s/^```(?:markdown)?\r?\n//i;
     $output =~ s/\r?\n```\s*$//;
-    $output =~ s/^\s*#\s[^\r\n]*\r?\n//;
+    # Drop any title/release headings Copilot adds anyway, then demote stray "## " areas
+    # so they cannot be mistaken for release sections in the combined file.
+    1 while $output =~ s/^\s*##?\s[^\r\n]*(?:\r?\n|\z)//;
+    $output =~ s/^##\s/### /mg;
     $output =~ s/^\s+|\s+$//g;
     return "$output\n";
 }
 
-# Reads a UTF-8 text file.
-# @param $path File path.
-# @return File contents.
-sub read_text {
-    my ($path) = @_;
-    open my $fh, "<:encoding(UTF-8)", $path or die "Cannot read $path: $!\n";
-    my $text = do { local $/; <$fh> };
-    close $fh;
-    return $text // '';
-}
-
-# Creates or extends a version's changelog and optionally opens it in VS Code.
-# An existing file is appended to unless overwrite is requested.
-# @param %opt addon, version, dir, prefix, use_copilot, blank, overwrite, dry_run, no_open.
+# Creates or extends a release's "## <tag>" section in the combined changelog and
+# optionally opens the file in VS Code. New sections are inserted above older
+# releases; an existing section is appended to unless overwrite is requested.
+# @param %opt addon, version, file, prefix, use_copilot, blank, overwrite, dry_run, no_open.
 # @return Changelog path.
 sub update_changelog {
     my (%opt) = @_;
-    my $path = changelog_path($opt{dir}, $opt{prefix}, $opt{version});
-    my $title = "# $opt{addon} v$opt{version}\n\n";
-    my $append = -f $path && !$opt{overwrite};
-    my $existing = $append ? read_text($path) : undef;
+    my $path = $opt{file};
+    my $tag = "$opt{prefix}$opt{version}";
+    my $text = read_changelog_file($path);
+    my @lines = defined $text ? split(/\r?\n/, $text) : ("# $opt{addon} Changelog", '');
+    my ($start, $end) = find_changelog_section(\@lines, $tag);
+    my $append = defined $start && !$opt{overwrite};
+    my $existing = $append ? changelog_section($text, $tag) : undef;
 
-    if (!-d $opt{dir} && !$opt{dry_run}) {
-        mkdir $opt{dir} or die "Cannot create directory '$opt{dir}': $!\n";
-    }
-
-    my $content;
+    my @body;
     if ($opt{blank}) {
-        print "Generating blank release changelog with version header...\n";
-        $content = $title;
+        print "Generating blank '## $tag' changelog section...\n";
     } else {
-        my $base = changelog_base($opt{version}, $opt{prefix}, $append ? $path : undef);
+        my $base = changelog_base($opt{version}, $opt{prefix}, $path, $append);
         my @commits = collect_commits($base);
         @commits = grep { !already_listed($existing, $_) } @commits if $append;
         printf "Found %d %scommit(s) since %s.\n", scalar @commits, $append ? 'new ' : '',
             length $base ? "'$base'" : 'the start of the log';
         if ($append && !@commits) {
-            print "No new commits to add to '$path'.\n";
+            print "No new commits to add to '## $tag' in '$path'.\n";
             open_in_vscode($path) unless $opt{dry_run} || $opt{no_open};
             return $path;
         }
@@ -565,19 +591,33 @@ sub update_changelog {
                 if $@ || !defined $entries;
         }
         $entries //= fallback_entries(@commits);
-        $content = $append ? merge_into_changelog($existing, $entries) : $title . $entries;
+        @body = $append ? merge_into_section([split /\n/, $existing], $entries) : split(/\n/, $entries);
     }
 
-    my $verb = $append ? 'Updated' : 'Generated';
+    my @section = ("## $tag", '', @body, @body ? '' : ());
+    if (defined $start) {
+        splice @lines, $start, $end - $start, @section;
+    } else {
+        # Newest release first: insert above the first existing release section.
+        my ($first) = grep { $lines[$_] =~ /^##\s/ } 0 .. $#lines;
+        $first //= scalar @lines;
+        splice @lines, $first, 0, ($first > 0 && $lines[$first - 1] =~ /\S/ ? '' : ()), @section;
+    }
+    pop @lines while @lines && $lines[-1] !~ /\S/;
+    my $content = join("\n", @lines) . "\n";
+    my $preview = join("\n", @section);
+    $preview =~ s/\s+\z/\n/;
+
+    my $verb = $append ? 'Updated' : 'Added';
     if ($opt{dry_run}) {
-        print "\n[Dry Run] Preview of '$path':\n";
+        print "\n[Dry Run] Preview of '## $tag' in '$path':\n";
     } else {
         open my $wfh, ">:encoding(UTF-8)", $path or die "Cannot write to $path: $!\n";
         print $wfh $content;
         close $wfh;
-        print "\n$verb changelog: $path\n";
+        print "\n$verb '## $tag' in changelog: $path\n";
     }
-    print "----------------------------------------\n$content----------------------------------------\n";
+    print "----------------------------------------\n$preview----------------------------------------\n";
     open_in_vscode($path) unless $opt{dry_run} || $opt{no_open};
     return $path;
 }
