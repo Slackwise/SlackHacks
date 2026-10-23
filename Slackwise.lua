@@ -1126,6 +1126,34 @@ BINDINGS = {
       {"V",            "SHIELD_SELF", BT.MACRO},
     }
   },
+  SHAMAN = {
+    MACROS = {
+      { 
+        "ENGAGE", "inv_misc_questionmark", multilineTrim([[
+          #showtooltip Attack
+          /startattack
+        ]])
+      },
+      { 
+        "ENGAGE_ASSIST", "inv_misc_questionmark", multilineTrim([[
+          #showtooltip Holy Strike
+          /assist party1
+          /startattack
+          /cast Holy Strike
+        ]])
+      },
+    },
+
+    --Click-Casting
+    {"BUTTON1",                 "Healing Wave", BT.CLICKCAST},
+
+    -- Main Attacks 
+    {"E",       "ENGAGE", BT.MACRO },
+    {"CTRL-E",  "ENGAGE_ASSIST", BT.MACRO },
+    {"R",       "Lightning Bolt"},
+
+    {"CTRL-Z",  "Stoneform"},
+  },
   CLASSIC = {
     DRUID = {
       {"1",  "ACTIONBUTTON1", BT.COMMAND},
