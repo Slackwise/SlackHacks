@@ -2,7 +2,7 @@
 
 ## Lua code and documentation
 
-- Use Node.js scripts when a utility script is needed; avoid introducing another scripting runtime for one-off repository tasks.
+- Use Perl scripts when a utility script is needed (short shell scripts are fine); do not introduce Node.js or another scripting runtime for repository tasks.
 - Document every Lua function with LuaDoc-style comments. Include a concise purpose and document parameters and return values when applicable. Keep documentation accurate when changing a function.
 - Explain the reason behind complex or non-obvious code sections. If a change is a tweak, workaround, or hack, add a nearby comment explaining why it is needed and any relevant constraints.
 

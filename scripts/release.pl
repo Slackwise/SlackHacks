@@ -266,9 +266,8 @@ if (@requirement_problems) {
         unless $use_copilot eq "" || $use_copilot =~ /^(?:y|yes|n|no)$/i;
 
     my $bump_script = File::Spec->catfile($script_dir, "bump.pl");
-    my @bump_cmd = ($^X, $bump_script);
-    push @bump_cmd, "--no-copilot"
-        if $use_copilot =~ /^(?:n|no)$/i;
+    my @bump_cmd = ($^X, $bump_script, "--changelog");
+    push @bump_cmd, $use_copilot =~ /^(?:n|no)$/i ? "--no-copilot" : "--copilot";
     print "Running bump.pl " .
         ($use_copilot =~ /^(?:n|no)$/i ? "without" : "with") .
         " Copilot...\n";

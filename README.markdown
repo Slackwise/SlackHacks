@@ -102,9 +102,26 @@ specific pending receipt named in the error. Do not remove a receipt for an
 upload that succeeded. These receipts are local to the clone; use the same clone
 for retries and check CurseForge before publishing from another machine.
 
-Run the release regression tests with `node --test scripts/release.test.cjs`
-(requires Node.js, Perl, Git, Bash, and curl; uses temporary local repositories
-and a local HTTP server, not publishing credentials or live release APIs).
+Run the release regression tests with `perl scripts/release.t` (or `prove
+scripts/release.t`, or the VS Code **Test release scripts** task). They require
+Perl, Git, Bash, and curl, and use temporary local repositories and a local
+HTTP server, not publishing credentials or live release APIs.
+
+### Version bumps and changelogs
+
+`perl scripts/bump.pl` increments the TOC version. If
+`changelog/changelog-v<VERSION>.md` does not exist yet, it asks whether to
+generate it (default yes) and then whether to use the GitHub Copilot CLI
+(yes/no; otherwise entries are built from `Area: description` commit subjects).
+Pass `--[no-]changelog` / `--[no-]copilot` to skip the questions, or `--blank`
+for a header-only changelog.
+
+`perl scripts/changelog.pl` creates or extends the changelog for the current
+TOC version without bumping. An existing changelog is appended to: commits made
+since it was last committed (and not already mentioned) are merged into the
+matching `## ` sections. If the TOC version is already tagged, it offers to bump
+the version first (default yes). Use `--[no-]bump` and `--[no-]copilot` to skip
+the questions, and `--dry-run` to preview.
 
 ## Lua development tools
 

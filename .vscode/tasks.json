@@ -36,6 +36,12 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Bump Version",
+			"type": "shell",
+			"command": "perl scripts/bump.pl",
+			"problemMatcher": []
+		},
+		{
 			"label": "Bump Version (Blank Release)",
 			"type": "shell",
 			"command": "perl scripts/bump.pl --blank",
@@ -44,7 +50,13 @@
 		{
 			"label": "Bump Version (Copilot Summary)",
 			"type": "shell",
-			"command": "perl scripts/bump.pl",
+			"command": "perl scripts/bump.pl --changelog --copilot",
+			"problemMatcher": []
+		},
+		{
+			"label": "Generate Changelog",
+			"type": "shell",
+			"command": "perl scripts/changelog.pl",
 			"problemMatcher": []
 		},
 		{
@@ -56,7 +68,7 @@
 		{
 			"label": "Test release scripts",
 			"type": "shell",
-			"command": "node --test \"scripts\\release.test.cjs\"",
+			"command": "perl scripts/release.t",
 			"isBackground": false,
 			"problemMatcher": []
 		}
