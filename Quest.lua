@@ -59,6 +59,21 @@ local function isAutomationSuppressed()
   return IsShiftKeyDown()
 end
 
+--- Check for a Mythic+ run whose elapsed timer has started, excluding the opening countdown.
+---@return boolean
+local function isMythicRunTimerRunning()
+  if not (C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive
+    and C_ChallengeMode.IsChallengeModeActive()) then return false end
+  if not (GetWorldElapsedTimers and GetWorldElapsedTime and Enum.WorldElapsedTimerTypes) then return false end
+  for _, timerID in ipairs({ GetWorldElapsedTimers() }) do
+    local _, elapsed, timerType = GetWorldElapsedTime(timerID)
+    if timerType == Enum.WorldElapsedTimerTypes.ChallengeMode and elapsed and elapsed > 0 then
+      return true
+    end
+  end
+  return false
+end
+
 --=====================================================================
 -- Dialog Number Keys
 --=====================================================================
@@ -292,6 +307,7 @@ local function automateGossip(availableQuests, activeQuests, options)
   end
 
   if s.autoClickFirstOption and #availableQuests == 0 and #activeQuests == 0 and #options == 1
+    and (not s.autoClickFirstOptionMythicOnly or isMythicRunTimerRunning())
     and not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip()) then
     local option = options[1]
     local now = GetTime()

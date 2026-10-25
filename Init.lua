@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 9
+CONFIG_VERSION = 10
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -34,6 +34,7 @@ CONFIG_VERSION_RELEASES = {
   [7] = 10,
   [8] = 12,
   [9] = 13,
+  [10] = 17,
 }
 
 function getAddonVersion()
@@ -389,6 +390,23 @@ CONFIG_MIGRATIONS = {
       -- Only the raw (user-saved) values are copied, so unset keys keep falling back to the defaults.
       for key, value in pairs(old) do new[key] = value end
       infoDisplay.guildMemberList = nil
+    end
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
+    end
+    migrateProfile(Self.db.profile)
+  end,
+  -- Config v10, addon v17.
+  --- Add the opt-in Mythic-run restriction without changing existing NPC automation.
+  [10] = function()
+    --- Initialize the restriction in a saved profile, preserving explicit choices.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      if type(p.quest) ~= "table" then p.quest = {} end
+      if p.quest.autoClickFirstOptionMythicOnly == nil then
+        p.quest.autoClickFirstOptionMythicOnly = false
+      end
     end
     if Self.db.profiles then
       for _, p in pairs(Self.db.profiles) do migrateProfile(p) end

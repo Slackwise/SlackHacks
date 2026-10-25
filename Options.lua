@@ -79,6 +79,7 @@ dbDefaults = {
       autoAccept = false,
       autoComplete = false,
       autoClickFirstOption = false,
+      autoClickFirstOptionMythicOnly = false,
       numberKeys = false,
       spacebar = false,
       questItemButton = false
@@ -3253,7 +3254,7 @@ options = {
         },
         autoClickFirstOption = {
           name = "Auto-Click First Dialog Option",
-          desc = "Automatically clicks an interact option in an NPC dialog if it's the only option.",
+          desc = "Automatically clicks the first option in an NPC dialog only when it is the sole option and no quests are listed.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -3261,6 +3262,26 @@ options = {
           get = function() return db.profile.quest.autoClickFirstOption end,
           set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
           order = 3
+        },
+        autoClickFirstOptionMythicOnly = {
+          name = "Only Auto-Click First Option During Mythic Run",
+          desc = "Will only auto-click the first option in an NPC dialogue while you are running a mythic and the timer is going.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Disable the restriction control when its parent automation is off.
+          ---@return boolean
+          disabled = function()
+            return not db.profile.quest.enabled or not db.profile.quest.autoClickFirstOption
+          end,
+          --- Read the profile's Mythic-run restriction.
+          ---@return boolean
+          get = function() return db.profile.quest.autoClickFirstOptionMythicOnly end,
+          --- Apply the restriction without changing the parent automation setting.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean
+          set = function(_, value) Self.Quest:SetOption("autoClickFirstOptionMythicOnly", value) end,
+          order = 3.5
         },
         numberKeys = {
           name = "Keybind NPC Dialog Options to Number Keys",
