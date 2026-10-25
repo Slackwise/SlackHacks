@@ -15,7 +15,8 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
 ### Controls
 * **Camera Distance:** Unlocks maximum camera zoom distance (`cameraDistanceMaxZoomFactor = 4`).
 * **Dynamic Camera:** Enables ActionCam basic mode with dynamic pitch.
-* **Keybindings:**
+* **Keybindings:** Many extra keybindings aren't in the options menu at all; the "Open Keybindings" button jumps straight to the SlackHacks section of Blizzard's Key Bindings.
+  * **Class Spec Keybinds:** Switch to Class Spec 1–4 (your specializations in Talents UI order) with a single key, out of combat.
   * **Consumable Keybinds:** Keybinds to use the best healing potion, mana potion, or bandage in your bags, consuming smaller stacks first to conserve inventory space.
   * **Dragonriding Overrides:** Applies context-sensitive keybinds for Skyward Ascent, Surge Forward, Whirling Surge, and Aerial Halt when mounting a Skyriding mount.
   * **System Keybinds:** Keybinds for Reload UI, Sound System Restart, Quick Keybind Mode, and Click Casting.
@@ -102,7 +103,7 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 
 #### Talent Reminders
 * **Loadout by Content:** For each of your specs, pick a talent loadout (or "Off") for Questing, Delves, Raids, Dungeons, and PvP. Choices are saved per character.
-* **Switch Prompt:** When you enter or leave content and your active loadout doesn't match, a movable prompt near the top of the screen offers to switch, with your chosen loadout pre-selected in a dropdown. It never takes keyboard focus.
+* **Switch Prompt:** When you enter or leave content and your active loadout doesn't match, a movable prompt near the top of the screen offers to switch, with your chosen loadout pre-selected in a dropdown. It never takes keyboard focus, waits until combat ends, and stays hidden during an active Mythic+ keystone.
 * **Per-Mythic+ Dungeon Loadouts:** Optionally pick a loadout for each of the current season's Mythic+ dungeons (listed from the game's own Mythic+ data). Dungeons left on "Use Default" use the Dungeons loadout.
 
 #### Consumable Buff Reminders (**WIP!**)
@@ -130,9 +131,12 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 ### Quest / NPC
 * **Auto-Accept Quests:** Automatically accepts quests on interact.
 * **Auto-Complete Quests:** Automatically completes quests that have no choices in reward.
-* **Auto-Click First Dialog Option:** Automatically clicks an interact option in an NPC dialog if it's the only option.
-* **Number Key Dialog Options:** Maps quest and NPC dialog selections to the number keys (1–9, 0), displaying each shortcut after the icon and before the selection text (e.g., "{Icon} 1. See my wares.").
-* **Map Spacebar to Accept/Complete Quest:** Independently enables Spacebar to accept, continue, or complete the current quest using Blizzard's normal buttons and confirmation prompts. Located directly below the number-key option.
+* **NPC Dialog Auto-Click:**
+  * **Auto-Click First Dialog Option:** Automatically clicks an NPC dialog's option if it's the only option and no quests are listed.
+  * **Only During Mythic Runs:** Optionally restricts auto-clicking to Mythic+ runs whose timer is running.
+* **Dialog Keybindings:**
+  * **Number Key Dialog Options:** Maps quest and NPC dialog selections to the number keys (1–9, 0), displaying each shortcut after the icon and before the selection text (e.g., "{Icon} 1. See my wares.").
+  * **Spacebar to Accept/Complete Quest:** Independently enables Spacebar to accept, continue, or complete the current quest using Blizzard's normal buttons and confirmation prompts.
 * **Safe Dialog Shortcuts:** Temporary keybindings are cleared when the dialog closes or combat starts. Turn-ins requiring a choice between rewards remain entirely manual: dialog shortcuts and auto-completion are disabled on that screen, even after selecting a reward.
 * **Quest Item Extra Action Button:** Shows an Extra Action Button for a quest item while you're inside that quest's area, bound to your Extra Action Button key. Items that must be used on a target are left out.
 * **Toggles:** Keybindings to toggle each auto option or all of them at once, plus an "All NPC Auto-Interacts" checkbox in the minimap icon menu.
@@ -144,6 +148,7 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Asynchronous Trade Queue:** Enqueues requests and handles item stack splitting via a FIFO queue to prevent trade window conflicts.
 * **Automatic Trade Response:** Pick a mode (or use `/slack vend <mode>`) and anyone who opens a trade with you is automatically handed those items, jumping to the front of the queue. Optionally turns itself Off when you leave your group.
 * **Configuration:** Granular toggles for Flasks, Oils, Augment Runes, and Vantus Runes, with configurable rune stack counts and optional chat prefix enforcement.
+* **Combat Safe:** Vending pauses in combat; entering combat clears the queue, and new requests are only accepted out of combat.
 
 ### Combat (**WIP!**)
 * **Raise Casting Nameplates:** Temporarily increases the frame level of enemy nameplates while casting so cast bars remain visible in overlapping packs.
