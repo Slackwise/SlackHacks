@@ -95,6 +95,8 @@ local SELF_VENDOR_ALLOWED_WORDS = { "and", "give", "need", "please" }
 -- @param message string raw chat message text.
 -- @return table|nil set of requested Enum.SelfVendorMode values (mode -> true), string|nil reason when nothing matched.
 function module:ParseChatRequest(message)
+  -- Secret strings still report type "string" but error on indexing (:sub, :lower, ...).
+  if isSecret(message) then return nil, "message is secret" end
   if type(message) ~= "string" then return nil, "message is not text" end
   if not db.profile.selfVendor.enabled then return nil, "Self Vendor is disabled" end
   local settings = db.profile.selfVendor
@@ -274,6 +276,13 @@ local GROUP_CHAT_EVENTS = {
 -- @param event string chat event name that carried the request.
 -- @param sender string sender name (with or without realm).
 -- @return boolean true if eligible, string|nil reason when not eligible.
+--- Report whether a value is a Midnight "secret" value that tainted addon code cannot inspect.
+-- @param value any value to test.
+-- @return boolean true when the value is secret.
+local function isSecret(value)
+  return _G.issecretvalue and _G.issecretvalue(value) or false
+end
+
 local function chatSenderIsEligible(event, sender)
   if GROUP_CHAT_EVENTS[event] and not groupUnitFor(sender) then
     return false, "sender is not in the group"
@@ -1050,6 +1059,12 @@ end
 -- @param sender string sender name (usually "Name-Realm").
 function module:CHAT_MSG_GROUP(event, message, sender)
   if not sender then return end
+  -- During encounters and other restricted contexts (Midnight 12.0+), chat text and sender names
+  -- arrive as secret values that error when indexed or compared, so requests can't be read then.
+  if isSecret(message) or isSecret(sender) then
+    log("Self Vendor ignored " .. event .. ": chat message or sender is secret (restricted context)")
+    return
+  end
   if sameName(sender, UnitName("player")) then return end
   local eligible, ineligibleReason = chatSenderIsEligible(event, sender)
   if not eligible then
