@@ -262,6 +262,7 @@ WIP_MODULES = {
   {
     key = "buffs",
     name = "Consumable Buff Reminders",
+    enableOptions = { { "enabled" } },
     disable = function()
       if Self.db and Self.db.profile and Self.db.profile.buffs then
         Self.db.profile.buffs.enabled = false
@@ -274,6 +275,7 @@ WIP_MODULES = {
   {
     key = "combat",
     name = "Combat",
+    enableOptions = { { "raiseCastingNameplates" }, { "paladin", "trackHolyShockCharges" } },
     disable = function()
       if Self.db and Self.db.profile and Self.db.profile.combat then
         Self.db.profile.combat.raiseCastingNameplates = false
@@ -315,6 +317,17 @@ local function resolveOptionGroup(key)
   return group
 end
 
+--- Ask for confirmation before turning on an experimental feature, but never when disabling it.
+---@param _ table AceConfig option info.
+---@param value boolean Requested enabled state.
+---@return string|nil Warning text when enabling, or nil to skip confirmation.
+local function confirmWIPEnable(_, value)
+  if value then
+    return "This is a Work In Progress (WIP) module and may not function correctly currently. Are you sure you want to enable it?"
+  end
+end
+
+--- Decorate WIP groups and require confirmation for their feature-enabling checkboxes.
 local function applyWIPOptionsDecoration()
   for _, mod in ipairs(WIP_MODULES) do
     local group = resolveOptionGroup(mod.key)
@@ -327,6 +340,13 @@ local function applyWIPOptionsDecoration()
         group.desc = "|cffff8000[Work in Progress]|r " .. originalDesc
       end
       group.icon = 134070
+      for _, path in ipairs(mod.enableOptions or {}) do
+        local option = group
+        for _, key in ipairs(path) do
+          option = option.args[key]
+        end
+        option.confirm = confirmWIPEnable
+      end
       if group.args then
         -- In AceConfigDialog, negative orders sort AFTER positive orders (designed for bottom/footer buttons).
         -- To put something at the very top, order must be >= 0 and smaller than any positive order.
