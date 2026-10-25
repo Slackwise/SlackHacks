@@ -20,6 +20,19 @@ dbDefaults = {
     cache = {
       lastKnownGildedStashesRemaining = nil,
       lastKnownGildedStashesResetAt = nil
+    },
+    reminders = {
+      talents = {
+        -- Keyed by specialization ID. Loadouts are trait config IDs; nil means "Off" (contexts) or "Use Default"
+        -- (mythics, keyed by Mythic+ challenge map ID).
+        specs = {
+          ["*"] = {
+            contexts = {},
+            perMythicEnabled = false,
+            mythics = {}
+          }
+        }
+      }
     }
   },
   profile = {
@@ -132,27 +145,40 @@ dbDefaults = {
       showAddonCompartment = true,
       addonsInCompartment = false
     },
-    buffs = {
-      enabled = false,
-      point = "TOP",
-      relativePoint = "TOP",
-      x = 0,
-      y = -130,
-      iconSize = 150,
-      iconGap = 6,
-      showGlow = true,
-      showIfExpiring = true,
-      durationPosition = "below",
-      lastUsedItems = {},
-      contentTypes = {
-        mythicDungeons = true,
-        nonLfrRaids = true
+    reminders = {
+      enabled = true,
+      buffs = {
+        enabled = false,
+        point = "TOP",
+        relativePoint = "TOP",
+        x = 0,
+        y = -130,
+        iconSize = 150,
+        iconGap = 6,
+        showGlow = true,
+        showIfExpiring = true,
+        durationPosition = "below",
+        lastUsedItems = {},
+        contentTypes = {
+          mythicDungeons = true,
+          nonLfrRaids = true
+        },
+        categories = {
+          food = true,
+          flask = true,
+          oil = true,
+          rune = false
+        }
       },
-      categories = {
-        food = true,
-        flask = true,
-        oil = true,
-        rune = false
+      talents = {
+        enabled = false,
+        -- Position of the switch-talents prompt.
+        prompt = {
+          point = "TOP",
+          relativePoint = "TOP",
+          x = 0,
+          y = -60
+        }
       }
     },
     selfVendor = {
@@ -260,12 +286,12 @@ dbDefaults = {
 
 WIP_MODULES = {
   {
-    key = "buffs",
+    key = { "reminders", "buffs" },
     name = "Consumable Buff Reminders",
     enableOptions = { { "enabled" } },
     disable = function()
-      if Self.db and Self.db.profile and Self.db.profile.buffs then
-        Self.db.profile.buffs.enabled = false
+      if Self.db and Self.db.profile and Self.db.profile.reminders then
+        Self.db.profile.reminders.buffs.enabled = false
       end
       if Self.Buffs and Self.Buffs.Refresh then
         Self.Buffs:Refresh()
@@ -292,7 +318,7 @@ WIP_MODULES = {
 }
 
 RETAIL_MODULES = {
-  { key = "buffs", name = "Consumable Buff Reminders" },
+  { key = "reminders", name = "Reminders" },
   { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
@@ -1048,6 +1074,180 @@ end
 
 local function infoDisplayCharSheetDisabled()
   return not db.profile.infoDisplay.enabled or not db.profile.infoDisplay.charSheet.enabled
+end
+
+--- AceConfig `disabled` callback: Reminders options are greyed out while its master switch is off.
+---@return boolean disabled
+local function remindersDisabled()
+  return not db.profile.reminders.enabled
+end
+
+--- AceConfig `disabled` callback: Talent Reminders' loadout choices are greyed out while it or Reminders is off.
+---@return boolean disabled
+local function talentRemindersDisabled()
+  return not db.profile.reminders.enabled or not db.profile.reminders.talents.enabled
+end
+
+-- Select keys for the empty choices in Talent Reminders' loadout dropdowns; loadouts use their config ID as a string.
+local LOADOUT_OFF = "off"
+local LOADOUT_DEFAULT = "default"
+
+--- Returns the current character's specialization ID at a spec index, or nil when the class has fewer specs.
+---@param index number Specialization index (1 to GetNumSpecializations()).
+---@return number|nil specID
+local function talentSpecID(index)
+  if not (GetNumSpecializations and GetSpecializationInfo) or index > (GetNumSpecializations() or 0) then
+    return nil
+  end
+  return (GetSpecializationInfo(index))
+end
+
+--- Builds AceConfig select `values` and `sorting` for a spec's talent loadouts, led by an empty choice.
+---@param specID number|nil
+---@param emptyKey string Key of the empty choice (LOADOUT_OFF or LOADOUT_DEFAULT).
+---@param emptyLabel string Label of the empty choice.
+---@return table values Key -> label.
+---@return table sorting Keys in display order: the empty choice, then the loadouts in the talent UI's order.
+local function loadoutChoices(specID, emptyKey, emptyLabel)
+  local values, sorting = { [emptyKey] = emptyLabel }, { emptyKey }
+  for _, loadout in ipairs(Self.Talents:GetLoadouts(specID)) do
+    local key = tostring(loadout.configID)
+    values[key] = loadout.name
+    table.insert(sorting, key)
+  end
+  return values, sorting
+end
+
+--- Builds the options tab for one of the character's specializations: a loadout dropdown per content context, and
+--- the per-Mythic+ dungeon loadouts. Hidden when the class doesn't have a spec at this index.
+---@param index number Specialization index.
+---@return table group AceConfig group.
+local function talentSpecOptions(index)
+  local contextArgs = {}
+  for order, context in ipairs(Self.Talents.CONTEXTS) do
+    contextArgs[context.key] = {
+      name = context.name,
+      desc = context.desc,
+      type = "select",
+      values = function() return (loadoutChoices(talentSpecID(index), LOADOUT_OFF, "Off")) end,
+      sorting = function() return select(2, loadoutChoices(talentSpecID(index), LOADOUT_OFF, "Off")) end,
+      get = function()
+        local configID = Self.Talents:GetContextLoadout(talentSpecID(index), context.key)
+        return configID and tostring(configID) or LOADOUT_OFF
+      end,
+      set = function(_, value) Self.Talents:SetContextLoadout(talentSpecID(index), context.key, tonumber(value)) end,
+      order = order
+    }
+  end
+
+  local mythicArgs = {
+    perMythicEnabled = {
+      name = "Enable Per-Mythic+ Dungeon Loadouts",
+      desc = "Choose a loadout for each of the current season's Mythic+ dungeons. Dungeons set to " ..
+        "\"Use Default\" use the Dungeons loadout.",
+      type = "toggle",
+      descStyle = "inline",
+      width = "full",
+      get = function() return Self.Talents:IsPerMythicEnabled(talentSpecID(index)) end,
+      set = function(_, value) Self.Talents:SetPerMythicEnabled(talentSpecID(index), value) end,
+      order = 0
+    },
+    noDungeons = {
+      type = "description",
+      name = "No current-season Mythic+ dungeons were found.",
+      width = "full",
+      hidden = function() return #Self.Talents:GetSeasonDungeons() > 0 end,
+      order = 0.5
+    }
+  }
+  -- Fixed slots filled from the game's current-season dungeon list each time the options are drawn.
+  for slot = 1, Self.Talents.MAX_SEASON_DUNGEONS do
+    --- Returns the season dungeon shown in this slot.
+    ---@return table|nil dungeon
+    local function dungeon() return Self.Talents:GetSeasonDungeons()[slot] end
+    mythicArgs["dungeon" .. slot] = {
+      name = function()
+        local info = dungeon()
+        return info and info.name or ""
+      end,
+      type = "select",
+      hidden = function() return dungeon() == nil end,
+      disabled = function()
+        return talentRemindersDisabled() or not Self.Talents:IsPerMythicEnabled(talentSpecID(index))
+      end,
+      values = function() return (loadoutChoices(talentSpecID(index), LOADOUT_DEFAULT, "Use Default")) end,
+      sorting = function() return select(2, loadoutChoices(talentSpecID(index), LOADOUT_DEFAULT, "Use Default")) end,
+      get = function()
+        local info = dungeon()
+        local configID = info and Self.Talents:GetMythicLoadout(talentSpecID(index), info.challengeMapID)
+        return configID and tostring(configID) or LOADOUT_DEFAULT
+      end,
+      set = function(_, value)
+        local info = dungeon()
+        if not info then return end
+        Self.Talents:SetMythicLoadout(talentSpecID(index), info.challengeMapID, tonumber(value))
+      end,
+      order = slot
+    }
+  end
+
+  return {
+    type = "group",
+    name = function()
+      if not talentSpecID(index) then return "Specialization " .. index end
+      local _, specName = GetSpecializationInfo(index)
+      return specName or ("Specialization " .. index)
+    end,
+    order = index,
+    hidden = function() return talentSpecID(index) == nil end,
+    disabled = talentRemindersDisabled,
+    args = {
+      contexts = {
+        type = "group",
+        name = "Loadout by Content",
+        inline = true,
+        order = 1,
+        args = contextArgs
+      },
+      mythics = {
+        type = "group",
+        name = "Per-Mythic+ Dungeon Loadouts",
+        inline = true,
+        order = 2,
+        args = mythicArgs
+      }
+    }
+  }
+end
+
+--- Builds the Talent Reminders options group, with a tab for each of the character's specializations.
+---@return table group AceConfig group.
+local function talentReminderOptions()
+  local args = {
+    overview = goldModuleOverview("Get asked to switch talent loadouts when you enter or leave content, using the loadout you pick for each kind of content. Loadouts are saved per character."),
+    enabled = {
+      name = "Enable Talent Reminders Module",
+      desc = "Prompt to switch talent loadouts when entering or leaving Questing, Delves, Raids, Dungeons, and PvP content.",
+      type = "toggle",
+      descStyle = "inline",
+      width = "full",
+      get = function() return db.profile.reminders.talents.enabled end,
+      set = function(_, value) Self.Talents:SetEnabled(value) end,
+      order = 0.05
+    }
+  }
+  for index = 1, Self.Talents.MAX_SPECS do
+    args["spec" .. index] = talentSpecOptions(index)
+  end
+  return {
+    type = "group",
+    name = "Talent Reminders",
+    desc = "Prompts you to switch talent loadouts\nfor your current content.",
+    order = 2,
+    childGroups = "tab",
+    disabled = remindersDisabled,
+    args = args
+  }
 end
 
 options = {
@@ -2308,212 +2508,234 @@ options = {
         }
       }
     },
-    buffs = {
+    reminders = {
       type = "group",
-      name = "Consumable Buff Reminders",
-      desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
-      order = 12,
+      name = "Reminders",
+      desc = "Reminders for consumable buffs and talent loadouts.",
+      order = 7.5,
       args = {
-        overview = goldModuleOverview("Get clickable reminders for food, flask, oil, and augment rune buffs in Mythic dungeons and raids."),
+        overview = goldModuleOverview("Get reminded about things that are easy to forget, like consumable buffs and switching to the right talent loadout for your content."),
         enabled = {
-          name = "Enable Consumable Buff Reminders Module",
-          desc = "Show consumable buff reminders.",
+          name = "Enable Reminders Module",
+          desc = "Enable all Reminders features: Consumable Buff Reminders and Talent Reminders. " ..
+            "Turning this off disables all of them.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.buffs.enabled end,
-          set = function(_, value)
-            db.profile.buffs.enabled = value
-            Self.Buffs:Refresh()
-          end,
+          get = function() return db.profile.reminders.enabled end,
+          set = function(_, value) Self.Reminders:SetEnabled(value) end,
           order = 0.05
         },
-        openEditMode = {
-          name = "Position Buff Icons via Edit Mode",
-          desc = "Open Blizzard's Edit Mode to position the buff reminder icons.",
-          type = "execute",
-          func = function()
-            if InCombatLockdown() then return end
-            if SettingsPanel and SettingsPanel:IsShown() then
-              HideUIPanel(SettingsPanel)
-            end
-            if EditModeManagerFrame then
-              ShowUIPanel(EditModeManagerFrame)
-            end
-          end,
-          order = 0.1
-        },
-        showGlow = {
-          name = "Show Item Glow",
-          desc = "Show the proc golden glow on the icons to catch your attention.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.buffs.showGlow end,
-          set = function(_, value)
-            db.profile.buffs.showGlow = value
-            Self.Buffs:Refresh()
-          end,
-          order = 0.5
-        },
-        showIfExpiringGroup = {
+        buffs = {
           type = "group",
-          name = "Buff Expiration",
-          inline = true,
-          order = 0.6,
-          args = {
-            showIfExpiring = {
-              name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
-              desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or " ..
-                "estimated raid boss fight ends.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.buffs.showIfExpiring end,
-              set = function(_, value)
-                db.profile.buffs.showIfExpiring = value
-                Self.Buffs:Refresh()
-              end,
-              order = 1
-            },
-            durationPosition = {
-              name = "Duration Remaining Position",
-              desc = "Where to show the buff's remaining duration relative to its icon.",
-              type = "select",
-              width = "full",
-              values = {
-                above = "Above Icon",
-                below = "Below Icon"
-              },
-              sorting = { "above", "below" },
-              get = function() return db.profile.buffs.durationPosition end,
-              set = function(_, value)
-                db.profile.buffs.durationPosition = value
-                Self.Buffs:Refresh()
-              end,
-              disabled = function() return not db.profile.buffs.showIfExpiring end,
-              order = 2
-            }
-          }
-        },
-        contentGroup = {
-          type = "group",
-          name = "Where to Remind",
-          inline = true,
+          name = "Consumable Buff Reminders",
+          desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
           order = 1,
+          disabled = remindersDisabled,
           args = {
-            mythicDungeons = {
-              name = "In Mythic Dungeons",
-              desc = "Show buff reminders while in a Mythic (or Mythic Keystone)\ndungeon with a group.",
+            overview = goldModuleOverview("Get clickable reminders for food, flask, oil, and augment rune buffs in Mythic dungeons and raids."),
+            enabled = {
+              name = "Enable Consumable Buff Reminders Module",
+              desc = "Show consumable buff reminders.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.buffs.contentTypes.mythicDungeons end,
+              get = function() return db.profile.reminders.buffs.enabled end,
               set = function(_, value)
-                db.profile.buffs.contentTypes.mythicDungeons = value
+                db.profile.reminders.buffs.enabled = value
                 Self.Buffs:Refresh()
               end,
-              order = 1
+              order = 0.05
             },
-            nonLfrRaids = {
-              name = "In (Non-LFR) Raids",
-              desc = "Show buff reminders while in a Normal, Heroic, or Mythic raid\nwith a group.",
+            openEditMode = {
+              name = "Position Buff Icons via Edit Mode",
+              desc = "Open Blizzard's Edit Mode to position the buff reminder icons.",
+              type = "execute",
+              func = function()
+                if InCombatLockdown() then return end
+                if SettingsPanel and SettingsPanel:IsShown() then
+                  HideUIPanel(SettingsPanel)
+                end
+                if EditModeManagerFrame then
+                  ShowUIPanel(EditModeManagerFrame)
+                end
+              end,
+              order = 0.1
+            },
+            showGlow = {
+              name = "Show Item Glow",
+              desc = "Show the proc golden glow on the icons to catch your attention.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.buffs.contentTypes.nonLfrRaids end,
+              get = function() return db.profile.reminders.buffs.showGlow end,
               set = function(_, value)
-                db.profile.buffs.contentTypes.nonLfrRaids = value
+                db.profile.reminders.buffs.showGlow = value
                 Self.Buffs:Refresh()
               end,
-              order = 2
+              order = 0.5
+            },
+            showIfExpiringGroup = {
+              type = "group",
+              name = "Buff Expiration",
+              inline = true,
+              order = 0.6,
+              args = {
+                showIfExpiring = {
+                  name = "Show Buffs if They'll Expire Mid-Mythic / Raid Boss",
+                  desc = "Show reminders when a timed buff will expire before the Mythic dungeon timer or " ..
+                    "estimated raid boss fight ends.",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.showIfExpiring end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.showIfExpiring = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 1
+                },
+                durationPosition = {
+                  name = "Duration Remaining Position",
+                  desc = "Where to show the buff's remaining duration relative to its icon.",
+                  type = "select",
+                  width = "full",
+                  values = {
+                    above = "Above Icon",
+                    below = "Below Icon"
+                  },
+                  sorting = { "above", "below" },
+                  get = function() return db.profile.reminders.buffs.durationPosition end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.durationPosition = value
+                    Self.Buffs:Refresh()
+                  end,
+                  disabled = function() return not db.profile.reminders.buffs.showIfExpiring end,
+                  order = 2
+                }
+              }
+            },
+            contentGroup = {
+              type = "group",
+              name = "Where to Remind",
+              inline = true,
+              order = 1,
+              args = {
+                mythicDungeons = {
+                  name = "In Mythic Dungeons",
+                  desc = "Show buff reminders while in a Mythic (or Mythic Keystone)\ndungeon with a group.",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.contentTypes.mythicDungeons end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.contentTypes.mythicDungeons = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 1
+                },
+                nonLfrRaids = {
+                  name = "In (Non-LFR) Raids",
+                  desc = "Show buff reminders while in a Normal, Heroic, or Mythic raid\nwith a group.",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.contentTypes.nonLfrRaids end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.contentTypes.nonLfrRaids = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 2
+                }
+              }
+            },
+            categoriesGroup = {
+              type = "group",
+              name = "Buffs to Track",
+              inline = true,
+              order = 2,
+              args = {
+                food = {
+                  name = "Food Buff",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.categories.food end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.categories.food = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 1
+                },
+                flask = {
+                  name = "Flask Buff",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.categories.flask end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.categories.flask = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 2
+                },
+                oil = {
+                  name = "Oil Buff",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.categories.oil end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.categories.oil = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 3
+                },
+                rune = {
+                  name = "Augment Rune Buff",
+                  type = "toggle",
+                  descStyle = "inline",
+                  width = "full",
+                  get = function() return db.profile.reminders.buffs.categories.rune end,
+                  set = function(_, value)
+                    db.profile.reminders.buffs.categories.rune = value
+                    Self.Buffs:Refresh()
+                  end,
+                  order = 4
+                }
+              }
+            },
+            iconSize = {
+              name = "Icon Size",
+              desc = "Size of the buff reminder icons as a percentage of the standard aura icon size.",
+              type = "range",
+              min = 50,
+              max = 300,
+              step = 5,
+              get = function() return db.profile.reminders.buffs.iconSize end,
+              set = function(_, value)
+                db.profile.reminders.buffs.iconSize = value
+                Self.Buffs:Refresh()
+              end,
+              order = 5
+            },
+            iconGap = {
+              name = "Icon Gap",
+              desc = "Space between the buff reminder icons.",
+              type = "range",
+              min = 0,
+              max = 100,
+              step = 1,
+              get = function() return db.profile.reminders.buffs.iconGap end,
+              set = function(_, value)
+                db.profile.reminders.buffs.iconGap = value
+                Self.Buffs:Refresh()
+              end,
+              order = 6
             }
           }
         },
-        categoriesGroup = {
-          type = "group",
-          name = "Buffs to Track",
-          inline = true,
-          order = 2,
-          args = {
-            food = {
-              name = "Food Buff",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.buffs.categories.food end,
-              set = function(_, value)
-                db.profile.buffs.categories.food = value
-                Self.Buffs:Refresh()
-              end,
-              order = 1
-            },
-            flask = {
-              name = "Flask Buff",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.buffs.categories.flask end,
-              set = function(_, value)
-                db.profile.buffs.categories.flask = value
-                Self.Buffs:Refresh()
-              end,
-              order = 2
-            },
-            oil = {
-              name = "Oil Buff",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.buffs.categories.oil end,
-              set = function(_, value)
-                db.profile.buffs.categories.oil = value
-                Self.Buffs:Refresh()
-              end,
-              order = 3
-            },
-            rune = {
-              name = "Augment Rune Buff",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.buffs.categories.rune end,
-              set = function(_, value)
-                db.profile.buffs.categories.rune = value
-                Self.Buffs:Refresh()
-              end,
-              order = 4
-            }
-          }
-        },
-        iconSize = {
-          name = "Icon Size",
-          desc = "Size of the buff reminder icons as a percentage of the standard aura icon size.",
-          type = "range",
-          min = 50,
-          max = 300,
-          step = 5,
-          get = function() return db.profile.buffs.iconSize end,
-          set = function(_, value)
-            db.profile.buffs.iconSize = value
-            Self.Buffs:Refresh()
-          end,
-          order = 5
-        },
-        iconGap = {
-          name = "Icon Gap",
-          desc = "Space between the buff reminder icons.",
-          type = "range",
-          min = 0,
-          max = 100,
-          step = 1,
-          get = function() return db.profile.buffs.iconGap end,
-          set = function(_, value)
-            db.profile.buffs.iconGap = value
-            Self.Buffs:Refresh()
-          end,
-          order = 6
-        }
+        talents = talentReminderOptions(),
       }
     },
     infoDisplay = {

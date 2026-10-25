@@ -97,6 +97,20 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 * **Collapsible:** Same as the individual lists.
 * **Window Interaction:** Lock Position and Make Non-Interactive apply to the entire stacked window, independently of the standalone windows' settings. Only the topmost cog offers these options and remains interactive when click-through is on.
 
+### Reminders
+One "Enable Reminders Module" switch turns all Reminders features on or off at once. Each feature also has its own on/off setting. Retail only.
+
+#### Consumable Buff Reminders (**WIP!**)
+* **Clickable Aura Icons:** Shows on-screen buttons to apply Food, Flask, Weapon Oil, or Augment Runes when buffs are missing.
+* **Buff Expiration:** Triggers warnings if a buff is projected to expire during an active Mythic+ key or raid encounter.
+* **Where to Remind:** Options to restrict reminders to Mythic/Mythic+ dungeons and non-LFR raids (Normal, Heroic, Mythic).
+* **Edit Mode Support:** Registered with Blizzard's Edit Mode for positioning and scaling.
+
+#### Talent Reminders
+* **Loadout by Content:** For each of your specs, pick a talent loadout (or "Off") for Questing, Delves, Raids, Dungeons, and PvP. Choices are saved per character.
+* **Switch Prompt:** When you enter or leave content and your active loadout doesn't match, a movable prompt near the top of the screen offers to switch, with your chosen loadout pre-selected in a dropdown. It never takes keyboard focus.
+* **Per-Mythic+ Dungeon Loadouts:** Optionally pick a loadout for each of the current season's Mythic+ dungeons (listed from the game's own Mythic+ data). Dungeons left on "Use Default" use the Dungeons loadout.
+
 ### Mouse Ring
 * Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.
 
@@ -136,12 +150,6 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 
 #### Paladin
 * **Holy Shock Tracker:** HUD element displaying Holy Shock charge count and recharge progress, with Edit Mode positioning and an in-combat-only display setting.
-
-### Consumable Buff Reminders (**WIP!**)
-* **Clickable Aura Icons:** Shows on-screen buttons to apply Food, Flask, Weapon Oil, or Augment Runes when buffs are missing.
-* **Buff Expiration:** Triggers warnings if a buff is projected to expire during an active Mythic+ key or raid encounter.
-* **Where to Remind:** Options to restrict reminders to Mythic/Mythic+ dungeons and non-LFR raids (Normal, Heroic, Mythic).
-* **Edit Mode Support:** Registered with Blizzard's Edit Mode for positioning and scaling.
 
 ---
 

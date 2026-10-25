@@ -19,7 +19,9 @@ SelfVendor.lua
 Nameplates.lua
 ChargeTracking.lua
 Bindings.lua
-Buffs.lua
+Reminders.lua
+Reminders_Buffs.lua
+Reminders_Talents.lua
 Weeklies.lua
 ListviewBag.lua
 Minimap.lua

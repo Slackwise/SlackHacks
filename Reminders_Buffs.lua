@@ -6,6 +6,9 @@ setfenv(1, _G.SlackHacks)
   polling aura events constantly. Auras/bags are only rescanned on: PLAYER_ENTERING_WORLD (login/zoning
   into an instance), CHALLENGE_MODE_START (key start), entering/leaving combat, joining/leaving a
   group, and bag changes (using an item).
+
+  A sub-module of Reminders (Reminders.lua): it only shows while both its own setting and the Reminders master
+  switch are on.
 ]]--
 
 local module = Self:NewModule("Buffs", "AceEvent-3.0")
@@ -174,7 +177,7 @@ local function categoryIcon(category)
 end
 
 local function lastUsedItems()
-  local buffs = db.profile.buffs
+  local buffs = db.profile.reminders.buffs
   buffs.lastUsedItems = buffs.lastUsedItems or {}
   return buffs.lastUsedItems
 end
@@ -355,8 +358,14 @@ local function currentContentContext()
   return nil
 end
 
+--- Returns whether buff reminders may run: its own setting and the Reminders module's master switch are both on.
+---@return boolean active
+local function isActive()
+  return db.profile.reminders.enabled and db.profile.reminders.buffs.enabled
+end
+
 local function shouldTrackAuras()
-  if not db.profile.buffs.enabled then return false end
+  if not isActive() then return false end
   local inInstance = IsInInstance()
   if not inInstance then return false end
   local debugging = isDebugging()
@@ -364,14 +373,14 @@ local function shouldTrackAuras()
 
   local context = currentContentContext()
   if not context or not (IsInGroup() or IsInRaid()) then return false end
-  if context == "mythicDungeon" then return db.profile.buffs.contentTypes.mythicDungeons end
-  if context == "raid" then return db.profile.buffs.contentTypes.nonLfrRaids end
+  if context == "mythicDungeon" then return db.profile.reminders.buffs.contentTypes.mythicDungeons end
+  if context == "raid" then return db.profile.reminders.buffs.contentTypes.nonLfrRaids end
   return false
 end
 
 local function contextIsEnabled(context)
-  if context == "mythicDungeon" then return db.profile.buffs.contentTypes.mythicDungeons end
-  if context == "raid" then return db.profile.buffs.contentTypes.nonLfrRaids end
+  if context == "mythicDungeon" then return db.profile.reminders.buffs.contentTypes.mythicDungeons end
+  if context == "raid" then return db.profile.reminders.buffs.contentTypes.nonLfrRaids end
   return false
 end
 
@@ -392,11 +401,11 @@ end
 --- Whether a category should currently be shown: always if the buff is entirely missing, otherwise
 --- only once its remaining duration drops to/under the content's threshold.
 local function categoryShouldShow(category, context)
-  if not db.profile.buffs.categories[category.dbKey] then return false end
+  if not db.profile.reminders.buffs.categories[category.dbKey] then return false end
   local expiration = categoryBuffExpiration(category)
   if not expiration then return true end -- buff missing entirely
   if expiration == 0 then return false end -- permanent buff present, nothing to remind about
-  if not db.profile.buffs.showIfExpiring then return false end
+  if not db.profile.reminders.buffs.showIfExpiring then return false end
   local threshold = thresholdSecondsForContext(context)
   if not threshold then return false end
   return (expiration - GetTime()) <= threshold
@@ -404,7 +413,7 @@ end
 
 local function activeCategories()
   if InCombatLockdown() then return {} end
-  if not db.profile.buffs.enabled then return {} end
+  if not isActive() then return {} end
   local debugging = isDebugging()
   local context = currentContentContext()
   if not debugging and (not context or not contextIsEnabled(context)) then return {} end
@@ -508,7 +517,7 @@ end
 local function updatePosition()
   if not container then return end
   container:ClearAllPoints()
-  local buffsDb = db.profile.buffs
+  local buffsDb = db.profile.reminders.buffs
   local point = buffsDb.point or "TOP"
   local relativePoint = buffsDb.relativePoint or point
   local x = buffsDb.x or 0
@@ -522,7 +531,7 @@ local function createContainer()
   container:SetMovable(true)
   container:SetClampedToScreen(true)
   container:SetDontSavePosition(true)
-  local scale = (db.profile.buffs.iconSize or 100) / 100
+  local scale = (db.profile.reminders.buffs.iconSize or 100) / 100
   container:SetScale(scale)
   container:SetSize(AURA_BUTTON_WIDTH, AURA_BUTTON_WIDTH)
   updatePosition()
@@ -584,7 +593,7 @@ local function rememberDefaultItem(button, category, item)
   configureDefaultItem(button, category, item.itemID)
   button.icon:SetTexture(item.icon or categoryIcon(category))
   button.hasDefaultItem = true
-  setNativeOverlayGlow(button, db.profile.buffs.showGlow and button.expirationTime == nil)
+  setNativeOverlayGlow(button, db.profile.reminders.buffs.showGlow and button.expirationTime == nil)
 end
 
 local function createMenuRow(index)
@@ -744,7 +753,7 @@ end
 --- Anchors a button's duration label above or below its icon per the "durationPosition" setting.
 local function setDurationPosition(duration)
   duration:ClearAllPoints()
-  if db.profile.buffs.durationPosition == "above" then
+  if db.profile.reminders.buffs.durationPosition == "above" then
     duration:SetPoint("BOTTOM", duration:GetParent(), "TOP", 0, 2)
   else
     duration:SetPoint("TOP", duration:GetParent(), "BOTTOM", 0, -2)
@@ -843,9 +852,9 @@ local function layoutIcons(active, allowCombatDisplay)
     return
   end
 
-  local scale = (db.profile.buffs.iconSize or 100) / 100
+  local scale = (db.profile.reminders.buffs.iconSize or 100) / 100
   container:SetScale(scale)
-  local totalWidth = (count * AURA_BUTTON_WIDTH) + ((count - 1) * db.profile.buffs.iconGap)
+  local totalWidth = (count * AURA_BUTTON_WIDTH) + ((count - 1) * db.profile.reminders.buffs.iconGap)
   container:SetSize(math.max(totalWidth, AURA_BUTTON_WIDTH), AURA_BUTTON_WIDTH)
   updatePosition()
 
@@ -866,10 +875,10 @@ local function layoutIcons(active, allowCombatDisplay)
     button:Show()
     button.hasDefaultItem = defaultItemID ~= nil
 
-    setNativeOverlayGlow(button, (not isEditing) and db.profile.buffs.showGlow and button.expirationTime == nil)
+    setNativeOverlayGlow(button, (not isEditing) and db.profile.reminders.buffs.showGlow and button.expirationTime == nil)
 
     button:ClearAllPoints()
-    local offsetX = (index - 1) * (AURA_BUTTON_WIDTH + db.profile.buffs.iconGap)
+    local offsetX = (index - 1) * (AURA_BUTTON_WIDTH + db.profile.reminders.buffs.iconGap)
     button:SetPoint("LEFT", container, "LEFT", offsetX, 0)
   end
 
@@ -900,16 +909,16 @@ local function onDragStop()
 
   local point, relativeTo, relativePoint, x, y = container:GetPoint(1)
   if point then
-    db.profile.buffs.point = point
-    db.profile.buffs.relativePoint = relativePoint or point
-    db.profile.buffs.x = math.floor(x + 0.5)
-    db.profile.buffs.y = math.floor(y + 0.5)
+    db.profile.reminders.buffs.point = point
+    db.profile.reminders.buffs.relativePoint = relativePoint or point
+    db.profile.reminders.buffs.x = math.floor(x + 0.5)
+    db.profile.reminders.buffs.y = math.floor(y + 0.5)
   end
   updatePosition()
 end
 
 --- Builds (once) the Edit Mode settings dialog: a plain frame with checkboxes/sliders/dropdowns bound
---- directly to `db.profile.buffs`. Each control's callback re-runs `layoutIcons`/`module:Refresh()`
+--- directly to `db.profile.reminders.buffs`. Each control's callback re-runs `layoutIcons`/`module:Refresh()`
 --- immediately so changes preview live while still in edit mode.
 local function createEditModeDialog()
   if editModeDialog then return editModeDialog end
@@ -1107,8 +1116,8 @@ local function createEditModeDialog()
 
   local curY = -46
   _, curY = addCheckbox("Show Item Proc Glow",
-    function() return db.profile.buffs.showGlow end,
-    function(v) db.profile.buffs.showGlow = v end,
+    function() return db.profile.reminders.buffs.showGlow end,
+    function(v) db.profile.reminders.buffs.showGlow = v end,
     curY, "Show the golden animated alert glow around items ready to use.")
 
   curY = addDivider(curY - 2)
@@ -1116,56 +1125,56 @@ local function createEditModeDialog()
   local durationPositionDependents = {}
   local showIfExpiringCb
   showIfExpiringCb, curY = addCheckbox("Show Expiring Before Boss / Timer",
-    function() return db.profile.buffs.showIfExpiring end,
-    function(v) db.profile.buffs.showIfExpiring = v end,
+    function() return db.profile.reminders.buffs.showIfExpiring end,
+    function(v) db.profile.reminders.buffs.showIfExpiring = v end,
     curY, "Show reminders when a timed buff will expire before the instance/encounter ends.",
     durationPositionDependents)
   local durationPositionFrame
   durationPositionFrame, curY = addDropdown("Duration Remaining Position",
     { above = "Above Icon", below = "Below Icon" }, { "above", "below" },
-    function() return db.profile.buffs.durationPosition end,
-    function(v) db.profile.buffs.durationPosition = v end,
+    function() return db.profile.reminders.buffs.durationPosition end,
+    function(v) db.profile.reminders.buffs.durationPosition = v end,
     curY)
   table.insert(durationPositionDependents, durationPositionFrame)
 
   curY = addDivider(curY - 2)
   curY = addHeader("Where to Remind", curY)
   _, curY = addCheckbox("In Mythic Dungeons",
-    function() return db.profile.buffs.contentTypes.mythicDungeons end,
-    function(v) db.profile.buffs.contentTypes.mythicDungeons = v end,
+    function() return db.profile.reminders.buffs.contentTypes.mythicDungeons end,
+    function(v) db.profile.reminders.buffs.contentTypes.mythicDungeons = v end,
     curY)
   _, curY = addCheckbox("In (Non-LFR) Raids",
-    function() return db.profile.buffs.contentTypes.nonLfrRaids end,
-    function(v) db.profile.buffs.contentTypes.nonLfrRaids = v end,
+    function() return db.profile.reminders.buffs.contentTypes.nonLfrRaids end,
+    function(v) db.profile.reminders.buffs.contentTypes.nonLfrRaids = v end,
     curY)
 
   curY = addDivider(curY - 2)
   curY = addHeader("Buffs to Track", curY)
   _, curY = addCheckbox("Food Buff",
-    function() return db.profile.buffs.categories.food end,
-    function(v) db.profile.buffs.categories.food = v end,
+    function() return db.profile.reminders.buffs.categories.food end,
+    function(v) db.profile.reminders.buffs.categories.food = v end,
     curY)
   _, curY = addCheckbox("Flask Buff",
-    function() return db.profile.buffs.categories.flask end,
-    function(v) db.profile.buffs.categories.flask = v end,
+    function() return db.profile.reminders.buffs.categories.flask end,
+    function(v) db.profile.reminders.buffs.categories.flask = v end,
     curY)
   _, curY = addCheckbox("Oil Buff",
-    function() return db.profile.buffs.categories.oil end,
-    function(v) db.profile.buffs.categories.oil = v end,
+    function() return db.profile.reminders.buffs.categories.oil end,
+    function(v) db.profile.reminders.buffs.categories.oil = v end,
     curY)
   _, curY = addCheckbox("Augment Rune Buff",
-    function() return db.profile.buffs.categories.rune end,
-    function(v) db.profile.buffs.categories.rune = v end,
+    function() return db.profile.reminders.buffs.categories.rune end,
+    function(v) db.profile.reminders.buffs.categories.rune = v end,
     curY)
 
   curY = addDivider(curY - 2)
   curY = addSlider("Icon Size", 50, 300, 5,
-    function() return db.profile.buffs.iconSize end,
-    function(v) db.profile.buffs.iconSize = v end,
+    function() return db.profile.reminders.buffs.iconSize end,
+    function(v) db.profile.reminders.buffs.iconSize = v end,
     curY, function(v) return math.floor(v + 0.5) .. "%" end)
   curY = addSlider("Icon Gap", 0, 100, 1,
-    function() return db.profile.buffs.iconGap end,
-    function(v) db.profile.buffs.iconGap = v end,
+    function() return db.profile.reminders.buffs.iconGap end,
+    function(v) db.profile.reminders.buffs.iconGap = v end,
     curY, function(v) return math.floor(v + 0.5) .. "px" end)
 
   dialog:SetHeight(math.abs(curY) + 24)

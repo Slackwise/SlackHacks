@@ -397,9 +397,24 @@ CONFIG_MIGRATIONS = {
     migrateProfile(Self.db.profile)
   end,
   -- Config v10, addon v17.
-  --- Add the opt-in Mythic-run restriction without changing existing NPC automation.
+  --- Add the opt-in Mythic-run restriction without changing existing NPC automation, and move the Consumable Buff
+  --- Reminders' settings (`buffs`) under the new Reminders module (`reminders.buffs`).
   [10] = function()
-    --- Initialize the restriction in a saved profile, preserving explicit choices.
+    --- Copies saved values from one table into another, recursing into sub-tables that exist in both so the
+    --- destination's AceDB defaults survive.
+    ---@param source table Raw saved values.
+    ---@param destination table
+    local function mergeInto(source, destination)
+      for key, value in pairs(source) do
+        if type(value) == "table" and type(destination[key]) == "table" then
+          mergeInto(value, destination[key])
+        else
+          destination[key] = value
+        end
+      end
+    end
+    --- Initialize the restriction and move the buff reminder settings in a saved profile, preserving explicit
+    --- choices.
     ---@param p table|nil Saved profile.
     local function migrateProfile(p)
       if type(p) ~= "table" then return end
@@ -407,6 +422,16 @@ CONFIG_MIGRATIONS = {
       if p.quest.autoClickFirstOptionMythicOnly == nil then
         p.quest.autoClickFirstOptionMythicOnly = false
       end
+
+      -- `buffs` has no defaults anymore, so rawget only finds what the user saved. The active profile also shows
+      -- up in Self.db.profiles; once moved, `buffs` is gone, so running this again for it is a no-op.
+      local oldBuffs = rawget(p, "buffs")
+      if type(oldBuffs) == "table" then
+        if type(p.reminders) ~= "table" then p.reminders = {} end
+        if type(p.reminders.buffs) ~= "table" then p.reminders.buffs = {} end
+        mergeInto(oldBuffs, p.reminders.buffs)
+      end
+      p.buffs = nil
     end
     if Self.db.profiles then
       for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
