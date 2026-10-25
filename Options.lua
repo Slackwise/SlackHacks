@@ -367,6 +367,59 @@ local function applyWIPOptionsDecoration()
   end
 end
 
+--- Ask before enabling Blizzard-frame modifications while EllesmereUI is loaded.
+---@param _ table AceConfig option info.
+---@param value boolean Requested enabled state.
+---@return string|nil Warning text when confirmation is required.
+local function confirmEllesmereUIEnable(_, value)
+  if not value then return end
+  local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
+  if isLoaded and isLoaded("EllesmereUI") then
+    return "EllesmereUI detected. This module modifies the standard Blizzard frames and will likely not work with your interface. Are you sure you want to enable it?"
+  end
+end
+
+--- Require compatibility confirmation on controls that activate Blizzard-frame modifications.
+local function applyEllesmereUIConfirmations()
+  local paths = {
+    { "inventory", "hideBagsFrame" },
+    { "inventory", "listviewBag", "enabled" },
+    { "minimap", "enabled" },
+    { "infoDisplay", "weeklies", "enabled" },
+    { "infoDisplay", "charSheet", "enabled" },
+    { "windows", "enabled" },
+    { "windows", "movableToasts" },
+    { "windows", "scalingZoneMap" },
+    { "windows", "movable", "enabled" },
+    { "windows", "scaling", "enabled" },
+  }
+  for _, path in ipairs(paths) do
+    local option = options
+    for _, key in ipairs(path) do option = option.args[key] end
+    option.confirm = confirmEllesmereUIEnable
+  end
+  --- Preserve the WIP warning and include the compatibility warning when EllesmereUI is loaded.
+  ---@param info table AceConfig option info.
+  ---@param value boolean Requested enabled state.
+  ---@return string|nil Applicable warnings, or nil when disabling.
+  options.args.combat.args.raiseCastingNameplates.confirm = function(info, value)
+    local wipWarning = confirmWIPEnable(info, value)
+    local compatibilityWarning = confirmEllesmereUIEnable(info, value)
+    if compatibilityWarning then return wipWarning .. "\n\n" .. compatibilityWarning end
+    return wipWarning
+  end
+  -- The parent switch can reactivate these modules without touching their own checkboxes.
+  --- Warn when enabling Info Display would also activate a potentially conflicting child.
+  ---@param info table AceConfig option info.
+  ---@param value boolean Requested enabled state.
+  ---@return string|nil Compatibility warning, or nil.
+  options.args.infoDisplay.args.enabled.confirm = function(info, value)
+    if db.profile.infoDisplay.charSheet.enabled or db.profile.infoDisplay.weeklies.enabled then
+      return confirmEllesmereUIEnable(info, value)
+    end
+  end
+end
+
 local function hideNonRetailOptions()
   for _, mod in ipairs(RETAIL_MODULES) do
     local group = resolveOptionGroup(mod.key)
@@ -3390,6 +3443,7 @@ function registerOptions()
   options.args.profiles.order = 1
   hookResetProfileOption()
   applyWIPOptionsDecoration()
+  applyEllesmereUIConfirmations()
   hideNonRetailOptions()
   migrateConfig()
   if checkAddonVersionUpdate then
