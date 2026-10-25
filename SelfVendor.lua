@@ -758,6 +758,58 @@ function module:SetModeEnabled(mode, enabled)
   local configuration = modeConfiguration(mode)
   if not configuration then return end
   configuration.enabled = enabled
+  if not enabled then self:RemoveDisabledRequests() end
+end
+
+--- Remove disabled chat items from waiting and unfinished requests, preserving automatic trade items.
+-- Automatic Trade Response is independent of the chat checkboxes; its selected mode is recorded
+-- on each service so an interrupted/requeued automatic trade keeps that distinction.
+function module:RemoveDisabledRequests()
+  --- Retain enabled chat modes and the mode explicitly supplied by Automatic Trade Response.
+  -- @param request table|number requested modes.
+  -- @param automaticMode number|nil mode supplied by Automatic Trade Response.
+  -- @return table|nil remaining modes, boolean whether any modes were removed.
+  local function filter(request, automaticMode)
+    local remaining, changed = {}, false
+    for mode in pairs(SELF_VENDOR_MODES) do
+      if requestIncludesMode(request, mode) then
+        local configuration = modeConfiguration(mode)
+        if mode == automaticMode or configuration and configuration.enabled then
+          remaining[mode] = true
+        else
+          changed = true
+        end
+      end
+    end
+    return next(remaining) and remaining or nil, changed
+  end
+
+  self.tradeQueue = self.tradeQueue or {}
+  for index = #self.tradeQueue, 1, -1 do
+    local entry = self.tradeQueue[index]
+    local remaining, changed = filter(entry.mode, entry.automaticMode)
+    if changed then
+      log("Removed disabled Self Vendor items from queued request for " .. entry.name)
+      if remaining then entry.mode = remaining else table.remove(self.tradeQueue, index) end
+    end
+  end
+  local name = self.activeTradeName or self.pendingName
+  -- A closed trade has already finished; do not requeue items that may have been delivered.
+  if name and not self.tradeClosing then
+    local request = self.activeTradeName and self.activeTradeMode or self.pendingMode
+    local remaining, changed = filter(request, self.serviceAutomaticMode)
+    if changed then
+      local automaticMode = self.serviceAutomaticMode
+      self:CancelCurrentService()
+      if remaining then
+        table.insert(self.tradeQueue, 1, { name = name, mode = remaining, automaticMode = automaticMode })
+      end
+      log("Cancelled disabled Self Vendor items for " .. name)
+      prn("updated Self Vendor request for " .. name .. " after disabling item triggers.")
+      self:StartNextQueuedTrade()
+    end
+  end
+  self:RefreshQueueWindow()
 end
 
 --- Set how many Augment Runes are traded as a single stack for the AUGMENT_RUNES mode.
@@ -790,10 +842,11 @@ end
 -- During combat only local state is cleared; trade and cursor APIs are left alone.
 -- @param keepTradeOpen boolean|nil leave the trade window open (used when a different player opened
 --   it with us and is about to be vended to through Automatic Trade Response).
--- @return string|nil name of the cancelled player, table|number|nil their request (Enum.SelfVendorMode value or set of values).
+-- @return string|nil name, table|number|nil request, number|nil Automatic Trade Response mode.
 function module:CancelCurrentService(keepTradeOpen)
   local name = self.activeTradeName or self.pendingName
   local mode = self.activeTradeName and self.activeTradeMode or self.pendingMode
+  local automaticMode = self.serviceAutomaticMode
   -- Invalidate callbacks even if the service has already lost its player name.
   self.serviceToken = (self.serviceToken or 0) + 1
   self.pendingName = nil
@@ -813,6 +866,7 @@ function module:CancelCurrentService(keepTradeOpen)
   self.tradeClosing = nil
   self.pendingBagUpdate = nil
   self.selfInitiatedTradeName = nil
+  self.serviceAutomaticMode = nil
   -- Combat cleanup only discards local state; do not call protected trade or bag APIs.
   -- Reset state first because closing a trade can deliver additional trade events.
   if name and not InCombatLockdown() then
@@ -820,7 +874,7 @@ function module:CancelCurrentService(keepTradeOpen)
     if GetCursorInfo() then ClearCursor() end
   end
   if name then log("Cancelled Self Vendor service for " .. name) end
-  return name, mode
+  return name, mode, automaticMode
 end
 
 --- Clear the entire queue, including whoever is currently being vended to.
@@ -997,15 +1051,23 @@ end
 
 local TRADE_INTERACT_DISTANCE = 2
 
+--- Test WoW's trade interaction range; index 2 identifies the interaction, not a distance.
+-- @param unit string|nil unit token for the requester.
+-- @return boolean|nil whether the unit is within trade range.
 local function inTradeRange(unit)
   return unit and CheckInteractDistance(unit, TRADE_INTERACT_DISTANCE)
 end
 
 --- Report a failed pending trade and advance to the next queued player outside combat.
 -- @param message string failure description.
-function module:FailPendingTrade(message)
+-- @param outOfRange boolean|nil true only when a range check actually failed.
+function module:FailPendingTrade(message, outOfRange)
   if InCombatLockdown() then return end
-  self:NotifyTradeUnavailable(self.pendingName)
+  if outOfRange then
+    self:NotifyTradeUnavailable(self.pendingName)
+  elseif self.pendingName then
+    SendChatMessage("Sorry, I couldn't prepare or complete your Self Vendor trade. Please try again.", "WHISPER", nil, self.pendingName)
+  end
   log("Self Vendor failed: " .. message)
   if message then prn(message) end
   self.pendingName = nil
@@ -1180,12 +1242,12 @@ function module:BeginAutoTrade(partner)
   removeQueueEntries(self.tradeQueue, partner)
   -- A trade that just closed is still settling (tradeClosing); it's finished, not interrupted.
   local finishing = self.tradeClosing
-  local interruptedName, interruptedMode = self:CancelCurrentService(true)
+  local interruptedName, interruptedMode, interruptedAutomaticMode = self:CancelCurrentService(true)
   if interruptedName and not finishing then
-    table.insert(self.tradeQueue, 1, { name = interruptedName, mode = interruptedMode })
+    table.insert(self.tradeQueue, 1, { name = interruptedName, mode = interruptedMode, automaticMode = interruptedAutomaticMode })
     prn("interrupted " .. interruptedName .. " (re-queued at #1) for Automatic Trade Response.")
   end
-  table.insert(self.tradeQueue, 1, { name = partner, mode = request })
+  table.insert(self.tradeQueue, 1, { name = partner, mode = request, automaticMode = mode })
   prn("Automatic Trade Response: vending " .. requestLabel(request) .. " to " .. partner .. ".")
   log("Automatic Trade Response started for " .. partner .. " (" .. requestLabel(request) .. "); interrupted=" .. tostring(interruptedName))
   self:StartNextQueuedTrade()
@@ -1270,6 +1332,7 @@ function module:StartNextQueuedTrade()
   self.pendingTradeInitiated = nil
   self.pendingName = queuedTrade.name
   self.pendingMode = queuedTrade.mode
+  self.serviceAutomaticMode = queuedTrade.automaticMode
   -- Set when this player already has a trade window open with us (Automatic Trade Response), so
   -- item prep populates that window instead of initiating a new trade.
   self.partnerOpenedTrade = tradeWindowOpenWith(queuedTrade.name) or nil
@@ -1520,7 +1583,7 @@ function module:PrepareTradeItems(required)
       end
       if self.pendingUnit and not inTradeRange(self.pendingUnit) then
         log(self.pendingName .. " moved out of trade range during item prep")
-        self:FailPendingTrade(self.pendingName .. " moved out of trade range")
+        self:FailPendingTrade(self.pendingName .. " moved out of trade range", true)
         return
       end
       log("Exact trade stacks prepared; initiating trade with " .. self.pendingName)
@@ -1805,17 +1868,17 @@ function module:VendNow(name)
   self.tradeQueue = self.tradeQueue or {}
   local entry
   if sameName(name, self.activeTradeName or self.pendingName) then
-    local currentName, currentMode = self:CancelCurrentService()
-    entry = { name = currentName, mode = currentMode }
+    local currentName, currentMode, automaticMode = self:CancelCurrentService()
+    entry = { name = currentName, mode = currentMode, automaticMode = automaticMode }
     prn("retrying " .. currentName .. ".")
     log("Retrying Self Vendor trade for " .. currentName .. " via the queue window")
   else
     local position = queuePositionFor(self.tradeQueue, name)
     if not position then return end
     entry = table.remove(self.tradeQueue, position)
-    local interruptedName, interruptedMode = self:CancelCurrentService()
+    local interruptedName, interruptedMode, automaticMode = self:CancelCurrentService()
     if interruptedName then
-      table.insert(self.tradeQueue, 1, { name = interruptedName, mode = interruptedMode })
+      table.insert(self.tradeQueue, 1, { name = interruptedName, mode = interruptedMode, automaticMode = automaticMode })
     end
     prn("vending to " .. entry.name .. " now.")
     log("Vending to " .. entry.name .. " out of order via the queue window; interrupted=" .. tostring(interruptedName))

@@ -895,7 +895,7 @@ local function selfVendorModeOptions()
     args[details.key] = {
       type = "toggle",
       name = details.name,
-      desc = details.description,
+      desc = details.description .. " Turning this off also removes these items from queued and unfinished chat requests. Automatic Trade Response is controlled separately.",
       descStyle = "inline",
       width = "full",
       get = function() return db.profile.selfVendor.modes[configuredMode].enabled end,
