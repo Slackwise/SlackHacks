@@ -3252,65 +3252,81 @@ options = {
           set = function(_, value) Self.Quest:SetOption("autoComplete", value) end,
           order = 2
         },
-        autoClickFirstOption = {
-          name = "Auto-Click First Dialog Option",
-          desc = "Automatically clicks the first option in an NPC dialog only when it is the sole option and no quests are listed.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.quest.enabled end,
-          get = function() return db.profile.quest.autoClickFirstOption end,
-          set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
-          order = 3
+        autoClickGroup = {
+          type = "group",
+          name = "NPC Dialog Auto-Click",
+          inline = true,
+          order = 3,
+          args = {
+            autoClickFirstOption = {
+              name = "Auto-Click First Dialog Option",
+              desc = "Automatically clicks the first option in an NPC dialog only when it is the sole option and no quests are listed.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.quest.enabled end,
+              get = function() return db.profile.quest.autoClickFirstOption end,
+              set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
+              order = 3
+            },
+            autoClickFirstOptionMythicOnly = {
+              name = "Only Auto-Click First Option During Mythic Run",
+              desc = "Will only auto-click the first option in an NPC dialogue while you are running a mythic and the timer is going.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disable the restriction control when its parent automation is off.
+              ---@return boolean
+              disabled = function()
+                return not db.profile.quest.enabled or not db.profile.quest.autoClickFirstOption
+              end,
+              --- Read the profile's Mythic-run restriction.
+              ---@return boolean
+              get = function() return db.profile.quest.autoClickFirstOptionMythicOnly end,
+              --- Apply the restriction without changing the parent automation setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Quest:SetOption("autoClickFirstOptionMythicOnly", value) end,
+              order = 3.5
+            }
+          }
         },
-        autoClickFirstOptionMythicOnly = {
-          name = "Only Auto-Click First Option During Mythic Run",
-          desc = "Will only auto-click the first option in an NPC dialogue while you are running a mythic and the timer is going.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          --- Disable the restriction control when its parent automation is off.
-          ---@return boolean
-          disabled = function()
-            return not db.profile.quest.enabled or not db.profile.quest.autoClickFirstOption
-          end,
-          --- Read the profile's Mythic-run restriction.
-          ---@return boolean
-          get = function() return db.profile.quest.autoClickFirstOptionMythicOnly end,
-          --- Apply the restriction without changing the parent automation setting.
-          ---@param _ table AceConfig option info.
-          ---@param value boolean
-          set = function(_, value) Self.Quest:SetOption("autoClickFirstOptionMythicOnly", value) end,
-          order = 3.5
-        },
-        numberKeys = {
-          name = "Keybind NPC Dialog Options to Number Keys",
-          desc = "Keybind NPC dialog options to the number keys and shows each shortcut before its text.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.quest.enabled end,
-          get = function() return db.profile.quest.numberKeys end,
-          set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
-          order = 4
-        },
-        spacebar = {
-          name = "Use Spacebar to Accept/Complete Quest",
-          desc = "keybinds Spacebar to accept or complete the current quest. Disabled when choosing between quest rewards.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          --- Disables the control while its module is off.
-          ---@return boolean
-          disabled = function() return not db.profile.quest.enabled end,
-          --- Reads the profile's Spacebar shortcut setting.
-          ---@return boolean
-          get = function() return db.profile.quest.spacebar end,
-          --- Applies the Spacebar shortcut setting.
-          ---@param _ table AceConfig option info.
-          ---@param value boolean
-          set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
-          order = 4.5
+        dialogKeybindingsGroup = {
+          type = "group",
+          name = "Dialog Keybindings",
+          inline = true,
+          order = 4,
+          args = {
+            numberKeys = {
+              name = "Keybind NPC Dialog Options to Number Keys",
+              desc = "Keybind NPC dialog options to the number keys and shows each shortcut before its text.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.quest.enabled end,
+              get = function() return db.profile.quest.numberKeys end,
+              set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+              order = 4
+            },
+            spacebar = {
+              name = "Use Spacebar to Accept/Complete Quest",
+              desc = "keybinds Spacebar to accept or complete the current quest. Disabled when choosing between quest rewards.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disables the control while its module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.quest.enabled end,
+              --- Reads the profile's Spacebar shortcut setting.
+              ---@return boolean
+              get = function() return db.profile.quest.spacebar end,
+              --- Applies the Spacebar shortcut setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
+              order = 4.5
+            }
+          }
         },
         questItemButton = {
           name = "Use 'Extra Action Button' for Quest Items",
