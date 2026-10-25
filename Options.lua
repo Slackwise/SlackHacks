@@ -1251,6 +1251,12 @@ options = {
       order = 3,
       args = {
         overview = goldModuleOverview("Camera behavior and keybinding options."),
+        keybindingsDescription = {
+          type = "description",
+          name = "Various |cffffd100extra|r convenience keybindings exist for options |cffffd100not even present in the options menu|r for SlackHacks. Click the button below to check them out!",
+          width = "full",
+          order = 0.05
+        },
         openKeybindings = {
           name = "Open Keybindings",
           desc = "Open the Blizzard Key Bindings menu, expanded to the SlackHacks section.",
