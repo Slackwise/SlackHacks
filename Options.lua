@@ -1243,7 +1243,7 @@ local function talentReminderOptions()
     type = "group",
     name = "Talent Reminders",
     desc = "Prompts you to switch talent loadouts\nfor your current content.",
-    order = 2,
+    order = 1,
     childGroups = "tab",
     disabled = remindersDisabled,
     args = args
@@ -2530,7 +2530,7 @@ options = {
           type = "group",
           name = "Consumable Buff Reminders",
           desc = "Reminds you to keep up raid/dungeon consumables\nwith clickable icons.",
-          order = 1,
+                    order = 2,
           disabled = remindersDisabled,
           args = {
             overview = goldModuleOverview("Get clickable reminders for food, flask, oil, and augment rune buffs in Mythic dungeons and raids."),
