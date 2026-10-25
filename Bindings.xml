@@ -20,6 +20,18 @@
   <Binding name="SLACKHACKS_CLICK_CASTING" category="BINDING_HEADER_SLACKHACKS">
     SlackHacks.openClickCasting()
   </Binding>
+  <Binding name="SLACKHACKS_SPECIALIZATION_1" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.switchClassSpecialization(1)
+  </Binding>
+  <Binding name="SLACKHACKS_SPECIALIZATION_2" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.switchClassSpecialization(2)
+  </Binding>
+  <Binding name="SLACKHACKS_SPECIALIZATION_3" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.switchClassSpecialization(3)
+  </Binding>
+  <Binding name="SLACKHACKS_SPECIALIZATION_4" category="BINDING_HEADER_SLACKHACKS">
+    SlackHacks.switchClassSpecialization(4)
+  </Binding>
   <Binding name="SLACKHACKS_BEST_HEALING_POTION" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
   <Binding name="SLACKHACKS_BEST_MANA_POTION" category="BINDING_HEADER_SLACKHACKS">

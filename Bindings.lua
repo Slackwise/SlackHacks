@@ -8,6 +8,10 @@ BINDING_NAME_SLACKHACKS_SETBINDINGS = "Load Keybindings"
 BINDING_NAME_SLACKHACKS_OPTIONS = "Open Options"
 BINDING_NAME_SLACKHACKS_QUICK_KEYBIND_MODE = "Open Quick Keybind Mode"
 BINDING_NAME_SLACKHACKS_CLICK_CASTING = "Open Click Casting"
+BINDING_NAME_SLACKHACKS_SPECIALIZATION_1 = "Switch to Class Spec 1"
+BINDING_NAME_SLACKHACKS_SPECIALIZATION_2 = "Switch to Class Spec 2"
+BINDING_NAME_SLACKHACKS_SPECIALIZATION_3 = "Switch to Class Spec 3"
+BINDING_NAME_SLACKHACKS_SPECIALIZATION_4 = "Switch to Class Spec 4"
 BINDING_NAME_SLACKHACKS_BEST_HEALING_POTION = "Use Best Healing Potion"
 BINDING_NAME_SLACKHACKS_BEST_MANA_POTION = "Use Best Mana Potion"
 BINDING_NAME_SLACKHACKS_BEST_BANDAGE = "Use Best Bandage"
@@ -39,6 +43,43 @@ BINDING_TYPE = {
 }
 
 BT = BINDING_TYPE
+
+--- Switch to a class specialization by its order in the Talents UI, not a talent loadout.
+---@param index number One-based specialization index (1-4).
+function switchClassSpecialization(index)
+  if InCombatLockdown() then
+    prn("cannot switch class specialization during combat.")
+    return
+  end
+  local api = C_SpecializationInfo or {}
+  local getCount = api.GetNumSpecializations or _G.GetNumSpecializations
+  local getCurrent = api.GetSpecialization or _G.GetSpecialization
+  local activate = api.SetSpecialization or _G.SetSpecialization
+  if not (getCount and getCurrent and activate) then
+    prn("class specialization switching is not supported on this client.")
+    return
+  end
+  if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > 4 then
+    prn("class specialization index must be between 1 and 4.")
+    return
+  end
+  if index > getCount() then
+    prn("class specialization " .. index .. " is not available for your character.")
+    return
+  end
+  if getCurrent() == index then return end
+  if api.CanPlayerUseTalentSpecUI then
+    local canUse, reason = api.CanPlayerUseTalentSpecUI()
+    if not canUse then
+      prn(reason and reason ~= "" and reason or "class specialization switching is currently unavailable.")
+      return
+    end
+  end
+  -- The game enforces remaining restrictions (such as an active Mythic+ run).
+  if activate(index) == false then
+    prn("unable to switch class specialization right now.")
+  end
+end
 
 function openQuickKeybindMode()
   if not QuickKeybindFrame and LoadAddOn then
