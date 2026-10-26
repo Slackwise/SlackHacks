@@ -3,7 +3,7 @@ setfenv(1, _G.SlackHacks)
 --[[
   Talent Reminders: reminds the player when their active talent loadout doesn't match the one they picked for the
   content they're in (Questing, Delves, Raids, Dungeons or PvP), and optionally for each of the current season's
-  Mythic+ dungeons and Midnight Season 2 raid boss rooms. On entering or leaving content it shows a small, movable
+  Mythic+ dungeons and supported seasonal raid boss rooms. On entering or leaving content it shows a small, movable
   prompt near the top of the screen with the desired loadout pre-selected in a dropdown; confirming loads it.
 
   The chosen loadouts are saved per character (db.char), keyed by specialization ID, since loadouts belong to a
@@ -16,46 +16,14 @@ setfenv(1, _G.SlackHacks)
 local module = Self:NewModule("Talents", "AceEvent-3.0")
 Self.Talents = module
 
--- Content contexts in display order. `key` is the saved-data key under each spec's `contexts` table.
-module.CONTEXTS = {
-  { key = "questing", name = "Questing", desc = "The open world, outside of any instance." },
-  { key = "delves", name = "Delves", desc = "Any Delve." },
-  { key = "raids", name = "Raids", desc = "Any raid, at any difficulty." },
-  { key = "dungeons", name = "Dungeons", desc = "Any dungeon, at any difficulty (including Mythic+)." },
-  { key = "pvp", name = "PvP", desc = "Battlegrounds and arenas." },
-}
+module.CONTEXTS = TALENT_LOADOUT_CONTEXTS
 -- Fixed option slots: Druids have the most specializations, and a season's Mythic+ pool has been 8 dungeons.
 module.MAX_SPECS = 4
 module.MAX_SEASON_MYTHICS = 12
 
--- Midnight Season 2: The Venomous Abyss and The Unbinding of Kith'ix (12.1.5).
--- Instance/encounter IDs come from JournalInstance/JournalEncounter (1320 and 1324); localized room names come
--- from AreaTable (parent areas 16915 and 17059). Keep this list season-specific, not "latest tier".
--- Sources: https://wago.tools/db2/JournalEncounter?filter[JournalInstanceID]=1320
--- https://wago.tools/db2/AreaTable?filter[ParentAreaID]=16915
--- The Vile Crypt mapping for Entombed Sentinels was confirmed by the user.
-module.SEASON_RAIDS = {
-  [3004] = { areaID = 16915, name = "The Venomous Abyss" },
-  [3095] = { areaID = 17059, name = "The Unbinding of Kith'ix" },
-}
-module.RAID_BOSSES = {
-  { instanceID = 3004, encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" },
-  { instanceID = 3004, encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" },
-  { instanceID = 3004, encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" },
-  { instanceID = 3004, encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" },
-  { instanceID = 3004, encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" },
-  { instanceID = 3004, encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" },
-  { instanceID = 3004, encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" },
-  { instanceID = 3004, encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" },
-  { instanceID = 3095, encounterID = 3513, journalEncounterID = 2896, areaID = 17778, name = "Kith'ix" },
-}
+module.SEASON_RAIDS = CURRENT_CONTENT_SEASON.raids
+module.RAID_BOSSES = CURRENT_CONTENT_SEASON.bosses
 
-local CONTEXT_NAMES = {}
-for _, context in ipairs(module.CONTEXTS) do
-  CONTEXT_NAMES[context.key] = context.name
-end
-
-local DELVE_DIFFICULTY_ID = 208
 -- Instance info and talent data settle a moment after a loading screen, so evaluation is briefly delayed.
 local EVALUATE_DELAY_SECONDS = 1
 local PROMPT_WIDTH = 300
@@ -65,23 +33,6 @@ local SPEC_CARD_WIDTH = 180
 local SPEC_CARD_HEIGHT = 90
 local BUTTON_WIDTH = 140
 local BUTTON_HEIGHT = 22
--- Spec ID -> "spec-thumbnail-<suffix>" atlas: the class talents spec page's artwork. Blizzard keeps this table local
--- to Blizzard_ClassSpecializationsFrame.lua (SPEC_FORMAT_STRINGS), so it's copied here; new specs need adding.
-local SPEC_THUMBNAILS = {
-  [62] = "mage-arcane", [63] = "mage-fire", [64] = "mage-frost",
-  [65] = "paladin-holy", [66] = "paladin-protection", [70] = "paladin-retribution",
-  [71] = "warrior-arms", [72] = "warrior-fury", [73] = "warrior-protection",
-  [102] = "druid-balance", [103] = "druid-feral", [104] = "druid-guardian", [105] = "druid-restoration",
-  [250] = "deathknight-blood", [251] = "deathknight-frost", [252] = "deathknight-unholy",
-  [253] = "hunter-beastmastery", [254] = "hunter-marksmanship", [255] = "hunter-survival",
-  [256] = "priest-discipline", [257] = "priest-holy", [258] = "priest-shadow",
-  [259] = "rogue-assassination", [260] = "rogue-outlaw", [261] = "rogue-subtlety",
-  [262] = "shaman-elemental", [263] = "shaman-enhancement", [264] = "shaman-restoration",
-  [265] = "warlock-affliction", [266] = "warlock-demonology", [267] = "warlock-destruction",
-  [268] = "monk-brewmaster", [269] = "monk-windwalker", [270] = "monk-mistweaver",
-  [577] = "demonhunter-havoc", [581] = "demonhunter-vengeance", [1480] = "demonhunter-devourer",
-  [1467] = "evoker-devastation", [1468] = "evoker-preservation", [1473] = "evoker-augmentation",
-}
 
 local prompt
 -- Identifies the content last evaluated (context plus instance), so only entering/leaving content prompts.
@@ -294,7 +245,7 @@ local function currentContext()
   if not inInstance then return "questing" end
   local instanceName, _, difficultyID, _, _, _, _, instanceID = GetInstanceInfo()
   local contextKey
-  if difficultyID == DELVE_DIFFICULTY_ID
+  if difficultyID == CONTENT_DIFFICULTIES.delve
     or (C_PartyInfo and C_PartyInfo.IsDelveInProgress and C_PartyInfo.IsDelveInProgress()) then
     contextKey = "delves"
   elseif instanceType == "party" then
@@ -617,7 +568,7 @@ function module:Evaluate(force)
     configID = desiredLoadout(specID, contextKey, instanceID, instanceName)
   end
   if not configID or configID == activeLoadout(specID) then return end
-  local label = CONTEXT_NAMES[contextKey]
+  local label = TALENT_LOADOUT_CONTEXT_NAMES[contextKey]
   if contextKey ~= "questing" and instanceName and instanceName ~= "" then
     label = label .. " (" .. instanceName .. ")"
   end

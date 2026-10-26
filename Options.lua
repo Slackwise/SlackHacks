@@ -1287,7 +1287,7 @@ local function talentSpecOptions(index)
       },
       raidBosses = {
         type = "group",
-        name = "Raid Bosses (Midnight Season 2)",
+        name = "Raid Bosses (" .. CURRENT_CONTENT_SEASON.name .. ")",
         inline = true,
         order = 3,
         args = raidBossArgs

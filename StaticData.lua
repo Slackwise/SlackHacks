@@ -1,5 +1,74 @@
 setfenv(1, _G.SlackHacks)
 
+-- Content contexts in display order; keys are persisted in each specialization's loadout settings.
+TALENT_LOADOUT_CONTEXTS = {
+  { key = "questing", name = "Questing", desc = "The open world, outside of any instance." },
+  { key = "delves", name = "Delves", desc = "Any Delve." },
+  { key = "raids", name = "Raids", desc = "Any raid, at any difficulty." },
+  { key = "dungeons", name = "Dungeons", desc = "Any dungeon, at any difficulty (including Mythic+)." },
+  { key = "pvp", name = "PvP", desc = "Battlegrounds and arenas." },
+}
+
+TALENT_LOADOUT_CONTEXT_NAMES = {}
+for _, context in ipairs(TALENT_LOADOUT_CONTEXTS) do
+  TALENT_LOADOUT_CONTEXT_NAMES[context.key] = context.name
+end
+
+CONTENT_DIFFICULTIES = { delve = 208 }
+
+-- Spec ID -> "spec-thumbnail-<suffix>". Blizzard keeps SPEC_FORMAT_STRINGS local in
+-- Blizzard_ClassSpecializationsFrame.lua, so new specializations must be added here.
+SPEC_THUMBNAILS = {
+  [62] = "mage-arcane", [63] = "mage-fire", [64] = "mage-frost",
+  [65] = "paladin-holy", [66] = "paladin-protection", [70] = "paladin-retribution",
+  [71] = "warrior-arms", [72] = "warrior-fury", [73] = "warrior-protection",
+  [102] = "druid-balance", [103] = "druid-feral", [104] = "druid-guardian", [105] = "druid-restoration",
+  [250] = "deathknight-blood", [251] = "deathknight-frost", [252] = "deathknight-unholy",
+  [253] = "hunter-beastmastery", [254] = "hunter-marksmanship", [255] = "hunter-survival",
+  [256] = "priest-discipline", [257] = "priest-holy", [258] = "priest-shadow",
+  [259] = "rogue-assassination", [260] = "rogue-outlaw", [261] = "rogue-subtlety",
+  [262] = "shaman-elemental", [263] = "shaman-enhancement", [264] = "shaman-restoration",
+  [265] = "warlock-affliction", [266] = "warlock-demonology", [267] = "warlock-destruction",
+  [268] = "monk-brewmaster", [269] = "monk-windwalker", [270] = "monk-mistweaver",
+  [577] = "demonhunter-havoc", [581] = "demonhunter-vengeance", [1480] = "demonhunter-devourer",
+  [1467] = "evoker-devastation", [1468] = "evoker-preservation", [1473] = "evoker-augmentation",
+}
+
+-- Seasonal raid support is explicitly maintained, not inferred from the newest Encounter Journal tier.
+-- Sources: JournalInstance/JournalEncounter (1320, 1324) and AreaTable (parent areas 16915, 17059).
+-- https://wago.tools/db2/JournalEncounter?filter[JournalInstanceID]=1320
+-- https://wago.tools/db2/AreaTable?filter[ParentAreaID]=16915
+-- Entombed Sentinels' The Vile Crypt mapping was confirmed by the user.
+CONTENT_EXPANSIONS = {
+  midnight = {
+    name = "Midnight",
+    seasons = {
+      [2] = {
+        name = "Midnight Season 2",
+        raids = {
+          [3004] = { areaID = 16915, name = "The Venomous Abyss", patch = "12.1.0" },
+          [3095] = { areaID = 17059, name = "The Unbinding of Kith'ix", patch = "12.1.5" },
+        },
+        bosses = {
+          { instanceID = 3004, encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" },
+          { instanceID = 3004, encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" },
+          { instanceID = 3004, encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" },
+          { instanceID = 3004, encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" },
+          { instanceID = 3004, encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" },
+          { instanceID = 3004, encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" },
+          { instanceID = 3004, encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" },
+          { instanceID = 3004, encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" },
+          { instanceID = 3095, encounterID = 3513, journalEncounterID = 2896, areaID = 17778, name = "Kith'ix" },
+        },
+      },
+    },
+  },
+}
+
+-- Update this selector when adding support for a new season; options labels and reminder mappings follow it.
+CURRENT_CONTENT = { expansion = "midnight", season = 2 }
+CURRENT_CONTENT_SEASON = CONTENT_EXPANSIONS[CURRENT_CONTENT.expansion].seasons[CURRENT_CONTENT.season]
+
 ITEM_NAMES = {
   ["Sunfire Silk Spellthread"] = 240133,
   ["Arcanoweave Spellthread"] = 240155,
