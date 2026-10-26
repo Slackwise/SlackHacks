@@ -46,19 +46,19 @@ CONTENT_EXPANSIONS = {
       [2] = {
         name = "Midnight Season 2",
         raids = {
-          [3004] = { areaID = 16915, name = "The Venomous Abyss", patch = "12.1.0" },
-          [3095] = { areaID = 17059, name = "The Unbinding of Kith'ix", patch = "12.1.5" },
+          [3004] = { areaID = 16915, name = "The Venomous Abyss", patch = "12.1.0" }, -- Area: The Venomous Abyss
+          [3095] = { areaID = 17059, name = "The Unbinding of Kith'ix", patch = "12.1.5" }, -- Area: The Unbinding of Kith'ix
         },
         bosses = {
-          { instanceID = 3004, encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" },
-          { instanceID = 3004, encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" },
-          { instanceID = 3004, encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" },
-          { instanceID = 3004, encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" },
-          { instanceID = 3004, encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" },
-          { instanceID = 3004, encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" },
-          { instanceID = 3004, encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" },
-          { instanceID = 3004, encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" },
-          { instanceID = 3095, encounterID = 3513, journalEncounterID = 2896, areaID = 17778, name = "Kith'ix" },
+          { instanceID = 3004, encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" }, -- Area: The Soulcoil Well
+          { instanceID = 3004, encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" }, -- Area: The Vile Crypt
+          { instanceID = 3004, encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" }, -- Area: Mor'zahi's Tomb
+          { instanceID = 3004, encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" }, -- Area: The Chamber of Virulence
+          { instanceID = 3004, encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" }, -- Area: Altar of the Six Winds
+          { instanceID = 3004, encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" }, -- Area: Pit of Fangs
+          { instanceID = 3004, encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" }, -- Area: The Coiled Altar
+          { instanceID = 3004, encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" }, -- Area: The Tomb of Ula'tek
+          { instanceID = 3095, encounterID = 3513, journalEncounterID = 2896, areaID = 17778, name = "Kith'ix" }, -- Area: Kith'ix's Prison
         },
       },
     },
