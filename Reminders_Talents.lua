@@ -28,21 +28,26 @@ module.CONTEXTS = {
 module.MAX_SPECS = 4
 module.MAX_SEASON_MYTHICS = 12
 
--- Midnight Season 2: The Venomous Abyss. Instance/encounter IDs come from JournalEncounter (journal instance 1320);
--- localized room names come from AreaTable (parent area 16915). Keep this list season-specific, not "latest tier".
+-- Midnight Season 2: The Venomous Abyss and The Unbinding of Kith'ix (12.1.5).
+-- Instance/encounter IDs come from JournalInstance/JournalEncounter (1320 and 1324); localized room names come
+-- from AreaTable (parent areas 16915 and 17059). Keep this list season-specific, not "latest tier".
 -- Sources: https://wago.tools/db2/JournalEncounter?filter[JournalInstanceID]=1320
 -- https://wago.tools/db2/AreaTable?filter[ParentAreaID]=16915
 -- The Vile Crypt mapping for Entombed Sentinels was confirmed by the user.
-module.SEASON_RAID = { instanceID = 3004, areaID = 16915, name = "The Venomous Abyss" }
+module.SEASON_RAIDS = {
+  [3004] = { areaID = 16915, name = "The Venomous Abyss" },
+  [3095] = { areaID = 17059, name = "The Unbinding of Kith'ix" },
+}
 module.RAID_BOSSES = {
-  { encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" },
-  { encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" },
-  { encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" },
-  { encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" },
-  { encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" },
-  { encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" },
-  { encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" },
-  { encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" },
+  { instanceID = 3004, encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" },
+  { instanceID = 3004, encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" },
+  { instanceID = 3004, encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" },
+  { instanceID = 3004, encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" },
+  { instanceID = 3004, encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" },
+  { instanceID = 3004, encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" },
+  { instanceID = 3004, encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" },
+  { instanceID = 3004, encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" },
+  { instanceID = 3095, encounterID = 3513, journalEncounterID = 2896, areaID = 17778, name = "Kith'ix" },
 }
 
 local CONTEXT_NAMES = {}
@@ -238,12 +243,12 @@ end
 ---@param instanceID number|nil The instance map ID from GetInstanceInfo.
 ---@return table|nil boss A RAID_BOSSES entry.
 function module:GetCurrentRaidBoss(instanceID)
-  if instanceID ~= self.SEASON_RAID.instanceID then return nil end
+  if not self.SEASON_RAIDS[instanceID] then return nil end
   local subzone = GetSubZoneText()
   if not subzone or subzone == "" then return nil end
   for _, boss in ipairs(self.RAID_BOSSES) do
     local areaName = C_Map.GetAreaInfo(boss.areaID)
-    if areaName and subzone == areaName then return boss end
+    if boss.instanceID == instanceID and areaName and subzone == areaName then return boss end
   end
   return nil
 end
@@ -589,7 +594,7 @@ function module:Evaluate(force)
   -- The open world is one context, so moving between zones doesn't prompt again; each instance is its own.
   local key = (contextKey or "other") .. ":" .. tostring(contextKey ~= "questing" and instanceID or "")
   local boss
-  local useBossRooms = contextKey == "raids" and instanceID == self.SEASON_RAID.instanceID
+  local useBossRooms = contextKey == "raids" and self.SEASON_RAIDS[instanceID] ~= nil
     and self:IsPerRaidBossEnabled(specID)
   if useBossRooms then
     boss = self:GetCurrentRaidBoss(instanceID)

@@ -1210,17 +1210,21 @@ local function talentSpecOptions(index)
       ---@param value boolean
       set = function(_, value) Self.Talents:SetPerRaidBossEnabled(talentSpecID(index), value) end,
       order = 0
-    },
-    raid = {
-      --- Returns the supported raid's localized name.
-      ---@return string
-      name = function() return C_Map.GetAreaInfo(Self.Talents.SEASON_RAID.areaID) or Self.Talents.SEASON_RAID.name end,
-      type = "description",
-      width = "full",
-      order = 0.5
     }
   }
+  local previousRaidID
   for order, boss in ipairs(Self.Talents.RAID_BOSSES) do
+    if boss.instanceID ~= previousRaidID then
+      local raid = Self.Talents.SEASON_RAIDS[boss.instanceID]
+      raidBossArgs["raid" .. boss.instanceID] = {
+        --- Returns this raid's localized name.
+        ---@return string
+        name = function() return C_Map.GetAreaInfo(raid.areaID) or raid.name end,
+        type = "header",
+        order = order - 0.5
+      }
+      previousRaidID = boss.instanceID
+    end
     raidBossArgs["boss" .. boss.encounterID] = {
       --- Returns this encounter's localized name.
       ---@return string
