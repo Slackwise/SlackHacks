@@ -26,7 +26,7 @@ module.CONTEXTS = {
 }
 -- Fixed option slots: Druids have the most specializations, and a season's Mythic+ pool has been 8 dungeons.
 module.MAX_SPECS = 4
-module.MAX_SEASON_DUNGEONS = 12
+module.MAX_SEASON_MYTHICS = 12
 
 local CONTEXT_NAMES = {}
 for _, context in ipairs(module.CONTEXTS) do
@@ -36,19 +36,29 @@ end
 local DELVE_DIFFICULTY_ID = 208
 -- Instance info and talent data settle a moment after a loading screen, so evaluation is briefly delayed.
 local EVALUATE_DELAY_SECONDS = 1
-local PROMPT_WIDTH = 360
-local PROMPT_HEIGHT = 160
-local DROPDOWN_WIDTH = 240
-local BUTTON_WIDTH = 130
+local PROMPT_WIDTH = 300
+local PROMPT_HEIGHT = 286
+-- Matches KeystoneLoot's loot specialization reminder card.
+local SPEC_CARD_WIDTH = 180
+local SPEC_CARD_HEIGHT = 90
+local BUTTON_WIDTH = 140
 local BUTTON_HEIGHT = 22
--- Fallback for clients without Blizzard's shared backdrop table (Backdrop.lua).
-local DIALOG_BACKDROP = BACKDROP_DIALOG_32_32 or {
-  bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-  edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-  tile = true,
-  tileSize = 32,
-  edgeSize = 32,
-  insets = { left = 11, right = 12, top = 12, bottom = 11 },
+-- Spec ID -> "spec-thumbnail-<suffix>" atlas: the class talents spec page's artwork. Blizzard keeps this table local
+-- to Blizzard_ClassSpecializationsFrame.lua (SPEC_FORMAT_STRINGS), so it's copied here; new specs need adding.
+local SPEC_THUMBNAILS = {
+  [62] = "mage-arcane", [63] = "mage-fire", [64] = "mage-frost",
+  [65] = "paladin-holy", [66] = "paladin-protection", [70] = "paladin-retribution",
+  [71] = "warrior-arms", [72] = "warrior-fury", [73] = "warrior-protection",
+  [102] = "druid-balance", [103] = "druid-feral", [104] = "druid-guardian", [105] = "druid-restoration",
+  [250] = "deathknight-blood", [251] = "deathknight-frost", [252] = "deathknight-unholy",
+  [253] = "hunter-beastmastery", [254] = "hunter-marksmanship", [255] = "hunter-survival",
+  [256] = "priest-discipline", [257] = "priest-holy", [258] = "priest-shadow",
+  [259] = "rogue-assassination", [260] = "rogue-outlaw", [261] = "rogue-subtlety",
+  [262] = "shaman-elemental", [263] = "shaman-enhancement", [264] = "shaman-restoration",
+  [265] = "warlock-affliction", [266] = "warlock-demonology", [267] = "warlock-destruction",
+  [268] = "monk-brewmaster", [269] = "monk-windwalker", [270] = "monk-mistweaver",
+  [577] = "demonhunter-havoc", [581] = "demonhunter-vengeance", [1480] = "demonhunter-devourer",
+  [1467] = "evoker-devastation", [1468] = "evoker-preservation", [1473] = "evoker-augmentation",
 }
 
 local prompt
@@ -57,6 +67,8 @@ local lastContextKey
 -- Set when an evaluation was skipped because of combat, so it runs once combat ends.
 local pendingEvaluation = false
 local evaluateTimer
+-- The loadout being committed by ApplyLoadout ({ specID, configID }), finished on TRAIT_CONFIG_UPDATED.
+local pendingLoad
 
 --- Returns whether this client has the talent loadout APIs this module relies on.
 ---@return boolean supported
@@ -166,19 +178,19 @@ function module:SetMythicLoadout(specID, challengeMapID, configID)
 end
 
 --- Returns the current Mythic+ season's dungeons, from the game's own Mythic+ map table, sorted by name.
----@return table dungeons Array of `{ challengeMapID = number, name = string, instanceID = number|nil }`.
-function module:GetSeasonDungeons()
-  local dungeons = {}
-  if not (C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapUIInfo) then return dungeons end
+---@return table mythics Array of `{ challengeMapID = number, name = string, instanceID = number|nil }`.
+function module:GetSeasonMythics()
+  local mythics = {}
+  if not (C_ChallengeMode and C_ChallengeMode.GetMapTable and C_ChallengeMode.GetMapUIInfo) then return mythics end
   for _, challengeMapID in ipairs(C_ChallengeMode.GetMapTable() or {}) do
     -- The sixth return is the dungeon's instance map ID, the same ID GetInstanceInfo() reports inside it.
     local name, _, _, _, _, instanceID = C_ChallengeMode.GetMapUIInfo(challengeMapID)
     if name then
-      table.insert(dungeons, { challengeMapID = challengeMapID, name = name, instanceID = instanceID })
+      table.insert(mythics, { challengeMapID = challengeMapID, name = name, instanceID = instanceID })
     end
   end
-  table.sort(dungeons, function(a, b) return a.name < b.name end)
-  return dungeons
+  table.sort(mythics, function(a, b) return a.name < b.name end)
+  return mythics
 end
 
 --- Returns the Mythic+ challenge map ID of the dungeon the player is in, if it's in the current season.
@@ -189,9 +201,9 @@ local function currentChallengeMapID(instanceID, instanceName)
   local activeMapID = C_ChallengeMode and C_ChallengeMode.GetActiveChallengeMapID
     and C_ChallengeMode.GetActiveChallengeMapID()
   if activeMapID then return activeMapID end
-  for _, dungeon in ipairs(module:GetSeasonDungeons()) do
-    if (instanceID and dungeon.instanceID == instanceID) or dungeon.name == instanceName then
-      return dungeon.challengeMapID
+  for _, mythic in ipairs(module:GetSeasonMythics()) do
+    if (instanceID and mythic.instanceID == instanceID) or mythic.name == instanceName then
+      return mythic.challengeMapID
     end
   end
   return nil
@@ -243,6 +255,22 @@ local function activeLoadout(specID)
   return C_ClassTalents.GetLastSelectedSavedConfigID(specID)
 end
 
+--- Records a loadout as the spec's selected loadout and shows it in Blizzard's talent frame.
+--- LoadConfig only changes the talents; the loadout name shown in the talent frame comes from the "last selected"
+--- loadout, which Blizzard's frame records itself after its own commits finish. Its dropdown also caches its
+--- selection and only re-reads the last selected loadout while empty, so an already-loaded frame is updated directly.
+---@param specID number
+---@param configID number
+local function markLoadoutSelected(specID, configID)
+  C_ClassTalents.UpdateLastSelectedSavedConfigID(specID, configID)
+  local talentsFrame = PlayerSpellsFrame and PlayerSpellsFrame.TalentsFrame
+  if not (talentsFrame and talentsFrame.SetSelectedSavedConfigID and talentsFrame.LoadSystem) then return end
+  if talentsFrame.IsInspecting and talentsFrame:IsInspecting() then return end
+  -- Matches Blizzard's own post-commit bookkeeping; skipLoad only changes the dropdown selection, never the talents.
+  talentsFrame.lastSelectedConfigID = configID
+  talentsFrame:SetSelectedSavedConfigID(configID, false, true)
+end
+
 --- Loads a saved talent loadout for the active specialization.
 ---@param specID number The spec the loadout belongs to; nothing is loaded if the player has since changed spec.
 ---@param configID number|nil The loadout to load.
@@ -270,13 +298,19 @@ function module:ApplyLoadout(specID, configID)
     end
   end
   local result, changeError = C_ClassTalents.LoadConfig(configID, true)
-  local errorResult = Enum.LoadConfigResult and Enum.LoadConfigResult.Error or 0
-  if result == errorResult then
+  local results = Enum.LoadConfigResult or {}
+  if result == (results.Error or 0) then
     prn("couldn't switch talents to " .. name .. ((changeError and changeError ~= "") and (": " .. changeError) or "."))
     return false
   end
-  -- Blizzard's talent UI does the same after loading a loadout, so its loadout dropdown shows the new selection.
-  C_ClassTalents.UpdateLastSelectedSavedConfigID(specID, configID)
+  if result == (results.NoChangesNecessary or 1) then
+    pendingLoad = nil
+    markLoadoutSelected(specID, configID)
+    prn("your talents already match " .. name .. ".")
+    return true
+  end
+  -- The commit finishes asynchronously (a short cast); TRAIT_CONFIG_UPDATED marks the loadout selected once it does.
+  pendingLoad = { specID = specID, configID = configID }
   prn("switching talents to " .. name .. ".")
   return true
 end
@@ -299,10 +333,11 @@ local function savePromptPosition()
   settings.y = math.floor(y + 0.5)
 end
 
---- Creates the switch-talents prompt on first use.
+--- Creates the switch-talents prompt on first use. Its look follows KeystoneLoot's loot specialization reminder: a
+--- simple panel with a dark headline strip, and a card showing the spec's talent-page artwork.
 local function createPrompt()
   if prompt then return end
-  local frame = CreateFrame("Frame", "SlackHacksTalentReminderPrompt", UIParent, "BackdropTemplate")
+  local frame = CreateFrame("Frame", "SlackHacksTalentReminderPrompt", UIParent, "SimplePanelTemplate")
   frame:SetSize(PROMPT_WIDTH, PROMPT_HEIGHT)
   frame:SetFrameStrata("DIALOG")
   frame:SetToplevel(true)
@@ -318,21 +353,56 @@ local function createPrompt()
     self:StopMovingOrSizing()
     savePromptPosition()
   end)
-  frame:SetBackdrop(DIALOG_BACKDROP)
+  frame:SetScript("OnShow", function() PlaySound(SOUNDKIT.IG_QUEST_LOG_OPEN) end)
+  frame:SetScript("OnHide", function() PlaySound(SOUNDKIT.IG_QUEST_LOG_CLOSE) end)
   frame:Hide()
 
-  frame.Title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-  frame.Title:SetPoint("TOP", 0, -20)
-  frame.Title:SetText("Talent Reminder")
+  -- SimplePanelTemplate's inset is unused, and its background is pulled in to sit flush with the border art.
+  frame.Inset:Hide()
+  frame.Bg:ClearAllPoints()
+  frame.Bg:SetPoint("TOPLEFT", 0, -6)
+  frame.Bg:SetPoint("BOTTOMRIGHT", -4, 3)
 
-  frame.Text = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-  frame.Text:SetPoint("TOPLEFT", 24, -44)
-  frame.Text:SetPoint("TOPRIGHT", -24, -44)
+  frame.HeadlineBg = frame:CreateTexture(nil, "BACKGROUND")
+  frame.HeadlineBg:SetTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
+  frame.HeadlineBg:SetBlendMode("ADD")
+  frame.HeadlineBg:SetVertexColor(0.1, 0.1, 0.1, 1)
+  frame.HeadlineBg:SetHeight(26)
+  frame.HeadlineBg:SetPoint("TOPLEFT", 40, -21)
+  frame.HeadlineBg:SetPoint("TOPRIGHT", -40, -21)
+
+  frame.Title = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  frame.Title:SetHeight(26)
+  frame.Title:SetPoint("TOPLEFT", 12, -21)
+  frame.Title:SetPoint("TOPRIGHT", -14, -21)
+  frame.Title:SetJustifyH("CENTER")
+  frame.Title:SetText("Correct talent loadout set?")
+
+  frame.Text = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  frame.Text:SetPoint("TOPLEFT", 16, -52)
+  frame.Text:SetPoint("TOPRIGHT", -16, -52)
   frame.Text:SetJustifyH("CENTER")
 
+  frame.MythicName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+  frame.MythicName:SetPoint("TOPLEFT", frame.Text, "BOTTOMLEFT", 0, -8)
+  frame.MythicName:SetPoint("TOPRIGHT", frame.Text, "BOTTOMRIGHT", 0, -8)
+  frame.MythicName:SetJustifyH("CENTER")
+  frame.MythicName:Hide()
+
+  frame.SpecCard = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
+  frame.SpecCard:SetSize(SPEC_CARD_WIDTH, SPEC_CARD_HEIGHT)
+  frame.SpecCard:SetPoint("TOP", frame.Text, "BOTTOM", 0, -30)
+  -- The inset's background tiles by default, which would repeat the spec artwork instead of stretching it.
+  frame.SpecCard.Bg:SetHorizTile(false)
+  frame.SpecCard.Bg:SetVertTile(false)
+
+  frame.SpecName = frame.SpecCard:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+  frame.SpecName:SetPoint("BOTTOM", frame.SpecCard, "TOP", 0, 5)
+  frame.SpecName:SetJustifyH("CENTER")
+
   frame.Dropdown = CreateFrame("DropdownButton", nil, frame, "WowStyle1DropdownTemplate")
-  frame.Dropdown:SetWidth(DROPDOWN_WIDTH)
-  frame.Dropdown:SetPoint("TOP", frame.Text, "BOTTOM", 0, -10)
+  frame.Dropdown:SetWidth(SPEC_CARD_WIDTH)
+  frame.Dropdown:SetPoint("TOP", frame.SpecCard, "BOTTOM", 0, -10)
   frame.Dropdown:SetupMenu(function(_, rootDescription)
     --- Returns whether a loadout is the prompt's current selection.
     ---@param configID number
@@ -346,37 +416,67 @@ local function createPrompt()
     end
   end)
 
-  frame.SwitchButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  frame.SwitchButton = CreateFrame("Button", nil, frame, "SharedButtonSmallTemplate")
   frame.SwitchButton:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
-  frame.SwitchButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOM", -4, 20)
+  frame.SwitchButton:SetPoint("TOP", frame.Dropdown, "BOTTOM", 0, -8)
   frame.SwitchButton:SetText("Switch Talents")
   frame.SwitchButton:SetScript("OnClick", function()
     if module:ApplyLoadout(frame.specID, frame.selectedConfigID) then frame:Hide() end
   end)
 
-  frame.CancelButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-  frame.CancelButton:SetSize(BUTTON_WIDTH, BUTTON_HEIGHT)
-  frame.CancelButton:SetPoint("BOTTOMLEFT", frame, "BOTTOM", 4, 20)
-  frame.CancelButton:SetText("Not Now")
-  frame.CancelButton:SetScript("OnClick", function() frame:Hide() end)
+  frame.AddonLabel = frame:CreateFontString(nil, "ARTWORK", "GameFontDarkGraySmall")
+  frame.AddonLabel:SetPoint("BOTTOMRIGHT", -7, 5)
+  frame.AddonLabel:SetTextColor(0.4, 0.4, 0.4)
+  frame.AddonLabel:SetText(addonName)
 
-  frame.CloseButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  frame.CloseButton:SetPoint("TOPRIGHT", -6, -6)
+  frame.CloseButton = CreateFrame("Button", nil, frame, "UIPanelCloseButtonDefaultAnchors")
 
   prompt = frame
+end
+
+--- Shows a specialization's name and talent-page artwork on the prompt's spec card.
+---@param specID number
+local function setPromptSpec(specID)
+  local _, name, _, icon = GetSpecializationInfoByID(specID)
+  prompt.SpecName:SetText(name or "")
+  local thumbnail = SPEC_THUMBNAILS[specID]
+  -- Unknown (newer) specs fall back to the spec's icon rather than another spec's artwork. The atlas isn't validated
+  -- with C_Texture.GetAtlasInfo: that API resolves Vector2DMixin from the caller's environment, which is SlackHacks
+  -- (setfenv) rather than _G, and errors. Every listed atlas comes from Blizzard's own table.
+  if thumbnail then
+    prompt.SpecCard.Bg:SetAtlas("spec-thumbnail-" .. thumbnail)
+  else
+    prompt.SpecCard.Bg:SetTexture(icon)
+  end
 end
 
 --- Shows the prompt offering to switch to a loadout.
 ---@param specID number
 ---@param configID number The loadout to pre-select.
 ---@param contextLabel string Describes the content the player is in, e.g. "Dungeons (Ara-Kara)".
-local function showPrompt(specID, configID, contextLabel)
+---@param mythicName string|nil The dungeon name when showing the dungeon-context prompt.
+local function showPrompt(specID, configID, contextLabel, mythicName)
   createPrompt()
   applyPromptPosition()
   prompt.specID = specID
   prompt.selectedConfigID = configID
-  prompt.Text:SetText(("You're now in %s, but your talents don't match the loadout you chose for it. "
-    .. "Switch talent loadouts?"):format("|cffffd100" .. contextLabel .. "|r"))
+  setPromptSpec(specID)
+  local mythicNameHeight = 0
+  prompt.SpecCard:ClearAllPoints()
+  if mythicName then
+    prompt.Text:SetText("Your current talents don't match your specified loadout for the current Mythic dungeon:")
+    prompt.MythicName:SetText(mythicName)
+    prompt.MythicName:Show()
+    mythicNameHeight = 8 + prompt.MythicName:GetStringHeight()
+    prompt.SpecCard:SetPoint("TOP", prompt.MythicName, "BOTTOM", 0, -30)
+  else
+    prompt.Text:SetText(("Your talents don't match your %s loadout."):format("|cffffd100" .. contextLabel .. "|r"))
+    prompt.MythicName:Hide()
+    prompt.SpecCard:SetPoint("TOP", prompt.Text, "BOTTOM", 0, -30)
+  end
+  -- Fit wrapped context/dungeon names without letting the description overlap the spec card or controls.
+  prompt:SetHeight(52 + prompt.Text:GetStringHeight() + mythicNameHeight + 30 + SPEC_CARD_HEIGHT + 10
+    + prompt.Dropdown:GetHeight() + 8 + BUTTON_HEIGHT + 24)
   -- Rebuilds the dropdown's menu from the new spec's loadouts and refreshes its text to the new selection.
   prompt.Dropdown:GenerateMenu()
   prompt:Show()
@@ -390,8 +490,7 @@ end
 --- Checks the player's content and active loadout, and prompts to switch when they don't match. Only prompts when
 --- the content changed since the last check, unless forced.
 ---@param force boolean|nil Re-check even if the content hasn't changed (e.g. after a spec change).
----@param silent boolean|nil Only record the current content without prompting (e.g. after a UI reload).
-function module:Evaluate(force, silent)
+function module:Evaluate(force)
   if not isAllowed() then return end
   if InCombatLockdown() then
     pendingEvaluation = true
@@ -407,7 +506,7 @@ function module:Evaluate(force, silent)
   if key == lastContextKey and not force then return end
   lastContextKey = key
   self:HidePrompt()
-  if silent or not contextKey then return end
+  if not contextKey then return end
   -- Talents are locked once a Mythic+ keystone has started.
   if C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive and C_ChallengeMode.IsChallengeModeActive() then
     return
@@ -418,26 +517,22 @@ function module:Evaluate(force, silent)
   if contextKey ~= "questing" and instanceName and instanceName ~= "" then
     label = label .. " (" .. instanceName .. ")"
   end
-  showPrompt(specID, configID, label)
+  showPrompt(specID, configID, label, contextKey == "dungeons" and instanceName or nil)
 end
 
 --- Runs Evaluate after a short delay, replacing any evaluation already waiting.
 ---@param force boolean|nil Passed to Evaluate.
----@param silent boolean|nil Passed to Evaluate.
-local function scheduleEvaluation(force, silent)
+local function scheduleEvaluation(force)
   if evaluateTimer then evaluateTimer:Cancel() end
   evaluateTimer = C_Timer.NewTimer(EVALUATE_DELAY_SECONDS, function()
     evaluateTimer = nil
-    module:Evaluate(force, silent)
+    module:Evaluate(force)
   end)
 end
 
---- Loading screens: entering or leaving instances. A UI reload only records the current content.
----@param _ string Event name.
----@param _isInitialLogin boolean
----@param isReloadingUi boolean
-function module:PLAYER_ENTERING_WORLD(_, _isInitialLogin, isReloadingUi)
-  scheduleEvaluation(false, isReloadingUi)
+--- Loading screens: logging in, reloading the UI, and entering or leaving instances.
+function module:PLAYER_ENTERING_WORLD()
+  scheduleEvaluation()
 end
 
 --- Zone changes without a loading screen; Evaluate ignores them unless the content actually changed.
@@ -461,6 +556,24 @@ function module:TRAIT_CONFIG_LIST_UPDATED()
   local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
   if registry then registry:NotifyChange("SlackHacks") end
   scheduleEvaluation()
+end
+
+--- Finishes a loadout switch once its commit completes; the active (spec) config is what gets updated.
+---@param _ string Event name.
+---@param configID number The updated trait config.
+function module:TRAIT_CONFIG_UPDATED(_, configID)
+  if not pendingLoad or configID ~= C_ClassTalents.GetActiveConfigID() then return end
+  local load = pendingLoad
+  pendingLoad = nil
+  if load.specID ~= currentSpecID() then return end
+  markLoadoutSelected(load.specID, load.configID)
+end
+
+--- A failed commit leaves the previous loadout in place, so don't mark the requested one as selected.
+function module:CONFIG_COMMIT_FAILED()
+  if not pendingLoad then return end
+  pendingLoad = nil
+  prn("switching talents failed.")
 end
 
 --- Runs an evaluation that was skipped because of combat.
@@ -494,6 +607,8 @@ function module:OnEnable()
   self:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
   self:RegisterEvent("CHALLENGE_MODE_START")
   self:RegisterEvent("TRAIT_CONFIG_LIST_UPDATED")
+  self:RegisterEvent("TRAIT_CONFIG_UPDATED")
+  self:RegisterEvent("CONFIG_COMMIT_FAILED")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   scheduleEvaluation()
 end
@@ -507,5 +622,6 @@ function module:OnDisable()
   end
   lastContextKey = nil
   pendingEvaluation = false
+  pendingLoad = nil
   self:HidePrompt()
 end

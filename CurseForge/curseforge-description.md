@@ -104,7 +104,7 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 #### Talent Reminders
 * **Loadout by Content:** For each of your specs, pick a talent loadout (or "Off") for Questing, Delves, Raids, Dungeons, and PvP. Choices are saved per character.
 * **Switch Prompt:** When you enter or leave content and your active loadout doesn't match, a movable prompt near the top of the screen offers to switch, with your chosen loadout pre-selected in a dropdown. It never takes keyboard focus, waits until combat ends, and stays hidden during an active Mythic+ keystone.
-* **Per-Mythic+ Dungeon Loadouts:** Optionally pick a loadout for each of the current season's Mythic+ dungeons (listed from the game's own Mythic+ data). Dungeons left on "Use Default" use the Dungeons loadout.
+* **Mythics:** Enable per-Mythic loadouts to pick a loadout for each of the current season's Mythic+ dungeons (listed from the game's own Mythic+ data). Dungeons left on "Use Default" use the Dungeons loadout. The prompt lists the current dungeon's name on its own line.
 
 #### Consumable Buff Reminders (**WIP!**)
 * **Clickable Aura Icons:** Shows on-screen buttons to apply Food, Flask, Weapon Oil, or Augment Runes when buffs are missing.

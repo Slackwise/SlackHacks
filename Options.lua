@@ -1142,7 +1142,7 @@ local function talentSpecOptions(index)
 
   local mythicArgs = {
     perMythicEnabled = {
-      name = "Enable Per-Mythic+ Dungeon Loadouts",
+      name = "Enable Per-Mythic Loadouts",
       desc = "Choose a loadout for each of the current season's Mythic+ dungeons. Dungeons set to " ..
         "\"Use Default\" use the Dungeons loadout.",
       type = "toggle",
@@ -1152,38 +1152,38 @@ local function talentSpecOptions(index)
       set = function(_, value) Self.Talents:SetPerMythicEnabled(talentSpecID(index), value) end,
       order = 0
     },
-    noDungeons = {
+    noMythics = {
       type = "description",
       name = "No current-season Mythic+ dungeons were found.",
       width = "full",
-      hidden = function() return #Self.Talents:GetSeasonDungeons() > 0 end,
+      hidden = function() return #Self.Talents:GetSeasonMythics() > 0 end,
       order = 0.5
     }
   }
   -- Fixed slots filled from the game's current-season dungeon list each time the options are drawn.
-  for slot = 1, Self.Talents.MAX_SEASON_DUNGEONS do
+  for slot = 1, Self.Talents.MAX_SEASON_MYTHICS do
     --- Returns the season dungeon shown in this slot.
-    ---@return table|nil dungeon
-    local function dungeon() return Self.Talents:GetSeasonDungeons()[slot] end
-    mythicArgs["dungeon" .. slot] = {
+    ---@return table|nil mythic
+    local function mythic() return Self.Talents:GetSeasonMythics()[slot] end
+    mythicArgs["mythic" .. slot] = {
       name = function()
-        local info = dungeon()
+        local info = mythic()
         return info and info.name or ""
       end,
       type = "select",
-      hidden = function() return dungeon() == nil end,
+      hidden = function() return mythic() == nil end,
       disabled = function()
         return talentRemindersDisabled() or not Self.Talents:IsPerMythicEnabled(talentSpecID(index))
       end,
       values = function() return (loadoutChoices(talentSpecID(index), LOADOUT_DEFAULT, "Use Default")) end,
       sorting = function() return select(2, loadoutChoices(talentSpecID(index), LOADOUT_DEFAULT, "Use Default")) end,
       get = function()
-        local info = dungeon()
+        local info = mythic()
         local configID = info and Self.Talents:GetMythicLoadout(talentSpecID(index), info.challengeMapID)
         return configID and tostring(configID) or LOADOUT_DEFAULT
       end,
       set = function(_, value)
-        local info = dungeon()
+        local info = mythic()
         if not info then return end
         Self.Talents:SetMythicLoadout(talentSpecID(index), info.challengeMapID, tonumber(value))
       end,
@@ -1211,7 +1211,7 @@ local function talentSpecOptions(index)
       },
       mythics = {
         type = "group",
-        name = "Per-Mythic+ Dungeon Loadouts",
+        name = "Mythics",
         inline = true,
         order = 2,
         args = mythicArgs
