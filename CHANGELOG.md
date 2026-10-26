@@ -1,5 +1,57 @@
 # SlackHacks Changelog
 
+## v17
+
+### StaticData
+- Added comments for the raid boss areas
+
+### Reminders
+- Moved static data to `StaticData.lua`
+- Talents: added Kith'ix
+- Talents: added per-raid-boss reminders.
+- Talents:
+- Talents: positioned at top of Reminders
+- Talents: added first version
+
+### CurseForge
+- Description: updated
+
+### Slackwise
+- Added Spec bindings
+- #WF Shaman: first binds
+
+### Bindings
+- Renamed Class Spec keybindings
+- Added Class Spec keybindings
+
+### Controls
+- Added some description text for the Open Keybindings button.
+
+### EllesmereUI
+- Added detection/confirmation.
+
+### WIP
+- Added a confirmation popup for WIP modules
+
+### Quest
+- I groupbox'd the Options
+- Added an auto-click first option for only mythic runs
+
+### SelfVendor
+- Fixed distance check bug and disabled checkbox bug.
+- Disabled in combat.
+- Fixed error in combat.
+
+### scripts
+- Added changelog.pl
+
+### Ace3
+- Updated
+
+### Revert "Scripts
+- Rewritten to PowerShell (lol)"
+- Renamed `ReleaseTools` to Shared`"
+
 ## v16
 
 ### Friends and Guildie Lists
