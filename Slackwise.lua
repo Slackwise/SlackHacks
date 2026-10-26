@@ -333,7 +333,11 @@ BINDINGS = {
     {"SHIFT-HOME",           "SETVIEW1", BT.COMMAND},
     {"HOME",                 "SETVIEW2", BT.COMMAND},
     -- {"END",                  "SETVIEW3", BT.COMMAND},
-    {"PRINTSCREEN",          "SCREENSHOT", BT.COMMAND},
+    {"F9",                   "SLACHACKS_SWITCH_SPEC_1", BT.COMMAND},
+    {"F10",                  "SLACHACKS_SWITCH_SPEC_2", BT.COMMAND},
+    {"F11",                  "SLACHACKS_SWITCH_SPEC_3", BT.COMMAND},
+    {"F12",                  "SCREENSHOT", BT.COMMAND},
+    -- {"PRINTSCREEN",          "SCREENSHOT", BT.COMMAND},
     {"NUMLOCK",              "NONE", BT.COMMAND},
     {"NUMPAD0",              "RAIDTARGET8", BT.COMMAND},
     {"NUMPAD1",              "RAIDTARGET7", BT.COMMAND},
@@ -427,23 +431,7 @@ BINDINGS = {
     },
     PALADIN = {
       CLASS = {
-        {"1",  "ACTIONBUTTON1", BT.COMMAND},
-        {"2",  "ACTIONBUTTON2", BT.COMMAND},
-        {"3",  "ACTIONBUTTON3", BT.COMMAND},
-        {"4",  "ACTIONBUTTON4", BT.COMMAND},
-        {"5",  "ACTIONBUTTON5", BT.COMMAND},
-        {"6",  "ACTIONBUTTON6", BT.COMMAND},
-        {"7",  "ACTIONBUTTON7", BT.COMMAND},
-        {"8",  "ACTIONBUTTON8", BT.COMMAND},
-        {"9",  "ACTIONBUTTON9", BT.COMMAND},
-        {"10", "ACTIONBUTTON10", BT.COMMAND},
-        {"11", "ACTIONBUTTON11", BT.COMMAND},
-        {"12", "ACTIONBUTTON12", BT.COMMAND},
-
-        ---------------------------------------------------
-
-        -- Click-Casting
-        -- Click-Casting
+                -- Click-Casting
         {"BUTTON1",                 "Flash of Light",         BT.CLICKCAST},
         {"SHIFT-BUTTON1",           "Flash of Light",         BT.CLICKCAST},
         {"ALT-CTRL-BUTTON1",        "Intercession",           BT.CLICKCAST},
@@ -459,11 +447,8 @@ BINDINGS = {
 
 
         -- General
-        {"F8",               "SUMMONPET", BT.MACRO},
-        {"F9",               "SHAPESHIFTBUTTON1", BT.COMMAND},
-        {"F10",              "SHAPESHIFTBUTTON2", BT.COMMAND},
-        {"F11",              "SHAPESHIFTBUTTON3", BT.COMMAND},
-        {"F12",              "SHAPESHIFTBUTTON4", BT.COMMAND},
+        {"F7",               "SUMMONPET", BT.MACRO},
+        {"F8",               "Devotion Aura"},
         {"CTRL-SPACE",       "Divine Steed"},
         {"BUTTON4",          "MOUSE4", BT.MACRO},
         {"BUTTON5",          "MOUSE5", BT.MACRO},
@@ -1125,6 +1110,34 @@ BINDINGS = {
       {"CTRL-SHIFT-Z", "Shadowmeld"},
       {"V",            "SHIELD_SELF", BT.MACRO},
     }
+  },
+  SHAMAN = {
+    MACROS = {
+      { 
+        "ENGAGE", "inv_misc_questionmark", multilineTrim([[
+          #showtooltip Attack
+          /startattack
+        ]])
+      },
+      { 
+        "ENGAGE_ASSIST", "inv_misc_questionmark", multilineTrim([[
+          #showtooltip Holy Strike
+          /assist party1
+          /startattack
+          /cast Holy Strike
+        ]])
+      },
+    },
+
+    --Click-Casting
+    {"BUTTON1",                 "Healing Wave", BT.CLICKCAST},
+
+    -- Main Attacks 
+    {"E",       "ENGAGE", BT.MACRO },
+    {"CTRL-E",  "ENGAGE_ASSIST", BT.MACRO },
+    {"R",       "Lightning Bolt"},
+
+    {"CTRL-Z",  "Stoneform"},
   },
   CLASSIC = {
     DRUID = {

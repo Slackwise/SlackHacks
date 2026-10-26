@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 9
+CONFIG_VERSION = 10
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -34,6 +34,7 @@ CONFIG_VERSION_RELEASES = {
   [7] = 10,
   [8] = 12,
   [9] = 13,
+  [10] = 17,
 }
 
 function getAddonVersion()
@@ -389,6 +390,48 @@ CONFIG_MIGRATIONS = {
       -- Only the raw (user-saved) values are copied, so unset keys keep falling back to the defaults.
       for key, value in pairs(old) do new[key] = value end
       infoDisplay.guildMemberList = nil
+    end
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
+    end
+    migrateProfile(Self.db.profile)
+  end,
+  -- Config v10, addon v17.
+  --- Add the opt-in Mythic-run restriction without changing existing NPC automation, and move the Consumable Buff
+  --- Reminders' settings (`buffs`) under the new Reminders module (`reminders.buffs`).
+  [10] = function()
+    --- Copies saved values from one table into another, recursing into sub-tables that exist in both so the
+    --- destination's AceDB defaults survive.
+    ---@param source table Raw saved values.
+    ---@param destination table
+    local function mergeInto(source, destination)
+      for key, value in pairs(source) do
+        if type(value) == "table" and type(destination[key]) == "table" then
+          mergeInto(value, destination[key])
+        else
+          destination[key] = value
+        end
+      end
+    end
+    --- Initialize the restriction and move the buff reminder settings in a saved profile, preserving explicit
+    --- choices.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      if type(p.quest) ~= "table" then p.quest = {} end
+      if p.quest.autoClickFirstOptionMythicOnly == nil then
+        p.quest.autoClickFirstOptionMythicOnly = false
+      end
+
+      -- `buffs` has no defaults anymore, so rawget only finds what the user saved. The active profile also shows
+      -- up in Self.db.profiles; once moved, `buffs` is gone, so running this again for it is a no-op.
+      local oldBuffs = rawget(p, "buffs")
+      if type(oldBuffs) == "table" then
+        if type(p.reminders) ~= "table" then p.reminders = {} end
+        if type(p.reminders.buffs) ~= "table" then p.reminders.buffs = {} end
+        mergeInto(oldBuffs, p.reminders.buffs)
+      end
+      p.buffs = nil
     end
     if Self.db.profiles then
       for _, p in pairs(Self.db.profiles) do migrateProfile(p) end

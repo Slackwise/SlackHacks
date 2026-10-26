@@ -300,7 +300,7 @@ end
 
 --- Creates one reusable secure menu row that can activate a toy or item on hardware click.
 --- Unlike a Blizzard Menu compositor row, this row itself owns the secure action attributes, matching
---- the working secure-button pattern used by Buffs.lua.
+--- the working secure-button pattern used by Reminders_Buffs.lua.
 ---@param index number Stable row index used to name the frame.
 ---@return Button row Secure action button with icon, label, and tooltip handlers.
 local function createContextMenuRow(index)

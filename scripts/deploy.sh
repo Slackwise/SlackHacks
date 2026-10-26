@@ -9,9 +9,9 @@ cd "$REPO_ROOT"
 load_project_env "$REPO_ROOT"
 
 echo "=== Deploying to GitHub ==="
-pwsh -NoProfile -File "$SCRIPT_DIR/Publish-GitHubRelease.ps1" "$@"
+perl "$SCRIPT_DIR/deploy-github.pl" "$@"
 
 echo "=== Deploying to CurseForge ==="
-pwsh -NoProfile -File "$SCRIPT_DIR/Publish-CurseForgeRelease.ps1" "$@"
+perl "$SCRIPT_DIR/deploy-curseforge.pl" "$@"
 
 echo "=== Deployment Complete ==="
