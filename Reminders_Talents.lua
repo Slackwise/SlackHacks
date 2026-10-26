@@ -3,8 +3,8 @@ setfenv(1, _G.SlackHacks)
 --[[
   Talent Reminders: reminds the player when their active talent loadout doesn't match the one they picked for the
   content they're in (Questing, Delves, Raids, Dungeons or PvP), and optionally for each of the current season's
-  Mythic+ dungeons. On entering or leaving content it shows a small, movable prompt near the top of the screen with
-  the desired loadout pre-selected in a dropdown; confirming loads that loadout.
+  Mythic+ dungeons and Midnight Season 2 raid boss rooms. On entering or leaving content it shows a small, movable
+  prompt near the top of the screen with the desired loadout pre-selected in a dropdown; confirming loads it.
 
   The chosen loadouts are saved per character (db.char), keyed by specialization ID, since loadouts belong to a
   character's spec. Whether the module is enabled is a profile setting, like every other module.
@@ -27,6 +27,23 @@ module.CONTEXTS = {
 -- Fixed option slots: Druids have the most specializations, and a season's Mythic+ pool has been 8 dungeons.
 module.MAX_SPECS = 4
 module.MAX_SEASON_MYTHICS = 12
+
+-- Midnight Season 2: The Venomous Abyss. Instance/encounter IDs come from JournalEncounter (journal instance 1320);
+-- localized room names come from AreaTable (parent area 16915). Keep this list season-specific, not "latest tier".
+-- Sources: https://wago.tools/db2/JournalEncounter?filter[JournalInstanceID]=1320
+-- https://wago.tools/db2/AreaTable?filter[ParentAreaID]=16915
+-- The Vile Crypt mapping for Entombed Sentinels was confirmed by the user.
+module.SEASON_RAID = { instanceID = 3004, areaID = 16915, name = "The Venomous Abyss" }
+module.RAID_BOSSES = {
+  { encounterID = 3470, journalEncounterID = 2888, areaID = 17680, name = "Nek'zali the Soulcoiler" },
+  { encounterID = 3445, journalEncounterID = 2874, areaID = 17687, name = "Entombed Sentinels" },
+  { encounterID = 3497, journalEncounterID = 2894, areaID = 17682, name = "The Lost Explorers" },
+  { encounterID = 3455, journalEncounterID = 2882, areaID = 17715, name = "Vashnik the Malignant" },
+  { encounterID = 3420, journalEncounterID = 2871, areaID = 17686, name = "Sszorak" },
+  { encounterID = 3421, journalEncounterID = 2887, areaID = 17681, name = "The Twin Fangs" },
+  { encounterID = 3429, journalEncounterID = 2883, areaID = 17701, name = "The Coiled Altar" },
+  { encounterID = 3492, journalEncounterID = 2895, areaID = 17702, name = "Ula'tek" },
+}
 
 local CONTEXT_NAMES = {}
 for _, context in ipairs(module.CONTEXTS) do
@@ -64,8 +81,8 @@ local SPEC_THUMBNAILS = {
 local prompt
 -- Identifies the content last evaluated (context plus instance), so only entering/leaving content prompts.
 local lastContextKey
--- Set when an evaluation was skipped because of combat, so it runs once combat ends.
-local pendingEvaluation = false
+-- A queued evaluation token, cleared on disable so callbacks in the shared combat queue become no-ops.
+local pendingEvaluation
 local evaluateTimer
 -- The loadout being committed by ApplyLoadout ({ specID, configID }), finished on TRAIT_CONFIG_UPDATED.
 local pendingLoad
@@ -94,8 +111,8 @@ end
 --- Returns the per-character saved loadout choices for a specialization. AceDB's "*" default creates the table on
 --- first access.
 ---@param specID number
----@return table settings Contains `contexts` (context key -> configID), `perMythicEnabled`, and `mythics`
----  (challenge map ID -> configID).
+---@return table settings Contains context choices, per-Mythic choices keyed by challenge map ID, and raid boss
+--- choices keyed by encounter ID, with separate per-Mythic and per-raid-boss enable settings.
 local function specSettings(specID)
   return db.char.reminders.talents.specs[specID]
 end
@@ -175,6 +192,60 @@ end
 ---@param configID number|nil nil falls back to the Dungeons loadout.
 function module:SetMythicLoadout(specID, challengeMapID, configID)
   specSettings(specID).mythics[challengeMapID] = configID
+end
+
+--- Returns whether boss-room reminders are enabled for a specialization.
+---@param specID number
+---@return boolean enabled
+function module:IsPerRaidBossEnabled(specID)
+  return specSettings(specID).perRaidBossEnabled and true or false
+end
+
+--- Enables or disables boss-room reminders for a specialization.
+---@param specID number
+---@param enabled boolean
+function module:SetPerRaidBossEnabled(specID, enabled)
+  specSettings(specID).perRaidBossEnabled = enabled
+end
+
+--- Returns a boss's saved loadout; nil means "Use Default", including when the saved loadout was deleted.
+---@param specID number
+---@param encounterID number The DungeonEncounter ID, not the journal encounter ID.
+---@return number|nil configID
+function module:GetRaidBossLoadout(specID, encounterID)
+  local configID = specSettings(specID).raidBosses[encounterID]
+  if loadoutName(specID, configID) then return configID end
+  return nil
+end
+
+--- Saves a boss loadout; nil restores the general Raids loadout fallback.
+---@param specID number
+---@param encounterID number
+---@param configID number|nil
+function module:SetRaidBossLoadout(specID, encounterID, configID)
+  specSettings(specID).raidBosses[encounterID] = configID
+end
+
+--- Returns the localized journal boss name, using the English label until journal data is available.
+---@param boss table A RAID_BOSSES entry.
+---@return string name
+function module:GetRaidBossName(boss)
+  local name = EJ_GetEncounterInfo and EJ_GetEncounterInfo(boss.journalEncounterID)
+  return name or boss.name
+end
+
+--- Matches only the supported raid's localized boss-room subzones; corridors and other raids have no match.
+---@param instanceID number|nil The instance map ID from GetInstanceInfo.
+---@return table|nil boss A RAID_BOSSES entry.
+function module:GetCurrentRaidBoss(instanceID)
+  if instanceID ~= self.SEASON_RAID.instanceID then return nil end
+  local subzone = GetSubZoneText()
+  if not subzone or subzone == "" then return nil end
+  for _, boss in ipairs(self.RAID_BOSSES) do
+    local areaName = C_Map.GetAreaInfo(boss.areaID)
+    if areaName and subzone == areaName then return boss end
+  end
+  return nil
 end
 
 --- Returns the current Mythic+ season's dungeons, from the game's own Mythic+ map table, sorted by name.
@@ -383,11 +454,11 @@ local function createPrompt()
   frame.Text:SetPoint("TOPRIGHT", -16, -52)
   frame.Text:SetJustifyH("CENTER")
 
-  frame.MythicName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-  frame.MythicName:SetPoint("TOPLEFT", frame.Text, "BOTTOMLEFT", 0, -8)
-  frame.MythicName:SetPoint("TOPRIGHT", frame.Text, "BOTTOMRIGHT", 0, -8)
-  frame.MythicName:SetJustifyH("CENTER")
-  frame.MythicName:Hide()
+  frame.ContentName = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+  frame.ContentName:SetPoint("TOPLEFT", frame.Text, "BOTTOMLEFT", 0, -8)
+  frame.ContentName:SetPoint("TOPRIGHT", frame.Text, "BOTTOMRIGHT", 0, -8)
+  frame.ContentName:SetJustifyH("CENTER")
+  frame.ContentName:Hide()
 
   frame.SpecCard = CreateFrame("Frame", nil, frame, "InsetFrameTemplate")
   frame.SpecCard:SetSize(SPEC_CARD_WIDTH, SPEC_CARD_HEIGHT)
@@ -455,27 +526,30 @@ end
 ---@param configID number The loadout to pre-select.
 ---@param contextLabel string Describes the content the player is in, e.g. "Dungeons (Ara-Kara)".
 ---@param mythicName string|nil The dungeon name when showing the dungeon-context prompt.
-local function showPrompt(specID, configID, contextLabel, mythicName)
+---@param bossName string|nil The boss name when showing a boss-room prompt.
+local function showPrompt(specID, configID, contextLabel, mythicName, bossName)
   createPrompt()
   applyPromptPosition()
   prompt.specID = specID
   prompt.selectedConfigID = configID
   setPromptSpec(specID)
-  local mythicNameHeight = 0
+  local contentNameHeight = 0
   prompt.SpecCard:ClearAllPoints()
-  if mythicName then
-    prompt.Text:SetText("Your current talents don't match your specified loadout for the current Mythic dungeon:")
-    prompt.MythicName:SetText(mythicName)
-    prompt.MythicName:Show()
-    mythicNameHeight = 8 + prompt.MythicName:GetStringHeight()
-    prompt.SpecCard:SetPoint("TOP", prompt.MythicName, "BOTTOM", 0, -30)
+  if mythicName or bossName then
+    prompt.Text:SetText(bossName
+      and "Your current talents don't match your specified loadout for the current raid boss:"
+      or "Your current talents don't match your specified loadout for the current Mythic dungeon:")
+    prompt.ContentName:SetText(bossName or mythicName)
+    prompt.ContentName:Show()
+    contentNameHeight = 8 + prompt.ContentName:GetStringHeight()
+    prompt.SpecCard:SetPoint("TOP", prompt.ContentName, "BOTTOM", 0, -30)
   else
     prompt.Text:SetText(("Your talents don't match your %s loadout."):format("|cffffd100" .. contextLabel .. "|r"))
-    prompt.MythicName:Hide()
+    prompt.ContentName:Hide()
     prompt.SpecCard:SetPoint("TOP", prompt.Text, "BOTTOM", 0, -30)
   end
   -- Fit wrapped context/dungeon names without letting the description overlap the spec card or controls.
-  prompt:SetHeight(52 + prompt.Text:GetStringHeight() + mythicNameHeight + 30 + SPEC_CARD_HEIGHT + 10
+  prompt:SetHeight(52 + prompt.Text:GetStringHeight() + contentNameHeight + 30 + SPEC_CARD_HEIGHT + 10
     + prompt.Dropdown:GetHeight() + 8 + BUTTON_HEIGHT + 24)
   -- Rebuilds the dropdown's menu from the new spec's loadouts and refreshes its text to the new selection.
   prompt.Dropdown:GenerateMenu()
@@ -493,7 +567,18 @@ end
 function module:Evaluate(force)
   if not isAllowed() then return end
   if InCombatLockdown() then
-    pendingEvaluation = true
+    if pendingEvaluation then
+      pendingEvaluation.force = pendingEvaluation.force or force
+      return
+    end
+    local pending = { force = force }
+    pendingEvaluation = pending
+    --- Rechecks current content after combat, unless this queued evaluation was invalidated by disabling.
+    runAfterCombat(function()
+      if pendingEvaluation ~= pending then return end
+      pendingEvaluation = nil
+      self:Evaluate(pending.force)
+    end)
     return
   end
   local contextKey, instanceID, instanceName = currentContext()
@@ -503,21 +588,36 @@ function module:Evaluate(force)
   if not specID or #self:GetLoadouts(specID) == 0 then return end
   -- The open world is one context, so moving between zones doesn't prompt again; each instance is its own.
   local key = (contextKey or "other") .. ":" .. tostring(contextKey ~= "questing" and instanceID or "")
+  local boss
+  local useBossRooms = contextKey == "raids" and instanceID == self.SEASON_RAID.instanceID
+    and self:IsPerRaidBossEnabled(specID)
+  if useBossRooms then
+    boss = self:GetCurrentRaidBoss(instanceID)
+    key = key .. ":" .. (boss and tostring(boss.encounterID) or "unmapped")
+  end
   if key == lastContextKey and not force then return end
   lastContextKey = key
   self:HidePrompt()
   if not contextKey then return end
+  -- Moving out of a boss room clears stale prompts but never asks for the general Raids loadout in corridors.
+  if useBossRooms and not boss then return end
   -- Talents are locked once a Mythic+ keystone has started.
   if C_ChallengeMode and C_ChallengeMode.IsChallengeModeActive and C_ChallengeMode.IsChallengeModeActive() then
     return
   end
-  local configID = desiredLoadout(specID, contextKey, instanceID, instanceName)
+  local configID
+  if boss then
+    configID = self:GetRaidBossLoadout(specID, boss.encounterID) or self:GetContextLoadout(specID, "raids")
+  else
+    configID = desiredLoadout(specID, contextKey, instanceID, instanceName)
+  end
   if not configID or configID == activeLoadout(specID) then return end
   local label = CONTEXT_NAMES[contextKey]
   if contextKey ~= "questing" and instanceName and instanceName ~= "" then
     label = label .. " (" .. instanceName .. ")"
   end
-  showPrompt(specID, configID, label, contextKey == "dungeons" and instanceName or nil)
+  showPrompt(specID, configID, label, contextKey == "dungeons" and instanceName or nil,
+    boss and self:GetRaidBossName(boss) or nil)
 end
 
 --- Runs Evaluate after a short delay, replacing any evaluation already waiting.
@@ -537,6 +637,16 @@ end
 
 --- Zone changes without a loading screen; Evaluate ignores them unless the content actually changed.
 function module:ZONE_CHANGED_NEW_AREA()
+  scheduleEvaluation()
+end
+
+--- Boss rooms can change subzone without a loading screen or a new instance.
+function module:ZONE_CHANGED()
+  scheduleEvaluation()
+end
+
+--- Some indoor area transitions use a separate event; the context key still prevents duplicate prompts.
+function module:ZONE_CHANGED_INDOORS()
   scheduleEvaluation()
 end
 
@@ -576,13 +686,6 @@ function module:CONFIG_COMMIT_FAILED()
   prn("switching talents failed.")
 end
 
---- Runs an evaluation that was skipped because of combat.
-function module:PLAYER_REGEN_ENABLED()
-  if not pendingEvaluation then return end
-  pendingEvaluation = false
-  scheduleEvaluation()
-end
-
 --- Updates the profile's Talent Reminders setting and enables or disables the module.
 ---@param enabled boolean Whether talent reminders are enabled.
 function module:SetEnabled(enabled)
@@ -604,12 +707,13 @@ function module:OnEnable()
   end
   self:RegisterEvent("PLAYER_ENTERING_WORLD")
   self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+  self:RegisterEvent("ZONE_CHANGED")
+  self:RegisterEvent("ZONE_CHANGED_INDOORS")
   self:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
   self:RegisterEvent("CHALLENGE_MODE_START")
   self:RegisterEvent("TRAIT_CONFIG_LIST_UPDATED")
   self:RegisterEvent("TRAIT_CONFIG_UPDATED")
   self:RegisterEvent("CONFIG_COMMIT_FAILED")
-  self:RegisterEvent("PLAYER_REGEN_ENABLED")
   scheduleEvaluation()
 end
 
@@ -621,7 +725,7 @@ function module:OnDisable()
     evaluateTimer = nil
   end
   lastContextKey = nil
-  pendingEvaluation = false
+  pendingEvaluation = nil
   pendingLoad = nil
   self:HidePrompt()
 end

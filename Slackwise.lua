@@ -336,7 +336,7 @@ BINDINGS = {
     {"F9",                   "SLACHACKS_SWITCH_SPEC_1", BT.COMMAND},
     {"F10",                  "SLACHACKS_SWITCH_SPEC_2", BT.COMMAND},
     {"F11",                  "SLACHACKS_SWITCH_SPEC_3", BT.COMMAND},
-    {"F12",                   "SCREENSHOT", BT.COMMAND},
+    {"F12",                  "SCREENSHOT", BT.COMMAND},
     -- {"PRINTSCREEN",          "SCREENSHOT", BT.COMMAND},
     {"NUMLOCK",              "NONE", BT.COMMAND},
     {"NUMPAD0",              "RAIDTARGET8", BT.COMMAND},

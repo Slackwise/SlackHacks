@@ -24,12 +24,15 @@ dbDefaults = {
     reminders = {
       talents = {
         -- Keyed by specialization ID. Loadouts are trait config IDs; nil means "Off" (contexts) or "Use Default"
-        -- (mythics, keyed by Mythic+ challenge map ID).
+        -- (mythics, keyed by Mythic+ challenge map ID; raidBosses, keyed by encounter ID).
         specs = {
           ["*"] = {
             contexts = {},
             perMythicEnabled = false,
-            mythics = {}
+            mythics = {},
+            -- Additive defaults: existing character/spec choices are unchanged; boss-room reminders are opt-in.
+            perRaidBossEnabled = false,
+            raidBosses = {}
           }
         }
       }
@@ -1082,13 +1085,13 @@ local function remindersDisabled()
   return not db.profile.reminders.enabled
 end
 
---- AceConfig `disabled` callback: Talent Reminders' loadout choices are greyed out while it or Reminders is off.
+--- AceConfig `disabled` callback: Talent Loadouts' choices are greyed out while it or Reminders is off.
 ---@return boolean disabled
 local function talentRemindersDisabled()
   return not db.profile.reminders.enabled or not db.profile.reminders.talents.enabled
 end
 
--- Select keys for the empty choices in Talent Reminders' loadout dropdowns; loadouts use their config ID as a string.
+-- Select keys for the empty choices in Talent Loadouts' dropdowns; loadouts use their config ID as a string.
 local LOADOUT_OFF = "off"
 local LOADOUT_DEFAULT = "default"
 
@@ -1119,7 +1122,7 @@ local function loadoutChoices(specID, emptyKey, emptyLabel)
 end
 
 --- Builds the options tab for one of the character's specializations: a loadout dropdown per content context, and
---- the per-Mythic+ dungeon loadouts. Hidden when the class doesn't have a spec at this index.
+--- per-Mythic+ dungeon and raid boss loadouts. Hidden when the class doesn't have a spec at this index.
 ---@param index number Specialization index.
 ---@return table group AceConfig group.
 local function talentSpecOptions(index)
@@ -1191,6 +1194,68 @@ local function talentSpecOptions(index)
     }
   end
 
+  local raidBossArgs = {
+    enabled = {
+      name = "Enable Per-Raid-Boss Loadouts",
+      desc = "Prompt when entering a mapped boss room. Use Default falls back to the Raids loadout. " ..
+        "Unmapped corridors do not prompt.",
+      type = "toggle",
+      descStyle = "inline",
+      width = "full",
+      --- Reads the specialization's boss-room reminder switch.
+      ---@return boolean
+      get = function() return Self.Talents:IsPerRaidBossEnabled(talentSpecID(index)) end,
+      --- Updates the specialization's boss-room reminder switch.
+      ---@param _ table AceConfig option info.
+      ---@param value boolean
+      set = function(_, value) Self.Talents:SetPerRaidBossEnabled(talentSpecID(index), value) end,
+      order = 0
+    },
+    raid = {
+      --- Returns the supported raid's localized name.
+      ---@return string
+      name = function() return C_Map.GetAreaInfo(Self.Talents.SEASON_RAID.areaID) or Self.Talents.SEASON_RAID.name end,
+      type = "description",
+      width = "full",
+      order = 0.5
+    }
+  }
+  for order, boss in ipairs(Self.Talents.RAID_BOSSES) do
+    raidBossArgs["boss" .. boss.encounterID] = {
+      --- Returns this encounter's localized name.
+      ---@return string
+      name = function() return Self.Talents:GetRaidBossName(boss) end,
+      --- Identifies the subzone used for this encounter's reminder.
+      ---@return string
+      desc = function() return "Boss room: " .. (C_Map.GetAreaInfo(boss.areaID) or tostring(boss.areaID)) end,
+      type = "select",
+      --- Disables boss choices when their module or per-spec switch is off.
+      ---@return boolean
+      disabled = function()
+        return talentRemindersDisabled() or not Self.Talents:IsPerRaidBossEnabled(talentSpecID(index))
+      end,
+      --- Returns saved loadout choices with Use Default first.
+      ---@return table
+      values = function() return (loadoutChoices(talentSpecID(index), LOADOUT_DEFAULT, "Use Default")) end,
+      --- Returns the loadout dropdown's display order.
+      ---@return table
+      sorting = function() return select(2, loadoutChoices(talentSpecID(index), LOADOUT_DEFAULT, "Use Default")) end,
+      --- Reads this boss's explicit choice, without substituting the Raids fallback in the options.
+      ---@return string
+      get = function()
+        local configID = Self.Talents:GetRaidBossLoadout(talentSpecID(index), boss.encounterID)
+        return configID and tostring(configID) or LOADOUT_DEFAULT
+      end,
+      --- Saves this boss's choice; Use Default clears its override.
+      ---@param _ table AceConfig option info.
+      ---@param value string
+      set = function(_, value)
+        Self.Talents:SetRaidBossLoadout(talentSpecID(index), boss.encounterID, tonumber(value))
+      end,
+      order = order
+    }
+  end
+
   return {
     type = "group",
     name = function()
@@ -1215,18 +1280,25 @@ local function talentSpecOptions(index)
         inline = true,
         order = 2,
         args = mythicArgs
+      },
+      raidBosses = {
+        type = "group",
+        name = "Raid Bosses (Midnight Season 2)",
+        inline = true,
+        order = 3,
+        args = raidBossArgs
       }
     }
   }
 end
 
---- Builds the Talent Reminders options group, with a tab for each of the character's specializations.
+--- Builds the Talent Loadouts options group, with a tab for each of the character's specializations.
 ---@return table group AceConfig group.
 local function talentReminderOptions()
   local args = {
     overview = goldModuleOverview("Get asked to switch talent loadouts when you enter or leave content, using the loadout you pick for each kind of content. Loadouts are saved per character."),
     enabled = {
-      name = "Enable Talent Reminders Module",
+      name = "Enable Talent Loadouts Module",
       desc = "Prompt to switch talent loadouts when entering or leaving Questing, Delves, Raids, Dungeons, and PvP content.",
       type = "toggle",
       descStyle = "inline",
@@ -1241,7 +1313,7 @@ local function talentReminderOptions()
   end
   return {
     type = "group",
-    name = "Talent Reminders",
+    name = "Talent Loadouts",
     desc = "Prompts you to switch talent loadouts\nfor your current content.",
     order = 1,
     childGroups = "tab",
@@ -2517,7 +2589,7 @@ options = {
         overview = goldModuleOverview("Get reminded about things that are easy to forget, like consumable buffs and switching to the right talent loadout for your content."),
         enabled = {
           name = "Enable Reminders Module",
-          desc = "Enable all Reminders features: Consumable Buff Reminders and Talent Reminders. " ..
+          desc = "Enable all Reminders features: Consumable Buff Reminders and Talent Loadouts. " ..
             "Turning this off disables all of them.",
           type = "toggle",
           descStyle = "inline",

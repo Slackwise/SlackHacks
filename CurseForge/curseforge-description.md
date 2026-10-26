@@ -101,10 +101,11 @@ One "Enable Info Display Module" switch turns all Info Display features on or of
 ### Reminders
 One "Enable Reminders Module" switch turns all Reminders features on or off at once. Each feature also has its own on/off setting. Retail only.
 
-#### Talent Reminders
+#### Talent Loadouts
 * **Loadout by Content:** For each of your specs, pick a talent loadout (or "Off") for Questing, Delves, Raids, Dungeons, and PvP. Choices are saved per character.
 * **Switch Prompt:** When you enter or leave content and your active loadout doesn't match, a movable prompt near the top of the screen offers to switch, with your chosen loadout pre-selected in a dropdown. It never takes keyboard focus, waits until combat ends, and stays hidden during an active Mythic+ keystone.
 * **Mythics:** Enable per-Mythic loadouts to pick a loadout for each of the current season's Mythic+ dungeons (listed from the game's own Mythic+ data). Dungeons left on "Use Default" use the Dungeons loadout. The prompt lists the current dungeon's name on its own line.
+* **Raid Bosses (Midnight Season 2):** Optionally choose a loadout for each of The Venomous Abyss's eight bosses, saved per character and specialization. Entering a mapped boss-room subzone (including after `/reload`) offers to switch, with the boss's name displayed as a large heading. "Use Default" uses your Raids loadout. Unmapped corridors do not prompt, and no combat or boss-engagement detection is needed.
 
 #### Consumable Buff Reminders (**WIP!**)
 * **Clickable Aura Icons:** Shows on-screen buttons to apply Food, Flask, Weapon Oil, or Augment Runes when buffs are missing.
