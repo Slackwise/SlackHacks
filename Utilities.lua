@@ -16,20 +16,131 @@ function module:SupportsWaypoints()
     and C_SuperTrack and type(C_SuperTrack.SetSuperTrackedUserWaypoint) == "function" or false
 end
 
---- Converts a coordinate token, accepting decimal commas and a trailing separator.
----@param token string A single command argument.
----@return number|nil coordinate The parsed percentage, or nil for non-numeric text.
-local function coordinate(token)
-  return tonumber((token:gsub("[,;]$", ""):gsub(",", ".")))
+--- Normalizes zone names for TomTom-compatible case- and whitespace-insensitive matching.
+---@param name string Zone name or search pattern.
+---@return string normalized Lowercase text without whitespace.
+local function normalizeZoneName(name)
+  return (name:lower():gsub("%s", ""))
 end
 
---- Resolves a zone name or explicit map ID without silently choosing an ambiguous zone.
+--- Returns the map category used by TomTom's named-zone lookup.
+---@param map table Blizzard UI map metadata.
+---@return number mapType The effective UIMapType.
+local function namedMapType(map)
+  -- Some legacy city, garrison, and world maps have misleading native categories.
+  local types = Enum.UIMapType
+  local corrections = {
+    [101] = types.World, [572] = types.World, [625] = types.Orphan,
+    [125] = types.Zone, [501] = types.Zone, [582] = types.Zone,
+    [590] = types.Zone, [627] = types.Zone,
+    [126] = types.Micro, [502] = types.Micro, [626] = types.Micro,
+    [628] = types.Micro, [629] = types.Micro,
+  }
+  return corrections[map.mapID] or map.mapType
+end
+
+--- Returns a localized zone name with compatibility suffixes for legacy map variants.
+---@param map table Blizzard UI map metadata.
+---@return string name The name accepted by TomTom's zone lookup.
+local function namedMapLabel(map)
+  local id = map.mapID
+  local suffix
+  if id >= 195 and id <= 197 then suffix = tostring(id - 194)
+  elseif id >= 579 and id <= 581 then suffix = tostring(id - 578)
+  elseif id >= 585 and id <= 587 then suffix = tostring(id - 584)
+  elseif id == 943 then suffix = FACTION_HORDE
+  elseif id == 1044 then suffix = FACTION_ALLIANCE end
+  return suffix and (map.name .. " " .. suffix) or map.name
+end
+
+--- Builds TomTom-compatible named maps, including legacy maps missing from the cosmic tree.
+---@return table|nil names Map names (including Zone:Parent qualifiers) indexed to map IDs.
+---@return string|nil reason Why map discovery failed.
+local function namedMaps()
+  local children = C_Map.GetMapChildrenInfo(946, nil, true)
+  if not children then return nil, "Map data is unavailable. Use #mapID instead." end
+  local maps = {}
+  for _, map in ipairs(children) do maps[map.mapID] = map end
+  local pending = {}
+  for id in pairs(maps) do pending[#pending + 1] = id end
+  local index = 1
+  while index <= #pending do
+    local id = pending[index]
+    index = index + 1
+    local groupID = C_Map.GetMapGroupID(id)
+    if groupID then
+      for _, member in ipairs(C_Map.GetMapGroupMembersInfo(groupID) or {}) do
+        if not maps[member.mapID] then
+          local map = C_Map.GetMapInfo(member.mapID)
+          if map then
+            maps[member.mapID] = map
+            pending[#pending + 1] = member.mapID
+            -- Group siblings can have floors/subzones missing from the original cosmic traversal.
+            for _, child in ipairs(C_Map.GetMapChildrenInfo(member.mapID, nil, true) or {}) do
+              if not maps[child.mapID] then
+                maps[child.mapID] = child
+                pending[#pending + 1] = child.mapID
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  -- HereBeDragons also probes IDs through 3000 to find maps omitted from the hierarchy.
+  -- Keep that compatibility range, while the tree supplies newer maps above it.
+  for id = 1, 3000 do
+    if not maps[id] then maps[id] = C_Map.GetMapInfo(id) end
+  end
+  local groups = {}
+  for _, map in pairs(maps) do
+    local category = namedMapType(map)
+    if map.name and (category == Enum.UIMapType.Zone or category == Enum.UIMapType.Continent
+      or category == Enum.UIMapType.Micro) then
+      local parent, visited = map, {}
+      local hasWorld = false
+      while parent and not visited[parent.mapID] do
+        visited[parent.mapID] = true
+        local parentType = namedMapType(parent)
+        if parentType == Enum.UIMapType.World or parentType == Enum.UIMapType.Cosmic then
+          hasWorld = true
+        end
+        parent = maps[parent.parentMapID] or C_Map.GetMapInfo(parent.parentMapID or 0)
+      end
+      if hasWorld then
+        local name = namedMapLabel(map)
+        groups[name] = groups[name] or {}
+        groups[name][#groups[name] + 1] = map.mapID
+      end
+    end
+  end
+  local names = {}
+  for name, ids in pairs(groups) do
+    table.sort(ids)
+    if #ids == 1 then
+      names[name] = ids[1]
+    else
+      for _, id in ipairs(ids) do
+        local parent = maps[maps[id].parentMapID] or C_Map.GetMapInfo(maps[id].parentMapID or 0)
+        if parent and parent.name then
+          local qualified = name .. ":" .. parent.name
+          -- The lowest ID owns Zone:Parent; subsequent copies use Zone:mapID.
+          if names[qualified] then qualified = name .. ":" .. id end
+          names[qualified] = id
+        end
+      end
+    end
+  end
+  return names
+end
+
+--- Resolves a zone name, partial Lua pattern, or explicit map ID using TomTom's lookup rules.
 ---@param zone string|nil Zone name, #mapID, or nil for the player's current map.
 ---@return number|nil mapID The resolved UI map ID.
 ---@return string|nil reason An explanation when resolution fails.
 local function resolveMap(zone)
-  local currentMap = C_Map.GetBestMapForUnit("player")
   if not zone then
+    local currentMap = C_Map.GetBestMapForUnit("player")
     if currentMap then return currentMap end
     return nil, "Your current map is unavailable. Use /way #mapID x y instead."
   end
@@ -40,27 +151,28 @@ local function resolveMap(zone)
     return nil, "Unknown map ID: " .. explicitID .. "."
   end
 
-  local name = zone:lower()
-  local exact, partial = {}, {}
-  -- The cosmic map includes zones on other continents, not just children of the current continent.
-  local maps = C_Map.GetMapChildrenInfo(946, nil, true)
-  if not maps then return nil, "Map data is unavailable. Use #mapID instead." end
-  for _, map in ipairs(maps) do
-    local mapName = map.name:lower()
-    if mapName == name then
-      exact[map.mapID] = true
-    elseif mapName:find(name, 1, true) then
-      partial[map.mapID] = true
-    end
+  local names, reason = namedMaps()
+  if not names then return nil, reason end
+  local search = normalizeZoneName(zone)
+  for name, id in pairs(names) do
+    if normalizeZoneName(name) == search then return id end
   end
-  local matches = next(exact) and exact or partial
-  if exact[currentMap] then return currentMap end
-  local mapID = next(matches)
-  if not mapID then return nil, "Unknown zone '" .. zone .. "'. Use #mapID instead." end
-  if next(matches, mapID) then
-    return nil, "Zone '" .. zone .. "' is ambiguous. Use #mapID instead."
+  local matches = {}
+  for name in pairs(names) do
+    local ok, match = pcall(string.match, normalizeZoneName(name), search)
+    if not ok then return nil, "Invalid zone-name pattern '" .. zone .. "'." end
+    if match then matches[#matches + 1] = name end
   end
-  return mapID
+  if #matches == 0 then return nil, "Unknown zone '" .. zone .. "'. Use #mapID instead." end
+  if #matches > 7 then
+    return nil, "Found " .. #matches .. " possible matches for zone '" .. zone .. "'. Please be more specific."
+  end
+  if #matches > 1 then
+    table.sort(matches)
+    return nil, "Zone '" .. zone .. "' is ambiguous. Use #mapID or a qualified name: " ..
+      table.concat(matches, ", ") .. "."
+  end
+  return names[matches[1]]
 end
 
 --- Parses the waypoint-creation subset of TomTom's /way syntax.
@@ -68,17 +180,22 @@ end
 ---@return table|nil waypoint Map ID, normalized coordinates, and optional description.
 ---@return string|nil reason An explanation when the input cannot create a waypoint.
 function module:ParseWaypoint(input)
+  -- TomTom accepts both decimal separators and punctuation followed by a space between coordinates.
+  -- Normalize the complete input, including descriptions, before finding the first numeric token.
+  local decimal = tonumber("1.1") and "." or ","
+  local otherDecimal = decimal == "." and "," or "%."
+  input = input:gsub("(%d)[%.,] (%d)", "%1 %2"):gsub("(%d)" .. otherDecimal .. "(%d)", "%1" .. decimal .. "%2")
   local tokens = {}
   for token in input:gmatch("%S+") do tokens[#tokens + 1] = token end
   local firstCoordinate
   for index, token in ipairs(tokens) do
-    if coordinate(token) then
+    if tonumber(token) then
       firstCoordinate = index
       break
     end
   end
   if not firstCoordinate or not tokens[firstCoordinate + 1] then return nil, USAGE end
-  local x, y = coordinate(tokens[firstCoordinate]), coordinate(tokens[firstCoordinate + 1])
+  local x, y = tonumber(tokens[firstCoordinate]), tonumber(tokens[firstCoordinate + 1])
   if not x or not y or x < 0 or x > 100 or y < 0 or y > 100 then return nil, USAGE end
   local zone = firstCoordinate > 1 and table.concat(tokens, " ", 1, firstCoordinate - 1) or nil
   local mapID, reason = resolveMap(zone)
@@ -109,7 +226,7 @@ function module:HandleWay(input)
     return
   end
   if not C_Map.CanSetUserWaypointOnMap(waypoint.mapID) then
-    prn("Native map pins cannot be placed on map #" .. waypoint.mapID .. ".")
+    prn("Blizzard does not allow a native waypoint on map #" .. waypoint.mapID .. ".")
     return
   end
   C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(waypoint.mapID, waypoint.x, waypoint.y))
