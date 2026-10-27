@@ -3,11 +3,7 @@
 ## v17
 
 ### Reminders
-- Moved static data to `StaticData.lua`
-- Talents: added Kith'ix
 - Talents: added per-raid-boss reminders.
-- Talents:
-- Talents: positioned at top of Reminders
 - Talents: added first version
 
 ### Bindings
