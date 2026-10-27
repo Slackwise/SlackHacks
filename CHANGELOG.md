@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v19
+
+### Utilities
+- TomTom Way Command: New feature that handles `/way` commands from TomTom but creates a native Blizzard waypoint instead like `/mappin`.
+
 ## v18
 
 ### Utilities
