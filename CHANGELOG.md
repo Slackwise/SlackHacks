@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v18
+
+### SelfVendor
+- Fixed an error message that might pop up mid combat.
+
 ## v17
 
 ### Reminders
