@@ -953,35 +953,66 @@ function module:OnInitialize()
   if not moduleShouldBeActive() then self:Disable() end
 end
 
+-- Events that carry chat or UI message text, mapped to their handler method. Chat events stay registered
+-- (outside combat) even when only Automatic Trade Response is on; ParseChatRequest rejects them while chat
+-- requests are disabled.
+local TEXT_EVENTS = {
+  CHAT_MSG_PARTY = "CHAT_MSG_GROUP",
+  CHAT_MSG_PARTY_LEADER = "CHAT_MSG_GROUP",
+  CHAT_MSG_RAID = "CHAT_MSG_GROUP",
+  CHAT_MSG_RAID_LEADER = "CHAT_MSG_GROUP",
+  CHAT_MSG_INSTANCE_CHAT = "CHAT_MSG_GROUP",
+  CHAT_MSG_INSTANCE_CHAT_LEADER = "CHAT_MSG_GROUP",
+  CHAT_MSG_SAY = "CHAT_MSG_GROUP",
+  CHAT_MSG_WHISPER = "CHAT_MSG_GROUP",
+  UI_INFO_MESSAGE = "UI_INFO_MESSAGE",
+}
+
+--- Register or unregister the chat/UI message events.
+-- They're dropped for the whole of combat rather than ignored inside the handlers: in combat (and
+-- Mythic+/encounters on Midnight 12.0+) their text arrives as secret values, and simply receiving
+-- them in addon code risks secret-value errors and spreads SlackHacks taint.
+-- @param module table the SelfVendor module.
+-- @param listen boolean true to register the events, false to unregister them.
+local function setTextEventsRegistered(module, listen)
+  for event, method in pairs(TEXT_EVENTS) do
+    if listen then
+      module:RegisterEvent(event, method)
+    else
+      module:UnregisterEvent(event)
+    end
+  end
+end
+
 --- Register vending and combat events, clearing stale work if enabled during combat.
 function module:OnEnable()
   log("Self Vendor enabled; registering events")
-  -- Chat events stay registered even when only Automatic Trade Response is on; ParseChatRequest
-  -- rejects them while chat requests are disabled.
-  self:RegisterEvent("CHAT_MSG_PARTY", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_PARTY_LEADER", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_RAID", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_RAID_LEADER", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_SAY", "CHAT_MSG_GROUP")
-  self:RegisterEvent("CHAT_MSG_WHISPER", "CHAT_MSG_GROUP")
   self:RegisterEvent("TRADE_SHOW")
   self:RegisterEvent("INSPECT_READY")
-  self:RegisterEvent("UI_INFO_MESSAGE")
   self:RegisterEvent("TRADE_ACCEPT_UPDATE")
   self:RegisterEvent("TRADE_CLOSED")
   self:RegisterEvent("TRADE_REQUEST_CANCEL")
   self:RegisterEvent("GROUP_ROSTER_UPDATE")
   self:RegisterEvent("PLAYER_REGEN_DISABLED")
+  self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self.wasInGroup = IsInGroup()
-  if InCombatLockdown() then self:PLAYER_REGEN_DISABLED() end
+  if InCombatLockdown() then
+    self:PLAYER_REGEN_DISABLED()
+  else
+    setTextEventsRegistered(self, true)
+  end
 end
 
 --- Discard all vending work at combat entry without interacting with chat, bags, or trades.
 -- Saved settings remain unchanged; only new out-of-combat requests can start another service.
 function module:PLAYER_REGEN_DISABLED()
+  setTextEventsRegistered(self, false)
   self:ClearQueue(true)
+end
+
+--- Resume listening for chat requests and trade messages once combat ends.
+function module:PLAYER_REGEN_ENABLED()
+  setTextEventsRegistered(self, true)
 end
 
 --- Turn Automatic Trade Response Off after leaving a group, when that option is enabled.
@@ -1259,6 +1290,8 @@ end
 -- @param message string informational message.
 function module:UI_INFO_MESSAGE(_, _, message)
   if InCombatLockdown() then return end
+  -- Secret messages error when compared or indexed (restricted contexts such as Mythic+).
+  if isSecret(message) then return end
   if message and message == ERR_TRADE_COMPLETE then
     if self.activeTradeName then
       self.tradeSucceeded = true

@@ -394,11 +394,25 @@ local function getAddonVersion()
     or "1")
 end
 
+--- Reports whether any of the given values is a secret value (Midnight 12.0+).
+---@param ... any - Values to test.
+---@return boolean - True when at least one value is secret.
+local function anySecret(...)
+  if not _G.issecretvalue then return false end
+  for index = 1, select("#", ...) do
+    if _G.issecretvalue((select(index, ...))) then return true end
+  end
+  return false
+end
+
 --- Records one local SlackHacks error, coalescing repeated messages.
 ---@param message string - Error text.
 ---@param stack string|nil - Stack trace, when available.
 local function recordError(message, stack)
   if not isErrorLoggingEnabled() then return end
+  -- Errors raised in restricted contexts can carry secret messages/stacks, which our tainted code can't
+  -- convert, index, or compare. They're skipped rather than recorded.
+  if anySecret(message, stack) then return end
   if not isOurAddonError(message, stack) then return end
 
   local list = errorLogTable()
@@ -483,12 +497,15 @@ local listeningToBugGrabber = false
 ---@param message any - Error value supplied by the WoW error handler.
 ---@return any - Whatever the chained handler returns.
 local function ourErrorHandler(message)
-  if isErrorLoggingEnabled() then
-    local ok, stack = pcall(debugstack, 3)
-    if not ok or not stack or stack == "" then
-      ok, stack = pcall(debugstack, 2)
-    end
-    recordError(tostring(message), ok and stack or nil)
+  if isErrorLoggingEnabled() and not anySecret(message) then
+    -- pcall'd so a failure while recording can never replace or swallow the error being handled.
+    pcall(function()
+      local ok, stack = pcall(debugstack, 3)
+      if not ok or anySecret(stack) or not stack or stack == "" then
+        ok, stack = pcall(debugstack, 2)
+      end
+      recordError(tostring(message), ok and stack or nil)
+    end)
   end
   if chainedErrorHandler then
     return chainedErrorHandler(message)
@@ -503,8 +520,11 @@ local function installErrorCapture()
   if _G.BugGrabber and EventRegistry and EventRegistry.RegisterCallback then
     EventRegistry:RegisterCallback("BugGrabber.BugGrabbed", function(_, tableID)
       local err = _G.BugGrabber:GetErrorByID(tableID)
-      if err then
-        recordError(tostring(err.message), err.stack)
+      -- This fires for every grabbed error, including Blizzard/other-addon errors with secret messages or
+      -- stacks. tostring() on a secret errors in our tainted context, and that new error is grabbed and
+      -- fires this callback again, so secrets are skipped and any other failure is contained by pcall.
+      if err and not anySecret(err.message, err.stack) then
+        pcall(recordError, tostring(err.message), err.stack)
       end
     end, module)
     listeningToBugGrabber = true
