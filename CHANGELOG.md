@@ -1,6 +1,14 @@
 # SlackHacks Changelog
 
+## v19
+
+### Utilities
+- TomTom Way Command: New feature that handles `/way` commands from TomTom but creates a native Blizzard waypoint instead like `/mappin`.
+
 ## v18
+
+### Utilities
+- Added opt-in TomTom-style `/way` commands for native map pins, without overriding TomTom.
 
 ### SelfVendor
 - Fixed an error message that might pop up mid combat.
