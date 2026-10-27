@@ -2,6 +2,9 @@
 
 ## v18
 
+### Utilities
+- Added opt-in TomTom-style `/way` commands for native map pins, without overriding TomTom.
+
 ### SelfVendor
 - Fixed an error message that might pop up mid combat.
 

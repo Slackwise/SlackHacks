@@ -63,6 +63,10 @@ dbDefaults = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
     },
+    -- Additive, opt-in defaults preserve existing profiles without a data migration.
+    utilities = {
+      tomtomWayCommand = false
+    },
     graphics = {
       enabled = false,
       enableGroundEffectDensity = false,
@@ -2220,6 +2224,29 @@ options = {
               order = 3
             }
           }
+        }
+      }
+    },
+    utilities = {
+      type = "group",
+      name = "Utilities",
+      desc = "Small, optional convenience tools.",
+      order = 2.5,
+      args = {
+        overview = goldModuleOverview("Small, optional tools that complement the native UI."),
+        tomtomWayCommand = {
+          name = "TomTom |cffffd100/way|r Command",
+          desc = "Enables usage of TomTom's |cffffd100/way|r command that instead creates a native Blizzard waypoint instead.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          disabled = function() return not Self.Utilities:SupportsWaypoints() end,
+          get = function() return db.profile.utilities.tomtomWayCommand end,
+          set = function(_, value)
+            db.profile.utilities.tomtomWayCommand = value
+            Self.Utilities:ApplyAll()
+          end,
+          order = 1
         }
       }
     },

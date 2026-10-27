@@ -27,6 +27,7 @@ ListviewBag.lua
 Minimap.lua
 Windows.lua
 Controls.lua
+Utilities.lua
 Graphics.lua
 MouseRing.lua
 Quest.lua
