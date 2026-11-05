@@ -885,6 +885,8 @@ function disableWIPModules()
   prn("disabled all WIP modules (" .. getWIPModuleNames() .. ").")
 end
 
+--- Handle slash commands, keeping personal binding presets hidden and restricted to Slackwise.
+---@param input string|nil - Command text following /slack or /slackhacks.
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   -- "vendor" and "trade" are undocumented aliases of "vend"; everything after the word is the mode.
@@ -904,6 +906,8 @@ function handleSlashCommand(input)
     promptResetProfile()
   elseif command == "wipoff" then
     disableWIPModules()
+  elseif command == "bind" and isSlackwise() then
+    setBindings()
   elseif command == "induce-error" then
     Self.Debug:InduceError()
   else
