@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v20
+
+### Utilities
+- Added "Show Interactive Item Sparkles" for WoW Forever to toggle Classic-style sparkles on interactive world objects.
+
 ## v19
 
 ### Utilities

@@ -2250,6 +2250,26 @@ options = {
             db.profile.utilities.tomtomWayCommand = value
             Self.Utilities:ApplyAll()
           end,
+          order = 2
+        },
+        showInteractiveItemSparkles = {
+          name = "Interactive Object Sparkles",
+          desc = "Show sparkles for interactive objects in the world.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Hides the sparkle setting on clients other than WoW Forever.
+          ---@return boolean hidden Whether the option is hidden.
+          hidden = function() return not isForever() end,
+          --- Reads the current client setting without overriding existing preferences.
+          ---@return boolean enabled Whether interactive item sparkles are enabled.
+          get = function() return GetCVar("outlineModeShowLootEffectWhenDisabled") == "1" end,
+          --- Toggles interactive item sparkles in the client.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Whether to enable sparkles.
+          set = function(_, value)
+            ensureCVar("outlineModeShowLootEffectWhenDisabled", value and 1 or 0)
+          end,
           order = 1
         }
       }

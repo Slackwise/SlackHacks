@@ -12,6 +12,10 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
 
 ## Modules & Features
 
+### Utilities
+* **Interactive Object Sparkles (WoW Forever only):** Checkbox to enable the hidden feature that enables Classic WoW interactive object sparkles.
+* **TomTom `/way` Command:** Creates native Blizzard waypoints using TomTom-style `/way` commands, without needing TomTom or overriding it when installed.
+
 ### Controls
 * **Camera Distance:** Unlocks maximum camera zoom distance (`cameraDistanceMaxZoomFactor = 4`).
 * **Dynamic Camera:** Enables ActionCam basic mode with dynamic pitch.
@@ -161,15 +165,15 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 
 ## Slash Commands
 
-| Command              | Action                                                  |
-| :------------------- | :------------------------------------------------------ |
-| `/slack`             | Toggle the configuration panel                          |
-| `/slack help`        | List available slash commands                           |
-| `/slack bugs`        | Open the internal error log and report tool             |
-| `/slack debug`       | Toggle verbose debug logging to chat and database       |
-| `/slack reset`       | Prompt to reset the active profile to defaults          |
-| `/slack wipoff`      | Disable all experimental/WIP modules                    |
-| `/slack vend <mode>` | Set Self Vendor's Automatic Trade Response (or `off`)   |
+| Command              | Action                                                |
+| :------------------- | :---------------------------------------------------- |
+| `/slack`             | Toggle the configuration panel                        |
+| `/slack help`        | List available slash commands                         |
+| `/slack bugs`        | Open the internal error log and report tool           |
+| `/slack debug`       | Toggle verbose debug logging to chat and database     |
+| `/slack reset`       | Prompt to reset the active profile to defaults        |
+| `/slack wipoff`      | Disable all experimental/WIP modules                  |
+| `/slack vend <mode>` | Set Self Vendor's Automatic Trade Response (or `off`) |
 
 ---
 
