@@ -78,6 +78,7 @@ function Self:OnEnable()
   -- self:RegisterEvent("PLAYER_REGEN_DISABLED")
   self:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
   self:RegisterEvent("BAG_UPDATE_DELAYED")
+  self:RegisterEvent("UPDATE_BINDINGS")
   updateNameplateCastEventRegistration()
   initBagsFrameHiding()
   -- self:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
@@ -90,6 +91,11 @@ end
 
 function Self:BAG_UPDATE_DELAYED() -- Fires after all BAG_UPDATE's are done
   bindBestUseItems()
+end
+
+--- Refreshes best-item overrides when keys change through any keybinding UI.
+function Self:UPDATE_BINDINGS()
+  refreshBestItemBindingsOnChange()
 end
 
 -- GAME_READY = false
