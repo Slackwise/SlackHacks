@@ -1023,7 +1023,7 @@ BINDINGS = {
 
       -- Blessings
       {"T",                 "Blessing of Sacrifice"},
-      {"SHIFT-R",           "Blessing of Freedom"},
+      {"SHIFT-T",           "Blessing of Freedom"},
       {"CTRL-T",            "Blessing of Protection"},
       {"ALT-T",             "Blessing of Wisdom"},
       {"ALT-SHIFT-T",       "Blessing of Salvation"},
