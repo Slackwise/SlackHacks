@@ -2,6 +2,9 @@
 
 ## v22
 
+### Quest
+- Added Extra Action keybinding controls for the quest item button on WoW Forever and Retail.
+
 ### Windows
 - Fixed "Click Casting" window breaking due to movable windows trying to reposition it.
 

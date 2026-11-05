@@ -430,6 +430,75 @@ local itemButton -- SecureActionButton that uses the current quest item.
 local currentItemLink
 local isInsideItemQuestArea = false
 local needsSecureUpdate = false
+local EXTRA_ACTION_BINDING = "EXTRAACTIONBUTTON1"
+
+--- Returns one of the first two keys assigned to Blizzard's Extra Action Button.
+---@param slot number Binding slot (1 or 2).
+---@return string|nil key
+function module:GetExtraActionKey(slot)
+  local first, second = GetBindingKey(EXTRA_ACTION_BINDING)
+  if slot == 1 then return first end
+  return second
+end
+
+--- Checks a proposed key before AceConfig asks the player to confirm a conflicting binding.
+---@param slot number Binding slot (1 or 2).
+---@param key string|nil Proposed key, or nil/empty to clear.
+---@param canConfirm boolean Whether the caller can show a confirmation dialog.
+---@return boolean|string valid True, or an explanation shown by AceConfig.
+function module:ValidateExtraActionKey(slot, key, canConfirm)
+  if InCombatLockdown() then return "Extra Action bindings cannot be changed during combat." end
+  if not key or key == "" then return true end
+  if key == self:GetExtraActionKey(3 - slot) then
+    return "This key is already assigned to the other Extra Action binding."
+  end
+  local action = GetBindingAction(key)
+  if action and action ~= "" and action ~= EXTRA_ACTION_BINDING and not canConfirm then
+    return "This key is already assigned to " .. (_G["BINDING_NAME_" .. action] or action)
+      .. ". Use the settings window to confirm replacing it."
+  end
+  return true
+end
+
+--- Describes a key's conflicting saved binding, if any, for AceConfig's confirmation dialog.
+---@param key string|nil Proposed key.
+---@return string|nil message
+function module:ConfirmExtraActionKey(key)
+  if not key or key == "" then return nil end
+  local action = GetBindingAction(key)
+  if action and action ~= "" and action ~= EXTRA_ACTION_BINDING then
+    return key .. " is already bound to " .. (_G["BINDING_NAME_" .. action] or action)
+      .. ". Replace that binding?"
+  end
+end
+
+--- Replaces one saved Extra Action key without clearing its other bindings.
+---@param slot number Binding slot (1 or 2).
+---@param key string|nil New key, or nil/empty to clear.
+function module:SetExtraActionKey(slot, key)
+  if InCombatLockdown() then
+    prn("Extra Action bindings cannot be changed during combat.")
+    return
+  end
+  local oldKey = self:GetExtraActionKey(slot)
+  if key == "" then key = nil end
+  if oldKey == key then return end
+
+  local previousAction = key and GetBindingAction(key)
+  if key and not SetBinding(key, EXTRA_ACTION_BINDING) then
+    prn("Could not assign the Extra Action binding to " .. key .. ".")
+    return
+  end
+  if oldKey and not SetBinding(oldKey) then
+    -- Restore the newly assigned key if clearing the old one fails.
+    if key and not SetBinding(key, previousAction ~= "" and previousAction or nil) then
+      prn("Could not restore the previous binding for " .. key .. ".")
+    end
+    prn("Could not clear the previous Extra Action binding for " .. oldKey .. ".")
+    return
+  end
+  SaveBindings(GetCurrentBindingSet())
+end
 
 -- Runs in the restricted environment, both from the state driver (any time, including combat) and from
 -- insecure code via :Execute() (out of combat only) after the item attribute changes.

@@ -1334,6 +1334,41 @@ local function talentReminderOptions()
   }
 end
 
+--- Builds one control for the game's saved Extra Action binding.
+---@param slot number Binding slot (1 or 2).
+---@return table option AceConfig keybinding option.
+local function extraActionKeyOption(slot)
+  return {
+    name = "Extra Action Key " .. slot,
+    desc = "Changes the game's Extra Action binding, including the real Extra Action Button on Retail. Press Escape while choosing a key to clear this slot. The game may reorder the remaining keys.",
+    type = "keybinding",
+    order = 5 + slot / 10,
+    --- Hide the binding controls unless the quest item button is enabled and supported.
+    ---@return boolean
+    hidden = function() return not Self.Quest:IsQuestItemButtonSupported() or not db.profile.quest.questItemButton end,
+    --- Prevent changes while the module is disabled or bindings are protected in combat.
+    ---@return boolean
+    disabled = function() return not db.profile.quest.enabled or InCombatLockdown() end,
+    --- Read the current game binding rather than storing an addon-profile copy.
+    ---@return string|nil
+    get = function() return Self.Quest:GetExtraActionKey(slot) end,
+    --- Reject conflicts in the command-line interface, which cannot show confirmations.
+    ---@param info table AceConfig option info.
+    ---@param key string|nil
+    ---@return boolean|string
+    validate = function(info, key) return Self.Quest:ValidateExtraActionKey(slot, key, info.uiType == "dialog") end,
+    --- Confirm before replacing a different action's existing key.
+    ---@param _ table AceConfig option info.
+    ---@param key string|nil
+    ---@return string|nil
+    confirm = function(_, key) return Self.Quest:ConfirmExtraActionKey(key) end,
+    --- Save the selected key to the active account or character binding set.
+    ---@param _ table AceConfig option info.
+    ---@param key string|nil
+    set = function(_, key) Self.Quest:SetExtraActionKey(slot, key) end
+  }
+end
+
 options = {
   type = "group",
   name = ADDON_DISPLAY_NAME,
@@ -3767,7 +3802,9 @@ options = {
           get = function() return db.profile.quest.questItemButton end,
           set = function(_, value) Self.Quest:SetOption("questItemButton", value) end,
           order = 5
-        }
+        },
+        extraActionKey1 = extraActionKeyOption(1),
+        extraActionKey2 = extraActionKeyOption(2)
       }
     },
     bind = {
