@@ -1,9 +1,14 @@
 # SlackHacks Changelog
 
+## v21
+
+### Utilities
+- Renamed interactive object sparkles to "lootable" because that's more accurate.
+
 ## v20
 
 ### Utilities
-- Added "Show Interactive Item Sparkles" for WoW Forever to toggle Classic-style sparkles on interactive world objects.
+- Added "Lootable Object Sparkles" for WoW Forever to toggle Classic-style sparkles on lootable world objects.
 
 ## v19
 
