@@ -1343,9 +1343,6 @@ local function extraActionKeyOption(slot)
     desc = "Changes the game's Extra Action binding, including the real Extra Action Button on Retail. Press Escape while choosing a key to clear this slot. The game may reorder the remaining keys.",
     type = "keybinding",
     order = 5 + slot / 10,
-    --- Hide the binding controls unless the quest item button is enabled and supported.
-    ---@return boolean
-    hidden = function() return not Self.Quest:IsQuestItemButtonSupported() or not db.profile.quest.questItemButton end,
     --- Prevent changes while the module is disabled or bindings are protected in combat.
     ---@return boolean
     disabled = function() return not db.profile.quest.enabled or InCombatLockdown() end,
