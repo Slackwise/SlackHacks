@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v22
+
+### Windows
+- Fixed "Click Casting" window breaking due to movable windows trying to reposition it.
+
 ## v21
 
 ### Utilities

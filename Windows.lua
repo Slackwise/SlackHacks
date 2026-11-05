@@ -366,6 +366,14 @@ local function setFramePoints(frame, points, raw)
   return true
 end
 
+--- Allow Blizzard to arrange Click Casting alongside its spellbook or macro picker.
+---@param frame Frame - The frame whose saved position would otherwise be restored.
+---@return boolean suspended
+local function suspendPositionForClickCasting(frame)
+  return ClickBindingFrame and ClickBindingFrame:IsShown()
+    and (frame == PlayerSpellsFrame or frame == MacroFrame) or false
+end
+
 --- Queues a frame to have setFramePoints() re-applied on the very next frame update, instead of calling
 --- it immediately. Calling SetPoint again from directly inside our own SetPoint hook (onSetPoint below)
 --- can be unreliable/re-entrant, so the "permanent" strategy's rubberband watchdog defers to here instead
@@ -383,7 +391,9 @@ local function addToSetFramePointsQueue(frame, points)
   queueProcessorFrame:SetScript("OnUpdate", function(self)
     self:SetScript("OnUpdate", nil)
     for queuedFrame, queuedPoints in pairs(setFramePointsQueue) do
-      setFramePoints(queuedFrame, queuedPoints)
+      if not suspendPositionForClickCasting(queuedFrame) then
+        setFramePoints(queuedFrame, queuedPoints)
+      end
     end
     wipe(setFramePointsQueue)
   end)
@@ -837,13 +847,16 @@ end
 --- while `ignoreSetPointHook` is true, which setFramePoint() sets around its OWN SetPoint calls so this
 --- watchdog doesn't treat US moving the frame as something to fight back against. Under the "permanent"
 --- strategy, defers via addToSetFramePointsQueue() instead of reapplying synchronously (safer from
---- directly inside a SetPoint hook -- see that function's own docs).
+--- directly inside a SetPoint hook -- see that function's own docs). Blizzard's Click Casting layout
+--- temporarily takes precedence over saved positions for the spellbook and macro picker.
 ---@param frame Frame - The frame whose SetPoint was just (really) called.
 function onSetPoint(frame)
   local frameData = frameRegistry[frame]
   if not frameData or not frameData.storage or frameData.storage.disabled then return end
   if movable().savePositionStrategy == "off" then return end
   if ignoreSetPointHook then return end
+  -- The saved position may overlap Click Casting, whose OnShow opens and positions a picker beside it.
+  if suspendPositionForClickCasting(frame) then return end
 
   frameData.storage.points = frameData.storage.points or {}
   if
