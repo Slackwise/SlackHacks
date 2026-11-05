@@ -1371,21 +1371,25 @@ local function bindingKeyOption(action, label, slot, order, unavailable, detail)
   }
 end
 
---- Builds an inline section with both key slots for each listed action.
----@param name string Section name.
+--- Adds a titled section and its saved-binding controls to a shared options page.
+---@param args table Options table to populate.
+---@param prefix string Unique option-key prefix for this section.
+---@param name string Section heading.
 ---@param order number Section display order.
----@param actions table List of { command, label } entries.
----@param description string|nil Explanation shown above the bindings.
----@return table group AceConfig group.
-local function bindingOptionsGroup(name, order, actions, description)
-  local args = {}
-  if description then args.overview = { type = "description", name = description, width = "full", order = 0 } end
+---@param actions table List of { command, label, unavailable, detail } entries.
+---@param description string|nil Explanation shown below the heading.
+local function addBindingOptions(args, prefix, name, order, actions, description)
+  args[prefix .. "Header"] = { type = "header", name = name, order = order }
+  if description then
+    args[prefix .. "Description"] = { type = "description", name = description, width = "full", order = order + 0.01 }
+  end
   for index, entry in ipairs(actions) do
     for slot = 1, 2 do
-      args["binding" .. index .. "Key" .. slot] = bindingKeyOption(entry[1], entry[2], slot, index * 2 + slot)
+      args[prefix .. "Binding" .. index .. "Key" .. slot] = bindingKeyOption(
+        entry[1], entry[2], slot, order + index + slot / 10, entry[3], entry[4]
+      )
     end
   end
-  return { type = "group", name = name, inline = true, order = order, args = args }
 end
 
 --- Disables the Extra Action controls when the Quest module is disabled.
@@ -1393,6 +1397,65 @@ end
 local function questBindingUnavailable()
   return not db.profile.quest.enabled
 end
+
+local keybindingOptions = {}
+addBindingOptions(keybindingOptions, "convenience", "Convenience", 1, {
+  { "SLACKHACKS_RELOADUI", "Reload UI" },
+  { "SLACKHACKS_RESTART_SOUND", "Restart Sound" },
+  { "SLACKHACKS_MOUNT", "Mount" },
+  { "SLACKHACKS_SETBINDINGS", "Load Keybindings" },
+  { "SLACKHACKS_OPTIONS", "Open Options" },
+  { "SLACKHACKS_QUICK_KEYBIND_MODE", "Open Quick Keybind Mode" },
+  { "SLACKHACKS_CLICK_CASTING", "Open Click Casting" }
+})
+addBindingOptions(keybindingOptions, "specialization", "Switch Specialization", 50, {
+  { "SLACKHACKS_SWITCH_SPEC_1", "Switch to Class Spec 1" },
+  { "SLACKHACKS_SWITCH_SPEC_2", "Switch to Class Spec 2" },
+  { "SLACKHACKS_SWITCH_SPEC_3", "Switch to Class Spec 3" },
+  { "SLACKHACKS_SWITCH_SPEC_4", "Switch to Class Spec 4" }
+})
+addBindingOptions(keybindingOptions, "bestUseItems", "Best Use Items", 100, {
+  { "SLACKHACKS_BEST_HEALING_POTION", "Use Best Healing Potion" },
+  { "SLACKHACKS_BEST_MANA_POTION", "Use Best Mana Potion" },
+  { "SLACKHACKS_BEST_BANDAGE", "Use Best Bandage" }
+}, "Use the strongest matching item in your bags with these keys. Equal-strength items use the smallest stack first.")
+addBindingOptions(keybindingOptions, "questNpc", "Quest / NPC", 200, {
+  { "SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts" },
+  { "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests" },
+  { "SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests" },
+  { "SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION", "Toggle Auto-Click First Dialog Option" },
+  { "EXTRAACTIONBUTTON1", "Extra Action", questBindingUnavailable, "Also changes the real Extra Action Button on Retail." }
+})
+keybindingOptions.dialogKeybindingsHeader = { type = "header", name = "Dialog Keybindings", order = 300 }
+keybindingOptions.numberKeys = {
+  name = "Keybind NPC Dialog Options to Number Keys",
+  desc = "Keybind NPC dialog options to the number keys and shows each shortcut before its text.",
+  type = "toggle",
+  descStyle = "inline",
+  width = "full",
+  disabled = function() return not db.profile.quest.enabled end,
+  get = function() return db.profile.quest.numberKeys end,
+  set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+  order = 301
+}
+keybindingOptions.spacebar = {
+  name = "Use Spacebar to Accept/Complete Quest",
+  desc = "keybinds Spacebar to accept or complete the current quest. Disabled when choosing between quest rewards.",
+  type = "toggle",
+  descStyle = "inline",
+  width = "full",
+  --- Disables the control while its module is off.
+  ---@return boolean
+  disabled = function() return not db.profile.quest.enabled end,
+  --- Reads the profile's Spacebar shortcut setting.
+  ---@return boolean
+  get = function() return db.profile.quest.spacebar end,
+  --- Applies the Spacebar shortcut setting.
+  ---@param _ table AceConfig option info.
+  ---@param value boolean
+  set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
+  order = 302
+}
 
 options = {
   type = "group",
@@ -1595,19 +1658,12 @@ options = {
       order = 3,
       args = {
         overview = goldModuleOverview("Camera behavior and keybinding options."),
-        convenienceBindings = bindingOptionsGroup("Convenience Keybindings", 3, {
-          { "SLACKHACKS_RELOADUI", "Reload UI" },
-          { "SLACKHACKS_RESTART_SOUND", "Restart Sound" },
-          { "SLACKHACKS_MOUNT", "Mount" },
-          { "SLACKHACKS_SETBINDINGS", "Load Keybindings" },
-          { "SLACKHACKS_OPTIONS", "Open Options" },
-          { "SLACKHACKS_QUICK_KEYBIND_MODE", "Open Quick Keybind Mode" },
-          { "SLACKHACKS_CLICK_CASTING", "Open Click Casting" },
-          { "SLACKHACKS_SWITCH_SPEC_1", "Switch to Class Spec 1" },
-          { "SLACKHACKS_SWITCH_SPEC_2", "Switch to Class Spec 2" },
-          { "SLACKHACKS_SWITCH_SPEC_3", "Switch to Class Spec 3" },
-          { "SLACKHACKS_SWITCH_SPEC_4", "Switch to Class Spec 4" }
-        }),
+        keybindings = {
+          type = "group",
+          name = "Keybindings",
+          order = 3,
+          args = keybindingOptions
+        },
         maximumCameraZoom = {
           name = "Maximum Camera Zoom",
           desc = "Allow the camera to zoom out to its maximum distance.",
@@ -2331,11 +2387,6 @@ options = {
           end,
           order = 1
         },
-        bestUseItemBindings = bindingOptionsGroup("Best Use Item Keybindings", 3, {
-          { "SLACKHACKS_BEST_HEALING_POTION", "Use Best Healing Potion" },
-          { "SLACKHACKS_BEST_MANA_POTION", "Use Best Mana Potion" },
-          { "SLACKHACKS_BEST_BANDAGE", "Use Best Bandage" }
-        }, "Use the strongest matching item in your bags with these keys. Equal-strength items use the smallest stack first.")
       }
     },
     combat = {

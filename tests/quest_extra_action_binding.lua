@@ -144,9 +144,13 @@ local supported = true
 function module:IsQuestItemButtonSupported() return supported end
 assert(loadfile("Options.lua"))()
 local args = SlackHacks.options.args.quest.args
-local first, second = args.extraActionKey1, args.extraActionKey2
+local keybindings = SlackHacks.options.args.controls.args.keybindings
+local bindingArgs = keybindings.args
+local questExtraAction = args.extraActionKey1
+local questAutoAccept = args.autoAcceptKey1
+local first, second = bindingArgs.questNpcBinding5Key1, bindingArgs.questNpcBinding5Key2
+assert(questExtraAction.type == "keybinding" and questAutoAccept.type == "keybinding")
 assert(first.type == "keybinding" and second.type == "keybinding")
-assert(args.questItemButton.order < first.order and first.order < second.order)
 assert(first.hidden == nil and second.hidden == nil)
 assert(not first.disabled() and first.get() == extraKey(1))
 SlackHacks.db.profile.quest.questItemButton = true
@@ -167,45 +171,70 @@ assert(first.validate({ uiType = "dialog" }, "F12") == true)
 assert(first.confirm({}, "F12"):find("Jump", 1, true))
 second.set({}, "F12")
 assert(GetBindingAction("F12") == EXTRA)
+questExtraAction.set({}, "CTRL-F12")
+assert(GetBindingAction("CTRL-F12") == EXTRA)
 
-local toggle = args.autoAcceptKey1
+local toggle = bindingArgs.questNpcBinding2Key1
 local toggleAction = "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT"
 SlackHacks.db.profile.quest.enabled = false
 assert(not toggle.disabled())
 toggle.set({}, "CTRL-Q")
 assert(GetBindingAction("CTRL-Q") == toggleAction and toggle.get() == "CTRL-Q")
-assert(args.autoAccept.order < toggle.order and toggle.order < args.autoComplete.order)
-assert(args.autoClickGroup.args.autoClickFirstOption.order < args.autoClickGroup.args.autoClickKey1.order)
-assert(args.setKeybinds == nil and SlackHacks.options.args.controls.args.openKeybindings == nil)
+questAutoAccept.set({}, "CTRL-W")
+assert(GetBindingAction("CTRL-W") == toggleAction and questAutoAccept.get() == "CTRL-W")
+assert(keybindings.name == "Keybindings")
+assert(keybindings.inline ~= true)
+assert(args.toggleAllKey1.type == "keybinding" and args.toggleAllKey2.type == "keybinding")
+assert(args.autoCompleteKey1.type == "keybinding" and args.autoCompleteKey2.type == "keybinding")
+assert(args.autoClickGroup.args.autoClickKey1.type == "keybinding" and args.autoClickGroup.args.autoClickKey2.type == "keybinding")
+assert(args.dialogKeybindingsGroup.args.numberKeys.type == "toggle")
+assert(bindingArgs.convenienceHeader.type == "header")
+assert(bindingArgs.specializationHeader.type == "header")
+assert(bindingArgs.bestUseItemsHeader.type == "header")
+assert(bindingArgs.questNpcHeader.type == "header")
+assert(bindingArgs.dialogKeybindingsHeader.type == "header")
+assert(bindingArgs.numberKeys.type == "toggle" and bindingArgs.spacebar.type == "toggle")
 
-local controls = SlackHacks.options.args.controls.args.convenienceBindings.args
-local best = SlackHacks.options.args.utilities.args.bestUseItemBindings.args
-assert(controls.binding1Key1.type == "keybinding" and controls.binding11Key2.type == "keybinding")
-assert(best.binding1Key1.type == "keybinding" and best.binding3Key2.type == "keybinding")
+assert(bindingArgs.convenienceBinding1Key1.type == "keybinding" and bindingArgs.convenienceBinding7Key2.type == "keybinding")
+assert(bindingArgs.specializationBinding1Key1.type == "keybinding" and bindingArgs.specializationBinding4Key2.type == "keybinding")
+assert(bindingArgs.bestUseItemsBinding1Key1.type == "keybinding" and bindingArgs.bestUseItemsBinding3Key2.type == "keybinding")
+assert(bindingArgs.questNpcBinding1Key1.type == "keybinding" and bindingArgs.questNpcBinding4Key2.type == "keybinding")
+assert(SlackHacks.options.args.utilities.args.bestUseItemBindings == nil)
 local convenienceActions = {
   "SLACKHACKS_RELOADUI", "SLACKHACKS_RESTART_SOUND", "SLACKHACKS_MOUNT", "SLACKHACKS_SETBINDINGS",
-  "SLACKHACKS_OPTIONS", "SLACKHACKS_QUICK_KEYBIND_MODE", "SLACKHACKS_CLICK_CASTING",
+  "SLACKHACKS_OPTIONS", "SLACKHACKS_QUICK_KEYBIND_MODE", "SLACKHACKS_CLICK_CASTING"
+}
+local specializationActions = {
   "SLACKHACKS_SWITCH_SPEC_1", "SLACKHACKS_SWITCH_SPEC_2", "SLACKHACKS_SWITCH_SPEC_3", "SLACKHACKS_SWITCH_SPEC_4",
 }
 local bestActions = { "SLACKHACKS_BEST_HEALING_POTION", "SLACKHACKS_BEST_MANA_POTION", "SLACKHACKS_BEST_BANDAGE" }
-for _, group in ipairs({ { controls, convenienceActions }, { best, bestActions } }) do
+local questActions = {
+  "SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT",
+  "SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION",
+}
+for _, group in ipairs({
+  { "convenienceBinding", convenienceActions },
+  { "specializationBinding", specializationActions },
+  { "bestUseItemsBinding", bestActions },
+  { "questNpcBinding", questActions }
+}) do
   for index, action in ipairs(group[2]) do
     for slot = 1, 2 do
       local key = "TEST-" .. action .. "-" .. slot
-      local control = group[1]["binding" .. index .. "Key" .. slot]
+      local control = bindingArgs[group[1] .. index .. "Key" .. slot]
       control.set({}, key)
       assert(GetBindingAction(key) == action)
       SetBinding(key)
     end
   end
 end
-controls.binding1Key1.set({}, "F5")
+bindingArgs.convenienceBinding1Key1.set({}, "F5")
 assert(GetBindingAction("F5") == "SLACKHACKS_RELOADUI")
-best.binding1Key1.set({}, "F6")
+bindingArgs.bestUseItemsBinding1Key1.set({}, "F6")
 assert(GetBindingAction("F6") == "SLACKHACKS_BEST_HEALING_POTION")
-assert(best.binding1Key1.get() == "F6")
-assert(type(best.binding2Key1.validate({ uiType = "cmd" }, "F6")) == "string")
-assert(best.binding2Key1.confirm({}, "F6"):find("Use Best Healing Potion", 1, true))
+assert(bindingArgs.bestUseItemsBinding1Key1.get() == "F6")
+assert(type(bindingArgs.bestUseItemsBinding2Key1.validate({ uiType = "cmd" }, "F6")) == "string")
+assert(bindingArgs.bestUseItemsBinding2Key1.confirm({}, "F6"):find("Use Best Healing Potion", 1, true))
 
 -- Override refreshes react to external binding changes but not their own UPDATE_BINDINGS events.
 SlackHacks.BEST_ITEMS = {
