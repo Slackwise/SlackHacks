@@ -1009,6 +1009,7 @@ BINDINGS = {
 
       -- CC and Utility
       {"F",       "Hammer of Justice"},
+      {"SHIFT-Z", "Will to Survive"},
       {"ALT-Z",   "Perception"},
 
       -- Seals & Judgement
