@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v21
+
+### Utilities
+- Renamed interactive object sparkles to "lootable" because that's more accurate.
+
 ## v20
 
 ### Utilities
