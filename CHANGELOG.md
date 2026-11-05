@@ -3,7 +3,7 @@
 ## v20
 
 ### Utilities
-- Added "Show Interactive Item Sparkles" for WoW Forever to toggle Classic-style sparkles on interactive world objects.
+- Added "Lootable Object Sparkles" for WoW Forever to toggle Classic-style sparkles on lootable world objects.
 
 ## v19
 

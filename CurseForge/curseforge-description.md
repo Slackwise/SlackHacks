@@ -13,7 +13,7 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
 ## Modules & Features
 
 ### Utilities
-* **Interactive Object Sparkles (WoW Forever only):** Checkbox to enable the hidden feature that enables Classic WoW interactive object sparkles.
+* **Lootable Object Sparkles (WoW Forever only):** Checkbox to enable the hidden feature that enables Classic WoW lootable object sparkles.
 * **TomTom `/way` Command:** Creates native Blizzard waypoints using TomTom-style `/way` commands, without needing TomTom or overriding it when installed.
 
 ### Controls

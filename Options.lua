@@ -2252,9 +2252,9 @@ options = {
           end,
           order = 2
         },
-        showInteractiveItemSparkles = {
-          name = "Interactive Object Sparkles",
-          desc = "Show sparkles for interactive objects in the world.",
+        lootableObjectSparkles = {
+          name = "Lootable Object Sparkles",
+          desc = "Show sparkles for lootable objects in the world.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -2262,9 +2262,9 @@ options = {
           ---@return boolean hidden Whether the option is hidden.
           hidden = function() return not isForever() end,
           --- Reads the current client setting without overriding existing preferences.
-          ---@return boolean enabled Whether interactive item sparkles are enabled.
+          ---@return boolean enabled Whether lootable object sparkles are enabled.
           get = function() return GetCVar("outlineModeShowLootEffectWhenDisabled") == "1" end,
-          --- Toggles interactive item sparkles in the client.
+          --- Toggles lootable object sparkles in the client.
           ---@param _ table AceConfig option info.
           ---@param value boolean Whether to enable sparkles.
           set = function(_, value)
