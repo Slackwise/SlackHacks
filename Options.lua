@@ -885,6 +885,8 @@ function disableWIPModules()
   prn("disabled all WIP modules (" .. getWIPModuleNames() .. ").")
 end
 
+--- Handle slash commands, keeping personal binding presets hidden and restricted to Slackwise.
+---@param input string|nil - Command text following /slack or /slackhacks.
 function handleSlashCommand(input)
   local command = strlower(strtrim(input or ""))
   -- "vendor" and "trade" are undocumented aliases of "vend"; everything after the word is the mode.
@@ -904,6 +906,8 @@ function handleSlashCommand(input)
     promptResetProfile()
   elseif command == "wipoff" then
     disableWIPModules()
+  elseif command == "bind" and isSlackwise() then
+    setBindings()
   elseif command == "induce-error" then
     Self.Debug:InduceError()
   else
@@ -2236,7 +2240,7 @@ options = {
         overview = goldModuleOverview("Small, optional tools that complement the native UI."),
         tomtomWayCommand = {
           name = "TomTom |cffffd100/way|r Command",
-          desc = "Enables usage of TomTom's |cffffd100/way|r command that instead creates a native Blizzard waypoint instead.",
+          desc = "Enables usage of TomTom's |cffffd100/way|r command that creates a native Blizzard waypoint instead.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -2245,6 +2249,26 @@ options = {
           set = function(_, value)
             db.profile.utilities.tomtomWayCommand = value
             Self.Utilities:ApplyAll()
+          end,
+          order = 2
+        },
+        showInteractiveItemSparkles = {
+          name = "Interactive Object Sparkles",
+          desc = "Show sparkles for interactive objects in the world.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Hides the sparkle setting on clients other than WoW Forever.
+          ---@return boolean hidden Whether the option is hidden.
+          hidden = function() return not isForever() end,
+          --- Reads the current client setting without overriding existing preferences.
+          ---@return boolean enabled Whether interactive item sparkles are enabled.
+          get = function() return GetCVar("outlineModeShowLootEffectWhenDisabled") == "1" end,
+          --- Toggles interactive item sparkles in the client.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Whether to enable sparkles.
+          set = function(_, value)
+            ensureCVar("outlineModeShowLootEffectWhenDisabled", value and 1 or 0)
           end,
           order = 1
         }
