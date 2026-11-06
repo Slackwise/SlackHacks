@@ -1334,6 +1334,129 @@ local function talentReminderOptions()
   }
 end
 
+--- Builds one control for a saved game binding.
+---@param action string Binding command.
+---@param label string Action label.
+---@param slot number Binding slot (1 or 2).
+---@param order number Display order.
+---@param unavailable function|nil Additional disabled predicate.
+---@param detail string|nil Additional explanation for this action.
+---@return table option AceConfig keybinding option.
+local function bindingKeyOption(action, label, slot, order, unavailable, detail)
+  return {
+    name = label .. " - Key " .. slot,
+    desc = (detail and detail .. " " or "") .. "Changes the game's saved binding. Press Escape while choosing a key to clear this slot. The game may reorder the remaining keys.",
+    type = "keybinding",
+    order = order,
+    --- Prevent changes while bindings are protected or the action is unavailable.
+    ---@return boolean
+    disabled = function() return not not (InCombatLockdown() or (unavailable and unavailable())) end,
+    --- Read the current game binding rather than storing an addon-profile copy.
+    ---@return string|nil
+    get = function() return getConfiguredBindingKey(action, slot) end,
+    --- Reject conflicts in the command-line interface, which cannot show confirmations.
+    ---@param info table AceConfig option info.
+    ---@param key string|nil
+    ---@return boolean|string
+    validate = function(info, key) return validateConfiguredBindingKey(action, slot, key, info.uiType == "dialog") end,
+    --- Confirm before replacing a different action's existing key.
+    ---@param _ table AceConfig option info.
+    ---@param key string|nil
+    ---@return string|nil
+    confirm = function(_, key) return confirmConfiguredBindingKey(action, key) end,
+    --- Save the selected key to the active account or character binding set.
+    ---@param _ table AceConfig option info.
+    ---@param key string|nil
+    set = function(_, key) setConfiguredBindingKey(action, slot, key) end
+  }
+end
+
+--- Adds a titled section and its saved-binding controls to a shared options page.
+---@param args table Options table to populate.
+---@param prefix string Unique option-key prefix for this section.
+---@param name string Section heading.
+---@param order number Section display order.
+---@param actions table List of { command, label, unavailable, detail } entries.
+---@param description string|nil Explanation shown below the heading.
+local function addBindingOptions(args, prefix, name, order, actions, description)
+  args[prefix .. "Header"] = { type = "header", name = name, order = order }
+  if description then
+    args[prefix .. "Description"] = { type = "description", name = description, width = "full", order = order + 0.01 }
+  end
+  for index, entry in ipairs(actions) do
+    for slot = 1, 2 do
+      args[prefix .. "Binding" .. index .. "Key" .. slot] = bindingKeyOption(
+        entry[1], entry[2], slot, order + index + slot / 10, entry[3], entry[4]
+      )
+    end
+  end
+end
+
+--- Disables the Extra Action controls when the Quest module is disabled.
+---@return boolean
+local function questBindingUnavailable()
+  return not db.profile.quest.enabled
+end
+
+local keybindingOptions = {}
+addBindingOptions(keybindingOptions, "convenience", "Convenience", 1, {
+  { "SLACKHACKS_RELOADUI", "Reload UI" },
+  { "SLACKHACKS_RESTART_SOUND", "Restart Sound" },
+  { "SLACKHACKS_MOUNT", "Mount" },
+  { "SLACKHACKS_SETBINDINGS", "Load Keybindings" },
+  { "SLACKHACKS_OPTIONS", "Open Options" },
+  { "SLACKHACKS_QUICK_KEYBIND_MODE", "Open Quick Keybind Mode" },
+  { "SLACKHACKS_CLICK_CASTING", "Open Click Casting" }
+})
+addBindingOptions(keybindingOptions, "specialization", "Switch Specialization", 50, {
+  { "SLACKHACKS_SWITCH_SPEC_1", "Switch to Class Spec 1" },
+  { "SLACKHACKS_SWITCH_SPEC_2", "Switch to Class Spec 2" },
+  { "SLACKHACKS_SWITCH_SPEC_3", "Switch to Class Spec 3" },
+  { "SLACKHACKS_SWITCH_SPEC_4", "Switch to Class Spec 4" }
+})
+addBindingOptions(keybindingOptions, "bestUseItems", "Best Use Items", 100, {
+  { "SLACKHACKS_BEST_HEALING_POTION", "Use Best Healing Potion" },
+  { "SLACKHACKS_BEST_MANA_POTION", "Use Best Mana Potion" },
+  { "SLACKHACKS_BEST_BANDAGE", "Use Best Bandage" }
+}, "Use the strongest matching item in your bags with these keys. Equal-strength items use the smallest stack first.")
+addBindingOptions(keybindingOptions, "questNpc", "Quest / NPC", 200, {
+  { "SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts" },
+  { "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests" },
+  { "SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests" },
+  { "SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION", "Toggle Auto-Click First Dialog Option" },
+  { "EXTRAACTIONBUTTON1", "Extra Action", questBindingUnavailable, "Also changes the real Extra Action Button on Retail." }
+})
+keybindingOptions.dialogKeybindingsHeader = { type = "header", name = "Dialog Keybindings", order = 300 }
+keybindingOptions.numberKeys = {
+  name = "Keybind NPC Dialog Options to Number Keys",
+  desc = "Keybind NPC dialog options to the number keys and shows each shortcut before its text.",
+  type = "toggle",
+  descStyle = "inline",
+  width = "full",
+  disabled = function() return not db.profile.quest.enabled end,
+  get = function() return db.profile.quest.numberKeys end,
+  set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+  order = 301
+}
+keybindingOptions.spacebar = {
+  name = "Use Spacebar to Accept/Complete Quest",
+  desc = "keybinds Spacebar to accept or complete the current quest. Disabled when choosing between quest rewards.",
+  type = "toggle",
+  descStyle = "inline",
+  width = "full",
+  --- Disables the control while its module is off.
+  ---@return boolean
+  disabled = function() return not db.profile.quest.enabled end,
+  --- Reads the profile's Spacebar shortcut setting.
+  ---@return boolean
+  get = function() return db.profile.quest.spacebar end,
+  --- Applies the Spacebar shortcut setting.
+  ---@param _ table AceConfig option info.
+  ---@param value boolean
+  set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
+  order = 302
+}
+
 options = {
   type = "group",
   name = ADDON_DISPLAY_NAME,
@@ -1535,19 +1658,11 @@ options = {
       order = 3,
       args = {
         overview = goldModuleOverview("Camera behavior and keybinding options."),
-        keybindingsDescription = {
-          type = "description",
-          name = "Various |cffffd100extra|r convenience keybindings exist for options |cffffd100not even present in the options menu|r for SlackHacks. Click the button below to check them out!",
-          width = "full",
-          order = 0.05
-        },
-        openKeybindings = {
-          name = "Open Keybindings",
-          desc = "Open the Blizzard Key Bindings menu, expanded to the SlackHacks section.",
-          descStyle = "inline",
-          type = "execute",
-          func = function() openKeybindings() end,
-          order = 0.1
+        keybindings = {
+          type = "group",
+          name = "Keybindings",
+          order = 3,
+          args = keybindingOptions
         },
         maximumCameraZoom = {
           name = "Maximum Camera Zoom",
@@ -2271,7 +2386,7 @@ options = {
             ensureCVar("outlineModeShowLootEffectWhenDisabled", value and 1 or 0)
           end,
           order = 1
-        }
+        },
       }
     },
     combat = {
@@ -3651,13 +3766,8 @@ options = {
           set = function(_, value) Self.Quest:SetEnabled(value) end,
           order = 0.1
         },
-        setKeybinds = {
-          name = "Set Quest Keybinds",
-          desc = "Open the Key Bindings settings to the SlackHacks section to bind the NPC auto-interact toggles.",
-          type = "execute",
-          func = function() openKeybindings() end,
-          order = 0.2
-        },
+        toggleAllKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 1, 0.2),
+        toggleAllKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 2, 0.21),
         autoAccept = {
           name = "Auto-Accept Quests",
           desc = "Automatically accepts quests on interact.",
@@ -3669,6 +3779,8 @@ options = {
           set = function(_, value) Self.Quest:SetOption("autoAccept", value) end,
           order = 1
         },
+        autoAcceptKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 1, 1.1),
+        autoAcceptKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 2, 1.2),
         autoComplete = {
           name = "Auto-Complete Quests",
           desc = "Automatically completes quests that have no choices in reward.",
@@ -3680,6 +3792,8 @@ options = {
           set = function(_, value) Self.Quest:SetOption("autoComplete", value) end,
           order = 2
         },
+        autoCompleteKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 1, 2.1),
+        autoCompleteKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 2, 2.2),
         autoClickGroup = {
           type = "group",
           name = "NPC Dialog Auto-Click",
@@ -3697,6 +3811,8 @@ options = {
               set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
               order = 3
             },
+            autoClickKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION", "Toggle Auto-Click First Dialog Option", 1, 3.1),
+            autoClickKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION", "Toggle Auto-Click First Dialog Option", 2, 3.2),
             autoClickFirstOptionMythicOnly = {
               name = "Only Auto-Click First Option During Mythic Run",
               desc = "Will only auto-click the first option in an NPC dialogue while you are running a mythic and the timer is going.",
@@ -3767,7 +3883,9 @@ options = {
           get = function() return db.profile.quest.questItemButton end,
           set = function(_, value) Self.Quest:SetOption("questItemButton", value) end,
           order = 5
-        }
+        },
+        extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 5.1, questBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
+        extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 5.2, questBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
       }
     },
     bind = {

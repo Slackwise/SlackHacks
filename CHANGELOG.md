@@ -1,5 +1,17 @@
 # SlackHacks Changelog
 
+## v22
+
+### Quest
+- Added always-visible Extra Action keybinding controls for the quest item button on WoW Forever and Retail.
+- Added keybinding controls next to the NPC auto-interact settings.
+
+### Controls and Utilities
+- Added convenience and best-use-item keybinding controls directly in their options sections.
+
+### Windows
+- Fixed "Click Casting" window breaking due to movable windows trying to reposition it.
+
 ## v21
 
 ### Utilities

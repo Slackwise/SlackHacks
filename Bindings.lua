@@ -44,6 +44,78 @@ BINDING_TYPE = {
 
 BT = BINDING_TYPE
 
+--- Returns one of the first two saved keys for a game binding action.
+---@param action string Binding command.
+---@param slot number Binding slot (1 or 2).
+---@return string|nil key
+function getConfiguredBindingKey(action, slot)
+  local first, second = GetBindingKey(action)
+  if slot == 1 then return first end
+  return second
+end
+
+--- Validates a proposed binding, rejecting conflicts when no confirmation UI is available.
+---@param action string Binding command.
+---@param slot number Binding slot (1 or 2).
+---@param key string|nil Proposed key, or nil/empty to clear.
+---@param canConfirm boolean Whether the caller can show a confirmation dialog.
+---@return boolean|string valid True, or an explanation shown by AceConfig.
+function validateConfiguredBindingKey(action, slot, key, canConfirm)
+  if InCombatLockdown() then return "Key bindings cannot be changed during combat." end
+  if not key or key == "" then return true end
+  if key == getConfiguredBindingKey(action, 3 - slot) then
+    return "This key is already assigned to the other binding slot."
+  end
+  local previousAction = GetBindingAction(key)
+  if previousAction and previousAction ~= "" and previousAction ~= action and not canConfirm then
+    return "This key is already assigned to " .. (_G["BINDING_NAME_" .. previousAction] or previousAction)
+      .. ". Use the settings window to confirm replacing it."
+  end
+  return true
+end
+
+--- Describes a conflicting saved binding for AceConfig's confirmation dialog.
+---@param action string Binding command.
+---@param key string|nil Proposed key.
+---@return string|nil message
+function confirmConfiguredBindingKey(action, key)
+  if not key or key == "" then return nil end
+  local previousAction = GetBindingAction(key)
+  if previousAction and previousAction ~= "" and previousAction ~= action then
+    return key .. " is already bound to " .. (_G["BINDING_NAME_" .. previousAction] or previousAction)
+      .. ". Replace that binding?"
+  end
+end
+
+--- Replaces one saved key without clearing the action's other bindings.
+---@param action string Binding command.
+---@param slot number Binding slot (1 or 2).
+---@param key string|nil New key, or nil/empty to clear.
+function setConfiguredBindingKey(action, slot, key)
+  if InCombatLockdown() then
+    prn("Key bindings cannot be changed during combat.")
+    return
+  end
+  local oldKey = getConfiguredBindingKey(action, slot)
+  if key == "" then key = nil end
+  if oldKey == key then return end
+
+  local previousAction = key and GetBindingAction(key)
+  if key and not SetBinding(key, action) then
+    prn("Could not assign " .. key .. " to " .. (_G["BINDING_NAME_" .. action] or action) .. ".")
+    return
+  end
+  if oldKey and not SetBinding(oldKey) then
+    -- Restore the newly assigned key if clearing the old one fails.
+    if key and not SetBinding(key, previousAction ~= "" and previousAction or nil) then
+      prn("Could not restore the previous binding for " .. key .. ".")
+    end
+    prn("Could not clear the previous binding for " .. oldKey .. ".")
+    return
+  end
+  SaveBindings(GetCurrentBindingSet())
+end
+
 --- Switch to a class specialization by its order in the Talents UI, not a talent loadout.
 ---@param index number One-based specialization index (1-4).
 function switchClassSpecialization(index)
@@ -465,12 +537,42 @@ function setSelfCastAuto()
   SetModifiedClick("SELFCAST", "NONE")
 end
 
+local lastBestItemBindingKeys
+local bestItemRefreshPending = false
+
+--- Captures all saved best-item keys so override-binding events do not cause a refresh loop.
+---@return string signature
+local function bestItemBindingSignature()
+  local actions = {}
+  for _, itemMap in pairs(BEST_ITEMS) do actions[#actions + 1] = itemMap.BINDING_NAME end
+  table.sort(actions)
+  local result = {}
+  for _, action in ipairs(actions) do
+    result[#result + 1] = action .. "=" .. table.concat({ GetBindingKey(action) }, ",")
+  end
+  return table.concat(result, "|")
+end
+
+--- Rebuilds the best-item overrides when the saved game bindings change.
+function refreshBestItemBindingsOnChange()
+  if bestItemBindingSignature() ~= lastBestItemBindingKeys then bindBestUseItems() end
+end
+
+--- Rebuilds the best-item override bindings for the current bags and saved keys.
 function bindBestUseItems()
   if InCombatLockdown() then
-    runAfterCombat(bindBestUseItems)
+    if not bestItemRefreshPending then
+      bestItemRefreshPending = true
+      --- Coalesce bag and binding events until protected overrides can be changed.
+      runAfterCombat(function()
+        bestItemRefreshPending = false
+        bindBestUseItems()
+      end)
+    end
     return
   end
 
+  lastBestItemBindingKeys = bestItemBindingSignature()
   ClearOverrideBindings(Self.itemBindingFrame)
 
   for itemType, itemMap in pairs(BEST_ITEMS) do
