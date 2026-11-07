@@ -1,5 +1,13 @@
 # SlackHacks Changelog
 
+## v25
+
+### Utilities
+- Loot Sparkles: only enabled/visible for #WF
+
+### Graphics
+- Gated visibility of options based on if the current game client supports them.
+
 ## v24
 
 ### Utilities
@@ -11,6 +19,9 @@
 - Added Reagent Bag contents.
 
 ## Unreleased
+
+### Graphics
+- Hide graphics option groups when the current game client does not expose their required CVars.
 
 ### Utilities
 - Replaced the lootable-object sparkle checkbox with grouped Loot Sparkles controls, including approach sparkles for ore, herbs, quest objects, and lootable corpses.
