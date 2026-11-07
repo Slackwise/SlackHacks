@@ -152,3 +152,78 @@ assert(#bagIDs() == 5, "Classic must not include reagent bag")
 createFooter()
 assert(not frames.SlackHacksListviewBagReagentToggle.shown, "Classic checkbox must be hidden")
 print("Listview bag reagent checkbox tests passed")
+
+local module = SlackHacks.ListviewBag
+local bagFrame = { shown = true }
+--- Report whether the mocked bag is open.
+---@return boolean shown
+function bagFrame:IsShown() return self.shown end
+--- Open the mocked bag.
+function bagFrame:Show() self.shown = true end
+--- Close the mocked bag.
+function bagFrame:Hide() self.shown = false end
+upvalue(module.OnNativeBagOpen, "frame", bagFrame)
+upvalue(module.OnNativeBagOpen, "hideDefaultBags", function() end)
+upvalue(module.MERCHANT_SHOW, "updateSellTrashButton", function() end)
+profile.enabled = true
+profile.showListviewBag = true
+local hooks = {}
+--- Capture native bag hooks for explicit execution.
+---@param name string Native function name.
+---@param callback function Hook callback.
+function hooksecurefunc(name, callback) hooks[name] = callback end
+for _, name in ipairs({ "OpenBackpack", "OpenBag", "ToggleBackpack", "ToggleBag", "CloseBackpack" }) do
+  _G[name] = function() end
+end
+local now = 0
+--- Supply distinct timestamps for native toggles.
+---@return number time
+function GetTime() now = now + 1; return now end
+upvalue(module.OnInitialize, "hookDefaultBagToggles")()
+for _, name in ipairs({ "OpenBackpack", "OpenBag" }) do
+  bagFrame.shown = true
+  hooks[name]()
+  assert(bagFrame.shown, name .. " must not close an already-open bag")
+  bagFrame.shown = false
+  hooks[name]()
+  assert(bagFrame.shown, name .. " must open a closed bag")
+end
+hooks.ToggleBackpack()
+assert(not bagFrame.shown, "Ordinary toggles must still close the bag")
+hooks.ToggleBackpack()
+assert(bagFrame.shown, "Ordinary toggles must still open the bag")
+hooks.CloseBackpack()
+assert(not bagFrame.shown, "Ordinary native close must still close the bag")
+
+for _, interaction in ipairs({
+  { open = "MAIL_SHOW", close = "MAIL_CLOSED" },
+  { open = "AUCTION_HOUSE_SHOW", close = "AUCTION_HOUSE_CLOSED" },
+  { open = "MERCHANT_SHOW", close = "MERCHANT_CLOSED" },
+}) do
+  bagFrame.shown = true
+  if interaction.open == "MERCHANT_SHOW" then
+    module:MERCHANT_SHOW()
+  else
+    module:OnBagInteractionOpen(interaction.open)
+  end
+  for _, name in ipairs({ "OpenBackpack", "OpenBag", "ToggleBackpack", "ToggleBag", "CloseBackpack" }) do
+    hooks[name]()
+    assert(bagFrame.shown, interaction.open .. ": " .. name .. " must keep the bag open before the interaction frame is shown")
+  end
+  if interaction.close == "MERCHANT_CLOSED" then
+    module:MERCHANT_CLOSED()
+  else
+    module:OnBagInteractionClosed(interaction.close)
+  end
+  hooks.CloseBackpack()
+  assert(not bagFrame.shown, interaction.close .. " must release the close guard")
+end
+for _, name in ipairs({ "MailFrame", "MerchantFrame", "AuctionHouseFrame", "AuctionFrame" }) do
+  _G[name] = { IsShown = function() return true end }
+  bagFrame.shown = true
+  hooks.ToggleBackpack()
+  hooks.CloseBackpack()
+  assert(bagFrame.shown, name .. " must protect the bag before the addon receives the open event")
+  _G[name] = nil
+end
+print("Listview bag interaction visibility tests passed")

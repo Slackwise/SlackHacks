@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## Unreleased
+
+### Listview Bag
+- Keep the bag window open when opening the mailbox, a merchant, or the auction house.
+
 ## v23
 
 ### Graphics
