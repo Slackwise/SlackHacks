@@ -5,6 +5,9 @@
 ### Utilities
 - Loot Sparkles: only enabled/visible for #WF
 
+### Graphics
+- Gated visibility of options based on if the current game client supports them.
+
 ## v24
 
 ### Utilities
