@@ -488,9 +488,7 @@ local PLATE_OFFSET = -45
 local FADE_IN_TIME = 0.35
 local STATE_BLEND_TIME = 0.3
 local STABLE_TIME = 0.15
-local LOCKED_STABLE_TIME = 0.6
 local GOLD = { 1, 0.88, 0.52 }
-local GREY = { 0.62, 0.62, 0.62 }
 
 local categorySettings
 local globalSettings
@@ -826,15 +824,10 @@ local function animateSparkles(frame, elapsed)
   targetSparkle.opacity = approach(targetSparkle.opacity, 1, elapsed / FADE_IN_TIME)
   targetSparkle.readyBlend = approach(targetSparkle.readyBlend,
     targetSparkle.state == "ready" and 1 or 0, elapsed / STATE_BLEND_TIME)
-  targetSparkle.lockBlend = approach(targetSparkle.lockBlend,
-    targetSparkle.state == "locked" and 1 or 0, elapsed / STATE_BLEND_TIME)
 
-  local ready, locked = targetSparkle.readyBlend, targetSparkle.lockBlend
-  local opacity = targetSparkle.opacity * interpolate(0.55, 1, ready) * (1 - 0.55 * locked)
-  local red = interpolate(GOLD[1], GREY[1], locked)
-  local green = interpolate(GOLD[2], GREY[2], locked)
-  local blue = interpolate(GOLD[3], GREY[3], locked)
-  local speed = interpolate(0.8, 1.2, ready) * (1 - 0.5 * locked)
+  local ready = targetSparkle.readyBlend
+  local opacity = targetSparkle.opacity * interpolate(0.55, 1, ready)
+  local speed = interpolate(0.8, 1.2, ready)
 
   for _, glint in ipairs(targetSparkle.glints) do
     glint.age = glint.age + elapsed * speed
@@ -845,7 +838,7 @@ local function animateSparkles(frame, elapsed)
     local size = max(GLINT_SIZE * glint.scale * (0.35 + 0.65 * shine), 0.01)
     texture:SetSize(size, size)
     texture:SetRotation(glint.rotation + glint.rotationSpeed * max(glint.age, 0))
-    texture:SetVertexColor(red, green, blue, min(opacity * shine, 1))
+    texture:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], min(opacity * shine, 1))
   end
 end
 
@@ -897,14 +890,13 @@ local function attachSparkle(plate, state)
   targetSparkle.state = state
   targetSparkle.pendingState = nil
   targetSparkle.readyBlend = state == "ready" and 1 or 0
-  targetSparkle.lockBlend = state == "locked" and 1 or 0
   targetSparkle.opacity = 0
   for _, glint in ipairs(targetSparkle.glints) do resetGlint(glint, false) end
   frame:Show()
 end
 
 --- Changes the displayed interaction state only after it stays stable briefly.
----@param state string New state: ready, far, or locked.
+---@param state string New state: ready or far.
 local function proposeState(state)
   if state == targetSparkle.state then
     targetSparkle.pendingState = nil
@@ -914,7 +906,7 @@ local function proposeState(state)
   if targetSparkle.pendingState ~= state then
     targetSparkle.pendingState = state
     targetSparkle.pendingSince = now
-  elseif now - targetSparkle.pendingSince >= (state == "locked" and LOCKED_STABLE_TIME or STABLE_TIME) then
+  elseif now - targetSparkle.pendingSince >= STABLE_TIME then
     targetSparkle.pendingState = nil
     targetSparkle.state = state
     if state == "ready" then
@@ -923,14 +915,12 @@ local function proposeState(state)
   end
 end
 
---- Determines whether the current unit can be interacted with.
+--- Determines whether the current unit is in interaction range.
 ---@param unit string Unit token.
----@param unavailable boolean Whether the cursor marks it unavailable.
----@return string state ready, far, or locked.
-local function interactionState(unit, unavailable)
+---@return string state ready or far.
+local function interactionState(unit)
   local inRange = UnitIsInInteractRange and safeCall(UnitIsInInteractRange, unit)
   if inRange == false then return "far" end
-  if unavailable then return inRange == true and "locked" or "far" end
   return "ready"
 end
 
@@ -961,12 +951,21 @@ function module:EvaluateSoftTarget()
   local key = CATEGORY_SETTING[category]
   local wanted = key ~= nil and categorySettings[key] == true
   setTargetGate(wanted)
-  if not wanted or not plate then
+  if not wanted then
+    clearSparkle()
+    return
+  end
+  if unavailable then
+    setTargetGate(false)
+    clearSparkle()
+    return
+  end
+  if not plate then
     clearSparkle()
     return
   end
 
-  local state = interactionState(unit, unavailable == true)
+  local state = interactionState(unit)
   if targetSparkle.anchor ~= plate or targetSparkle.retarget then
     targetSparkle.retarget = nil
     clearSparkle()
