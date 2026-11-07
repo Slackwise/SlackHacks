@@ -791,10 +791,14 @@ local function showNodeNameplateLabel(plate, name)
     local frame = CreateFrame("Frame")
     frame:SetSize(220, 20)
     local text = frame:CreateFontString(nil, "OVERLAY")
-    if GameFontNormalSmall then
-      text:SetFontObject(GameFontNormalSmall)
-    elseif GameFontNormal then
+    if GameFontNormal then
       text:SetFontObject(GameFontNormal)
+    elseif GameFontNormalSmall then
+      text:SetFontObject(GameFontNormalSmall)
+    end
+    local fontPath, fontSize = text:GetFont()
+    if fontPath and fontSize then
+      text:SetFont(fontPath, fontSize + 1, "OUTLINE")
     end
     text:SetAllPoints(frame)
     text:SetJustifyH("CENTER")
