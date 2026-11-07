@@ -1,5 +1,16 @@
 # SlackHacks Changelog
 
+## Unreleased
+
+### Utilities
+- Removed custom animated approach sparkles and corpse soft-target logic; retained Blizzard's native loot sparkles and node icons.
+- Added a master option for node icons and nameplates, with per-category controls for quest objects, herbs, and ore.
+- Added an option to show names for nodes that cannot currently be interacted with.
+- Added customizable node-name text color with a reset-to-default button.
+
+### Listview Bag
+- Keep the bag window open when opening the mailbox, a merchant, or the auction house.
+
 ## v25
 
 ### Utilities
@@ -17,22 +28,6 @@
 ### ListviewBag
 - Bag should stay open when opening mail, merchant, AH
 - Added Reagent Bag contents.
-
-## Unreleased
-
-### Graphics
-- Hide graphics option groups when the current game client does not expose their required CVars.
-
-### Utilities
-- Removed custom animated approach sparkles and corpse soft-target logic; retained native soft-target controls with a master Node Icons & Nameplates option.
-- Kept Blizzard's required object interact icons enabled while node nameplates are active.
-- Node category options now control both node icons and floating names, and are disabled when the master option is off.
-- Added an option to include node names when interaction is unavailable.
-- Renamed the master node setting to `nodeNameplates` while preserving existing saved values.
-- Renamed the loot-effect profile setting to `lootSparkles`, preserving saved values from addon v25 and earlier.
-
-### Listview Bag
-- Keep the bag window open when opening the mailbox, a merchant, or the auction house.
 
 ## v23
 

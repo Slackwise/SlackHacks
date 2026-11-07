@@ -303,21 +303,87 @@ local watchedCVars = {
   [LOOT_CVAR:lower()] = true
 }
 
-local interactableNodeSettings
+local NODE_NAMEPLATE_DEFAULT_TEXT_COLOR = { r = 1, g = 0.88, b = 0.52 }
+local nodeSettings
+local nodeNameplateSettings
 local nativeLootEffectWasEnabled
 local applyingCVar = false
 local applyAfterCombat = false
 local applyAt
 
---- Migrates the saved quest-item sparkle setting to its current profile key.
----@param settings table Active profile's interactable-node settings.
-local function migrateLootSparklesSetting(settings)
-  local oldValue = rawget(settings, "questItems")
-  if rawget(settings, "lootSparkles") == nil and oldValue ~= nil then
-    settings.lootSparkles = oldValue
+--- Moves legacy flat node settings into the nodes.nameplates configuration shape.
+---@param profile table Active profile's utility settings.
+---@return table settings Current nodes settings.
+local function normalizeNodeSettings(profile)
+  local settings = rawget(profile, "nodes")
+  if type(settings) ~= "table" then
+    settings = {}
+    profile.nodes = settings
   end
-  settings.questItems = nil
+
+  local legacy = rawget(profile, "interactableNodeHighlights")
+  local legacyLoot = rawget(profile, "lootSparkles")
+  local nameplates = settings.nameplates
+  if type(nameplates) ~= "table" then
+    nameplates = {}
+    settings.nameplates = nameplates
+  end
+
+  if rawget(settings, "lootSparkles") == nil then
+    local value
+    if type(legacy) == "table" then
+      value = rawget(legacy, "lootSparkles")
+      if value == nil then value = rawget(legacy, "questItems") end
+    end
+    if value == nil and type(legacyLoot) == "table" then
+      value = rawget(legacyLoot, "questItems")
+    elseif value == nil and type(legacyLoot) == "boolean" then
+      value = legacyLoot
+    end
+    settings.lootSparkles = value
+  end
+
+  local migrations = {
+    { "nodeNameplates", "nodeNameplates", "enabled" },
+    { "nodeIconsAndNameplates", "nodeIconsAndNameplates", "enabled" },
+    { "nameplateOre", "sparkleOre", "ore" },
+    { "nameplateHerbs", "sparkleHerbs", "herbs" },
+    { "nameplateQuest", "sparkleQuest", "quest" },
+    { "onlyInteractableNameplates", "onlyInteractableNameplates", "onlyInteractable" },
+    { "nodeNameplateTextColor", "nodeNameplateTextColor", "textColor" }
+  }
+  for _, migration in ipairs(migrations) do
+    local oldKey, legacyKey, newKey = migration[1], migration[2], migration[3]
+    if rawget(nameplates, newKey) == nil then
+      local value = rawget(settings, oldKey)
+      if value == nil and type(legacy) == "table" then
+        value = rawget(legacy, oldKey)
+        if value == nil then value = rawget(legacy, legacyKey) end
+      end
+      if value == nil and type(legacyLoot) == "table" then
+        value = rawget(legacyLoot, legacyKey)
+      end
+      if value ~= nil then nameplates[newKey] = value end
+    end
+    settings[oldKey] = nil
+  end
+
+  if rawget(nameplates, "enabled") == nil then nameplates.enabled = false end
+  if rawget(nameplates, "ore") == nil then nameplates.ore = false end
+  if rawget(nameplates, "herbs") == nil then nameplates.herbs = false end
+  if rawget(nameplates, "quest") == nil then nameplates.quest = false end
+  if rawget(nameplates, "onlyInteractable") == nil then nameplates.onlyInteractable = true end
+  if type(rawget(nameplates, "textColor")) ~= "table" then nameplates.textColor = {} end
+  for _, component in ipairs({ "r", "g", "b" }) do
+    if rawget(nameplates.textColor, component) == nil then
+      nameplates.textColor[component] = NODE_NAMEPLATE_DEFAULT_TEXT_COLOR[component]
+    end
+  end
   if settings.lootSparkles == nil then settings.lootSparkles = false end
+
+  profile.interactableNodeHighlights = nil
+  profile.lootSparkles = nil
+  return settings
 end
 
 --- Reads a CVar without raising an error when the client does not expose it.
@@ -342,8 +408,8 @@ end
 
 --- Applies the quest-item sparkle setting, deferring enable writes during combat.
 local function applyLootSparkles()
-  if not interactableNodeSettings then return end
-  if interactableNodeSettings.lootSparkles then
+  if not nodeSettings then return end
+  if nodeSettings.lootSparkles then
     if InCombatLockdown() then
       applyAfterCombat = true
       return
@@ -376,58 +442,76 @@ end
 --- Reads whether quest-item sparkles are enabled in the active profile.
 ---@return boolean enabled True when the quest sparkle option is enabled.
 function module:IsLootSparklesEnabled()
-  return isForever() and interactableNodeSettings ~= nil and interactableNodeSettings.lootSparkles == true
+  return isForever() and nodeSettings ~= nil and nodeSettings.lootSparkles == true
 end
 
 --- Updates the quest-item sparkle option and applies it to the client.
 ---@param enabled boolean Whether to show quest-item sparkles.
 function module:SetLootSparklesEnabled(enabled)
-  if not isForever() or not interactableNodeSettings then return end
-  interactableNodeSettings.lootSparkles = enabled == true
-  if interactableNodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
+  if not isForever() or not nodeSettings then return end
+  nodeSettings.lootSparkles = enabled == true
+  if nodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
   applyLootSparkles()
 end
 
 --- Refreshes loot effects and native node-nameplate behavior after a profile change.
 function module:ApplyInteractableNodeHighlights()
   if not isForever() then return end
-  interactableNodeSettings = Self.db.profile.utilities.interactableNodeHighlights
-  migrateLootSparklesSetting(interactableNodeSettings)
-  if interactableNodeSettings.nameplateOre == nil then interactableNodeSettings.nameplateOre = false end
-  if interactableNodeSettings.nameplateHerbs == nil then interactableNodeSettings.nameplateHerbs = false end
-  if interactableNodeSettings.nameplateQuest == nil then interactableNodeSettings.nameplateQuest = false end
-  if interactableNodeSettings.onlyInteractableNameplates == nil then
-    interactableNodeSettings.onlyInteractableNameplates = true
-  end
-  if interactableNodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
-  self:InitializeNodeNameplates(interactableNodeSettings, Self.db.global)
+  nodeSettings = normalizeNodeSettings(Self.db.profile.utilities)
+  nodeNameplateSettings = nodeSettings.nameplates
+  if nodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
+  self:InitializeNodeNameplates(nodeNameplateSettings, Self.db.global)
   applyLootSparkles()
   self:RefreshNodeNameplates(false)
   self:UpdateNodeNameplatePoller()
+end
+
+--- Sets and immediately applies the node-nameplate text color.
+---@param red number Red color component.
+---@param green number Green color component.
+---@param blue number Blue color component.
+function module:SetNodeNameplateTextColor(red, green, blue)
+  if not isForever() or not nodeNameplateSettings then return end
+  local color = nodeNameplateSettings.textColor
+  color.r, color.g, color.b = red, green, blue
+  if nodeNameplateLabel.text then
+    nodeNameplateLabel.text:SetTextColor(red, green, blue)
+  end
+end
+
+--- Resets the node-nameplate text color to its default gold.
+function module:ResetNodeNameplateTextColor()
+  self:SetNodeNameplateTextColor(
+    NODE_NAMEPLATE_DEFAULT_TEXT_COLOR.r,
+    NODE_NAMEPLATE_DEFAULT_TEXT_COLOR.g,
+    NODE_NAMEPLATE_DEFAULT_TEXT_COLOR.b
+  )
+  local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
 end
 
 --- Changes the master node-nameplate setting or one category and refreshes targeting CVars.
 ---@param key string Master or soft-target category setting key.
 ---@param enabled boolean Whether the setting is enabled.
 function module:SetNodeNameplateOption(key, enabled)
-  if not isForever() or not interactableNodeSettings then return end
-  interactableNodeSettings[key] = enabled == true
-  self:RefreshNodeNameplates(interactableNodeSettings[key])
+  if not isForever() or not nodeNameplateSettings then return end
+  nodeNameplateSettings[key] = enabled == true
+  self:RefreshNodeNameplates(nodeNameplateSettings[key])
   self:UpdateNodeNameplatePoller()
 end
 
 --- Initializes interactable-node settings and listens for profile lifecycle changes.
 function module:InitializeInteractableNodeHighlights()
   if not isForever() then return end
-  interactableNodeSettings = Self.db.profile.utilities.interactableNodeHighlights
-  migrateLootSparklesSetting(interactableNodeSettings)
-  nativeLootEffectWasEnabled = interactableNodeSettings.lootSparkles == true
-  self:InitializeNodeNameplates(interactableNodeSettings, Self.db.global)
+  nodeSettings = normalizeNodeSettings(Self.db.profile.utilities)
+  nodeNameplateSettings = nodeSettings.nameplates
+  nativeLootEffectWasEnabled = nodeSettings.lootSparkles == true
+  self:InitializeNodeNameplates(nodeNameplateSettings, Self.db.global)
 end
 
 --- Registers client events and starts delayed CVar application.
 function module:EnableInteractableNodeHighlights()
-  if not isForever() or not interactableNodeSettings then return end
+  if not isForever() or not nodeSettings then return end
   self.applyTimer = CreateFrame("Frame")
   self.applyTimer:Hide()
   --- Re-applies quest sparkles after a delayed reset.
@@ -467,10 +551,11 @@ local NODE_NAMEPLATE_UNIT = "softinteract"
 local NODE_NAMEPLATE_RANGE = 60
 local NODE_NAMEPLATE_ARC = 2
 local NODE_NAMEPLATE_UPDATE_INTERVAL = 0.12
+local NODE_NAMEPLATE_DEFAULT_TEXT_COLOR = { r = 1, g = 0.88, b = 0.52 }
 local NODE_NAMEPLATE_CATEGORY_SETTING = {
-  ore = "nameplateOre",
-  herb = "nameplateHerbs",
-  quest = "nameplateQuest"
+  ore = "ore",
+  herb = "herbs",
+  quest = "quest"
 }
 local CURSOR_TYPES = {
   Mine = "ore",
@@ -494,7 +579,6 @@ local MANAGED_NODE_NAMEPLATE_CVARS = {
 }
 local NODE_NAME_OFFSET = 28
 
-local nodeNameplateSettings
 local settingsStorage
 local originalNodeNameplateCVars
 local nodeNameplateGateOpen
@@ -548,7 +632,7 @@ end
 --- Returns whether node icons and nameplates are enabled for any category.
 ---@return boolean active True when soft-target features should run.
 local function hasActiveNodeNameplateCategory()
-  if not nodeNameplateSettings or nodeNameplateSettings.nodeNameplates ~= true then return false end
+  if not nodeNameplateSettings or nodeNameplateSettings.enabled ~= true then return false end
   for _, key in pairs(NODE_NAMEPLATE_CATEGORY_SETTING) do
     if nodeNameplateSettings[key] == true then return true end
   end
@@ -566,7 +650,7 @@ local function enableNodeNameplates(force)
 
   if not originalNodeNameplateCVars then
     originalNodeNameplateCVars = {}
-    if settingsStorage then settingsStorage.interactableNodeHighlightsSavedCVars = originalNodeNameplateCVars end
+    if settingsStorage then settingsStorage.nodesSavedCVars = originalNodeNameplateCVars end
   end
   if originalNodeNameplateCVars.SoftTargetInteract == nil
     or originalNodeNameplateCVars.SoftTargetIconGameObject == nil then
@@ -600,7 +684,7 @@ local function restoreNodeNameplates()
     if value ~= false then writeCVar(name, value) end
   end
   originalNodeNameplateCVars = nil
-  if settingsStorage then settingsStorage.interactableNodeHighlightsSavedCVars = nil end
+  if settingsStorage then settingsStorage.nodesSavedCVars = nil end
   nodeNameplateGateOpen = nil
 end
 
@@ -802,7 +886,6 @@ local function showNodeNameplateLabel(plate, name)
     end
     text:SetAllPoints(frame)
     text:SetJustifyH("CENTER")
-    text:SetTextColor(1, 0.88, 0.52)
     text:SetShadowColor(0, 0, 0, 1)
     text:SetShadowOffset(1, -1)
     nodeNameplateLabel.frame = frame
@@ -822,6 +905,8 @@ local function showNodeNameplateLabel(plate, name)
   if nodeNameplateLabel.text:GetText() ~= name then
     nodeNameplateLabel.text:SetText(name)
   end
+  local color = nodeNameplateSettings.textColor
+  nodeNameplateLabel.text:SetTextColor(color.r, color.g, color.b)
   frame:Show()
 end
 
@@ -852,7 +937,7 @@ function module:EvaluateNodeNameplate()
   local wanted = key ~= nil and nodeNameplateSettings[key] == true
   local showName = wanted and type(name) == "string" and name ~= ""
   setNodeNameplateGate(showName and plate ~= nil)
-  if unavailable and nodeNameplateSettings.onlyInteractableNameplates ~= false then
+  if unavailable and nodeNameplateSettings.onlyInteractable ~= false then
     setNodeNameplateGate(false)
     clearNodeNameplateLabel()
     return
@@ -894,17 +979,16 @@ end
 function module:InitializeNodeNameplates(profileSettings, accountSettings)
   if not isForever() then return end
   nodeNameplateSettings = profileSettings
-  local oldMasterSetting = rawget(nodeNameplateSettings, "nodeIconsAndNameplates")
-  if rawget(nodeNameplateSettings, "nodeNameplates") == nil and oldMasterSetting ~= nil then
-    nodeNameplateSettings.nodeNameplates = oldMasterSetting
-  end
-  nodeNameplateSettings.nodeIconsAndNameplates = nil
-  if nodeNameplateSettings.nodeNameplates == nil then nodeNameplateSettings.nodeNameplates = false end
-  if nodeNameplateSettings.onlyInteractableNameplates == nil then
-    nodeNameplateSettings.onlyInteractableNameplates = true
-  end
+  if nodeNameplateSettings.enabled == nil then nodeNameplateSettings.enabled = false end
+  if nodeNameplateSettings.onlyInteractable == nil then nodeNameplateSettings.onlyInteractable = true end
   settingsStorage = accountSettings
-  originalNodeNameplateCVars = settingsStorage.interactableNodeHighlightsSavedCVars
+  if settingsStorage.nodesSavedCVars == nil then
+    settingsStorage.nodesSavedCVars = settingsStorage.interactableNodeHighlightsSavedCVars
+      or settingsStorage.lootSparklesSavedCVars
+  end
+  settingsStorage.interactableNodeHighlightsSavedCVars = nil
+  settingsStorage.lootSparklesSavedCVars = nil
+  originalNodeNameplateCVars = settingsStorage.nodesSavedCVars
 
   if not module.cursorProbe then
     module.cursorProbe = UIParent:CreateTexture(nil, "BACKGROUND")

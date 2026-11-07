@@ -489,46 +489,84 @@ CONFIG_MIGRATIONS = {
     end
   end,
   -- Config v12, addon v26.
-  --- Renames Loot Sparkles settings to Interactable Node Highlights without changing saved choices.
+  --- Moves node settings into utilities.nodes.nameplates without changing saved choices.
   [12] = function()
-    local settingKeys = {
-      sparkleOre = "nameplateOre",
-      sparkleHerbs = "nameplateHerbs",
-      sparkleQuest = "nameplateQuest",
-      questItems = "lootSparkles",
-    }
-
-    --- Migrates one profile's highlight settings to their new names.
+    --- Migrates one profile's node settings to the current nested structure.
     ---@param p table|nil Saved profile.
     local function migrateProfile(p)
       local utilities = type(p) == "table" and rawget(p, "utilities")
       if type(utilities) ~= "table" then return end
-      local highlights = rawget(utilities, "interactableNodeHighlights")
-      if type(highlights) == "table" then
-        local oldMasterSetting = rawget(highlights, "nodeIconsAndNameplates")
-        if oldMasterSetting ~= nil and rawget(highlights, "nodeNameplates") == nil then
-          highlights.nodeNameplates = oldMasterSetting
-        end
-        highlights.nodeIconsAndNameplates = nil
-        local oldLootSparklesSetting = rawget(highlights, "questItems")
-        if oldLootSparklesSetting ~= nil and rawget(highlights, "lootSparkles") == nil then
-          highlights.lootSparkles = oldLootSparklesSetting
-        end
-        highlights.questItems = nil
+      local legacyHighlights = rawget(utilities, "interactableNodeHighlights")
+      local legacySparkles = rawget(utilities, "lootSparkles")
+      local nodes = rawget(utilities, "nodes")
+      if type(nodes) ~= "table" then
+        nodes = {}
+        utilities.nodes = nodes
       end
-      local old = rawget(utilities, "lootSparkles")
-      if type(old) ~= "table" then return end
-      local new = rawget(utilities, "interactableNodeHighlights")
-      if type(new) ~= "table" then
-        new = {}
-        utilities.interactableNodeHighlights = new
+      local nameplates = rawget(nodes, "nameplates")
+      if type(nameplates) ~= "table" then
+        nameplates = {}
+        nodes.nameplates = nameplates
       end
-      for oldKey, newKey in pairs(settingKeys) do
-        local value = rawget(old, oldKey)
-        if value ~= nil and rawget(new, newKey) == nil then
-          new[newKey] = value
+
+      --- Copies one saved option only when its new destination has no saved value.
+      ---@param destination table Target config table.
+      ---@param destinationKey string Target setting name.
+      ---@param source table|nil Legacy config table.
+      ---@param sourceKey string Legacy setting name.
+      local function copyIfMissing(destination, destinationKey, source, sourceKey)
+        if type(source) == "table" and rawget(destination, destinationKey) == nil then
+          local value = rawget(source, sourceKey)
+          if value ~= nil then destination[destinationKey] = value end
         end
       end
+
+      copyIfMissing(nodes, "lootSparkles", legacyHighlights, "lootSparkles")
+      copyIfMissing(nodes, "lootSparkles", legacyHighlights, "questItems")
+      if rawget(nodes, "lootSparkles") == nil then
+        if type(legacySparkles) == "table" then
+          copyIfMissing(nodes, "lootSparkles", legacySparkles, "questItems")
+        elseif type(legacySparkles) == "boolean" then
+          nodes.lootSparkles = legacySparkles
+        end
+      end
+
+      local masterKeys = { "nodeNameplates", "nodeIconsAndNameplates" }
+      if rawget(nameplates, "enabled") == nil then
+        for _, key in ipairs(masterKeys) do
+          local value = type(legacyHighlights) == "table" and rawget(legacyHighlights, key)
+          if value == nil then value = rawget(nodes, key) end
+          if value ~= nil then
+            nameplates.enabled = value
+            break
+          end
+        end
+      end
+      local nameplateKeys = {
+        { "ore", "nameplateOre", "sparkleOre" },
+        { "herbs", "nameplateHerbs", "sparkleHerbs" },
+        { "quest", "nameplateQuest", "sparkleQuest" },
+        { "onlyInteractable", "onlyInteractableNameplates", "onlyInteractableNameplates" },
+        { "textColor", "nodeNameplateTextColor", "nodeNameplateTextColor" }
+      }
+      for _, keys in ipairs(nameplateKeys) do
+        local destinationKey, currentKey, oldKey = keys[1], keys[2], keys[3]
+        if rawget(nameplates, destinationKey) == nil then
+          local value = type(legacyHighlights) == "table" and rawget(legacyHighlights, currentKey)
+          if value == nil then value = rawget(nodes, currentKey) end
+          if value == nil then value = type(legacyHighlights) == "table"
+            and rawget(legacyHighlights, oldKey) end
+          if value == nil then value = type(legacySparkles) == "table" and rawget(legacySparkles, oldKey) end
+          if value ~= nil then nameplates[destinationKey] = value end
+        end
+      end
+
+      for _, key in ipairs(masterKeys) do nodes[key] = nil end
+      for _, keys in ipairs(nameplateKeys) do
+        nodes[keys[2]] = nil
+        nodes[keys[3]] = nil
+      end
+      utilities.interactableNodeHighlights = nil
       utilities.lootSparkles = nil
     end
 
@@ -544,10 +582,12 @@ CONFIG_MIGRATIONS = {
     end
 
     local global = Self.db.global
-    if global and rawget(global, "lootSparklesSavedCVars") ~= nil then
-      if rawget(global, "interactableNodeHighlightsSavedCVars") == nil then
-        global.interactableNodeHighlightsSavedCVars = global.lootSparklesSavedCVars
+    if global then
+      if rawget(global, "nodesSavedCVars") == nil then
+        global.nodesSavedCVars = rawget(global, "interactableNodeHighlightsSavedCVars")
+          or rawget(global, "lootSparklesSavedCVars")
       end
+      global.interactableNodeHighlightsSavedCVars = nil
       global.lootSparklesSavedCVars = nil
     end
   end,

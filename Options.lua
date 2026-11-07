@@ -67,13 +67,20 @@ dbDefaults = {
     -- Additive utility defaults preserve existing profiles and keep native loot features opt-in.
     utilities = {
       tomtomWayCommand = false,
-      interactableNodeHighlights = {
+      nodes = {
         lootSparkles = false,
-        nodeNameplates = false,
-        nameplateOre = false,
-        nameplateHerbs = false,
-        nameplateQuest = false,
-        onlyInteractableNameplates = false
+        nameplates = {
+          enabled = false,
+          ore = false,
+          herbs = false,
+          quest = false,
+          onlyInteractable = false,
+          textColor = {
+            r = 1,
+            g = 0.88,
+            b = 0.52
+          }
+        }
       }
     },
     graphics = {
@@ -2474,7 +2481,7 @@ options = {
           end,
           order = 2
         },
-        interactableNodeHighlights = {
+        nodes = {
           name = "Loot Sparkles & Nameplates",
           type = "group",
           inline = true,
@@ -2498,7 +2505,7 @@ options = {
               set = function(_, value) Self.Utilities:SetLootSparklesEnabled(value) end,
               order = 1
             },
-            nodeNameplates = {
+            enabled = {
               name = "Node Icons & Nameplates",
               desc = "Blizzard's accessibility icon option for this is all-or-nothing, sorry.",
               type = "toggle",
@@ -2506,12 +2513,12 @@ options = {
               width = "full",
               --- Reads whether node icons and nameplates are enabled.
               ---@return boolean enabled Whether node icons and nameplates are enabled.
-              get = function() return db.profile.utilities.interactableNodeHighlights.nodeNameplates end,
+              get = function() return db.profile.utilities.nodes.nameplates.enabled end,
               --- Enables or disables interactable-node icons and nameplates.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether node icons and nameplates are enabled.
               set = function(_, value)
-                Self.Utilities:SetNodeNameplateOption("nodeNameplates", value)
+                Self.Utilities:SetNodeNameplateOption("enabled", value)
               end,
               order = 2
             },
@@ -2522,11 +2529,11 @@ options = {
               --- Disables the node category options when the master setting is off.
               ---@return boolean disabled Whether the description is disabled.
               disabled = function()
-                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+                return not db.profile.utilities.nodes.nameplates.enabled
               end,
               order = 3
             },
-            nameplateQuest = {
+            quest = {
               name = "Quest Objects",
               type = "toggle",
               descStyle = "inline",
@@ -2534,18 +2541,18 @@ options = {
               --- Disables this category when node icons and nameplates are off.
               ---@return boolean disabled Whether this category is disabled.
               disabled = function()
-                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+                return not db.profile.utilities.nodes.nameplates.enabled
               end,
               --- Reads whether native soft targeting is enabled for quest objects.
               ---@return boolean enabled Whether quest-object soft targeting is enabled.
-              get = function() return db.profile.utilities.interactableNodeHighlights.nameplateQuest end,
+              get = function() return db.profile.utilities.nodes.nameplates.quest end,
               --- Updates the quest-object soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether to enable quest-object soft targeting.
-              set = function(_, value) Self.Utilities:SetNodeNameplateOption("nameplateQuest", value) end,
+              set = function(_, value) Self.Utilities:SetNodeNameplateOption("quest", value) end,
               order = 4
             },
-            nameplateHerbs = {
+            herbs = {
               name = "Herbs",
               type = "toggle",
               descStyle = "inline",
@@ -2553,18 +2560,18 @@ options = {
               --- Disables this category when node icons and nameplates are off.
               ---@return boolean disabled Whether this category is disabled.
               disabled = function()
-                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+                return not db.profile.utilities.nodes.nameplates.enabled
               end,
               --- Reads whether native soft targeting is enabled for herbs.
               ---@return boolean enabled Whether herb soft targeting is enabled.
-              get = function() return db.profile.utilities.interactableNodeHighlights.nameplateHerbs end,
+              get = function() return db.profile.utilities.nodes.nameplates.herbs end,
               --- Updates the herb soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether to enable herb soft targeting.
-              set = function(_, value) Self.Utilities:SetNodeNameplateOption("nameplateHerbs", value) end,
+              set = function(_, value) Self.Utilities:SetNodeNameplateOption("herbs", value) end,
               order = 5
             },
-            nameplateOre = {
+            ore = {
               name = "Ore Veins",
               type = "toggle",
               descStyle = "inline",
@@ -2572,38 +2579,75 @@ options = {
               --- Disables this category when node icons and nameplates are off.
               ---@return boolean disabled Whether this category is disabled.
               disabled = function()
-                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+                return not db.profile.utilities.nodes.nameplates.enabled
               end,
               --- Reads whether native soft targeting is enabled for ore.
               ---@return boolean enabled Whether ore soft targeting is enabled.
-              get = function() return db.profile.utilities.interactableNodeHighlights.nameplateOre end,
+              get = function() return db.profile.utilities.nodes.nameplates.ore end,
               --- Updates the ore soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether to enable ore soft targeting.
-              set = function(_, value) Self.Utilities:SetNodeNameplateOption("nameplateOre", value) end,
+              set = function(_, value) Self.Utilities:SetNodeNameplateOption("ore", value) end,
               order = 6
             },
-            onlyInteractableNameplates = {
+            onlyInteractable = {
               name = "Only Interactable Nameplates",
               desc = "Only show a nameplate name for nodes you can actually interact with.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
               disabled = function()
-                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+                return not db.profile.utilities.nodes.nameplates.enabled
               end,
               --- Reads whether unavailable nodes are excluded from nameplates.
               ---@return boolean enabled Whether only-interactable filtering is enabled.
               get = function()
-                return db.profile.utilities.interactableNodeHighlights.onlyInteractableNameplates
+                return db.profile.utilities.nodes.nameplates.onlyInteractable
               end,
               --- Updates whether unavailable nodes are excluded from nameplates.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether to show only interactable nodes.
               set = function(_, value)
-                Self.Utilities:SetNodeNameplateOption("onlyInteractableNameplates", value)
+                Self.Utilities:SetNodeNameplateOption("onlyInteractable", value)
               end,
               order = 7
+            },
+            textColor = {
+              name = "Text Color",
+              type = "color",
+              hasAlpha = false,
+              disabled = function()
+                return not db.profile.utilities.nodes.nameplates.enabled
+              end,
+              --- Reads the configured node-nameplate text color.
+              ---@return number red Red color component.
+              ---@return number green Green color component.
+              ---@return number blue Blue color component.
+              get = function()
+                local color = db.profile.utilities.nodes.nameplates.textColor
+                return color.r, color.g, color.b
+              end,
+              --- Updates the configured node-nameplate text color.
+              ---@param _ table AceConfig option info.
+              ---@param red number Red color component.
+              ---@param green number Green color component.
+              ---@param blue number Blue color component.
+              set = function(_, red, green, blue)
+                Self.Utilities:SetNodeNameplateTextColor(red, green, blue)
+              end,
+              order = 8
+            },
+            resetTextColor = {
+              name = "Reset Color",
+              type = "execute",
+              disabled = function()
+                return not db.profile.utilities.nodes.nameplates.enabled
+              end,
+              --- Resets the node-nameplate text color to its default gold.
+              func = function()
+                Self.Utilities:ResetNodeNameplateTextColor()
+              end,
+              order = 9
             }
           }
         },
