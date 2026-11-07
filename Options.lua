@@ -52,6 +52,7 @@ dbDefaults = {
     listviewBag = {
       enabled = false,
       showListviewBag = false,
+      showReagentBagContents = true,
       trackCrestCurrencies = true,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
@@ -63,9 +64,15 @@ dbDefaults = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
     },
-    -- Additive, opt-in defaults preserve existing profiles without a data migration.
+    -- Additive utility defaults preserve existing profiles and leave all sparkle features off initially.
     utilities = {
-      tomtomWayCommand = false
+      tomtomWayCommand = false,
+      lootSparkles = {
+        sparkleOre = false,
+        sparkleHerbs = false,
+        sparkleQuest = false,
+        sparkleCorpseLoot = false
+      }
     },
     graphics = {
       enabled = false,
@@ -151,7 +158,7 @@ dbDefaults = {
       addonsInCompartment = false
     },
     reminders = {
-      enabled = true,
+      enabled = false,
       buffs = {
         enabled = false,
         point = "TOP",
@@ -204,13 +211,13 @@ dbDefaults = {
       }
     },
     infoDisplay = {
-      enabled = true,
+      enabled = false,
       weeklies = {
         enabled = false,
         trackDelves = false
       },
       charSheet = {
-        enabled = true,
+        enabled = false,
         gearStats = true,
         itemLevel = true,
         upgradeTrack = true,
@@ -2453,25 +2460,96 @@ options = {
           end,
           order = 2
         },
-        lootableObjectSparkles = {
-          name = "Lootable Object Sparkles",
-          desc = "Show sparkles for lootable objects in the world.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          --- Hides the sparkle setting on clients other than WoW Forever.
-          ---@return boolean hidden Whether the option is hidden.
+        lootSparkles = {
+          name = "Loot Sparkles",
+          type = "group",
+          inline = true,
+          --- Hides Forever-specific sparkle controls on other client types.
+          ---@return boolean hidden Whether these options should be hidden.
           hidden = function() return not isForever() end,
-          --- Reads the current client setting without overriding existing preferences.
-          ---@return boolean enabled Whether lootable object sparkles are enabled.
-          get = function() return GetCVar("outlineModeShowLootEffectWhenDisabled") == "1" end,
-          --- Toggles lootable object sparkles in the client.
-          ---@param _ table AceConfig option info.
-          ---@param value boolean Whether to enable sparkles.
-          set = function(_, value)
-            ensureCVar("outlineModeShowLootEffectWhenDisabled", value and 1 or 0)
-          end,
-          order = 1
+          order = 3,
+          args = {
+            questItems = {
+              name = "Show Quest Item Sparkles",
+              desc = "Keep the game's loot sparkle visible on quest items, even after a graphics preset turns it off. Your outline mode is left as you set it. Turning this off takes effect after restarting the game.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Reads the active profile's quest sparkle preference.
+              ---@return boolean enabled Whether quest sparkles are enabled.
+              get = function() return Self.Utilities:IsQuestSparklesEnabled() end,
+              --- Updates the quest sparkle CVar through its module.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to enable quest sparkles.
+              set = function(_, value) Self.Utilities:SetQuestSparklesEnabled(value) end,
+              order = 1
+            },
+            approachHeader = {
+              name = "Sparkles While Approaching",
+              type = "header",
+              order = 2
+            },
+            sparkleOre = {
+              name = "Ore Veins",
+              desc = "Sparkle on mining nodes as you approach them. Uses Blizzard's soft targeting and enables the interact key and object icons as needed.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Reads the active profile's ore sparkle preference.
+              ---@return boolean enabled Whether ore sparkles are enabled.
+              get = function() return db.profile.utilities.lootSparkles.sparkleOre end,
+              --- Updates the ore sparkle preference and target CVars.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to enable ore sparkles.
+              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleOre", value) end,
+              order = 3
+            },
+            sparkleHerbs = {
+              name = "Herbs",
+              desc = "Sparkle on herbs as you approach them. Uses Blizzard's soft targeting and enables the interact key and object icons as needed.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Reads the active profile's herb sparkle preference.
+              ---@return boolean enabled Whether herb sparkles are enabled.
+              get = function() return db.profile.utilities.lootSparkles.sparkleHerbs end,
+              --- Updates the herb sparkle preference and target CVars.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to enable herb sparkles.
+              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleHerbs", value) end,
+              order = 4
+            },
+            sparkleQuest = {
+              name = "Quest Objects",
+              desc = "Add sparkles to quest objects as you approach them. Off by default because the game's loot sparkle already marks most of them.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Reads the active profile's quest-object sparkle preference.
+              ---@return boolean enabled Whether quest-object sparkles are enabled.
+              get = function() return db.profile.utilities.lootSparkles.sparkleQuest end,
+              --- Updates the quest-object sparkle preference and target CVars.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to enable quest-object sparkles.
+              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleQuest", value) end,
+              order = 5
+            },
+            sparkleCorpseLoot = {
+              name = "Corpses With Loot",
+              desc = "Sparkle on corpses that still have loot for you, including bosses. This works after combat because the game prevents addons from changing the target nameplate during a fight.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Reads the active profile's corpse sparkle preference.
+              ---@return boolean enabled Whether corpse sparkles are enabled.
+              get = function() return db.profile.utilities.lootSparkles.sparkleCorpseLoot end,
+              --- Updates the corpse sparkle preference and target CVars.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to enable corpse sparkles.
+              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleCorpseLoot", value) end,
+              order = 6
+            }
+          }
         },
       }
     },

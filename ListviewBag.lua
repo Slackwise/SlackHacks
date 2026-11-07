@@ -17,6 +17,8 @@ Self.ListviewBag = module
 --=====================================================================
 
 local FRAME_NAME = "SlackHacksListviewBagFrame"
+-- Blizzard's ContainerFrame_IsReagentBag uses container ID 5; Enum.BagIndex has no ReagentBag field.
+local REAGENT_BAG_ID = 5
 local ROW_HEIGHT = 20
 local COLLAPSE_WIDTH = ROW_HEIGHT
 local STATUS_WIDTH = 20
@@ -66,11 +68,12 @@ local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
 -- OnModifiedClick on every click doesn't wrap an already-wrapped function again.
 local autoPlaceSplitStacks = setmetatable({}, { __mode = "k" })
 
--- The bags this window displays: the backpack, the 4 equipped bags, and (retail only) the reagent bag.
+--- Return the backpack, equipped bags, and the modern client's reagent bag.
+---@return table bagIDs Container IDs used for display and bag actions.
 local function bagIDs()
   local ids = { 0, 1, 2, 3, 4 }
-  if isRetail() and Enum.BagIndex and Enum.BagIndex.ReagentBag then
-    ids[#ids + 1] = Enum.BagIndex.ReagentBag
+  if isRetailOrForever() then
+    ids[#ids + 1] = REAGENT_BAG_ID
   end
   return ids
 end
@@ -181,6 +184,8 @@ end
 -- Row data collection
 --=====================================================================
 
+--- Group items from visible bags, excluding the reagent bag when its checkbox is unchecked.
+---@return table groups Combined item rows and their underlying bag slots.
 -- Walks every tracked bag slot and groups identical items (same hyperlink) into one combined row, the
 -- same way the default UI's "combined bags" view merges stacks together. Each group remembers every
 -- underlying bagID/slot ("entries") so actions (locking, dragging, splitting) can still reach the real
@@ -188,28 +193,30 @@ end
 local function collectGroups()
   local groups, order = {}, {}
   for _, bagID in ipairs(bagIDs()) do
-    local numSlots = C_Container.GetContainerNumSlots(bagID)
-    for slot = 1, numSlots do
-      local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID and not info.isFiltered then
-        local key = info.hyperlink or info.itemID
-        local group = groups[key]
-        if not group then
-          group = {
-            key = key,
-            itemID = info.itemID,
-            hyperlink = info.hyperlink,
-            itemName = info.itemName,
-            icon = info.iconFileID,
-            quality = info.quality or Enum.ItemQuality.Common or 1,
-            count = 0,
-            entries = {},
-          }
-          groups[key] = group
-          order[#order + 1] = group
+    if bagID ~= REAGENT_BAG_ID or settings().showReagentBagContents then
+      local numSlots = C_Container.GetContainerNumSlots(bagID)
+      for slot = 1, numSlots do
+        local info = C_Container.GetContainerItemInfo(bagID, slot)
+        if info and info.itemID and not info.isFiltered then
+          local key = info.hyperlink or info.itemID
+          local group = groups[key]
+          if not group then
+            group = {
+              key = key,
+              itemID = info.itemID,
+              hyperlink = info.hyperlink,
+              itemName = info.itemName,
+              icon = info.iconFileID,
+              quality = info.quality or Enum.ItemQuality.Common or 1,
+              count = 0,
+              entries = {},
+            }
+            groups[key] = group
+            order[#order + 1] = group
+          end
+          group.count = group.count + (info.stackCount or 1)
+          group.entries[#group.entries + 1] = { bagID = bagID, slot = slot, count = info.stackCount or 1, isBound = info.isBound }
         end
-        group.count = group.count + (info.stackCount or 1)
-        group.entries[#group.entries + 1] = { bagID = bagID, slot = slot, count = info.stackCount or 1, isBound = info.isBound }
       end
     end
   end
@@ -289,6 +296,8 @@ local sellMarkedTrashItems, updateSellTrashButton
 -- Tracked from MERCHANT_SHOW/MERCHANT_CLOSED rather than MerchantFrame:IsShown(), because Blizzard's
 -- frame may not have shown/hidden yet when our handler for the same event runs.
 local merchantOpen = false
+local mailOpen = false
+local auctionOpen = false
 
 -- Distributes the header/row widths for the currently reorderable columns, giving the "name" column
 -- whatever space is left over. Non-reorderable cells (collapse arrow, lock/trash status) are pinned.
@@ -801,6 +810,33 @@ local function createFooter()
   footer.sellTrashButton:SetEnabled(false)
   footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
 
+  footer.reagentCheckbox = CreateFrame("CheckButton", "SlackHacksListviewBagReagentToggle", content, "UICheckButtonTemplate")
+  -- Override the template's frame level so the checkbox renders above the container's NineSlice.
+  footer.reagentCheckbox:SetFrameLevel(content:GetFrameLevel() + 1)
+  footer.reagentCheckbox:SetSize(18, 18)
+  footer.reagentCheckbox:SetPoint("RIGHT", footer.sellTrashButton, "LEFT", -75, 0)
+  local reagentCheckboxText = footer.reagentCheckbox.text or footer.reagentCheckbox.Text
+    or _G[footer.reagentCheckbox:GetName() .. "Text"]
+  if reagentCheckboxText then
+    reagentCheckboxText:SetText("Reagent Bag")
+    reagentCheckboxText:SetFontObject("GameFontHighlightSmall")
+    reagentCheckboxText:ClearAllPoints()
+    reagentCheckboxText:SetPoint("LEFT", footer.reagentCheckbox, "RIGHT", 4, 0)
+    footer.reagentCheckbox:SetHitRectInsets(0, -70, 0, 0)
+  end
+  footer.reagentCheckbox:SetChecked(settings().showReagentBagContents)
+  footer.reagentCheckbox:SetScript("OnClick", function(self)
+    settings().showReagentBagContents = self:GetChecked() and true or false
+    renderRows()
+  end)
+  footer.reagentCheckbox:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Show contents of Reagent Bag")
+    GameTooltip:Show()
+  end)
+  footer.reagentCheckbox:SetScript("OnLeave", GameTooltip_Hide)
+  footer.reagentCheckbox:SetShown(isRetailOrForever())
+
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.currencyButton:SetSize(20, 20)
   footer.currencyButton:SetNormalTexture(133784)
@@ -926,10 +962,22 @@ local function updateListViewBindings()
 end
 
 local lastNativeBagToggle = 0
+--- Return whether an interaction window currently needs access to bag contents.
+---@return boolean interacting Whether a merchant, mailbox, or auction house is open.
+local function isBagInteractionOpen()
+  return merchantOpen or mailOpen or auctionOpen
+    or (MerchantFrame and MerchantFrame:IsShown())
+    or (MailFrame and MailFrame:IsShown())
+    or (AuctionHouseFrame and AuctionHouseFrame:IsShown())
+    or (AuctionFrame and AuctionFrame:IsShown())
+    or false
+end
+
+--- Toggle the list view for a native bag toggle, keeping interaction-driven requests open.
 local function toggleListViewFromNativeBagAction()
   if openingDefaultBags then return end
   if not frame or not isModuleEnabled() or not settings().showListviewBag then return end
-  if (MerchantFrame and MerchantFrame:IsShown()) or (MailFrame and MailFrame:IsShown()) then
+  if isBagInteractionOpen() then
     hideDefaultBags()
     frame:Show()
     return
@@ -967,17 +1015,24 @@ local function installBagMenuOptions()
 end
 
 local hookedBagToggleFuncs = {}
+--- Hook native open, toggle, and close requests without treating an open request as a toggle.
 local function hookDefaultBagToggles()
-  for _, funcName in ipairs({ "ToggleBackpack", "OpenBackpack", "ToggleBag", "OpenBag" }) do
+  for _, funcName in ipairs({ "ToggleBackpack", "ToggleBag" }) do
     if _G[funcName] and not hookedBagToggleFuncs[funcName] then
       hookedBagToggleFuncs[funcName] = true
       hooksecurefunc(funcName, toggleListViewFromNativeBagAction)
     end
   end
+  for _, funcName in ipairs({ "OpenBackpack", "OpenBag" }) do
+    if _G[funcName] and not hookedBagToggleFuncs[funcName] then
+      hookedBagToggleFuncs[funcName] = true
+      hooksecurefunc(funcName, function() module:OnNativeBagOpen() end)
+    end
+  end
   if _G.CloseBackpack and not hookedBagToggleFuncs.CloseBackpack then
     hookedBagToggleFuncs.CloseBackpack = true
     hooksecurefunc("CloseBackpack", function()
-      if frame and isModuleEnabled() and settings().showListviewBag then
+      if frame and isModuleEnabled() and settings().showListviewBag and not isBagInteractionOpen() then
         frame:Hide()
       end
     end)
@@ -1241,6 +1296,9 @@ function module:OnEnable()
   installBagMenuOptions()
   buildFrame()
   merchantOpen = MerchantFrame and MerchantFrame:IsShown() or false
+  mailOpen = MailFrame and MailFrame:IsShown() or false
+  auctionOpen = (AuctionHouseFrame and AuctionHouseFrame:IsShown())
+    or (AuctionFrame and AuctionFrame:IsShown()) or false
   updateSellTrashButton()
   hookMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
@@ -1252,6 +1310,10 @@ function module:OnEnable()
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("MERCHANT_CLOSED")
+  self:RegisterEvent("MAIL_SHOW", "OnBagInteractionOpen")
+  self:RegisterEvent("MAIL_CLOSED", "OnBagInteractionClosed")
+  self:RegisterEvent("AUCTION_HOUSE_SHOW", "OnBagInteractionOpen")
+  self:RegisterEvent("AUCTION_HOUSE_CLOSED", "OnBagInteractionClosed")
   EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.RefreshFooter, self)
   if settings().showListviewBag then
     setShowListviewBag(true)
@@ -1284,6 +1346,22 @@ function module:MERCHANT_CLOSED()
   renderRows()
 end
 
+--- Keep the list view open when the mailbox or auction house opens, before its frame is visible.
+---@param event string Interaction-open event.
+function module:OnBagInteractionOpen(event)
+  if event == "MAIL_SHOW" then mailOpen = true end
+  if event == "AUCTION_HOUSE_SHOW" then auctionOpen = true end
+  self:OnNativeBagOpen()
+end
+
+--- Clear the mailbox or auction state when that interaction ends.
+---@param event string Interaction-close event.
+function module:OnBagInteractionClosed(event)
+  if event == "MAIL_CLOSED" then mailOpen = false end
+  if event == "AUCTION_HOUSE_CLOSED" then auctionOpen = false end
+end
+
+--- Show the list view for a native open request without toggling an already-open window closed.
 function module:OnNativeBagOpen()
   if openingDefaultBags then return end
   if isModuleEnabled() and settings().showListviewBag then

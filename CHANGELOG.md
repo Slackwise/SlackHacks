@@ -1,5 +1,23 @@
 # SlackHacks Changelog
 
+## v24
+
+### Utilities
+- Made the loot sparkles only sparkle for interactable objects.
+- Loot Sparkles: added more options.
+
+### ListviewBag
+- Bag should stay open when opening mail, merchant, AH
+- Added Reagent Bag contents.
+
+## Unreleased
+
+### Utilities
+- Replaced the lootable-object sparkle checkbox with grouped Loot Sparkles controls, including approach sparkles for ore, herbs, quest objects, and lootable corpses.
+
+### Listview Bag
+- Keep the bag window open when opening the mailbox, a merchant, or the auction house.
+
 ## v23
 
 ### Graphics
