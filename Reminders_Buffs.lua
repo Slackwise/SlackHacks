@@ -1191,6 +1191,7 @@ end
 
 --- Shows or hides the Edit Mode settings dialog, refreshing its controls from the db first when shown.
 local function showEditModeDialog(show)
+  if not show and not editModeDialog then return end
   local dlg = createEditModeDialog()
   if show then
     dlg:RefreshValues()
@@ -1275,20 +1276,11 @@ local function createSelection()
   return selection
 end
 
---- Enters Edit Mode preview: shows every category's icon (regardless of content/aura state) plus the
---- draggable selection outline, so the player can position/configure reminders outside real content.
+--- Enters Edit Mode, previewing reminders only while both reminder switches are enabled.
 local function enterEditMode()
   if isEditing or InCombatLockdown() then return end
   isEditing = true
-  createContainer()
-  layoutIcons(BUFF_CATEGORIES, true)
-  local sel = createSelection()
-  if sel then
-    sel:Show()
-    if sel.ShowHighlighted then
-      sel:ShowHighlighted()
-    end
-  end
+  module:Refresh()
 end
 
 --- Leaves Edit Mode preview and immediately re-runs a normal Refresh() so real content gating resumes.
@@ -1303,13 +1295,24 @@ local function exitEditMode()
 end
 
 --- Main entry point: re-syncs aura tracking registration, then re-lays-out icons for whatever's
---- currently active (or the edit-mode preview set, if editing). Safe to call as often as needed --
+--- currently active (or the edit-mode preview set, if editing and enabled). Safe to call as often as needed --
 --- everything it touches is itself idempotent/cheap. Bails out of the layout step in combat (aura
 --- tracking still gets updated) since secure layout changes aren't allowed then; see file header.
 function module:Refresh()
   if isEditing then
-    createContainer()
-    layoutIcons(BUFF_CATEGORIES, true)
+    if isActive() then
+      createContainer()
+      layoutIcons(BUFF_CATEGORIES, true)
+      local wasVisible = selection and selection:IsShown()
+      local sel = createSelection()
+      sel:Show()
+      if not wasVisible and sel.ShowHighlighted then sel:ShowHighlighted() end
+    else
+      showEditModeDialog(false)
+      if selection then selection:Hide() end
+      hideBuffs()
+      updateAuraEventRegistration()
+    end
     return
   end
   updateAuraEventRegistration()
@@ -1319,12 +1322,11 @@ function module:Refresh()
 end
 
 --- AceDB "OnDatabaseReset" callback (profile reset/wiped): clears all in-memory aura-tracking state
---- and Edit Mode status before refreshing, so nothing stale survives the reset.
+--- before refreshing, while retaining Edit Mode status so the preview follows the reset settings.
 function module:OnDatabaseReset()
   wipe(trackedAuras)
   wipe(cachedAuraExpirations)
   auraCacheInitialized = false
-  isEditing = false
   hideBuffs()
   self:Refresh()
 end
@@ -1362,7 +1364,7 @@ function module:OnInitialize()
     if EditModeManagerFrame.SelectSystem then
       hooksecurefunc(EditModeManagerFrame, "SelectSystem", function()
         showEditModeDialog(false)
-        if selection and selection.ShowHighlighted then
+        if isEditing and isActive() and selection and selection.ShowHighlighted then
           selection:ShowHighlighted()
         end
       end)
@@ -1372,7 +1374,7 @@ function module:OnInitialize()
   if EditModeSystemSettingsDialog then
     EditModeSystemSettingsDialog:HookScript("OnShow", function()
       showEditModeDialog(false)
-      if selection and selection.ShowHighlighted then
+      if isEditing and isActive() and selection and selection.ShowHighlighted then
         selection:ShowHighlighted()
       end
     end)

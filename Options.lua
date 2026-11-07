@@ -158,7 +158,7 @@ dbDefaults = {
       addonsInCompartment = false
     },
     reminders = {
-      enabled = true,
+      enabled = false,
       buffs = {
         enabled = false,
         point = "TOP",
@@ -211,13 +211,13 @@ dbDefaults = {
       }
     },
     infoDisplay = {
-      enabled = true,
+      enabled = false,
       weeklies = {
         enabled = false,
         trackDelves = false
       },
       charSheet = {
-        enabled = true,
+        enabled = false,
         gearStats = true,
         itemLevel = true,
         upgradeTrack = true,
