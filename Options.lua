@@ -69,23 +69,21 @@ dbDefaults = {
     },
     graphics = {
       enabled = false,
-      enableGroundEffectDensity = false,
       groundEffectDensity = 16,
-      enableGroundEffectFade = false,
       groundEffectFade = 70,
-      enableGroundEffectDist = false,
       groundEffectDist = 70,
-      enableLodObjectFadeScale = false,
       lodObjectFadeScale = 100,
-      enableLodObjectCullSize = false,
       lodObjectCullSize = 15,
-      enableTerrainLodDist = false,
       terrainLodDist = 400,
       resampleAlwaysSharpen = false,
-      enableReflectionMode = false,
       reflectionMode = 0,
-      enableWeatherDensity = false,
-      weatherDensity = 2
+      weatherDensity = 2,
+      hdrOutput = false,
+      hdrFactor = 2.0,
+      enableHDRBrightness = false,
+      hdrBrightness = 203,
+      enableHDRPeakBrightness = false,
+      hdrPeakBrightness = 400
     },
     mouseRing = {
       enabled = false,
@@ -1699,7 +1697,7 @@ options = {
       args = {
         overview = {
           type = "description",
-          name = "|cffffd100Tweak hidden client CVars to push draw distances, foliage density, and visual clarity beyond standard in-game options. Each option can be individually enabled or unset back to game defaults.|r",
+          name = "|cffffd100Adjust hidden client graphics settings. Values apply while the Graphics module is enabled and can be reset individually or all at once.|r",
           fontSize = "medium",
           width = "full",
           order = 0
@@ -1715,12 +1713,198 @@ options = {
           order = 0.1
         },
         resetToDefaults = {
-          name = "Reset to Defaults",
-          desc = "Disables all overrides and resets all graphics options back to standard game defaults.",
+          name = "Reset All Graphics Options to Defaults",
+          desc = "Resets every graphics option to its game default.",
           type = "execute",
           disabled = function() return not db.profile.graphics.enabled end,
           func = function() Self.Graphics:ResetToDefaults() end,
           order = 0.6
+        },
+        hdrOutputGroup = {
+          type = "group",
+          name = "HDR Output",
+          inline = true,
+          order = 0.7,
+          args = {
+            hdrOutput = {
+              name = "Enable HDR Output",
+              desc = "Enable HDR output when supported by the monitor and render settings.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function() return not db.profile.graphics.enabled end,
+              get = function() return db.profile.graphics.hdrOutput end,
+              set = function(_, value)
+                db.profile.graphics.hdrOutput = value
+                Self.Graphics:Apply("hdrOutput")
+              end,
+              order = 1
+            },
+            resetHDROutput = {
+              name = "Reset to Default",
+              desc = "Restore the game's default HDR output setting.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("hdrOutput") end,
+              order = 1.1
+            },
+            hdrFactor = {
+              name = "HDR Factor",
+              desc = "Adjusts how far above SDR lighting HDR is allowed to push. The value is capped by the monitor's peak brightness.",
+              type = "range",
+              min = 1,
+              max = 8,
+              step = 0.1,
+              width = "full",
+              disabled = function()
+                return not db.profile.graphics.enabled or not db.profile.graphics.hdrOutput
+              end,
+              get = function() return db.profile.graphics.hdrFactor end,
+              set = function(_, value)
+                db.profile.graphics.hdrFactor = value
+                Self.Graphics:Apply("hdrFactor")
+              end,
+              order = 2
+            },
+            resetHDRFactor = {
+              name = "Reset to Default",
+              desc = "Restore the game's default HDR factor.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("hdrFactor") end,
+              order = 2.1
+            },
+            enableHDRBrightness = {
+              name = "Use Custom HDR Brightness",
+              desc = "Use the custom brightness value below instead of the monitor-reported level.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function()
+                return not db.profile.graphics.enabled or not db.profile.graphics.hdrOutput
+              end,
+              get = function() return db.profile.graphics.enableHDRBrightness end,
+              set = function(_, value)
+                db.profile.graphics.enableHDRBrightness = value
+                Self.Graphics:Apply("hdrBrightness")
+              end,
+              order = 3
+            },
+            hdrBrightness = {
+              name = "HDR Brightness (nits)",
+              desc = "Set the brightness level for the interface and standard-range content, in nits.",
+              type = "range",
+              min = 80,
+              max = 1000,
+              step = 1,
+              width = "full",
+              disabled = function()
+                return not db.profile.graphics.enabled or not db.profile.graphics.hdrOutput
+                  or not db.profile.graphics.enableHDRBrightness
+              end,
+              get = function() return db.profile.graphics.hdrBrightness end,
+              set = function(_, value)
+                db.profile.graphics.hdrBrightness = value
+                Self.Graphics:Apply("hdrBrightness")
+              end,
+              order = 4
+            },
+            resetHDRBrightness = {
+              name = "Reset to Default",
+              desc = "Restore the game's default HDR brightness value.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("hdrBrightness") end,
+              order = 4.1
+            },
+            enableHDRPeakBrightness = {
+              name = "Use Custom HDR Peak Brightness",
+              desc = "Use the custom peak brightness value below instead of the monitor-reported level.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function()
+                return not db.profile.graphics.enabled or not db.profile.graphics.hdrOutput
+              end,
+              get = function() return db.profile.graphics.enableHDRPeakBrightness end,
+              set = function(_, value)
+                db.profile.graphics.enableHDRPeakBrightness = value
+                Self.Graphics:Apply("hdrPeakBrightness")
+              end,
+              order = 5
+            },
+            hdrPeakBrightness = {
+              name = "HDR Peak Brightness (nits)",
+              desc = "Set the brightest level the monitor can display in HDR, in nits.",
+              type = "range",
+              min = 200,
+              max = 4000,
+              step = 10,
+              width = "full",
+              disabled = function()
+                return not db.profile.graphics.enabled or not db.profile.graphics.hdrOutput
+                  or not db.profile.graphics.enableHDRPeakBrightness
+              end,
+              get = function() return db.profile.graphics.hdrPeakBrightness end,
+              set = function(_, value)
+                db.profile.graphics.hdrPeakBrightness = value
+                Self.Graphics:Apply("hdrPeakBrightness")
+              end,
+              order = 6
+            },
+            resetHDRPeakBrightness = {
+              name = "Reset to Default",
+              desc = "Restore the game's default HDR peak brightness value.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("hdrPeakBrightness") end,
+              order = 6.1
+            },
+            hdrDesc = {
+              name = "|cff808080HDR output is a boolean CVar (0/1); factor is a floating-point multiplier (default: 2.0, range: 1.0-8.0). Brightness and peak brightness override values are in nits.|r",
+              type = "description",
+              width = "full",
+              order = 7
+            }
+          }
+        },
+        weatherDensityGroup = {
+          type = "group",
+          name = "Weather Density",
+          inline = true,
+          order = 0.8,
+          args = {
+            weatherDensity = {
+              name = "Density",
+              desc = "Controls the intensity and density of precipitation and weather effects such as rain, snow, and sandstorms (0: Off, 1: Light, 2: Medium, 3: Heavy / Maximum).",
+              type = "range",
+              min = 0,
+              max = 3,
+              step = 1,
+              width = "full",
+              disabled = function() return not db.profile.graphics.enabled end,
+              get = function() return db.profile.graphics.weatherDensity end,
+              set = function(_, value)
+                db.profile.graphics.weatherDensity = value
+                Self.Graphics:Apply("weatherDensity")
+              end,
+              order = 1
+            },
+            resetWeatherDensity = {
+              name = "Reset to Default",
+              desc = "Restore the game's default weather density.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("weatherDensity") end,
+              order = 1.1
+            },
+            weatherDensityDesc = {
+              name = "|cff808080Controls the intensity of weather effects like rain, snow, and storms (0: Off, 1: Light, 2: Medium, 3: Heavy). (CVar: weatherDensity | Default: 2 | Max: 3)|r",
+              type = "description",
+              width = "full",
+              order = 2
+            }
+          }
         },
         groundEffectDensityGroup = {
           type = "group",
@@ -1728,20 +1912,6 @@ options = {
           inline = true,
           order = 1,
           args = {
-            enableGroundEffectDensity = {
-              name = "Override Ground Effect Density",
-              desc = "Enable custom override for ground foliage density. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableGroundEffectDensity end,
-              set = function(_, value)
-                db.profile.graphics.enableGroundEffectDensity = value
-                Self.Graphics:Apply("groundEffectDensity")
-              end,
-              order = 1
-            },
             groundEffectDensity = {
               name = "Density",
               desc = "Controls the density of ground foliage and clutter, such as grass, flowers, ferns, and small rocks.",
@@ -1751,21 +1921,27 @@ options = {
               step = 1,
               bigStep = 16,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableGroundEffectDensity
-              end,
+              disabled = function() return not db.profile.graphics.enabled end,
               get = function() return db.profile.graphics.groundEffectDensity end,
               set = function(_, value)
                 db.profile.graphics.groundEffectDensity = value
                 Self.Graphics:Apply("groundEffectDensity")
               end,
-              order = 2
+              order = 1
+            },
+            resetGroundEffectDensity = {
+              name = "Reset to Default",
+              desc = "Restore the game's default ground effect density.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("groundEffectDensity") end,
+              order = 1.1
             },
             groundEffectDensityDesc = {
               name = "|cff808080Controls density of ground clutter (grass, flowers, ferns, rocks). (CVar: groundEffectDensity | Default: 16 | Max: 256)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
         },
@@ -1775,20 +1951,6 @@ options = {
           inline = true,
           order = 2,
           args = {
-            enableGroundEffectFade = {
-              name = "Override Ground Effect Fade Distance",
-              desc = "Enable custom override for ground clutter fade distance. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableGroundEffectFade end,
-              set = function(_, value)
-                db.profile.graphics.enableGroundEffectFade = value
-                Self.Graphics:Apply("groundEffectFade")
-              end,
-              order = 1
-            },
             groundEffectFade = {
               name = "Fade Distance",
               desc = "Controls the distance from the player at which ground clutter begins to fade into the distance.",
@@ -1798,21 +1960,27 @@ options = {
               step = 1,
               bigStep = 10,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableGroundEffectFade
-              end,
+              disabled = function() return not db.profile.graphics.enabled end,
               get = function() return db.profile.graphics.groundEffectFade end,
               set = function(_, value)
                 db.profile.graphics.groundEffectFade = value
                 Self.Graphics:Apply("groundEffectFade")
               end,
-              order = 2
+              order = 1
+            },
+            resetGroundEffectFade = {
+              name = "Reset to Default",
+              desc = "Restore the game's default ground effect fade distance.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("groundEffectFade") end,
+              order = 1.1
             },
             groundEffectFadeDesc = {
               name = "|cff808080Controls the distance at which ground clutter begins fading into the background. (CVar: groundEffectFade | Default: 70 | Max: 370)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
         },
@@ -1822,20 +1990,6 @@ options = {
           inline = true,
           order = 3,
           args = {
-            enableGroundEffectDist = {
-              name = "Override Ground Effect Render Distance",
-              desc = "Enable custom override for ground clutter maximum draw distance. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableGroundEffectDist end,
-              set = function(_, value)
-                db.profile.graphics.enableGroundEffectDist = value
-                Self.Graphics:Apply("groundEffectDist")
-              end,
-              order = 1
-            },
             groundEffectDist = {
               name = "Render Distance",
               desc = "Controls the maximum draw distance at which ground clutter (grass, plants, rocks) is rendered.",
@@ -1845,21 +1999,27 @@ options = {
               step = 1,
               bigStep = 10,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableGroundEffectDist
-              end,
+              disabled = function() return not db.profile.graphics.enabled end,
               get = function() return db.profile.graphics.groundEffectDist end,
               set = function(_, value)
                 db.profile.graphics.groundEffectDist = value
                 Self.Graphics:Apply("groundEffectDist")
               end,
-              order = 2
+              order = 1
+            },
+            resetGroundEffectDist = {
+              name = "Reset to Default",
+              desc = "Restore the game's default ground effect render distance.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("groundEffectDist") end,
+              order = 1.1
             },
             groundEffectDistDesc = {
               name = "|cff808080Controls the maximum draw distance for ground clutter to minimize pop-in. (CVar: groundEffectDist | Default: 70 | Max: 500)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
         },
@@ -1869,20 +2029,6 @@ options = {
           inline = true,
           order = 4,
           args = {
-            enableLodObjectFadeScale = {
-              name = "Override LoD Object Fade Scale",
-              desc = "Enable custom override for level of detail (LoD) object fade scale. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableLodObjectFadeScale end,
-              set = function(_, value)
-                db.profile.graphics.enableLodObjectFadeScale = value
-                Self.Graphics:Apply("lodObjectFadeScale")
-              end,
-              order = 1
-            },
             lodObjectFadeScale = {
               name = "Fade Scale (%)",
               desc = "Scales the fade distance for level of detail (LoD) objects and doodads. Higher values keep distant structures and objects visible further away.",
@@ -1892,21 +2038,27 @@ options = {
               step = 1,
               bigStep = 5,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableLodObjectFadeScale
-              end,
+              disabled = function() return not db.profile.graphics.enabled end,
               get = function() return db.profile.graphics.lodObjectFadeScale end,
               set = function(_, value)
                 db.profile.graphics.lodObjectFadeScale = value
                 Self.Graphics:Apply("lodObjectFadeScale")
               end,
-              order = 2
+              order = 1
+            },
+            resetLodObjectFadeScale = {
+              name = "Reset to Default",
+              desc = "Restore the game's default LoD object fade scale.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("lodObjectFadeScale") end,
+              order = 1.1
             },
             lodObjectFadeScaleDesc = {
               name = "|cff808080Scales the distance over which level of detail (LoD) objects fade out (50% - 200%). (CVar: lodObjectFadeScale | Default: 100 | Max: 200)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
         },
@@ -1916,20 +2068,6 @@ options = {
           inline = true,
           order = 5,
           args = {
-            enableLodObjectCullSize = {
-              name = "Override LoD Object Cull Size",
-              desc = "Enable custom override for level of detail (LoD) object culling size. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableLodObjectCullSize end,
-              set = function(_, value)
-                db.profile.graphics.enableLodObjectCullSize = value
-                Self.Graphics:Apply("lodObjectCullSize")
-              end,
-              order = 1
-            },
             lodObjectCullSize = {
               name = "Cull Pixel Size",
               desc = "Screen-space pixel size threshold below which small objects and doodads are culled (not drawn). Lower values force smaller and more distant objects to render.",
@@ -1938,21 +2076,27 @@ options = {
               max = 35,
               step = 1,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableLodObjectCullSize
-              end,
+              disabled = function() return not db.profile.graphics.enabled end,
               get = function() return db.profile.graphics.lodObjectCullSize end,
               set = function(_, value)
                 db.profile.graphics.lodObjectCullSize = value
                 Self.Graphics:Apply("lodObjectCullSize")
               end,
-              order = 2
+              order = 1
+            },
+            resetLodObjectCullSize = {
+              name = "Reset to Default",
+              desc = "Restore the game's default LoD object cull size.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("lodObjectCullSize") end,
+              order = 1.1
             },
             lodObjectCullSizeDesc = {
               name = "|cff808080Pixel size threshold below which small objects are culled. Lower values render smaller/distant doodads. (CVar: lodObjectCullSize | Default: 15 | Min: 1)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
         },
@@ -1962,20 +2106,6 @@ options = {
           inline = true,
           order = 6,
           args = {
-            enableTerrainLodDist = {
-              name = "Override Terrain LoD Distance",
-              desc = "Enable custom override for terrain level of detail distance. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableTerrainLodDist end,
-              set = function(_, value)
-                db.profile.graphics.enableTerrainLodDist = value
-                Self.Graphics:Apply("terrainLodDist")
-              end,
-              order = 1
-            },
             terrainLodDist = {
               name = "Terrain LoD Distance",
               desc = "Controls the draw distance for high-detail terrain mesh geometry, reducing visible terrain morphing and popping in the distance.",
@@ -1985,21 +2115,27 @@ options = {
               step = 10,
               bigStep = 50,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableTerrainLodDist
-              end,
+              disabled = function() return not db.profile.graphics.enabled end,
               get = function() return db.profile.graphics.terrainLodDist end,
               set = function(_, value)
                 db.profile.graphics.terrainLodDist = value
                 Self.Graphics:Apply("terrainLodDist")
               end,
-              order = 2
+              order = 1
+            },
+            resetTerrainLodDist = {
+              name = "Reset to Default",
+              desc = "Restore the game's default terrain LoD distance.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("terrainLodDist") end,
+              order = 1.1
             },
             terrainLodDistDesc = {
               name = "|cff808080Controls the draw distance for high-detail terrain meshes, preventing terrain geometry popping. (CVar: terrainLodDist | Default: 400 | Max: 1000)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
         },
@@ -2023,6 +2159,14 @@ options = {
               end,
               order = 1
             },
+            resetResampleAlwaysSharpen = {
+              name = "Reset to Default",
+              desc = "Restore the game's default ResampleAlwaysSharpen setting.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("resampleAlwaysSharpen") end,
+              order = 1.1
+            },
             resampleAlwaysSharpenDesc = {
               name = "|cff808080Runs sharpness pass even at native resolution. (CVar: ResampleAlwaysSharpen | Default: Off / 0 | Max: On / 1)|r",
               type = "description",
@@ -2037,96 +2181,38 @@ options = {
           inline = true,
           order = 8,
           args = {
-            enableReflectionMode = {
-              name = "Override Water Reflection Mode",
-              desc = "Enable custom override for water reflection quality. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableReflectionMode end,
-              set = function(_, value)
-                db.profile.graphics.enableReflectionMode = value
-                Self.Graphics:Apply("reflectionMode")
-              end,
-              order = 1
-            },
             reflectionMode = {
               name = "Mode",
               desc = "Controls water reflection detail (0: Disabled, 1: Terrain, 2: Terrain and objects, 3: Full reflections including player models, NPCs, and sky).",
-              type = "select",
-              width = "full",
-              values = {
-                [0] = "0 - Disabled",
-                [1] = "1 - Terrain Only",
-                [2] = "2 - Terrain & Objects",
-                [3] = "3 - Full (All Entities & Sky)"
-              },
-              sorting = { 0, 1, 2, 3 },
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableReflectionMode
-              end,
-              get = function() return db.profile.graphics.reflectionMode end,
-              set = function(_, value)
-                db.profile.graphics.reflectionMode = value
-                Self.Graphics:Apply("reflectionMode")
-              end,
-              order = 2
-            },
-            reflectionModeDesc = {
-              name = "|cff808080Controls water reflection detail (0: Off, 1: Terrain, 2: Objects, 3: Full with entities & sky). (CVar: reflectionMode | Default: 0 | Max: 3)|r",
-              type = "description",
-              width = "full",
-              order = 3
-            }
-          }
-        },
-        weatherDensityGroup = {
-          type = "group",
-          name = "Weather Density",
-          inline = true,
-          order = 9,
-          args = {
-            enableWeatherDensity = {
-              name = "Override Weather Density",
-              desc = "Enable custom override for weather effect intensity. Uncheck to unset and restore game default.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              disabled = function() return not db.profile.graphics.enabled end,
-              get = function() return db.profile.graphics.enableWeatherDensity end,
-              set = function(_, value)
-                db.profile.graphics.enableWeatherDensity = value
-                Self.Graphics:Apply("weatherDensity")
-              end,
-              order = 1
-            },
-            weatherDensity = {
-              name = "Density",
-              desc = "Controls the intensity and density of precipitation and weather effects such as rain, snow, and sandstorms (0: Off, 1: Light, 2: Medium, 3: Heavy / Maximum).",
               type = "range",
               min = 0,
               max = 3,
               step = 1,
               width = "full",
-              disabled = function()
-                return not db.profile.graphics.enabled or not db.profile.graphics.enableWeatherDensity
-              end,
-              get = function() return db.profile.graphics.weatherDensity end,
+              disabled = function() return not db.profile.graphics.enabled end,
+              get = function() return db.profile.graphics.reflectionMode end,
               set = function(_, value)
-                db.profile.graphics.weatherDensity = value
-                Self.Graphics:Apply("weatherDensity")
+                db.profile.graphics.reflectionMode = value
+                Self.Graphics:Apply("reflectionMode")
               end,
-              order = 2
+              order = 1
             },
-            weatherDensityDesc = {
-              name = "|cff808080Controls the intensity of weather effects like rain, snow, and storms (0: Off, 1: Light, 2: Medium, 3: Heavy). (CVar: weatherDensity | Default: 2 | Max: 3)|r",
+            resetReflectionMode = {
+              name = "Reset to Default",
+              desc = "Restore the game's default water reflection mode.",
+              type = "execute",
+              disabled = function() return not db.profile.graphics.enabled end,
+              func = function() Self.Graphics:ResetOption("reflectionMode") end,
+              order = 1.1
+            },
+            reflectionModeDesc = {
+              name = "|cff808080Controls water reflection detail (0: Off, 1: Terrain, 2: Objects, 3: Full with entities & sky). (CVar: reflectionMode | Default: 0 | Max: 3)|r",
               type = "description",
               width = "full",
-              order = 3
+              order = 2
             }
           }
-        }
+        },
       }
     },
     mouseRing = {

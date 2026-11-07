@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 10
+CONFIG_VERSION = 11
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -35,6 +35,7 @@ CONFIG_VERSION_RELEASES = {
   [8] = 12,
   [9] = 13,
   [10] = 17,
+  [11] = 22,
 }
 
 function getAddonVersion()
@@ -437,6 +438,54 @@ CONFIG_MIGRATIONS = {
       for _, p in pairs(Self.db.profiles) do migrateProfile(p) end
     end
     migrateProfile(Self.db.profile)
+  end,
+  -- Config v11, addon v22.
+  --- Converts graphics values from opt-in overrides to always-applied settings.
+  [11] = function()
+    local legacyGraphicsOptions = {
+      groundEffectDensity = { key = "enableGroundEffectDensity", default = 16 },
+      groundEffectFade = { key = "enableGroundEffectFade", default = 70 },
+      groundEffectDist = { key = "enableGroundEffectDist", default = 70 },
+      lodObjectFadeScale = { key = "enableLodObjectFadeScale", default = 100 },
+      lodObjectCullSize = { key = "enableLodObjectCullSize", default = 15 },
+      terrainLodDist = { key = "enableTerrainLodDist", default = 400 },
+      reflectionMode = { key = "enableReflectionMode", default = 0 },
+      weatherDensity = { key = "enableWeatherDensity", default = 2 },
+    }
+
+    --- Returns the client default for a CVar, with a fallback for unavailable CVars.
+    ---@param cvar string CVar name.
+    ---@param fallback number Fallback default.
+    ---@return number
+    local function getDefault(cvar, fallback)
+      local value = GetCVarDefault and GetCVarDefault(cvar)
+      return tonumber(value) or fallback
+    end
+
+    --- Migrates legacy graphics overrides in one saved profile.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      local graphics = type(p) == "table" and rawget(p, "graphics")
+      if type(graphics) ~= "table" then return end
+
+      for key, legacy in pairs(legacyGraphicsOptions) do
+        if rawget(graphics, legacy.key) ~= true then
+          graphics[key] = getDefault(key, legacy.default)
+        end
+        graphics[legacy.key] = nil
+      end
+    end
+
+    local migrated = {}
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+        migrated[p] = true
+      end
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
+    end
   end,
 }
 
