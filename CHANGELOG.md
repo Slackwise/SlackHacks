@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v23
+
+### Graphics
+- Added HDR options.
+
 ## v22
 
 ### Quest

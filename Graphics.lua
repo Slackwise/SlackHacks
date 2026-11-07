@@ -13,6 +13,10 @@ setfenv(1, _G.SlackHacks)
 --   * ResampleAlwaysSharpen: Runs spatial sharpening filter pass even without FSR upscaling.
 --   * reflectionMode: Water reflection quality mode (0: off, 1: terrain, 2: objects, 3: all/sky).
 --   * weatherDensity: Precipitation and weather effect intensity (0: off, 1-3: density).
+--   * HDROutput: Enables HDR output when supported by the monitor and render settings.
+--   * HDRFactor: Scales HDR lighting relative to SDR, capped by monitor peak brightness.
+--   * HDRBrightness/useHDRBrightness: Overrides the SDR/UI brightness level in nits.
+--   * HDRPeakBrightness/useHDRPeakBrightness: Overrides the monitor's peak brightness in nits.
 
 local module = Self:NewModule("Graphics", "AceEvent-3.0")
 Self.Graphics = module
@@ -32,6 +36,10 @@ local BLIZZARD_DEFAULTS = {
   ResampleAlwaysSharpen = 0,
   reflectionMode = 0,
   weatherDensity = 2,
+  HDROutput = 0,
+  HDRFactor = 2.0,
+  HDRBrightness = 203,
+  HDRPeakBrightness = 400,
 }
 
 local CVAR_NAMES = {
@@ -44,6 +52,10 @@ local CVAR_NAMES = {
   resampleAlwaysSharpen = "ResampleAlwaysSharpen",
   reflectionMode = "reflectionMode",
   weatherDensity = "weatherDensity",
+  hdrOutput = "HDROutput",
+  hdrFactor = "HDRFactor",
+  hdrBrightness = "HDRBrightness",
+  hdrPeakBrightness = "HDRPeakBrightness",
 }
 
 local function applyCVar(cvar, value)
@@ -75,45 +87,41 @@ function module:GetDefault(key)
   return BLIZZARD_DEFAULTS[cvarName] or BLIZZARD_DEFAULTS[key]
 end
 
+--- Resets one graphics option to its game default and refreshes the options panel.
+---@param key string Graphics option key to reset.
+function module:ResetOption(key)
+  if key == "resampleAlwaysSharpen" then
+    settings()[key] = false
+  elseif key == "hdrOutput" then
+    settings()[key] = self:GetDefault(key) ~= 0
+  else
+    settings()[key] = self:GetDefault(key)
+  end
+
+  self:Apply(key)
+  local acr = LibStub("AceConfigRegistry-3.0", true)
+  if acr then
+    acr:NotifyChange("SlackHacks")
+  end
+end
+
+--- Applies a saved graphics option to its game CVar.
+---@param key string Graphics option key to apply.
 function module:Apply(key)
   if not settings().enabled then return end
 
   if key == "groundEffectDensity" then
-    if settings().enableGroundEffectDensity then
-      applyCVar("groundEffectDensity", settings().groundEffectDensity)
-    else
-      revertCVar("groundEffectDensity", BLIZZARD_DEFAULTS.groundEffectDensity)
-    end
+    applyCVar("groundEffectDensity", settings().groundEffectDensity)
   elseif key == "groundEffectFade" then
-    if settings().enableGroundEffectFade then
-      applyCVar("groundEffectFade", settings().groundEffectFade)
-    else
-      revertCVar("groundEffectFade", BLIZZARD_DEFAULTS.groundEffectFade)
-    end
+    applyCVar("groundEffectFade", settings().groundEffectFade)
   elseif key == "groundEffectDist" then
-    if settings().enableGroundEffectDist then
-      applyCVar("groundEffectDist", settings().groundEffectDist)
-    else
-      revertCVar("groundEffectDist", BLIZZARD_DEFAULTS.groundEffectDist)
-    end
+    applyCVar("groundEffectDist", settings().groundEffectDist)
   elseif key == "lodObjectFadeScale" then
-    if settings().enableLodObjectFadeScale then
-      applyCVar("lodObjectFadeScale", settings().lodObjectFadeScale)
-    else
-      revertCVar("lodObjectFadeScale", BLIZZARD_DEFAULTS.lodObjectFadeScale)
-    end
+    applyCVar("lodObjectFadeScale", settings().lodObjectFadeScale)
   elseif key == "lodObjectCullSize" then
-    if settings().enableLodObjectCullSize then
-      applyCVar("lodObjectCullSize", settings().lodObjectCullSize)
-    else
-      revertCVar("lodObjectCullSize", BLIZZARD_DEFAULTS.lodObjectCullSize)
-    end
+    applyCVar("lodObjectCullSize", settings().lodObjectCullSize)
   elseif key == "terrainLodDist" then
-    if settings().enableTerrainLodDist then
-      applyCVar("terrainLodDist", settings().terrainLodDist)
-    else
-      revertCVar("terrainLodDist", BLIZZARD_DEFAULTS.terrainLodDist)
-    end
+    applyCVar("terrainLodDist", settings().terrainLodDist)
   elseif key == "resampleAlwaysSharpen" then
     if settings().resampleAlwaysSharpen then
       applyCVar("ResampleAlwaysSharpen", 1)
@@ -121,16 +129,35 @@ function module:Apply(key)
       revertCVar("ResampleAlwaysSharpen", BLIZZARD_DEFAULTS.ResampleAlwaysSharpen)
     end
   elseif key == "reflectionMode" then
-    if settings().enableReflectionMode then
-      applyCVar("reflectionMode", settings().reflectionMode)
-    else
-      revertCVar("reflectionMode", BLIZZARD_DEFAULTS.reflectionMode)
-    end
+    applyCVar("reflectionMode", settings().reflectionMode)
   elseif key == "weatherDensity" then
-    if settings().enableWeatherDensity then
-      applyCVar("weatherDensity", settings().weatherDensity)
+    applyCVar("weatherDensity", settings().weatherDensity)
+  elseif key == "hdrOutput" then
+    applyCVar("HDROutput", settings().hdrOutput and 1 or 0)
+    self:Apply("hdrFactor")
+    self:Apply("hdrBrightness")
+    self:Apply("hdrPeakBrightness")
+  elseif key == "hdrFactor" then
+    if settings().hdrOutput then
+      applyCVar("HDRFactor", settings().hdrFactor)
     else
-      revertCVar("weatherDensity", BLIZZARD_DEFAULTS.weatherDensity)
+      revertCVar("HDRFactor", BLIZZARD_DEFAULTS.HDRFactor)
+    end
+  elseif key == "hdrBrightness" then
+    if settings().hdrOutput then
+      applyCVar("useHDRBrightness", settings().enableHDRBrightness and 1 or 0)
+      applyCVar("HDRBrightness", settings().hdrBrightness)
+    else
+      revertCVar("useHDRBrightness", 0)
+      revertCVar("HDRBrightness", BLIZZARD_DEFAULTS.HDRBrightness)
+    end
+  elseif key == "hdrPeakBrightness" then
+    if settings().hdrOutput then
+      applyCVar("useHDRPeakBrightness", settings().enableHDRPeakBrightness and 1 or 0)
+      applyCVar("HDRPeakBrightness", settings().hdrPeakBrightness)
+    else
+      revertCVar("useHDRPeakBrightness", 0)
+      revertCVar("HDRPeakBrightness", BLIZZARD_DEFAULTS.HDRPeakBrightness)
     end
   else
     self:ApplyAll()
@@ -149,6 +176,7 @@ function module:ApplyAll()
   self:Apply("resampleAlwaysSharpen")
   self:Apply("reflectionMode")
   self:Apply("weatherDensity")
+  self:Apply("hdrOutput")
 end
 
 function module:RestoreDefaults()
@@ -161,26 +189,31 @@ function module:RestoreDefaults()
   revertCVar("ResampleAlwaysSharpen", BLIZZARD_DEFAULTS.ResampleAlwaysSharpen)
   revertCVar("reflectionMode", BLIZZARD_DEFAULTS.reflectionMode)
   revertCVar("weatherDensity", BLIZZARD_DEFAULTS.weatherDensity)
+  revertCVar("HDROutput", BLIZZARD_DEFAULTS.HDROutput)
+  revertCVar("HDRFactor", BLIZZARD_DEFAULTS.HDRFactor)
+  revertCVar("useHDRBrightness", 0)
+  revertCVar("HDRBrightness", BLIZZARD_DEFAULTS.HDRBrightness)
+  revertCVar("useHDRPeakBrightness", 0)
+  revertCVar("HDRPeakBrightness", BLIZZARD_DEFAULTS.HDRPeakBrightness)
 end
 
+--- Restores all saved graphics options and their game CVars to defaults.
 function module:ResetToDefaults()
-  settings().enableGroundEffectDensity = false
   settings().groundEffectDensity = self:GetDefault("groundEffectDensity")
-  settings().enableGroundEffectFade = false
   settings().groundEffectFade = self:GetDefault("groundEffectFade")
-  settings().enableGroundEffectDist = false
   settings().groundEffectDist = self:GetDefault("groundEffectDist")
-  settings().enableLodObjectFadeScale = false
   settings().lodObjectFadeScale = self:GetDefault("lodObjectFadeScale")
-  settings().enableLodObjectCullSize = false
   settings().lodObjectCullSize = self:GetDefault("lodObjectCullSize")
-  settings().enableTerrainLodDist = false
   settings().terrainLodDist = self:GetDefault("terrainLodDist")
   settings().resampleAlwaysSharpen = false
-  settings().enableReflectionMode = false
   settings().reflectionMode = self:GetDefault("reflectionMode")
-  settings().enableWeatherDensity = false
   settings().weatherDensity = self:GetDefault("weatherDensity")
+  settings().hdrOutput = self:GetDefault("HDROutput") ~= 0
+  settings().hdrFactor = self:GetDefault("HDRFactor")
+  settings().enableHDRBrightness = false
+  settings().hdrBrightness = self:GetDefault("HDRBrightness")
+  settings().enableHDRPeakBrightness = false
+  settings().hdrPeakBrightness = self:GetDefault("HDRPeakBrightness")
 
   self:RestoreDefaults()
 
