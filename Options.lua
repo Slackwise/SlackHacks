@@ -67,11 +67,13 @@ dbDefaults = {
     -- Additive utility defaults preserve existing profiles and keep native loot features opt-in.
     utilities = {
       tomtomWayCommand = false,
-      lootSparkles = {
-        sparkleOre = false,
-        sparkleHerbs = false,
-        sparkleQuest = false,
-        showNodeNames = false
+      interactableNodeHighlights = {
+        lootSparkles = false,
+        nodeNameplates = false,
+        nameplateOre = false,
+        nameplateHerbs = false,
+        nameplateQuest = false,
+        onlyInteractableNameplates = false
       }
     },
     graphics = {
@@ -1788,6 +1790,8 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              --- Disables this filter when node icons and nameplates are off.
+              ---@return boolean disabled Whether this filter is disabled.
               disabled = function()
                 return not db.profile.graphics.enabled or not db.profile.graphics.hdrOutput
               end,
@@ -2470,94 +2474,136 @@ options = {
           end,
           order = 2
         },
-        lootSparkles = {
-          name = "Loot Sparkles",
+        interactableNodeHighlights = {
+          name = "Loot Sparkles & Nameplates",
           type = "group",
           inline = true,
-          --- Hides Forever-specific sparkle controls on other client types.
+          --- Hides Forever-specific loot-effect and node-nameplate controls on other client types.
           ---@return boolean hidden Whether these options should be hidden.
           hidden = function() return not isForever() end,
           order = 3,
           args = {
-            questItems = {
-              name = "Show Quest Item Sparkles",
-              desc = "Keep the game's loot sparkle visible on quest items, even after a graphics preset turns it off. Your outline mode is left as you set it. Turning this off takes effect after restarting the game.",
+            lootSparkles = {
+              name = "Loot Sparkles",
+              desc = "Enables Blizzard's native loot sparkles that appear for lootable corpses and certain interactable quest objects.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
               --- Reads the active profile's quest sparkle preference.
               ---@return boolean enabled Whether quest sparkles are enabled.
-              get = function() return Self.Utilities:IsQuestSparklesEnabled() end,
+              get = function() return Self.Utilities:IsLootSparklesEnabled() end,
               --- Updates the quest sparkle CVar through its module.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether to enable quest sparkles.
-              set = function(_, value) Self.Utilities:SetQuestSparklesEnabled(value) end,
+              set = function(_, value) Self.Utilities:SetLootSparklesEnabled(value) end,
               order = 1
             },
-            approachHeader = {
-              name = "Native Soft Targeting",
-              type = "header",
+            nodeNameplates = {
+              name = "Node Icons & Nameplates",
+              desc = "Blizzard's accessibility icon option for this is all-or-nothing, sorry.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Reads whether node icons and nameplates are enabled.
+              ---@return boolean enabled Whether node icons and nameplates are enabled.
+              get = function() return db.profile.utilities.interactableNodeHighlights.nodeNameplates end,
+              --- Enables or disables interactable-node icons and nameplates.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether node icons and nameplates are enabled.
+              set = function(_, value)
+                Self.Utilities:SetNodeNameplateOption("nodeNameplates", value)
+              end,
               order = 2
             },
-            sparkleOre = {
-              name = "Ore Veins",
-              desc = "Enable Blizzard's native soft targeting and object icon for ore veins.",
-              type = "toggle",
-              descStyle = "inline",
+            nodeFilterDescription = {
+              name = "Show nameplate name for these nodes:",
+              type = "description",
               width = "full",
-              --- Reads whether native soft targeting is enabled for ore.
-              ---@return boolean enabled Whether ore soft targeting is enabled.
-              get = function() return db.profile.utilities.lootSparkles.sparkleOre end,
-              --- Updates the ore soft-target preference and target CVars.
-              ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to enable ore soft targeting.
-              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleOre", value) end,
+              --- Disables the node category options when the master setting is off.
+              ---@return boolean disabled Whether the description is disabled.
+              disabled = function()
+                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+              end,
               order = 3
             },
-            sparkleHerbs = {
-              name = "Herbs",
-              desc = "Enable Blizzard's native soft targeting and object icon for herbs.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              --- Reads whether native soft targeting is enabled for herbs.
-              ---@return boolean enabled Whether herb soft targeting is enabled.
-              get = function() return db.profile.utilities.lootSparkles.sparkleHerbs end,
-              --- Updates the herb soft-target preference and target CVars.
-              ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to enable herb soft targeting.
-              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleHerbs", value) end,
-              order = 4
-            },
-            sparkleQuest = {
+            nameplateQuest = {
               name = "Quest Objects",
-              desc = "Enable Blizzard's native soft targeting and object icon for active quest objects.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              --- Disables this category when node icons and nameplates are off.
+              ---@return boolean disabled Whether this category is disabled.
+              disabled = function()
+                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+              end,
               --- Reads whether native soft targeting is enabled for quest objects.
               ---@return boolean enabled Whether quest-object soft targeting is enabled.
-              get = function() return db.profile.utilities.lootSparkles.sparkleQuest end,
+              get = function() return db.profile.utilities.interactableNodeHighlights.nameplateQuest end,
               --- Updates the quest-object soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
               ---@param value boolean Whether to enable quest-object soft targeting.
-              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleQuest", value) end,
-              order = 5
+              set = function(_, value) Self.Utilities:SetNodeNameplateOption("nameplateQuest", value) end,
+              order = 4
             },
-            showNodeNames = {
-              name = "Show Node Names",
-              desc = "Display the name of a soft-targeted ore vein, herb, or quest object above its nameplate.",
+            nameplateHerbs = {
+              name = "Herbs",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              --- Reads whether node-name labels are enabled.
-              ---@return boolean enabled Whether node names are displayed.
-              get = function() return db.profile.utilities.lootSparkles.showNodeNames end,
-              --- Updates node-name display and soft targeting.
+              --- Disables this category when node icons and nameplates are off.
+              ---@return boolean disabled Whether this category is disabled.
+              disabled = function()
+                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+              end,
+              --- Reads whether native soft targeting is enabled for herbs.
+              ---@return boolean enabled Whether herb soft targeting is enabled.
+              get = function() return db.profile.utilities.interactableNodeHighlights.nameplateHerbs end,
+              --- Updates the herb soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to display node names.
-              set = function(_, value) Self.Utilities:SetSoftTargetOption("showNodeNames", value) end,
+              ---@param value boolean Whether to enable herb soft targeting.
+              set = function(_, value) Self.Utilities:SetNodeNameplateOption("nameplateHerbs", value) end,
+              order = 5
+            },
+            nameplateOre = {
+              name = "Ore Veins",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disables this category when node icons and nameplates are off.
+              ---@return boolean disabled Whether this category is disabled.
+              disabled = function()
+                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+              end,
+              --- Reads whether native soft targeting is enabled for ore.
+              ---@return boolean enabled Whether ore soft targeting is enabled.
+              get = function() return db.profile.utilities.interactableNodeHighlights.nameplateOre end,
+              --- Updates the ore soft-target preference and target CVars.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to enable ore soft targeting.
+              set = function(_, value) Self.Utilities:SetNodeNameplateOption("nameplateOre", value) end,
               order = 6
+            },
+            onlyInteractableNameplates = {
+              name = "Only Interactable Nameplates",
+              desc = "Only show a nameplate name for nodes you can actually interact with.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              disabled = function()
+                return not db.profile.utilities.interactableNodeHighlights.nodeNameplates
+              end,
+              --- Reads whether unavailable nodes are excluded from nameplates.
+              ---@return boolean enabled Whether only-interactable filtering is enabled.
+              get = function()
+                return db.profile.utilities.interactableNodeHighlights.onlyInteractableNameplates
+              end,
+              --- Updates whether unavailable nodes are excluded from nameplates.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Whether to show only interactable nodes.
+              set = function(_, value)
+                Self.Utilities:SetNodeNameplateOption("onlyInteractableNameplates", value)
+              end,
+              order = 7
             }
           }
         },

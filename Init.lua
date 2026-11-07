@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 11
+CONFIG_VERSION = 12
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -36,6 +36,7 @@ CONFIG_VERSION_RELEASES = {
   [9] = 13,
   [10] = 17,
   [11] = 22,
+  [12] = 26,
 }
 
 function getAddonVersion()
@@ -485,6 +486,69 @@ CONFIG_MIGRATIONS = {
     end
     if Self.db.profile and not migrated[Self.db.profile] then
       migrateProfile(Self.db.profile)
+    end
+  end,
+  -- Config v12, addon v26.
+  --- Renames Loot Sparkles settings to Interactable Node Highlights without changing saved choices.
+  [12] = function()
+    local settingKeys = {
+      sparkleOre = "nameplateOre",
+      sparkleHerbs = "nameplateHerbs",
+      sparkleQuest = "nameplateQuest",
+      questItems = "lootSparkles",
+    }
+
+    --- Migrates one profile's highlight settings to their new names.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      local utilities = type(p) == "table" and rawget(p, "utilities")
+      if type(utilities) ~= "table" then return end
+      local highlights = rawget(utilities, "interactableNodeHighlights")
+      if type(highlights) == "table" then
+        local oldMasterSetting = rawget(highlights, "nodeIconsAndNameplates")
+        if oldMasterSetting ~= nil and rawget(highlights, "nodeNameplates") == nil then
+          highlights.nodeNameplates = oldMasterSetting
+        end
+        highlights.nodeIconsAndNameplates = nil
+        local oldLootSparklesSetting = rawget(highlights, "questItems")
+        if oldLootSparklesSetting ~= nil and rawget(highlights, "lootSparkles") == nil then
+          highlights.lootSparkles = oldLootSparklesSetting
+        end
+        highlights.questItems = nil
+      end
+      local old = rawget(utilities, "lootSparkles")
+      if type(old) ~= "table" then return end
+      local new = rawget(utilities, "interactableNodeHighlights")
+      if type(new) ~= "table" then
+        new = {}
+        utilities.interactableNodeHighlights = new
+      end
+      for oldKey, newKey in pairs(settingKeys) do
+        local value = rawget(old, oldKey)
+        if value ~= nil and rawget(new, newKey) == nil then
+          new[newKey] = value
+        end
+      end
+      utilities.lootSparkles = nil
+    end
+
+    local migrated = {}
+    if Self.db.profiles then
+      for _, p in pairs(Self.db.profiles) do
+        migrateProfile(p)
+        migrated[p] = true
+      end
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
+    end
+
+    local global = Self.db.global
+    if global and rawget(global, "lootSparklesSavedCVars") ~= nil then
+      if rawget(global, "interactableNodeHighlightsSavedCVars") == nil then
+        global.interactableNodeHighlightsSavedCVars = global.lootSparklesSavedCVars
+      end
+      global.lootSparklesSavedCVars = nil
     end
   end,
 }

@@ -24,7 +24,12 @@
 - Hide graphics option groups when the current game client does not expose their required CVars.
 
 ### Utilities
-- Removed custom animated approach sparkles and corpse soft-target logic; retained native soft-target controls and optional node-name labels.
+- Removed custom animated approach sparkles and corpse soft-target logic; retained native soft-target controls with a master Node Icons & Nameplates option.
+- Kept Blizzard's required object interact icons enabled while node nameplates are active.
+- Node category options now control both node icons and floating names, and are disabled when the master option is off.
+- Added an option to include node names when interaction is unavailable.
+- Renamed the master node setting to `nodeNameplates` while preserving existing saved values.
+- Renamed the loot-effect profile setting to `lootSparkles`, preserving saved values from addon v25 and earlier.
 
 ### Listview Bag
 - Keep the bag window open when opening the mailbox, a merchant, or the auction house.

@@ -266,7 +266,7 @@ function module:ApplyAll()
     commandRegistered = false
     commandHandler = nil
   end
-  self:ApplySparkles()
+  self:ApplyInteractableNodeHighlights()
 end
 
 --- Observes profile changes so command registration follows the active profile.
@@ -274,14 +274,14 @@ function module:OnInitialize()
   Self.db.RegisterCallback(self, "OnProfileChanged", "ApplyAll")
   Self.db.RegisterCallback(self, "OnProfileCopied", "ApplyAll")
   Self.db.RegisterCallback(self, "OnProfileReset", "ApplyAll")
-  self:InitializeSparkles()
+  self:InitializeInteractableNodeHighlights()
 end
 
 --- Registers the command when opted in, yielding if TomTom or another addon loads later.
 function module:OnEnable()
   self:RegisterEvent("ADDON_LOADED", "ApplyAll")
   self:ApplyAll()
-  self:EnableSparkles()
+  self:EnableInteractableNodeHighlights()
 end
 
 --- Removes this module's command and addon-load listener.
@@ -303,11 +303,22 @@ local watchedCVars = {
   [LOOT_CVAR:lower()] = true
 }
 
-local settings
-local sparkleWasEnabled
+local interactableNodeSettings
+local nativeLootEffectWasEnabled
 local applyingCVar = false
 local applyAfterCombat = false
 local applyAt
+
+--- Migrates the saved quest-item sparkle setting to its current profile key.
+---@param settings table Active profile's interactable-node settings.
+local function migrateLootSparklesSetting(settings)
+  local oldValue = rawget(settings, "questItems")
+  if rawget(settings, "lootSparkles") == nil and oldValue ~= nil then
+    settings.lootSparkles = oldValue
+  end
+  settings.questItems = nil
+  if settings.lootSparkles == nil then settings.lootSparkles = false end
+end
 
 --- Reads a CVar without raising an error when the client does not expose it.
 ---@param name string CVar name.
@@ -330,9 +341,9 @@ local function writeCVar(name, value)
 end
 
 --- Applies the quest-item sparkle setting, deferring enable writes during combat.
-local function applyQuestSparkles()
-  if not settings then return end
-  if settings.questItems then
+local function applyLootSparkles()
+  if not interactableNodeSettings then return end
+  if interactableNodeSettings.lootSparkles then
     if InCombatLockdown() then
       applyAfterCombat = true
       return
@@ -349,7 +360,7 @@ local function applyQuestSparkles()
     applyingCVar = true
     writeCVar(LOOT_CVAR, DISABLED)
     applyingCVar = false
-    if sparkleWasEnabled then
+    if nativeLootEffectWasEnabled then
       print("|cffff8000SlackHacks:|r restart the game to remove quest-item sparkles. /reload is not enough.")
     end
   end
@@ -364,57 +375,59 @@ end
 
 --- Reads whether quest-item sparkles are enabled in the active profile.
 ---@return boolean enabled True when the quest sparkle option is enabled.
-function module:IsQuestSparklesEnabled()
-  return isForever() and settings ~= nil and settings.questItems == true
+function module:IsLootSparklesEnabled()
+  return isForever() and interactableNodeSettings ~= nil and interactableNodeSettings.lootSparkles == true
 end
 
 --- Updates the quest-item sparkle option and applies it to the client.
 ---@param enabled boolean Whether to show quest-item sparkles.
-function module:SetQuestSparklesEnabled(enabled)
-  if not isForever() or not settings then return end
-  settings.questItems = enabled == true
-  if settings.questItems then sparkleWasEnabled = true end
-  applyQuestSparkles()
+function module:SetLootSparklesEnabled(enabled)
+  if not isForever() or not interactableNodeSettings then return end
+  interactableNodeSettings.lootSparkles = enabled == true
+  if interactableNodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
+  applyLootSparkles()
 end
 
---- Refreshes loot effects and native soft-target behavior after a profile change.
-function module:ApplySparkles()
+--- Refreshes loot effects and native node-nameplate behavior after a profile change.
+function module:ApplyInteractableNodeHighlights()
   if not isForever() then return end
-  settings = Self.db.profile.utilities.lootSparkles
-  if settings.questItems == nil then settings.questItems = false end
-  if settings.sparkleOre == nil then settings.sparkleOre = false end
-  if settings.sparkleHerbs == nil then settings.sparkleHerbs = false end
-  if settings.sparkleQuest == nil then settings.sparkleQuest = false end
-  if settings.showNodeNames == nil then settings.showNodeNames = false end
-  if settings.questItems then sparkleWasEnabled = true end
-  self:InitializeSoftTarget(settings, Self.db.global)
-  applyQuestSparkles()
-  self:RefreshSoftTarget(false)
-  self:UpdateSoftTargetPoller()
+  interactableNodeSettings = Self.db.profile.utilities.interactableNodeHighlights
+  migrateLootSparklesSetting(interactableNodeSettings)
+  if interactableNodeSettings.nameplateOre == nil then interactableNodeSettings.nameplateOre = false end
+  if interactableNodeSettings.nameplateHerbs == nil then interactableNodeSettings.nameplateHerbs = false end
+  if interactableNodeSettings.nameplateQuest == nil then interactableNodeSettings.nameplateQuest = false end
+  if interactableNodeSettings.onlyInteractableNameplates == nil then
+    interactableNodeSettings.onlyInteractableNameplates = true
+  end
+  if interactableNodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
+  self:InitializeNodeNameplates(interactableNodeSettings, Self.db.global)
+  applyLootSparkles()
+  self:RefreshNodeNameplates(false)
+  self:UpdateNodeNameplatePoller()
 end
 
---- Changes one soft-target category option and refreshes the targeting CVars.
----@param key string Soft-target category setting key.
----@param enabled boolean Whether that native soft-target category is enabled.
-function module:SetSoftTargetOption(key, enabled)
-  if not isForever() or not settings then return end
-  settings[key] = enabled == true
-  self:RefreshSoftTarget(settings[key])
-  self:UpdateSoftTargetPoller()
+--- Changes the master node-nameplate setting or one category and refreshes targeting CVars.
+---@param key string Master or soft-target category setting key.
+---@param enabled boolean Whether the setting is enabled.
+function module:SetNodeNameplateOption(key, enabled)
+  if not isForever() or not interactableNodeSettings then return end
+  interactableNodeSettings[key] = enabled == true
+  self:RefreshNodeNameplates(interactableNodeSettings[key])
+  self:UpdateNodeNameplatePoller()
 end
 
---- Initializes profile settings and listens for profile lifecycle changes.
-function module:InitializeSparkles()
+--- Initializes interactable-node settings and listens for profile lifecycle changes.
+function module:InitializeInteractableNodeHighlights()
   if not isForever() then return end
-  settings = Self.db.profile.utilities.lootSparkles
-  if settings.questItems == nil then settings.questItems = false end
-  sparkleWasEnabled = settings.questItems == true
-  self:InitializeSoftTarget(settings, Self.db.global)
+  interactableNodeSettings = Self.db.profile.utilities.interactableNodeHighlights
+  migrateLootSparklesSetting(interactableNodeSettings)
+  nativeLootEffectWasEnabled = interactableNodeSettings.lootSparkles == true
+  self:InitializeNodeNameplates(interactableNodeSettings, Self.db.global)
 end
 
 --- Registers client events and starts delayed CVar application.
-function module:EnableSparkles()
-  if not isForever() or not settings then return end
+function module:EnableInteractableNodeHighlights()
+  if not isForever() or not interactableNodeSettings then return end
   self.applyTimer = CreateFrame("Frame")
   self.applyTimer:Hide()
   --- Re-applies quest sparkles after a delayed reset.
@@ -423,20 +436,20 @@ function module:EnableSparkles()
     if applyAt and GetTime() >= applyAt then
       frame:Hide()
       applyAt = nil
-      applyQuestSparkles()
+      applyLootSparkles()
     end
   end)
 
   --- Applies quest sparkles on login and retries after a graphics preset update.
   self:RegisterEvent("PLAYER_LOGIN", function()
-    applyQuestSparkles()
+    applyLootSparkles()
     scheduleApply(5)
   end)
   --- Re-applies a deferred CVar change when combat ends.
   self:RegisterEvent("PLAYER_REGEN_ENABLED", function()
     if applyAfterCombat then
       applyAfterCombat = false
-      applyQuestSparkles()
+      applyLootSparkles()
     end
   end)
   --- Schedules a delayed apply when a relevant client CVar changes.
@@ -450,14 +463,14 @@ function module:EnableSparkles()
 end
 
 -- Blizzard soft-target selection and optional node-name labels
-local TARGET_UNIT = "softinteract"
-local TARGET_RANGE = 60
-local TARGET_ARC = 2
-local UPDATE_INTERVAL = 0.12
-local CATEGORY_SETTING = {
-  ore = "sparkleOre",
-  herb = "sparkleHerbs",
-  quest = "sparkleQuest"
+local NODE_NAMEPLATE_UNIT = "softinteract"
+local NODE_NAMEPLATE_RANGE = 60
+local NODE_NAMEPLATE_ARC = 2
+local NODE_NAMEPLATE_UPDATE_INTERVAL = 0.12
+local NODE_NAMEPLATE_CATEGORY_SETTING = {
+  ore = "nameplateOre",
+  herb = "nameplateHerbs",
+  quest = "nameplateQuest"
 }
 local CURSOR_TYPES = {
   Mine = "ore",
@@ -471,7 +484,7 @@ local CURSOR_WORDS = {
   { "mine", "ore" },
   { "quest", "quest" }
 }
-local MANAGED_CVARS = {
+local MANAGED_NODE_NAMEPLATE_CVARS = {
   "SoftTargetInteract",
   "SoftTargetNameplateInteract",
   "SoftTargetInteractRange",
@@ -481,18 +494,18 @@ local MANAGED_CVARS = {
 }
 local NODE_NAME_OFFSET = 28
 
-local categorySettings
-local globalSettings
-local originalCVars
-local targetGateOpen
-local pendingCVars
-local pendingForce
-local directTargetPlateWorks = false
-local shownPlates = {}
+local nodeNameplateSettings
+local settingsStorage
+local originalNodeNameplateCVars
+local nodeNameplateGateOpen
+local pendingNodeNameplateCVars
+local pendingNodeNameplateForce
+local directNodeNameplateLookupWorks = false
+local visibleNameplates = {}
 local cursorTypeByID = {}
 local objectiveText = {}
 local objectivesNeedRefresh = true
-local targetName = {}
+local nodeNameplateLabel = {}
 
 --- Returns whether a client value is secret and cannot safely be inspected.
 ---@param value any Client-returned value.
@@ -532,69 +545,70 @@ local function writeCVar(name, value)
   pcall(C_CVar.SetCVar, name, value)
 end
 
---- Returns whether any native soft-target category or node-name feature is enabled.
+--- Returns whether node icons and nameplates are enabled for any category.
 ---@return boolean active True when soft-target features should run.
-local function hasActiveCategory()
-  if not categorySettings then return false end
-  if categorySettings.showNodeNames == true then return true end
-  for _, key in pairs(CATEGORY_SETTING) do
-    if categorySettings[key] == true then return true end
+local function hasActiveNodeNameplateCategory()
+  if not nodeNameplateSettings or nodeNameplateSettings.nodeNameplates ~= true then return false end
+  for _, key in pairs(NODE_NAMEPLATE_CATEGORY_SETTING) do
+    if nodeNameplateSettings[key] == true then return true end
   end
   return false
 end
 
---- Captures the original CVar values and enables Blizzard soft targeting.
+--- Captures the original CVar values and enables Blizzard node nameplates.
 ---@param force boolean|nil Whether to ensure the interact key and object icons are on.
-local function enableSoftTarget(force)
+local function enableNodeNameplates(force)
   if InCombatLockdown() then
-    pendingCVars = "apply"
-    pendingForce = pendingForce or force == true
+    pendingNodeNameplateCVars = "apply"
+    pendingNodeNameplateForce = pendingNodeNameplateForce or force == true
     return
   end
 
-  if not originalCVars then
-    originalCVars = {}
-    if globalSettings then globalSettings.lootSparklesSavedCVars = originalCVars end
+  if not originalNodeNameplateCVars then
+    originalNodeNameplateCVars = {}
+    if settingsStorage then settingsStorage.interactableNodeHighlightsSavedCVars = originalNodeNameplateCVars end
   end
-  if originalCVars.SoftTargetInteract == nil or originalCVars.SoftTargetIconGameObject == nil then
+  if originalNodeNameplateCVars.SoftTargetInteract == nil
+    or originalNodeNameplateCVars.SoftTargetIconGameObject == nil then
     force = true
   end
-  for _, name in ipairs(MANAGED_CVARS) do
-    if originalCVars[name] == nil then
-      originalCVars[name] = readCVar(name) or false
+  for _, name in ipairs(MANAGED_NODE_NAMEPLATE_CVARS) do
+    if originalNodeNameplateCVars[name] == nil then
+      originalNodeNameplateCVars[name] = readCVar(name) or false
     end
   end
   if force then
     writeCVar("SoftTargetInteract", 3)
-    writeCVar("SoftTargetIconGameObject", 1)
   end
-  writeCVar("SoftTargetInteractRange", TARGET_RANGE)
-  writeCVar("SoftTargetInteractArc", TARGET_ARC)
+  -- Blizzard's object icon CVar is required for its soft-target node nameplate presentation.
+  writeCVar("SoftTargetIconGameObject", 1)
+  writeCVar("SoftTargetInteractRange", NODE_NAMEPLATE_RANGE)
+  writeCVar("SoftTargetInteractArc", NODE_NAMEPLATE_ARC)
   writeCVar("SoftTargetInteractOnlyInRange", 0)
-  targetGateOpen = nil
-  module:EvaluateSoftTarget()
+  nodeNameplateGateOpen = nil
+  module:EvaluateNodeNameplate()
 end
 
---- Restores the CVar values saved before soft targeting was enabled.
-local function restoreSoftTarget()
+--- Restores the CVar values saved before node nameplates were enabled.
+local function restoreNodeNameplates()
   if InCombatLockdown() then
-    pendingCVars = "restore"
+    pendingNodeNameplateCVars = "restore"
     return
   end
-  if not originalCVars then return end
-  for name, value in pairs(originalCVars) do
+  if not originalNodeNameplateCVars then return end
+  for name, value in pairs(originalNodeNameplateCVars) do
     if value ~= false then writeCVar(name, value) end
   end
-  originalCVars = nil
-  if globalSettings then globalSettings.lootSparklesSavedCVars = nil end
-  targetGateOpen = nil
+  originalNodeNameplateCVars = nil
+  if settingsStorage then settingsStorage.interactableNodeHighlightsSavedCVars = nil end
+  nodeNameplateGateOpen = nil
 end
 
---- Sets the game's interaction-target nameplate visibility outside combat.
+--- Sets the game's soft-interaction nameplate visibility outside combat.
 ---@param open boolean Whether the target nameplate should be displayed.
-local function setTargetGate(open)
-  if open == targetGateOpen or InCombatLockdown() then return end
-  targetGateOpen = open
+local function setNodeNameplateGate(open)
+  if open == nodeNameplateGateOpen or InCombatLockdown() then return end
+  nodeNameplateGateOpen = open
   writeCVar("SoftTargetNameplateInteract", open and 1 or 0)
 end
 
@@ -727,9 +741,9 @@ end
 
 --- Determines whether a soft-interaction unit exists, including game objects.
 ---@return boolean|nil exists True/false, or nil when the client value is secret.
-local function softTargetExists()
-  local unitExists = safeCall(UnitExists, TARGET_UNIT)
-  local objectExists = safeCall(UnitIsGameObject, TARGET_UNIT)
+local function nodeNameplateTargetExists()
+  local unitExists = safeCall(UnitExists, NODE_NAMEPLATE_UNIT)
+  local objectExists = safeCall(UnitIsGameObject, NODE_NAMEPLATE_UNIT)
   if unitExists == true or objectExists == true then return true end
   if unitExists == false and objectExists == false then return false end
 end
@@ -738,42 +752,42 @@ end
 ---@return string|nil unit Unit token.
 ---@return table|nil plate Target's nameplate.
 ---@return boolean unknown Whether the target's existence could not be determined.
-local function resolveSoftTarget()
-  local exists = softTargetExists()
+local function resolveNodeNameplateTarget()
+  local exists = nodeNameplateTargetExists()
   if exists == false then return nil end
-  local plate = getNameplate(TARGET_UNIT)
+  local plate = getNameplate(NODE_NAMEPLATE_UNIT)
   if plate then
-    if not directTargetPlateWorks and safeCall(UnitIsGameObject, TARGET_UNIT) == true then
-      directTargetPlateWorks = true
+    if not directNodeNameplateLookupWorks and safeCall(UnitIsGameObject, NODE_NAMEPLATE_UNIT) == true then
+      directNodeNameplateLookupWorks = true
     end
-    return TARGET_UNIT, plate
+    return NODE_NAMEPLATE_UNIT, plate
   end
-  if not directTargetPlateWorks then
-    for unit in pairs(shownPlates) do
-      if safeCall(UnitIsGameObject, unit) == true or safeCall(UnitIsUnit, unit, TARGET_UNIT) == true then
+  if not directNodeNameplateLookupWorks then
+    for unit in pairs(visibleNameplates) do
+      if safeCall(UnitIsGameObject, unit) == true or safeCall(UnitIsUnit, unit, NODE_NAMEPLATE_UNIT) == true then
         plate = getNameplate(unit)
         if plate then return unit, plate end
       end
     end
   end
-  if exists then return TARGET_UNIT end
+  if exists then return NODE_NAMEPLATE_UNIT end
   return nil, nil, true
 end
 
---- Hides and detaches the node-name label from its current target.
-local function clearNodeName()
-  if not targetName.anchor then return end
-  targetName.frame:Hide()
-  targetName.frame:ClearAllPoints()
-  targetName.frame:SetParent(nil)
-  targetName.anchor = nil
+--- Hides and detaches the node-nameplate label from its current target.
+local function clearNodeNameplateLabel()
+  if not nodeNameplateLabel.anchor then return end
+  nodeNameplateLabel.frame:Hide()
+  nodeNameplateLabel.frame:ClearAllPoints()
+  nodeNameplateLabel.frame:SetParent(nil)
+  nodeNameplateLabel.anchor = nil
 end
 
 --- Displays a node's name above its current soft-target nameplate.
 ---@param plate table Target nameplate.
 ---@param name string Node name.
-local function showNodeName(plate, name)
-  if not targetName.frame then
+local function showNodeNameplateLabel(plate, name)
+  if not nodeNameplateLabel.frame then
     local frame = CreateFrame("Frame")
     frame:SetSize(220, 20)
     local text = frame:CreateFontString(nil, "OVERLAY")
@@ -787,36 +801,36 @@ local function showNodeName(plate, name)
     text:SetTextColor(1, 0.88, 0.52)
     text:SetShadowColor(0, 0, 0, 1)
     text:SetShadowOffset(1, -1)
-    targetName.frame = frame
-    targetName.text = text
+    nodeNameplateLabel.frame = frame
+    nodeNameplateLabel.text = text
   end
 
-  local frame = targetName.frame
-  if targetName.anchor ~= plate then
+  local frame = nodeNameplateLabel.frame
+  if nodeNameplateLabel.anchor ~= plate then
     frame:SetParent(plate)
     frame:ClearAllPoints()
     frame:SetPoint("BOTTOM", plate, "TOP", 0, NODE_NAME_OFFSET)
     local ok, level = pcall(plate.GetFrameLevel, plate)
     if ok and level and not isSecret(level) then frame:SetFrameLevel(level + 2) end
     frame:SetIgnoreParentAlpha(true)
-    targetName.anchor = plate
+    nodeNameplateLabel.anchor = plate
   end
-  if targetName.text:GetText() ~= name then
-    targetName.text:SetText(name)
+  if nodeNameplateLabel.text:GetText() ~= name then
+    nodeNameplateLabel.text:SetText(name)
   end
   frame:Show()
 end
 
---- Finds the current soft target and updates Blizzard's target gate and optional label.
-function module:EvaluateSoftTarget()
-  if not isForever() or not hasActiveCategory() then
-    clearNodeName()
+--- Finds the current soft target and updates Blizzard's nameplate gate and optional label.
+function module:EvaluateNodeNameplate()
+  if not isForever() or not hasActiveNodeNameplateCategory() then
+    clearNodeNameplateLabel()
     return
   end
-  local unit, plate, unknown = resolveSoftTarget()
+  local unit, plate, unknown = resolveNodeNameplateTarget()
   if not unit then
-    setTargetGate(unknown == true)
-    clearNodeName()
+    setNodeNameplateGate(unknown == true)
+    clearNodeNameplateLabel()
     return
   end
 
@@ -825,59 +839,68 @@ function module:EvaluateSoftTarget()
     name = safeCall(UnitName, unit)
     category, unavailable = classifyUnit(unit, name)
   else
-    setTargetGate(false)
-    clearNodeName()
+    setNodeNameplateGate(false)
+    clearNodeNameplateLabel()
     return
   end
 
-  local key = CATEGORY_SETTING[category]
-  local wanted = key ~= nil and categorySettings[key] == true
-  local showName = category ~= nil and categorySettings.showNodeNames == true
-    and type(name) == "string" and name ~= ""
-  setTargetGate(wanted or showName)
-  if unavailable then
-    setTargetGate(false)
-    clearNodeName()
+  local key = NODE_NAMEPLATE_CATEGORY_SETTING[category]
+  local wanted = key ~= nil and nodeNameplateSettings[key] == true
+  local showName = wanted and type(name) == "string" and name ~= ""
+  setNodeNameplateGate(showName and plate ~= nil)
+  if unavailable and nodeNameplateSettings.onlyInteractableNameplates ~= false then
+    setNodeNameplateGate(false)
+    clearNodeNameplateLabel()
     return
   end
   if not plate then
-    clearNodeName()
+    clearNodeNameplateLabel()
     return
   end
 
   if showName then
-    showNodeName(plate, name)
+    showNodeNameplateLabel(plate, name)
   else
-    clearNodeName()
+    clearNodeNameplateLabel()
   end
 end
 
---- Applies or restores the native soft-target CVars according to enabled categories.
+--- Applies or restores native node-nameplate CVars according to enabled node categories.
 ---@param force boolean|nil Whether enabling a category should turn on interact options.
-function module:RefreshSoftTarget(force)
+function module:RefreshNodeNameplates(force)
   if not isForever() then return end
-  if hasActiveCategory() then
-    enableSoftTarget(force == true)
+  if hasActiveNodeNameplateCategory() then
+    enableNodeNameplates(force == true)
   else
-    clearNodeName()
-    restoreSoftTarget()
+    clearNodeNameplateLabel()
+    restoreNodeNameplates()
   end
 end
 
---- Enables or pauses the periodic target-state poller.
-function module:UpdateSoftTargetPoller()
-  if module.targetPoller then module.targetPoller:SetShown(isForever() and hasActiveCategory()) end
+--- Enables or pauses the periodic node-nameplate poller.
+function module:UpdateNodeNameplatePoller()
+  if module.nodeNameplatePoller then
+    module.nodeNameplatePoller:SetShown(isForever() and hasActiveNodeNameplateCategory())
+  end
 end
 
---- Installs profile settings, saved CVar storage, and cursor texture lookups.
----@param profileSettings table Active profile's loot sparkle options.
+--- Installs node-nameplate settings, saved CVar storage, and cursor texture lookups.
+---@param profileSettings table Active profile's interactable-node settings.
 ---@param accountSettings table Global AceDB data.
-function module:InitializeSoftTarget(profileSettings, accountSettings)
+function module:InitializeNodeNameplates(profileSettings, accountSettings)
   if not isForever() then return end
-  categorySettings = profileSettings
-  if categorySettings.showNodeNames == nil then categorySettings.showNodeNames = false end
-  globalSettings = accountSettings
-  originalCVars = globalSettings.lootSparklesSavedCVars
+  nodeNameplateSettings = profileSettings
+  local oldMasterSetting = rawget(nodeNameplateSettings, "nodeIconsAndNameplates")
+  if rawget(nodeNameplateSettings, "nodeNameplates") == nil and oldMasterSetting ~= nil then
+    nodeNameplateSettings.nodeNameplates = oldMasterSetting
+  end
+  nodeNameplateSettings.nodeIconsAndNameplates = nil
+  if nodeNameplateSettings.nodeNameplates == nil then nodeNameplateSettings.nodeNameplates = false end
+  if nodeNameplateSettings.onlyInteractableNameplates == nil then
+    nodeNameplateSettings.onlyInteractableNameplates = true
+  end
+  settingsStorage = accountSettings
+  originalNodeNameplateCVars = settingsStorage.interactableNodeHighlightsSavedCVars
 
   if not module.cursorProbe then
     module.cursorProbe = UIParent:CreateTexture(nil, "BACKGROUND")
@@ -896,13 +919,13 @@ end
 
 --- Applies pending CVar changes when combat ends.
 local function handleCombatEnd()
-  if pendingCVars == "apply" then
-    enableSoftTarget(pendingForce)
-  elseif pendingCVars == "restore" then
-    restoreSoftTarget()
+  if pendingNodeNameplateCVars == "apply" then
+    enableNodeNameplates(pendingNodeNameplateForce)
+  elseif pendingNodeNameplateCVars == "restore" then
+    restoreNodeNameplates()
   end
-  pendingCVars, pendingForce = nil, false
-  module:EvaluateSoftTarget()
+  pendingNodeNameplateCVars, pendingNodeNameplateForce = nil, false
+  module:EvaluateNodeNameplate()
 end
 
 --- Marks quest objective text stale after the quest log changes.
@@ -911,29 +934,29 @@ local function handleQuestUpdate()
 end
 
 --- Registers target/nameplate events and starts the polling frame.
-local softTargetEvents = CreateFrame("Frame")
+local nodeNameplateEvents = CreateFrame("Frame")
 --- Dispatches target events to the evaluator and CVar manager.
 ---@param _ table Event frame.
 ---@param event string WoW event name.
 ---@param ... any Event arguments.
-softTargetEvents:SetScript("OnEvent", function(_, event, ...)
+nodeNameplateEvents:SetScript("OnEvent", function(_, event, ...)
   if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "VARIABLES_LOADED" then
-    if hasActiveCategory() then enableSoftTarget(false) end
-    module:UpdateSoftTargetPoller()
+    if hasActiveNodeNameplateCategory() then enableNodeNameplates(false) end
+    module:UpdateNodeNameplatePoller()
   elseif event == "PLAYER_REGEN_DISABLED" then
-    if hasActiveCategory() then setTargetGate(false) end
+    if hasActiveNodeNameplateCategory() then setNodeNameplateGate(false) end
   elseif event == "PLAYER_REGEN_ENABLED" then
     handleCombatEnd()
   elseif event == "NAME_PLATE_UNIT_ADDED" then
-    shownPlates[(...)] = true
-    module:EvaluateSoftTarget()
+    visibleNameplates[(...)] = true
+    module:EvaluateNodeNameplate()
   elseif event == "NAME_PLATE_UNIT_REMOVED" then
     local unit = ...
-    shownPlates[unit] = nil
+    visibleNameplates[unit] = nil
     local plate = getNameplate(unit)
-    if plate and plate == targetName.anchor then clearNodeName() end
+    if plate and plate == nodeNameplateLabel.anchor then clearNodeNameplateLabel() end
   elseif event == "PLAYER_SOFT_INTERACT_CHANGED" then
-    module:EvaluateSoftTarget()
+    module:EvaluateNodeNameplate()
   elseif event == "QUEST_LOG_UPDATE" then
     handleQuestUpdate()
   end
@@ -942,7 +965,7 @@ end)
 --- Registers one target event when supported by the current client.
 ---@param event string WoW event name.
 local function registerTargetEvent(event)
-  pcall(softTargetEvents.RegisterEvent, softTargetEvents, event)
+  pcall(nodeNameplateEvents.RegisterEvent, nodeNameplateEvents, event)
 end
 
 if isForever() then
@@ -962,17 +985,17 @@ if isForever() then
 end
 
 --- Creates the periodic target evaluator and refreshes it on each frame update.
-module.targetPoller = CreateFrame("Frame")
-module.targetPoller:Hide()
+module.nodeNameplatePoller = CreateFrame("Frame")
+module.nodeNameplatePoller:Hide()
 local elapsedSinceCheck = 0
 --- Runs the target evaluator at a bounded interval.
 ---@param _ table Poller frame.
 ---@param elapsed number Time elapsed since the previous frame.
-module.targetPoller:SetScript("OnUpdate", function(_, elapsed)
+module.nodeNameplatePoller:SetScript("OnUpdate", function(_, elapsed)
   if not isForever() then return end
   elapsedSinceCheck = elapsedSinceCheck + elapsed
-  if elapsedSinceCheck >= UPDATE_INTERVAL then
+  if elapsedSinceCheck >= NODE_NAMEPLATE_UPDATE_INTERVAL then
     elapsedSinceCheck = 0
-    module:EvaluateSoftTarget()
+    module:EvaluateNodeNameplate()
   end
 end)
