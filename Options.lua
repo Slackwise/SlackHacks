@@ -64,14 +64,14 @@ dbDefaults = {
       maximumCameraZoom = false,
       enableDynamicCamera = false
     },
-    -- Additive utility defaults preserve existing profiles and leave all sparkle features off initially.
+    -- Additive utility defaults preserve existing profiles and keep native loot features opt-in.
     utilities = {
       tomtomWayCommand = false,
       lootSparkles = {
         sparkleOre = false,
         sparkleHerbs = false,
         sparkleQuest = false,
-        sparkleCorpseLoot = false
+        showNodeNames = false
       }
     },
     graphics = {
@@ -2495,68 +2495,68 @@ options = {
               order = 1
             },
             approachHeader = {
-              name = "Sparkles While Approaching",
+              name = "Native Soft Targeting",
               type = "header",
               order = 2
             },
             sparkleOre = {
               name = "Ore Veins",
-              desc = "Sparkle on mining nodes as you approach them. Uses Blizzard's soft targeting and enables the interact key and object icons as needed.",
+              desc = "Enable Blizzard's native soft targeting and object icon for ore veins.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              --- Reads the active profile's ore sparkle preference.
-              ---@return boolean enabled Whether ore sparkles are enabled.
+              --- Reads whether native soft targeting is enabled for ore.
+              ---@return boolean enabled Whether ore soft targeting is enabled.
               get = function() return db.profile.utilities.lootSparkles.sparkleOre end,
-              --- Updates the ore sparkle preference and target CVars.
+              --- Updates the ore soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to enable ore sparkles.
+              ---@param value boolean Whether to enable ore soft targeting.
               set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleOre", value) end,
               order = 3
             },
             sparkleHerbs = {
               name = "Herbs",
-              desc = "Sparkle on herbs as you approach them. Uses Blizzard's soft targeting and enables the interact key and object icons as needed.",
+              desc = "Enable Blizzard's native soft targeting and object icon for herbs.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              --- Reads the active profile's herb sparkle preference.
-              ---@return boolean enabled Whether herb sparkles are enabled.
+              --- Reads whether native soft targeting is enabled for herbs.
+              ---@return boolean enabled Whether herb soft targeting is enabled.
               get = function() return db.profile.utilities.lootSparkles.sparkleHerbs end,
-              --- Updates the herb sparkle preference and target CVars.
+              --- Updates the herb soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to enable herb sparkles.
+              ---@param value boolean Whether to enable herb soft targeting.
               set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleHerbs", value) end,
               order = 4
             },
             sparkleQuest = {
               name = "Quest Objects",
-              desc = "Add sparkles to quest objects as you approach them. Off by default because the game's loot sparkle already marks most of them.",
+              desc = "Enable Blizzard's native soft targeting and object icon for active quest objects.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              --- Reads the active profile's quest-object sparkle preference.
-              ---@return boolean enabled Whether quest-object sparkles are enabled.
+              --- Reads whether native soft targeting is enabled for quest objects.
+              ---@return boolean enabled Whether quest-object soft targeting is enabled.
               get = function() return db.profile.utilities.lootSparkles.sparkleQuest end,
-              --- Updates the quest-object sparkle preference and target CVars.
+              --- Updates the quest-object soft-target preference and target CVars.
               ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to enable quest-object sparkles.
+              ---@param value boolean Whether to enable quest-object soft targeting.
               set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleQuest", value) end,
               order = 5
             },
-            sparkleCorpseLoot = {
-              name = "Corpses With Loot",
-              desc = "Sparkle on corpses that still have loot for you, including bosses. This works after combat because the game prevents addons from changing the target nameplate during a fight.",
+            showNodeNames = {
+              name = "Show Node Names",
+              desc = "Display the name of a soft-targeted ore vein, herb, or quest object above its nameplate.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              --- Reads the active profile's corpse sparkle preference.
-              ---@return boolean enabled Whether corpse sparkles are enabled.
-              get = function() return db.profile.utilities.lootSparkles.sparkleCorpseLoot end,
-              --- Updates the corpse sparkle preference and target CVars.
+              --- Reads whether node-name labels are enabled.
+              ---@return boolean enabled Whether node names are displayed.
+              get = function() return db.profile.utilities.lootSparkles.showNodeNames end,
+              --- Updates node-name display and soft targeting.
               ---@param _ table AceConfig option info.
-              ---@param value boolean Whether to enable corpse sparkles.
-              set = function(_, value) Self.Utilities:SetSoftTargetOption("sparkleCorpseLoot", value) end,
+              ---@param value boolean Whether to display node names.
+              set = function(_, value) Self.Utilities:SetSoftTargetOption("showNodeNames", value) end,
               order = 6
             }
           }

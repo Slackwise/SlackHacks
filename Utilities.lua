@@ -377,7 +377,7 @@ function module:SetQuestSparklesEnabled(enabled)
   applyQuestSparkles()
 end
 
---- Refreshes all sparkle behavior after a profile change.
+--- Refreshes loot effects and native soft-target behavior after a profile change.
 function module:ApplySparkles()
   if not isForever() then return end
   settings = Self.db.profile.utilities.lootSparkles
@@ -385,7 +385,7 @@ function module:ApplySparkles()
   if settings.sparkleOre == nil then settings.sparkleOre = false end
   if settings.sparkleHerbs == nil then settings.sparkleHerbs = false end
   if settings.sparkleQuest == nil then settings.sparkleQuest = false end
-  if settings.sparkleCorpseLoot == nil then settings.sparkleCorpseLoot = false end
+  if settings.showNodeNames == nil then settings.showNodeNames = false end
   if settings.questItems then sparkleWasEnabled = true end
   self:InitializeSoftTarget(settings, Self.db.global)
   applyQuestSparkles()
@@ -394,8 +394,8 @@ function module:ApplySparkles()
 end
 
 --- Changes one soft-target category option and refreshes the targeting CVars.
----@param key string Category setting key.
----@param enabled boolean Whether that category should sparkle.
+---@param key string Soft-target category setting key.
+---@param enabled boolean Whether that native soft-target category is enabled.
 function module:SetSoftTargetOption(key, enabled)
   if not isForever() or not settings then return end
   settings[key] = enabled == true
@@ -449,17 +449,15 @@ function module:EnableSparkles()
   end)
 end
 
--- Soft-target approach sparkles
+-- Blizzard soft-target selection and optional node-name labels
 local TARGET_UNIT = "softinteract"
-local SPARKLE_TEXTURE = "Interface\\Cooldown\\star4"
 local TARGET_RANGE = 60
 local TARGET_ARC = 2
 local UPDATE_INTERVAL = 0.12
 local CATEGORY_SETTING = {
   ore = "sparkleOre",
   herb = "sparkleHerbs",
-  quest = "sparkleQuest",
-  corpse = "sparkleCorpseLoot"
+  quest = "sparkleQuest"
 }
 local CURSOR_TYPES = {
   Mine = "ore",
@@ -481,14 +479,7 @@ local MANAGED_CVARS = {
   "SoftTargetInteractOnlyInRange",
   "SoftTargetIconGameObject"
 }
-local GLINT_TOTAL = 7
-local GLINT_SIZE = 34
-local GLINT_RADIUS = 46
-local PLATE_OFFSET = -45
-local FADE_IN_TIME = 0.35
-local STATE_BLEND_TIME = 0.3
-local STABLE_TIME = 0.15
-local GOLD = { 1, 0.88, 0.52 }
+local NODE_NAME_OFFSET = 28
 
 local categorySettings
 local globalSettings
@@ -501,10 +492,7 @@ local shownPlates = {}
 local cursorTypeByID = {}
 local objectiveText = {}
 local objectivesNeedRefresh = true
-local targetSparkle = {}
-
-local min, max = math.min, math.max
-local pi = math.pi
+local targetName = {}
 
 --- Returns whether a client value is secret and cannot safely be inspected.
 ---@param value any Client-returned value.
@@ -544,33 +532,15 @@ local function writeCVar(name, value)
   pcall(C_CVar.SetCVar, name, value)
 end
 
---- Returns whether any approach-sparkle category is enabled.
----@return boolean active True when soft-target sparkles should run.
+--- Returns whether any native soft-target category or node-name feature is enabled.
+---@return boolean active True when soft-target features should run.
 local function hasActiveCategory()
   if not categorySettings then return false end
+  if categorySettings.showNodeNames == true then return true end
   for _, key in pairs(CATEGORY_SETTING) do
     if categorySettings[key] == true then return true end
   end
   return false
-end
-
---- Interpolates between two numeric values.
----@param from number Starting value.
----@param to number Target value.
----@param progress number Interpolation amount.
----@return number value Interpolated result.
-local function interpolate(from, to, progress)
-  return from + (to - from) * progress
-end
-
---- Moves a number toward a target by at most the given amount.
----@param value number Starting value.
----@param target number Desired value.
----@param amount number Maximum step.
----@return number result Updated value.
-local function approach(value, target, amount)
-  if value < target then return min(value + amount, target) end
-  return max(value - amount, target)
 end
 
 --- Captures the original CVar values and enables Blizzard soft targeting.
@@ -605,7 +575,7 @@ local function enableSoftTarget(force)
   module:EvaluateSoftTarget()
 end
 
---- Restores the CVar values saved before soft-target sparkles were enabled.
+--- Restores the CVar values saved before soft targeting was enabled.
 local function restoreSoftTarget()
   if InCombatLockdown() then
     pendingCVars = "restore"
@@ -748,17 +718,6 @@ local function classifyUnit(unit, name)
   return category, unavailable == true
 end
 
---- Returns whether a corpse still has loot available to this character.
----@param unit string Unit token.
----@return boolean hasLoot True when the unit is dead and lootable.
-local function corpseHasLoot(unit)
-  local guid = safeCall(UnitGUID, unit)
-  if not guid or not CanLootUnit then return false end
-  local ok, hasLoot, canLoot = pcall(CanLootUnit, guid)
-  if not ok or isSecret(hasLoot) or isSecret(canLoot) then return false end
-  return safeCall(UnitIsDead, unit) == true and hasLoot == true and canLoot ~= false
-end
-
 --- Returns the nameplate currently associated with a unit.
 ---@param unit string Unit token.
 ---@return table|nil plate Blizzard nameplate frame, when available.
@@ -801,188 +760,106 @@ local function resolveSoftTarget()
   return nil, nil, true
 end
 
---- Places one new glint within the sparkle cluster.
----@param glint table Glint animation data.
----@param startNow boolean|nil Whether to start at the visible part of its animation.
-local function resetGlint(glint, startNow)
-  local angle = math.random() * 2 * pi
-  local distance = math.sqrt(math.random())
-  glint.x = math.cos(angle) * distance * GLINT_RADIUS
-  glint.y = math.sin(angle) * distance * GLINT_RADIUS * 0.75
-  glint.life = 0.6 + 0.8 * math.random()
-  glint.scale = 0.5 + 0.7 * math.random()
-  glint.rotation = math.random() * 2 * pi
-  glint.rotationSpeed = (math.random() - 0.5) * 2
-  glint.age = startNow and 0 or -0.6 * math.random()
+--- Hides and detaches the node-name label from its current target.
+local function clearNodeName()
+  if not targetName.anchor then return end
+  targetName.frame:Hide()
+  targetName.frame:ClearAllPoints()
+  targetName.frame:SetParent(nil)
+  targetName.anchor = nil
 end
 
---- Updates sparkle glint positions, colors, and fade state.
----@param frame table Sparkle animation frame.
----@param elapsed number Time elapsed since the previous frame.
-local function animateSparkles(frame, elapsed)
-  elapsed = min(elapsed, 0.1)
-  targetSparkle.opacity = approach(targetSparkle.opacity, 1, elapsed / FADE_IN_TIME)
-  targetSparkle.readyBlend = approach(targetSparkle.readyBlend,
-    targetSparkle.state == "ready" and 1 or 0, elapsed / STATE_BLEND_TIME)
-
-  local ready = targetSparkle.readyBlend
-  local opacity = targetSparkle.opacity * interpolate(0.55, 1, ready)
-  local speed = interpolate(0.8, 1.2, ready)
-
-  for _, glint in ipairs(targetSparkle.glints) do
-    glint.age = glint.age + elapsed * speed
-    if glint.age >= glint.life then resetGlint(glint, false) end
-    local shine = glint.age > 0 and math.sin(pi * glint.age / glint.life) or 0
-    local texture = glint.texture
-    texture:SetPoint("CENTER", frame, "CENTER", glint.x, glint.y + 10 * max(glint.age, 0))
-    local size = max(GLINT_SIZE * glint.scale * (0.35 + 0.65 * shine), 0.01)
-    texture:SetSize(size, size)
-    texture:SetRotation(glint.rotation + glint.rotationSpeed * max(glint.age, 0))
-    texture:SetVertexColor(GOLD[1], GOLD[2], GOLD[3], min(opacity * shine, 1))
-  end
-end
-
---- Creates the animated sparkle frame and its texture particles.
----@return table frame New sparkle frame.
-local function createSparkleFrame()
-  local frame = CreateFrame("Frame")
-  frame:SetSize(1, 1)
-  frame:Hide()
-  targetSparkle.glints = {}
-  for index = 1, GLINT_TOTAL do
-    local texture = frame:CreateTexture(nil, "OVERLAY")
-    texture:SetTexture(SPARKLE_TEXTURE)
-    texture:SetBlendMode("ADD")
-    texture:SetVertexColor(1, 1, 1, 0)
-    if texture.SetSnapToPixelGrid then
-      texture:SetSnapToPixelGrid(false)
-      texture:SetTexelSnappingBias(0)
-    end
-    targetSparkle.glints[index] = { texture = texture }
-  end
-  frame:SetScript("OnUpdate", animateSparkles)
-  targetSparkle.frame = frame
-  return frame
-end
-
---- Hides and detaches the sparkle frame from its current target.
-local function clearSparkle()
-  if not targetSparkle.anchor then return end
-  targetSparkle.frame:Hide()
-  targetSparkle.frame:ClearAllPoints()
-  targetSparkle.frame:SetParent(nil)
-  targetSparkle.anchor = nil
-end
-
---- Attaches the sparkle animation to a nameplate for a newly selected target.
+--- Displays a node's name above its current soft-target nameplate.
 ---@param plate table Target nameplate.
----@param state string Initial interaction state.
-local function attachSparkle(plate, state)
-  local frame = targetSparkle.frame or createSparkleFrame()
-  frame:SetParent(plate)
-  local ok, level = pcall(plate.GetFrameLevel, plate)
-  if ok and level and not isSecret(level) then frame:SetFrameLevel(max(level - 1, 0)) end
-  frame:ClearAllPoints()
-  frame:SetPoint("CENTER", plate, "CENTER", 0, PLATE_OFFSET)
-  frame:SetIgnoreParentAlpha(true)
+---@param name string Node name.
+local function showNodeName(plate, name)
+  if not targetName.frame then
+    local frame = CreateFrame("Frame")
+    frame:SetSize(220, 20)
+    local text = frame:CreateFontString(nil, "OVERLAY")
+    if GameFontNormalSmall then
+      text:SetFontObject(GameFontNormalSmall)
+    elseif GameFontNormal then
+      text:SetFontObject(GameFontNormal)
+    end
+    text:SetAllPoints(frame)
+    text:SetJustifyH("CENTER")
+    text:SetTextColor(1, 0.88, 0.52)
+    text:SetShadowColor(0, 0, 0, 1)
+    text:SetShadowOffset(1, -1)
+    targetName.frame = frame
+    targetName.text = text
+  end
 
-  targetSparkle.anchor = plate
-  targetSparkle.state = state
-  targetSparkle.pendingState = nil
-  targetSparkle.readyBlend = state == "ready" and 1 or 0
-  targetSparkle.opacity = 0
-  for _, glint in ipairs(targetSparkle.glints) do resetGlint(glint, false) end
+  local frame = targetName.frame
+  if targetName.anchor ~= plate then
+    frame:SetParent(plate)
+    frame:ClearAllPoints()
+    frame:SetPoint("BOTTOM", plate, "TOP", 0, NODE_NAME_OFFSET)
+    local ok, level = pcall(plate.GetFrameLevel, plate)
+    if ok and level and not isSecret(level) then frame:SetFrameLevel(level + 2) end
+    frame:SetIgnoreParentAlpha(true)
+    targetName.anchor = plate
+  end
+  if targetName.text:GetText() ~= name then
+    targetName.text:SetText(name)
+  end
   frame:Show()
 end
 
---- Changes the displayed interaction state only after it stays stable briefly.
----@param state string New state: ready or far.
-local function proposeState(state)
-  if state == targetSparkle.state then
-    targetSparkle.pendingState = nil
-    return
-  end
-  local now = GetTime()
-  if targetSparkle.pendingState ~= state then
-    targetSparkle.pendingState = state
-    targetSparkle.pendingSince = now
-  elseif now - targetSparkle.pendingSince >= STABLE_TIME then
-    targetSparkle.pendingState = nil
-    targetSparkle.state = state
-    if state == "ready" then
-      for _, glint in ipairs(targetSparkle.glints) do resetGlint(glint, true) end
-    end
-  end
-end
-
---- Determines whether the current unit is in interaction range.
----@param unit string Unit token.
----@return string state ready or far.
-local function interactionState(unit)
-  local inRange = UnitIsInInteractRange and safeCall(UnitIsInInteractRange, unit)
-  if inRange == false then return "far" end
-  return "ready"
-end
-
---- Finds the current soft target and updates its nameplate sparkle.
+--- Finds the current soft target and updates Blizzard's target gate and optional label.
 function module:EvaluateSoftTarget()
   if not isForever() or not hasActiveCategory() then
-    clearSparkle()
+    clearNodeName()
     return
   end
   local unit, plate, unknown = resolveSoftTarget()
   if not unit then
     setTargetGate(unknown == true)
-    clearSparkle()
+    clearNodeName()
     return
   end
 
-  local category, unavailable
+  local category, unavailable, name
   if safeCall(UnitIsGameObject, unit) == true then
-    category, unavailable = classifyUnit(unit, safeCall(UnitName, unit))
-  elseif categorySettings.sparkleCorpseLoot and corpseHasLoot(unit) then
-    category = "corpse"
+    name = safeCall(UnitName, unit)
+    category, unavailable = classifyUnit(unit, name)
   else
     setTargetGate(false)
-    clearSparkle()
+    clearNodeName()
     return
   end
 
   local key = CATEGORY_SETTING[category]
   local wanted = key ~= nil and categorySettings[key] == true
-  setTargetGate(wanted)
-  if not wanted then
-    clearSparkle()
-    return
-  end
+  local showName = category ~= nil and categorySettings.showNodeNames == true
+    and type(name) == "string" and name ~= ""
+  setTargetGate(wanted or showName)
   if unavailable then
     setTargetGate(false)
-    clearSparkle()
+    clearNodeName()
     return
   end
   if not plate then
-    clearSparkle()
+    clearNodeName()
     return
   end
 
-  local state = interactionState(unit)
-  if targetSparkle.anchor ~= plate or targetSparkle.retarget then
-    targetSparkle.retarget = nil
-    clearSparkle()
-    attachSparkle(plate, state)
+  if showName then
+    showNodeName(plate, name)
   else
-    proposeState(state)
+    clearNodeName()
   end
 end
 
---- Applies or restores the soft-target CVars according to enabled categories.
+--- Applies or restores the native soft-target CVars according to enabled categories.
 ---@param force boolean|nil Whether enabling a category should turn on interact options.
 function module:RefreshSoftTarget(force)
   if not isForever() then return end
   if hasActiveCategory() then
     enableSoftTarget(force == true)
   else
-    clearSparkle()
+    clearNodeName()
     restoreSoftTarget()
   end
 end
@@ -998,6 +875,7 @@ end
 function module:InitializeSoftTarget(profileSettings, accountSettings)
   if not isForever() then return end
   categorySettings = profileSettings
+  if categorySettings.showNodeNames == nil then categorySettings.showNodeNames = false end
   globalSettings = accountSettings
   originalCVars = globalSettings.lootSparklesSavedCVars
 
@@ -1053,13 +931,8 @@ softTargetEvents:SetScript("OnEvent", function(_, event, ...)
     local unit = ...
     shownPlates[unit] = nil
     local plate = getNameplate(unit)
-    if plate and plate == targetSparkle.anchor then clearSparkle() end
+    if plate and plate == targetName.anchor then clearNodeName() end
   elseif event == "PLAYER_SOFT_INTERACT_CHANGED" then
-    local oldTarget, newTarget = ...
-    if not isSecret(oldTarget) and not isSecret(newTarget) and oldTarget and newTarget
-      and oldTarget ~= newTarget then
-      targetSparkle.retarget = targetSparkle.anchor ~= nil
-    end
     module:EvaluateSoftTarget()
   elseif event == "QUEST_LOG_UPDATE" then
     handleQuestUpdate()

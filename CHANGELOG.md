@@ -24,7 +24,7 @@
 - Hide graphics option groups when the current game client does not expose their required CVars.
 
 ### Utilities
-- Replaced the lootable-object sparkle checkbox with grouped Loot Sparkles controls, including approach sparkles for ore, herbs, quest objects, and lootable corpses.
+- Removed custom animated approach sparkles and corpse soft-target logic; retained native soft-target controls and optional node-name labels.
 
 ### Listview Bag
 - Keep the bag window open when opening the mailbox, a merchant, or the auction house.
