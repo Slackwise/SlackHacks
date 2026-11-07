@@ -58,6 +58,26 @@ local CVAR_NAMES = {
   hdrPeakBrightness = "HDRPeakBrightness",
 }
 
+local OPTION_CVARS = {
+  groundEffectDensity = { "groundEffectDensity" },
+  groundEffectFade = { "groundEffectFade" },
+  groundEffectDist = { "groundEffectDist" },
+  lodObjectFadeScale = { "lodObjectFadeScale" },
+  lodObjectCullSize = { "lodObjectCullSize" },
+  terrainLodDist = { "terrainLodDist" },
+  resampleAlwaysSharpen = { "ResampleAlwaysSharpen" },
+  reflectionMode = { "reflectionMode" },
+  weatherDensity = { "weatherDensity" },
+  hdrOutput = {
+    "HDROutput",
+    "HDRFactor",
+    "HDRBrightness",
+    "useHDRBrightness",
+    "HDRPeakBrightness",
+    "useHDRPeakBrightness",
+  },
+}
+
 local function applyCVar(cvar, value)
   if GetCVar(cvar) ~= nil then
     ensureCVar(cvar, value)
@@ -72,6 +92,19 @@ local function revertCVar(cvar, fallbackDefault)
     end
     ensureCVar(cvar, defaultVal)
   end
+end
+
+--- Reports whether the current game client exposes every CVar required by an option group.
+---@param key string Graphics option key.
+---@return boolean available True when all required CVars exist on this client.
+function module:IsOptionAvailable(key)
+  local cvars = OPTION_CVARS[key]
+  if not cvars or type(GetCVar) ~= "function" then return false end
+  for _, cvar in ipairs(cvars) do
+    local ok, value = pcall(GetCVar, cvar)
+    if not ok or value == nil then return false end
+  end
+  return true
 end
 
 --- Returns the game's default value for a given graphics CVar key.
