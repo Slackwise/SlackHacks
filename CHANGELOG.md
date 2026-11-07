@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Utilities
+- Replaced the lootable-object sparkle checkbox with grouped Loot Sparkles controls, including approach sparkles for ore, herbs, quest objects, and lootable corpses.
+
 ### Listview Bag
 - Keep the bag window open when opening the mailbox, a merchant, or the auction house.
 
