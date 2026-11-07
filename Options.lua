@@ -52,6 +52,7 @@ dbDefaults = {
     listviewBag = {
       enabled = false,
       showListviewBag = false,
+      showReagentBagContents = true,
       trackCrestCurrencies = true,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},

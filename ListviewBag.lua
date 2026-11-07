@@ -17,6 +17,8 @@ Self.ListviewBag = module
 --=====================================================================
 
 local FRAME_NAME = "SlackHacksListviewBagFrame"
+-- Blizzard's ContainerFrame_IsReagentBag uses container ID 5; Enum.BagIndex has no ReagentBag field.
+local REAGENT_BAG_ID = 5
 local ROW_HEIGHT = 20
 local COLLAPSE_WIDTH = ROW_HEIGHT
 local STATUS_WIDTH = 20
@@ -66,11 +68,12 @@ local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
 -- OnModifiedClick on every click doesn't wrap an already-wrapped function again.
 local autoPlaceSplitStacks = setmetatable({}, { __mode = "k" })
 
--- The bags this window displays: the backpack, the 4 equipped bags, and (retail only) the reagent bag.
+--- Return the backpack, equipped bags, and the modern client's reagent bag.
+---@return table bagIDs Container IDs used for display and bag actions.
 local function bagIDs()
   local ids = { 0, 1, 2, 3, 4 }
-  if isRetail() and Enum.BagIndex and Enum.BagIndex.ReagentBag then
-    ids[#ids + 1] = Enum.BagIndex.ReagentBag
+  if isRetailOrForever() then
+    ids[#ids + 1] = REAGENT_BAG_ID
   end
   return ids
 end
@@ -181,6 +184,8 @@ end
 -- Row data collection
 --=====================================================================
 
+--- Group items from visible bags, excluding the reagent bag when its checkbox is unchecked.
+---@return table groups Combined item rows and their underlying bag slots.
 -- Walks every tracked bag slot and groups identical items (same hyperlink) into one combined row, the
 -- same way the default UI's "combined bags" view merges stacks together. Each group remembers every
 -- underlying bagID/slot ("entries") so actions (locking, dragging, splitting) can still reach the real
@@ -188,28 +193,30 @@ end
 local function collectGroups()
   local groups, order = {}, {}
   for _, bagID in ipairs(bagIDs()) do
-    local numSlots = C_Container.GetContainerNumSlots(bagID)
-    for slot = 1, numSlots do
-      local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID and not info.isFiltered then
-        local key = info.hyperlink or info.itemID
-        local group = groups[key]
-        if not group then
-          group = {
-            key = key,
-            itemID = info.itemID,
-            hyperlink = info.hyperlink,
-            itemName = info.itemName,
-            icon = info.iconFileID,
-            quality = info.quality or Enum.ItemQuality.Common or 1,
-            count = 0,
-            entries = {},
-          }
-          groups[key] = group
-          order[#order + 1] = group
+    if bagID ~= REAGENT_BAG_ID or settings().showReagentBagContents then
+      local numSlots = C_Container.GetContainerNumSlots(bagID)
+      for slot = 1, numSlots do
+        local info = C_Container.GetContainerItemInfo(bagID, slot)
+        if info and info.itemID and not info.isFiltered then
+          local key = info.hyperlink or info.itemID
+          local group = groups[key]
+          if not group then
+            group = {
+              key = key,
+              itemID = info.itemID,
+              hyperlink = info.hyperlink,
+              itemName = info.itemName,
+              icon = info.iconFileID,
+              quality = info.quality or Enum.ItemQuality.Common or 1,
+              count = 0,
+              entries = {},
+            }
+            groups[key] = group
+            order[#order + 1] = group
+          end
+          group.count = group.count + (info.stackCount or 1)
+          group.entries[#group.entries + 1] = { bagID = bagID, slot = slot, count = info.stackCount or 1, isBound = info.isBound }
         end
-        group.count = group.count + (info.stackCount or 1)
-        group.entries[#group.entries + 1] = { bagID = bagID, slot = slot, count = info.stackCount or 1, isBound = info.isBound }
       end
     end
   end
@@ -800,6 +807,33 @@ local function createFooter()
   footer.sellTrashButton:SetText("Sell Trash")
   footer.sellTrashButton:SetEnabled(false)
   footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
+
+  footer.reagentCheckbox = CreateFrame("CheckButton", "SlackHacksListviewBagReagentToggle", content, "UICheckButtonTemplate")
+  -- Override the template's frame level so the checkbox renders above the container's NineSlice.
+  footer.reagentCheckbox:SetFrameLevel(content:GetFrameLevel() + 1)
+  footer.reagentCheckbox:SetSize(18, 18)
+  footer.reagentCheckbox:SetPoint("RIGHT", footer.sellTrashButton, "LEFT", -75, 0)
+  local reagentCheckboxText = footer.reagentCheckbox.text or footer.reagentCheckbox.Text
+    or _G[footer.reagentCheckbox:GetName() .. "Text"]
+  if reagentCheckboxText then
+    reagentCheckboxText:SetText("Reagent Bag")
+    reagentCheckboxText:SetFontObject("GameFontHighlightSmall")
+    reagentCheckboxText:ClearAllPoints()
+    reagentCheckboxText:SetPoint("LEFT", footer.reagentCheckbox, "RIGHT", 4, 0)
+    footer.reagentCheckbox:SetHitRectInsets(0, -70, 0, 0)
+  end
+  footer.reagentCheckbox:SetChecked(settings().showReagentBagContents)
+  footer.reagentCheckbox:SetScript("OnClick", function(self)
+    settings().showReagentBagContents = self:GetChecked() and true or false
+    renderRows()
+  end)
+  footer.reagentCheckbox:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Show contents of Reagent Bag")
+    GameTooltip:Show()
+  end)
+  footer.reagentCheckbox:SetScript("OnLeave", GameTooltip_Hide)
+  footer.reagentCheckbox:SetShown(isRetailOrForever())
 
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.currencyButton:SetSize(20, 20)
