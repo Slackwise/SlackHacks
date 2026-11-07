@@ -365,13 +365,13 @@ end
 --- Reads whether quest-item sparkles are enabled in the active profile.
 ---@return boolean enabled True when the quest sparkle option is enabled.
 function module:IsQuestSparklesEnabled()
-  return settings ~= nil and settings.questItems == true
+  return isForever() and settings ~= nil and settings.questItems == true
 end
 
 --- Updates the quest-item sparkle option and applies it to the client.
 ---@param enabled boolean Whether to show quest-item sparkles.
 function module:SetQuestSparklesEnabled(enabled)
-  if not settings then return end
+  if not isForever() or not settings then return end
   settings.questItems = enabled == true
   if settings.questItems then sparkleWasEnabled = true end
   applyQuestSparkles()
@@ -397,7 +397,7 @@ end
 ---@param key string Category setting key.
 ---@param enabled boolean Whether that category should sparkle.
 function module:SetSoftTargetOption(key, enabled)
-  if not settings then return end
+  if not isForever() or not settings then return end
   settings[key] = enabled == true
   self:RefreshSoftTarget(settings[key])
   self:UpdateSoftTargetPoller()
@@ -414,7 +414,7 @@ end
 
 --- Registers client events and starts delayed CVar application.
 function module:EnableSparkles()
-  if not settings then return end
+  if not isForever() or not settings then return end
   self.applyTimer = CreateFrame("Frame")
   self.applyTimer:Hide()
   --- Re-applies quest sparkles after a delayed reset.
@@ -926,7 +926,7 @@ end
 
 --- Finds the current soft target and updates its nameplate sparkle.
 function module:EvaluateSoftTarget()
-  if not hasActiveCategory() then
+  if not isForever() or not hasActiveCategory() then
     clearSparkle()
     return
   end
@@ -978,6 +978,7 @@ end
 --- Applies or restores the soft-target CVars according to enabled categories.
 ---@param force boolean|nil Whether enabling a category should turn on interact options.
 function module:RefreshSoftTarget(force)
+  if not isForever() then return end
   if hasActiveCategory() then
     enableSoftTarget(force == true)
   else
@@ -988,13 +989,14 @@ end
 
 --- Enables or pauses the periodic target-state poller.
 function module:UpdateSoftTargetPoller()
-  if module.targetPoller then module.targetPoller:SetShown(hasActiveCategory()) end
+  if module.targetPoller then module.targetPoller:SetShown(isForever() and hasActiveCategory()) end
 end
 
 --- Installs profile settings, saved CVar storage, and cursor texture lookups.
 ---@param profileSettings table Active profile's loot sparkle options.
 ---@param accountSettings table Global AceDB data.
 function module:InitializeSoftTarget(profileSettings, accountSettings)
+  if not isForever() then return end
   categorySettings = profileSettings
   globalSettings = accountSettings
   originalCVars = globalSettings.lootSparklesSavedCVars
@@ -1070,18 +1072,20 @@ local function registerTargetEvent(event)
   pcall(softTargetEvents.RegisterEvent, softTargetEvents, event)
 end
 
-for _, event in ipairs({
-  "PLAYER_LOGIN",
-  "PLAYER_ENTERING_WORLD",
-  "VARIABLES_LOADED",
-  "PLAYER_REGEN_DISABLED",
-  "PLAYER_REGEN_ENABLED",
-  "NAME_PLATE_UNIT_ADDED",
-  "NAME_PLATE_UNIT_REMOVED",
-  "PLAYER_SOFT_INTERACT_CHANGED",
-  "QUEST_LOG_UPDATE"
-}) do
-  registerTargetEvent(event)
+if isForever() then
+  for _, event in ipairs({
+    "PLAYER_LOGIN",
+    "PLAYER_ENTERING_WORLD",
+    "VARIABLES_LOADED",
+    "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED",
+    "NAME_PLATE_UNIT_ADDED",
+    "NAME_PLATE_UNIT_REMOVED",
+    "PLAYER_SOFT_INTERACT_CHANGED",
+    "QUEST_LOG_UPDATE"
+  }) do
+    registerTargetEvent(event)
+  end
 end
 
 --- Creates the periodic target evaluator and refreshes it on each frame update.
@@ -1092,6 +1096,7 @@ local elapsedSinceCheck = 0
 ---@param _ table Poller frame.
 ---@param elapsed number Time elapsed since the previous frame.
 module.targetPoller:SetScript("OnUpdate", function(_, elapsed)
+  if not isForever() then return end
   elapsedSinceCheck = elapsedSinceCheck + elapsed
   if elapsedSinceCheck >= UPDATE_INTERVAL then
     elapsedSinceCheck = 0
