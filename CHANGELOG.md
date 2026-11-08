@@ -1,5 +1,13 @@
 # SlackHacks Changelog
 
+## v26
+
+### Utilities
+- Removed custom animated approach sparkles and corpse soft-target logic; retained Blizzard's native loot sparkles and node icons.
+- Added a master option for node icons and nameplates, with per-category controls for quest objects, herbs, and ore.
+- Added an option to show names for nodes that cannot currently be interacted with.
+- Added customizable node-name text color with a reset-to-default button.
+
 ## v25
 
 ### Utilities
@@ -17,17 +25,6 @@
 ### ListviewBag
 - Bag should stay open when opening mail, merchant, AH
 - Added Reagent Bag contents.
-
-## Unreleased
-
-### Graphics
-- Hide graphics option groups when the current game client does not expose their required CVars.
-
-### Utilities
-- Replaced the lootable-object sparkle checkbox with grouped Loot Sparkles controls, including approach sparkles for ore, herbs, quest objects, and lootable corpses.
-
-### Listview Bag
-- Keep the bag window open when opening the mailbox, a merchant, or the auction house.
 
 ## v23
 
