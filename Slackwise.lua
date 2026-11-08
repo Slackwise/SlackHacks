@@ -983,7 +983,7 @@ BINDINGS = {
       },
       
       --Click-Casting
-      {"BUTTON1",                 "Holy Light", BT.CLICKCAST},
+      {"BUTTON1",                 "Flash of Light", BT.CLICKCAST},
       {"SHIFT-BUTTON1",           "Holy Light", BT.CLICKCAST},
       {"ALT-CTRL-BUTTON1",        "Redemption", BT.CLICKCAST},
       {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption", BT.CLICKCAST},
@@ -1012,7 +1012,7 @@ BINDINGS = {
       {"C",       "Consecration"},
 
       -- Heals (Coming from left hand?)
-      {"2",                "Holy Light"}, -- Flash of Light later
+      {"2",                "Flash of Light"}, -- Flash of Light later
       {"SHIFT-2",          "Holy Light"},
       {"ALT-CTRL-Z",       "Redemption"},
       {"ALT-CTRL-SHIFT-Z", "Redemption"},
