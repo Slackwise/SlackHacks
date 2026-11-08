@@ -1,15 +1,12 @@
 # SlackHacks Changelog
 
-## Unreleased
+## v26
 
 ### Utilities
 - Removed custom animated approach sparkles and corpse soft-target logic; retained Blizzard's native loot sparkles and node icons.
 - Added a master option for node icons and nameplates, with per-category controls for quest objects, herbs, and ore.
 - Added an option to show names for nodes that cannot currently be interacted with.
 - Added customizable node-name text color with a reset-to-default button.
-
-### Listview Bag
-- Keep the bag window open when opening the mailbox, a merchant, or the auction house.
 
 ## v25
 
