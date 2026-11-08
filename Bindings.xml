@@ -39,15 +39,15 @@
   <Binding name="SLACKHACKS_BEST_BANDAGE" category="BINDING_HEADER_SLACKHACKS">
   </Binding>
   <Binding name="SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT" category="BINDING_HEADER_SLACKHACKS">
-    SlackHacks.toggleQuestAutomation("autoAccept")
+    SlackHacks.toggleDialogAutomation("autoAccept")
   </Binding>
   <Binding name="SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE" category="BINDING_HEADER_SLACKHACKS">
-    SlackHacks.toggleQuestAutomation("autoComplete")
+    SlackHacks.toggleDialogAutomation("autoComplete")
   </Binding>
   <Binding name="SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION" category="BINDING_HEADER_SLACKHACKS">
-    SlackHacks.toggleQuestAutomation("autoClickFirstOption")
+    SlackHacks.toggleDialogAutomation("autoClickFirstOption")
   </Binding>
   <Binding name="SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION" category="BINDING_HEADER_SLACKHACKS">
-    SlackHacks.toggleAllQuestAutomation()
+    SlackHacks.toggleAllDialogAutomation()
   </Binding>
 </Bindings>

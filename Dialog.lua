@@ -1,7 +1,7 @@
 setfenv(1, _G.SlackHacks)
 
 --=====================================================================
--- Quest / NPC
+-- Dialog
 --=====================================================================
 -- NPC dialog automation (auto-accept, auto-complete, auto-click first option), number/Spacebar shortcuts for dialog
 -- options, and an "Extra Action Button" style button for quest items usable in the current quest area.
@@ -23,10 +23,10 @@ setfenv(1, _G.SlackHacks)
 --     so it only shows items used on the ground or without a target.
 --   * Holding Shift while interacting suppresses all dialog automation for that interaction.
 
---- The addon module instance. Exposed as `Self.Quest` so Options.lua can call `:SetEnabled()`,
+--- The addon module instance. Exposed as `Self.Dialog` so Options.lua can call `:SetEnabled()`,
 --- `:SetOption()`, and `:IsQuestItemButtonSupported()` from the config UI.
-local module = Self:NewModule("Quest", "AceEvent-3.0")
-Self.Quest = module
+local module = Self:NewModule("Dialog", "AceEvent-3.0")
+Self.Dialog = module
 
 local MAX_DIALOG_KEYS = 10 -- Keys 1-9 then 0.
 local AUTO_INTERACT_REPEAT_GUARD = 2 -- Seconds before the same gossip option may be auto-selected again.
@@ -46,15 +46,19 @@ AUTOMATION_OPTIONS = {
 }
 local ALL_AUTOMATION_LABEL = "All NPC Auto-Interacts"
 
+--- Returns the current profile's dialog settings, creating defaults if needed.
+---@return table
 local function settings()
-  local s = db.profile.quest
+  local s = db.profile.dialog
   if not s then
-    s = CopyTable(dbDefaults.profile.quest or {})
-    db.profile.quest = s
+    s = CopyTable(dbDefaults.profile.dialog or {})
+    db.profile.dialog = s
   end
   return s
 end
 
+--- Reports whether Shift suppresses automation for this interaction.
+---@return boolean
 local function isAutomationSuppressed()
   return IsShiftKeyDown()
 end
@@ -199,14 +203,14 @@ end
 local function createDialogKeyFrames()
   if dialogKeyOwner then return end
 
-  dialogKeyOwner = CreateFrame("Frame", "SlackHacksQuestDialogKeyOwner", UIParent, "SecureHandlerStateTemplate")
+  dialogKeyOwner = CreateFrame("Frame", "SlackHacksDialogKeyOwner", UIParent, "SecureHandlerStateTemplate")
   dialogKeyOwner:SetAttribute("_onstate-combat", [[
     if newstate == "combat" then
       self:ClearBindings()
     end
   ]])
 
-  dialogKeyButton = CreateFrame("Button", "SlackHacksQuestDialogKeys", UIParent)
+  dialogKeyButton = CreateFrame("Button", "SlackHacksDialogKeys", UIParent)
   dialogKeyButton:Hide()
   -- Key-up only: if the dialog changes between key-down and key-up, the leftover key-up can't fall
   -- through to an action button that fires on key-up.
@@ -284,8 +288,13 @@ local function selectGossipOption(option)
 end
 
 --- Returns true if automation acted on the gossip (and therefore the dialog is moving on).
+---@param availableQuests table Available quest entries.
+---@param activeQuests table Active quest entries.
+---@param options table Sorted gossip options.
+---@return boolean
 local function automateGossip(availableQuests, activeQuests, options)
   local s = settings()
+  local vendorOnly = not isRetail() and s.autoClickFirstOptionVendorOnly
   if isAutomationSuppressed() then return false end
 
   if s.autoComplete then
@@ -307,8 +316,11 @@ local function automateGossip(availableQuests, activeQuests, options)
   end
 
   if s.autoClickFirstOption and #availableQuests == 0 and #activeQuests == 0 and #options == 1
-    and (not s.autoClickFirstOptionMythicOnly or isMythicRunTimerRunning())
-    and not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip()) then
+    -- Hidden restrictions must not carry over and block automation when switching game clients.
+    and (isForever() or not s.autoClickFirstOptionMythicOnly or isMythicRunTimerRunning())
+    and (not vendorOnly or options[1].name == "I want to browse your goods.")
+    -- ForceGossip keeps service dialogs visible; the explicit vendor-only mode opts out for this match.
+    and (vendorOnly or not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip())) then
     local option = options[1]
     local now = GetTime()
     -- Guard against NPCs that re-open the same single-option gossip, which would otherwise loop forever.
@@ -714,7 +726,7 @@ local function applySecureState()
   applyItemSecureState()
 end
 
---- Re-applies all current `db.profile.quest` settings. Called on enable and whenever an option changes.
+--- Re-applies all current `db.profile.dialog` settings. Called on enable and whenever an option changes.
 function module:Refresh()
   local s = settings()
   local dialogFeatures = s.autoAccept or s.autoComplete or s.autoClickFirstOption or s.numberKeys or s.spacebar
@@ -736,7 +748,7 @@ function module:SetEnabled(enabled)
   if enabled then self:Enable() else self:Disable() end
 end
 
---- Sets a single `db.profile.quest` option and re-applies settings. Called from Options.lua.
+--- Sets a single `db.profile.dialog` option and re-applies settings. Called from Options.lua.
 ---@param key string
 ---@param value any
 function module:SetOption(key, value)
@@ -788,8 +800,10 @@ local function setAutomation(values)
   notifyOptionsChanged()
 end
 
-function isAllQuestAutomationEnabled()
-  local s = Self.db and Self.db.profile and Self.db.profile.quest
+--- Reports whether every dialog automation option and the module are enabled.
+---@return boolean
+function isAllDialogAutomationEnabled()
+  local s = Self.db and Self.db.profile and Self.db.profile.dialog
   if not (s and s.enabled) then return false end
   for _, option in ipairs(AUTOMATION_OPTIONS) do
     if not s[option.key] then return false end
@@ -798,7 +812,8 @@ function isAllQuestAutomationEnabled()
 end
 
 --- Toggles a single automation option (e.g. "autoAccept"). Used by keybindings.
-function toggleQuestAutomation(key)
+---@param key string Automation setting.
+function toggleDialogAutomation(key)
   local s = settings()
   local enabled = not (s.enabled and s[key])
   setAutomation({ [key] = enabled })
@@ -806,8 +821,8 @@ function toggleQuestAutomation(key)
 end
 
 --- Turns all automation options off if they're all on, otherwise turns them all on.
-function toggleAllQuestAutomation()
-  local enabled = not isAllQuestAutomationEnabled()
+function toggleAllDialogAutomation()
+  local enabled = not isAllDialogAutomationEnabled()
   local values = {}
   for _, option in ipairs(AUTOMATION_OPTIONS) do
     values[option.key] = enabled

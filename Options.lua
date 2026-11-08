@@ -108,12 +108,13 @@ dbDefaults = {
       opacity = 100,
       color = { r = 1, g = 1, b = 1 }
     },
-    quest = {
+    dialog = {
       enabled = false,
       autoAccept = false,
       autoComplete = false,
       autoClickFirstOption = false,
       autoClickFirstOptionMythicOnly = false,
+      autoClickFirstOptionVendorOnly = false,
       numberKeys = false,
       spacebar = false,
       questItemButton = false
@@ -686,7 +687,7 @@ local function openMinimapContextMenu(anchor)
         rootDescription:CreateCheckbox("Guildies List", isGuildieListActive, toggleGuildieList)
       end
       rootDescription:CreateCheckbox("Mouse Ring", isMouseRingActive, toggleMouseRing)
-      rootDescription:CreateCheckbox("All NPC Auto-Interacts", isAllQuestAutomationEnabled, toggleAllQuestAutomation)
+      rootDescription:CreateCheckbox("All NPC Auto-Interacts", isAllDialogAutomationEnabled, toggleAllDialogAutomation)
       if isRetail and isRetail() then
         rootDescription:CreateCheckbox("Track Delve Weeklies", isTrackDelvesActive, toggleTrackDelves)
       end
@@ -702,7 +703,7 @@ local function openMinimapContextMenu(anchor)
     { text = "Square Minimap", checked = isSquareMinimapActive, func = toggleSquareMinimap, isNotRadio = true, keepShownOnClick = true },
     { text = "Display Gear Stats", checked = isGearStatsActive, func = toggleGearStats, isNotRadio = true, keepShownOnClick = true },
     { text = "Mouse Ring", checked = isMouseRingActive, func = toggleMouseRing, isNotRadio = true, keepShownOnClick = true },
-    { text = "All NPC Auto-Interacts", checked = isAllQuestAutomationEnabled, func = toggleAllQuestAutomation, isNotRadio = true, keepShownOnClick = true },
+    { text = "All NPC Auto-Interacts", checked = isAllDialogAutomationEnabled, func = toggleAllDialogAutomation, isNotRadio = true, keepShownOnClick = true },
   }
   if isRetail and isRetail() then
     table.insert(menuList, {
@@ -1406,10 +1407,10 @@ local function addBindingOptions(args, prefix, name, order, actions, description
   end
 end
 
---- Disables the Extra Action controls when the Quest module is disabled.
+--- Disables the Extra Action controls when the Dialog module is disabled.
 ---@return boolean
-local function questBindingUnavailable()
-  return not db.profile.quest.enabled
+local function dialogBindingUnavailable()
+  return not db.profile.dialog.enabled
 end
 
 local keybindingOptions = {}
@@ -1433,12 +1434,12 @@ addBindingOptions(keybindingOptions, "bestUseItems", "Best Use Items", 100, {
   { "SLACKHACKS_BEST_MANA_POTION", "Use Best Mana Potion" },
   { "SLACKHACKS_BEST_BANDAGE", "Use Best Bandage" }
 }, "Use the strongest matching item in your bags with these keys. Equal-strength items use the smallest stack first.")
-addBindingOptions(keybindingOptions, "questNpc", "Quest / NPC", 200, {
+addBindingOptions(keybindingOptions, "dialog", "Dialog", 200, {
   { "SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts" },
   { "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests" },
   { "SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests" },
   { "SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION", "Toggle Auto-Click First Dialog Option" },
-  { "EXTRAACTIONBUTTON1", "Extra Action", questBindingUnavailable, "Also changes the real Extra Action Button on Retail." }
+  { "EXTRAACTIONBUTTON1", "Extra Action", dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail." }
 })
 keybindingOptions.dialogKeybindingsHeader = { type = "header", name = "Dialog Keybindings", order = 300 }
 keybindingOptions.numberKeys = {
@@ -1447,9 +1448,9 @@ keybindingOptions.numberKeys = {
   type = "toggle",
   descStyle = "inline",
   width = "full",
-  disabled = function() return not db.profile.quest.enabled end,
-  get = function() return db.profile.quest.numberKeys end,
-  set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+  disabled = function() return not db.profile.dialog.enabled end,
+  get = function() return db.profile.dialog.numberKeys end,
+  set = function(_, value) Self.Dialog:SetOption("numberKeys", value) end,
   order = 301
 }
 keybindingOptions.spacebar = {
@@ -1460,14 +1461,14 @@ keybindingOptions.spacebar = {
   width = "full",
   --- Disables the control while its module is off.
   ---@return boolean
-  disabled = function() return not db.profile.quest.enabled end,
+  disabled = function() return not db.profile.dialog.enabled end,
   --- Reads the profile's Spacebar shortcut setting.
   ---@return boolean
-  get = function() return db.profile.quest.spacebar end,
+  get = function() return db.profile.dialog.spacebar end,
   --- Applies the Spacebar shortcut setting.
   ---@param _ table AceConfig option info.
   ---@param value boolean
-  set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
+  set = function(_, value) Self.Dialog:SetOption("spacebar", value) end,
   order = 302
 }
 
@@ -4006,9 +4007,9 @@ options = {
       order = 10,
       args = selfVendorModeOptions()
     },
-    quest = {
+    dialog = {
       type = "group",
-      name = "Quest / NPC",
+      name = "Dialog",
       desc = "Quest and NPC dialog automation, plus an Extra Action Button for quest items.",
       order = 9.5,
       args = {
@@ -4021,13 +4022,13 @@ options = {
           order = 0.05
         },
         enabled = {
-          name = "Enable Quest Module",
-          desc = "Enable the Quest / NPC features below.",
+          name = "Enable Dialog Module",
+          desc = "Enable the Dialog features below.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          get = function() return db.profile.quest.enabled end,
-          set = function(_, value) Self.Quest:SetEnabled(value) end,
+          get = function() return db.profile.dialog.enabled end,
+          set = function(_, value) Self.Dialog:SetEnabled(value) end,
           order = 0.1
         },
         toggleAllKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 1, 0.2),
@@ -4038,9 +4039,9 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          disabled = function() return not db.profile.quest.enabled end,
-          get = function() return db.profile.quest.autoAccept end,
-          set = function(_, value) Self.Quest:SetOption("autoAccept", value) end,
+          disabled = function() return not db.profile.dialog.enabled end,
+          get = function() return db.profile.dialog.autoAccept end,
+          set = function(_, value) Self.Dialog:SetOption("autoAccept", value) end,
           order = 1
         },
         autoAcceptKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 1, 1.1),
@@ -4051,9 +4052,9 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          disabled = function() return not db.profile.quest.enabled end,
-          get = function() return db.profile.quest.autoComplete end,
-          set = function(_, value) Self.Quest:SetOption("autoComplete", value) end,
+          disabled = function() return not db.profile.dialog.enabled end,
+          get = function() return db.profile.dialog.autoComplete end,
+          set = function(_, value) Self.Dialog:SetOption("autoComplete", value) end,
           order = 2
         },
         autoCompleteKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 1, 2.1),
@@ -4070,9 +4071,9 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              disabled = function() return not db.profile.quest.enabled end,
-              get = function() return db.profile.quest.autoClickFirstOption end,
-              set = function(_, value) Self.Quest:SetOption("autoClickFirstOption", value) end,
+              disabled = function() return not db.profile.dialog.enabled end,
+              get = function() return db.profile.dialog.autoClickFirstOption end,
+              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOption", value) end,
               order = 3
             },
             autoClickKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION", "Toggle Auto-Click First Dialog Option", 1, 3.1),
@@ -4083,19 +4084,41 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
+              hidden = isForever,
               --- Disable the restriction control when its parent automation is off.
               ---@return boolean
               disabled = function()
-                return not db.profile.quest.enabled or not db.profile.quest.autoClickFirstOption
+                return not db.profile.dialog.enabled or not db.profile.dialog.autoClickFirstOption
               end,
               --- Read the profile's Mythic-run restriction.
               ---@return boolean
-              get = function() return db.profile.quest.autoClickFirstOptionMythicOnly end,
+              get = function() return db.profile.dialog.autoClickFirstOptionMythicOnly end,
               --- Apply the restriction without changing the parent automation setting.
               ---@param _ table AceConfig option info.
               ---@param value boolean
-              set = function(_, value) Self.Quest:SetOption("autoClickFirstOptionMythicOnly", value) end,
+              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionMythicOnly", value) end,
               order = 3.5
+            },
+            autoClickFirstOptionVendorOnly = {
+              name = "Only when Interacting with Vendor",
+              desc = "If talking to a vendor with no extra dialogue options, automatically open their vendor window.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              hidden = isRetail,
+              --- Disables the restriction when its parent automation is off.
+              ---@return boolean
+              disabled = function()
+                return not db.profile.dialog.enabled or not db.profile.dialog.autoClickFirstOption
+              end,
+              --- Reads the profile's vendor-only restriction.
+              ---@return boolean
+              get = function() return db.profile.dialog.autoClickFirstOptionVendorOnly end,
+              --- Applies the restriction without changing the parent automation setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionVendorOnly", value) end,
+              order = 3.6
             }
           }
         },
@@ -4111,9 +4134,9 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              disabled = function() return not db.profile.quest.enabled end,
-              get = function() return db.profile.quest.numberKeys end,
-              set = function(_, value) Self.Quest:SetOption("numberKeys", value) end,
+              disabled = function() return not db.profile.dialog.enabled end,
+              get = function() return db.profile.dialog.numberKeys end,
+              set = function(_, value) Self.Dialog:SetOption("numberKeys", value) end,
               order = 4
             },
             spacebar = {
@@ -4124,14 +4147,14 @@ options = {
               width = "full",
               --- Disables the control while its module is off.
               ---@return boolean
-              disabled = function() return not db.profile.quest.enabled end,
+              disabled = function() return not db.profile.dialog.enabled end,
               --- Reads the profile's Spacebar shortcut setting.
               ---@return boolean
-              get = function() return db.profile.quest.spacebar end,
+              get = function() return db.profile.dialog.spacebar end,
               --- Applies the Spacebar shortcut setting.
               ---@param _ table AceConfig option info.
               ---@param value boolean
-              set = function(_, value) Self.Quest:SetOption("spacebar", value) end,
+              set = function(_, value) Self.Dialog:SetOption("spacebar", value) end,
               order = 4.5
             }
           }
@@ -4142,14 +4165,14 @@ options = {
           type = "toggle",
           descStyle = "inline",
           width = "full",
-          hidden = function() return not Self.Quest:IsQuestItemButtonSupported() end,
-          disabled = function() return not db.profile.quest.enabled end,
-          get = function() return db.profile.quest.questItemButton end,
-          set = function(_, value) Self.Quest:SetOption("questItemButton", value) end,
+          hidden = function() return not Self.Dialog:IsQuestItemButtonSupported() end,
+          disabled = function() return not db.profile.dialog.enabled end,
+          get = function() return db.profile.dialog.questItemButton end,
+          set = function(_, value) Self.Dialog:SetOption("questItemButton", value) end,
           order = 5
         },
-        extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 5.1, questBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
-        extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 5.2, questBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
+        extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 5.1, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
+        extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 5.2, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
       }
     },
     bind = {

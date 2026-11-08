@@ -15,6 +15,7 @@ BINDING_NAME_SLACKHACKS_SWITCH_SPEC_4 = "Switch to Class Spec 4"
 BINDING_NAME_SLACKHACKS_BEST_HEALING_POTION = "Use Best Healing Potion"
 BINDING_NAME_SLACKHACKS_BEST_MANA_POTION = "Use Best Mana Potion"
 BINDING_NAME_SLACKHACKS_BEST_BANDAGE = "Use Best Bandage"
+-- Keep the original binding IDs so renaming the Dialog module does not erase saved shortcuts.
 BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT = "Toggle Auto-Accept Quests"
 BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE = "Toggle Auto-Complete Quests"
 BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION = "Toggle Auto-Click First Dialog Option"

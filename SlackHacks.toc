@@ -30,7 +30,7 @@ Controls.lua
 Utilities.lua
 Graphics.lua
 MouseRing.lua
-Quest.lua
+Dialog.lua
 CharSheet.lua
 GuildieList.lua
 FriendsList.lua
