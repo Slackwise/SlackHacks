@@ -14,7 +14,8 @@ function CreateFrame() return {} end
 Enum = {}
 StaticPopupDialogs = {}
 assert(loadfile("Init.lua"))()
-assert(addon.CONFIG_VERSION == 13 and addon.CONFIG_VERSION_RELEASES[13] == 27)
+assert(addon.CONFIG_VERSION == 14 and addon.CONFIG_VERSION_RELEASES[13] == 27
+  and addon.CONFIG_VERSION_RELEASES[14] == 28)
 
 local legacy = { enabled = true, autoAccept = true, autoComplete = false,
   autoClickFirstOption = true, autoClickFirstOptionMythicOnly = true,
@@ -59,7 +60,7 @@ for version = 0, 12 do
   addon.db = { global = { configVersion = version }, profile = profile,
     profiles = { Default = profile } }
   addon.migrateConfig()
-  assert(addon.db.global.configVersion == 13)
+  assert(addon.db.global.configVersion == 14)
   assert(type(profile.dialog) == "table" and rawget(profile, "quest") == nil)
 end
 --- Keeps secure frame binding work inactive in this isolated automation test.

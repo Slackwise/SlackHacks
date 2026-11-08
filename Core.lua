@@ -64,8 +64,10 @@ local function setNameplateCastEventRegistration(shouldRegister)
   nameplateCastEventsRegistered = shouldRegister
 end
 
+--- Register cast events only while the Nameplates feature is enabled.
+---@return nil
 function updateNameplateCastEventRegistration()
-  local shouldRegister = db and db.profile and db.profile.combat and db.profile.combat.raiseCastingNameplates
+  local shouldRegister = db and db.profile and db.profile.nameplates and db.profile.nameplates.raiseCastingNameplates
   setNameplateCastEventRegistration(shouldRegister and true or false)
 end
 

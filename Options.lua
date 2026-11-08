@@ -120,7 +120,13 @@ dbDefaults = {
       questItemButton = false
     },
     combat = {
-      raiseCastingNameplates = false,
+      assistTankMacro = {
+        enabled = false,
+        macroName = "ASSIST_TANK",
+        macroCommands = "#showtooltip\n/assist [group,exists,nodead] TANK\n/startattack",
+        useCustomMacro = false,
+        addFocusAssist = false
+      },
       paladin = {
         trackHolyShockCharges = false,
         onlyInCombat = false,
@@ -129,6 +135,9 @@ dbDefaults = {
         x = 0,
         y = 0
       }
+    },
+    nameplates = {
+      raiseCastingNameplates = false
     },
     windows = {
       enabled = false, -- overall switch for the whole Windows module
@@ -321,17 +330,27 @@ WIP_MODULES = {
     end
   },
   {
-    key = "combat",
-    name = "Combat",
-    enableOptions = { { "raiseCastingNameplates" }, { "paladin", "trackHolyShockCharges" } },
+    key = "nameplates",
+    name = "Nameplates",
+    enableOptions = { { "raiseCastingNameplates" } },
+    --- Disable casting-nameplate changes and clear active tracking.
     disable = function()
-      if Self.db and Self.db.profile and Self.db.profile.combat then
-        Self.db.profile.combat.raiseCastingNameplates = false
-        if Self.db.profile.combat.paladin then
-          Self.db.profile.combat.paladin.trackHolyShockCharges = false
-        end
+      if Self.db and Self.db.profile and Self.db.profile.nameplates then
+        Self.db.profile.nameplates.raiseCastingNameplates = false
       end
       resetNameplateCastLift()
+      updateNameplateCastEventRegistration()
+    end
+  },
+  {
+    key = { "combat", "paladin" },
+    name = "Paladin",
+    enableOptions = { { "trackHolyShockCharges" } },
+    --- Disable the experimental Paladin tracker without affecting other Combat features.
+    disable = function()
+      if Self.db and Self.db.profile and Self.db.profile.combat then
+        Self.db.profile.combat.paladin.trackHolyShockCharges = false
+      end
       if Self.ChargeTracking and Self.ChargeTracking.Refresh then
         Self.ChargeTracking:Refresh()
       end
@@ -341,7 +360,6 @@ WIP_MODULES = {
 
 RETAIL_MODULES = {
   { key = "reminders", name = "Reminders" },
-  { key = { "combat", "paladin" }, name = "Paladin" },
   { key = "vendor", name = "Self Vendor" },
   { key = { "infoDisplay", "weeklies" }, name = "Weeklies" },
 }
@@ -450,7 +468,7 @@ local function applyEllesmereUIConfirmations()
   ---@param info table AceConfig option info.
   ---@param value boolean Requested enabled state.
   ---@return string|nil Applicable warnings, or nil when disabling.
-  options.args.combat.args.raiseCastingNameplates.confirm = function(info, value)
+  options.args.nameplates.args.raiseCastingNameplates.confirm = function(info, value)
     local wipWarning = confirmWIPEnable(info, value)
     local compatibilityWarning = confirmEllesmereUIEnable(info, value)
     if compatibilityWarning then return wipWarning .. "\n\n" .. compatibilityWarning end
@@ -2657,28 +2675,136 @@ options = {
     combat = {
       type = "group",
       name = "Combat",
-      desc = "Combat-related features.",
+      desc = "Combat and group-assistance features.",
       order = 11,
       args = {
-        overview = goldModuleOverview("Combat-related features and class-specific trackers."),
-        raiseCastingNameplates = {
-          name = "Raise Casting Nameplates",
-          desc = "Raise enemy nameplates while they are casting.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          get = function() return db.profile.combat.raiseCastingNameplates end,
-          set = function(_, value)
-            db.profile.combat.raiseCastingNameplates = value
-            updateNameplateCastEventRegistration()
-            resetNameplateCastLift()
+        overview = goldModuleOverview("Combat and group-assistance features."),
+        assistTankMacro = {
+          type = "group",
+          name = "Assist Tank Macro",
+          inline = true,
+          order = 1,
+          --- Read mode preferences or the current profile's editor values.
+          ---@param info table AceConfig option path.
+          ---@return boolean|string value
+          get = function(info)
+            local key = info[#info]
+            if key == "macroName" or key == "macroCommands" then
+              return Self.Combat:GetDraft(key)
+            end
+            return db.profile.combat.assistTankMacro[key]
           end,
-          order = 1
+          --- Validate text edits and apply valid changes and checkbox preferences immediately.
+          ---@param info table AceConfig option path.
+          ---@param value boolean|string Requested value.
+          set = function(info, value)
+            local key = info[#info]
+            if key == "macroName" or key == "macroCommands" then
+              Self.Combat:SetDraft(key, value)
+            else
+              Self.Combat:SetOption(key, value)
+            end
+          end,
+          args = {
+            description = {
+              type = "description",
+              name = "Automatically creates and updates a macro that will find the TANK in a group and '/assist' them. " ..
+                "Without a tank, Hunters and Warlocks assist their living pet; other classes attack their current target.",
+              order = 0
+            },
+            enabled = {
+              type = "toggle",
+              name = "Enable Assist Tank Macro",
+              width = "full",
+              order = 1
+            },
+            macroName = {
+              type = "input",
+              name = "Macro Name",
+              desc = "Character-specific macro name (1 to 16 characters). Defaults to ASSIST_TANK.",
+              width = "full",
+              order = 3
+            },
+            recreateMacroNow = {
+              type = "execute",
+              name = "Recreate Macro Now",
+              desc = "Create the macro if missing, or update it with the current settings. Updates during combat wait until combat ends.",
+              --- Require the feature to be enabled, independently of custom editing mode.
+              ---@return boolean disabled
+              disabled = function() return not db.profile.combat.assistTankMacro.enabled end,
+              --- Validate the current settings and recreate or update the character macro.
+              func = function() Self.Combat:SaveMacro() end,
+              order = 3.5
+            },
+            addFocusAssist = {
+              type = "toggle",
+              name = "Add Focus Assist",
+              desc = "If a focus is set, will '/assist' them instead of the tank.",
+              descStyle = "inline",
+              width = "full",
+              --- Custom mode controls its own commands, so the focus preference cannot be edited.
+              ---@return boolean disabled
+              disabled = function() return db.profile.combat.assistTankMacro.useCustomMacro end,
+              order = 2
+            },
+            customMacro = {
+              type = "group",
+              name = "Custom Macro",
+              inline = true,
+              order = 4,
+              args = {
+                useCustomMacro = {
+                  type = "toggle",
+                  name = "Use Custom Macro",
+                  desc = "Write your own macro instead of using the generated one you see below.",
+                  descStyle = "inline",
+                  width = "full",
+                  order = 1
+                },
+                macroCommands = {
+                  type = "input",
+                  name = "Macro Commands",
+                  desc = "Must contain the word 'TANK' which is replaced with the current tank's name.",
+                  multiline = 5,
+                  width = "full",
+                  --- Standard templates are displayed but cannot be edited.
+                  ---@return boolean disabled
+                  disabled = function() return not db.profile.combat.assistTankMacro.useCustomMacro end,
+                  order = 2
+                },
+                resetCommands = {
+                  type = "execute",
+                  name = "Reset Commands",
+                  desc = "Restore and apply the standard commands for the focus preference.",
+                  --- Only allow resetting commands while the custom editor is editable.
+                  ---@return boolean disabled
+                  disabled = function() return not db.profile.combat.assistTankMacro.useCustomMacro end,
+                  --- Restore the editor's default template.
+                  func = function() Self.Combat:ResetCommands() end,
+                  order = 3
+                },
+                saveMacro = {
+                  type = "execute",
+                  name = "Save Macro",
+                  desc = "Save the macro immediately.",
+                  --- Only allow saving edits while the custom editor is editable.
+                  ---@return boolean disabled
+                  disabled = function() return not db.profile.combat.assistTankMacro.useCustomMacro end,
+                  --- Validate and save the staged macro configuration.
+                  func = function() Self.Combat:SaveMacro() end,
+                  order = 4
+                }
+              }
+            }
+          }
         },
         paladin = {
           type = "group",
           name = "Paladin",
-          desc = "Combat features specific to Paladins.",
+          desc = "Class-specific Paladin tracker.",
+          --- Keep the Retail-only experiment visible solely to its tester.
+          ---@return boolean hidden
+          hidden = function() return not isSlackwise() or not isRetail() end,
           order = 2,
           args = {
             overview = goldModuleOverview("Track Holy Shock charges and position the tracker in Edit Mode."),
@@ -2689,6 +2815,9 @@ options = {
               descStyle = "inline",
               width = "full",
               get = function() return db.profile.combat.paladin.trackHolyShockCharges end,
+              --- Apply the Holy Shock tracking setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Enabled state.
               set = function(_, value)
                 db.profile.combat.paladin.trackHolyShockCharges = value
                 Self.ChargeTracking:Refresh()
@@ -2702,6 +2831,9 @@ options = {
               descStyle = "inline",
               width = "full",
               get = function() return db.profile.combat.paladin.onlyInCombat end,
+              --- Apply the tracker's combat-only visibility setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean Combat-only state.
               set = function(_, value)
                 db.profile.combat.paladin.onlyInCombat = value
                 Self.ChargeTracking:Refresh()
@@ -2726,6 +2858,34 @@ options = {
               order = 3
             }
           }
+        }
+      }
+    },
+    nameplates = {
+      type = "group",
+      name = "Nameplates",
+      desc = "Nameplate features.",
+      order = 11.5,
+      args = {
+        overview = goldModuleOverview("Improve visibility of casting enemy nameplates."),
+        raiseCastingNameplates = {
+          name = "Raise Casting Nameplates",
+          desc = "Raise enemy nameplates while they are casting.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Read the casting-nameplate preference.
+          ---@return boolean enabled
+          get = function() return db.profile.nameplates.raiseCastingNameplates end,
+          --- Apply the casting-nameplate setting and clear old tracking state.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Enabled state.
+          set = function(_, value)
+            db.profile.nameplates.raiseCastingNameplates = value
+            updateNameplateCastEventRegistration()
+            resetNameplateCastLift()
+          end,
+          order = 1
         }
       }
     },

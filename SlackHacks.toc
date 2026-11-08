@@ -18,6 +18,7 @@ StaticData.lua
 SelfVendor.lua
 Nameplates.lua
 ChargeTracking.lua
+Combat.lua
 Bindings.lua
 Reminders.lua
 Reminders_Buffs.lua
