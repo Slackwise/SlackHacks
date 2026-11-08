@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 12
+CONFIG_VERSION = 13
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -37,6 +37,7 @@ CONFIG_VERSION_RELEASES = {
   [10] = 17,
   [11] = 22,
   [12] = 26,
+  [13] = 27,
 }
 
 function getAddonVersion()
@@ -589,6 +590,39 @@ CONFIG_MIGRATIONS = {
       end
       global.interactableNodeHighlightsSavedCVars = nil
       global.lootSparklesSavedCVars = nil
+    end
+  end,
+  -- Config v13, ships in addon v27.
+  --- Renames Quest settings to Dialog in every profile, preserving legacy user choices.
+  [13] = function()
+    --- Moves legacy settings over the new defaults AceDB materializes in the active profile.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      local legacy = rawget(p, "quest")
+      local dialog = rawget(p, "dialog")
+      if type(dialog) ~= "table" then
+        dialog = {}
+        p.dialog = dialog
+      end
+      if type(legacy) == "table" then
+        for key, value in pairs(legacy) do
+          dialog[key] = value
+        end
+      end
+      if rawget(dialog, "autoClickFirstOptionVendorOnly") == nil then
+        dialog.autoClickFirstOptionVendorOnly = false
+      end
+      p.quest = nil
+    end
+
+    local migrated = {}
+    for _, p in pairs(Self.db.profiles or {}) do
+      migrateProfile(p)
+      migrated[p] = true
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
     end
   end,
 }

@@ -1,9 +1,10 @@
--- Run with Lua 5.1 from the addon root: lua tests/quest_extra_action_binding.lua
+-- Run with Lua 5.1 from the addon root: lua tests/dialog_extra_action_binding.lua
 
 local module = {}
 SlackHacks = setmetatable({ Self = {} }, { __index = _G })
+SlackHacks.Self.Dialog = module
 
---- Return the mocked addon module when Quest.lua loads.
+--- Return the mocked addon module when Dialog.lua loads.
 ---@return table
 function SlackHacks.Self:NewModule() return module end
 
@@ -54,7 +55,7 @@ function SaveBindings(set) saves[#saves + 1] = set end
 function SlackHacks.prn(message) messages[#messages + 1] = message end
 
 assert(loadfile("Bindings.lua"))()
-assert(loadfile("Quest.lua"))
+assert(loadfile("Dialog.lua"))
 
 local EXTRA = "EXTRAACTIONBUTTON1"
 --- Read an Extra Action key through the shared binding helper.
@@ -124,7 +125,7 @@ setExtra(1, "F11")
 assert(GetBindingAction(old) == EXTRA and GetBindingAction("F11") == "JUMP" and #saves == savedCount)
 assert(#messages == 3)
 
--- Load the real options table and exercise the two controls in their Quest group.
+-- Load the real options table and exercise the two controls in their Dialog group.
 failedKey = nil
 --- Return a version string for the options title.
 ---@return string
@@ -137,30 +138,56 @@ for index = 1, 6 do
   SlackHacks.SELF_VENDOR_MODES[index] = { key = "mode" .. index, name = "Mode", description = "Mode" }
 end
 SlackHacks.Self.Talents = { MAX_SPECS = 0 }
-SlackHacks.db = { profile = { quest = { enabled = true, questItemButton = false } } }
+SlackHacks.db = { profile = { dialog = { enabled = true, questItemButton = false } } }
+local retail, forever = false, true
+--- Reports the mocked Retail client.
+---@return boolean
+function SlackHacks.isRetail() return retail end
+--- Reports the mocked Forever client.
+---@return boolean
+function SlackHacks.isForever() return forever end
 local supported = true
 --- Report whether the mocked client supports the quest item button.
 ---@return boolean
 function module:IsQuestItemButtonSupported() return supported end
 assert(loadfile("Options.lua"))()
-local args = SlackHacks.options.args.quest.args
+local args = SlackHacks.options.args.dialog.args
+assert(SlackHacks.options.args.dialog.name == "Dialog" and SlackHacks.options.args.quest == nil)
+local mythic = args.autoClickGroup.args.autoClickFirstOptionMythicOnly
+local vendor = args.autoClickGroup.args.autoClickFirstOptionVendorOnly
+assert(vendor.name == "Only when Interacting with Vendor")
+assert(vendor.desc == "If talking to a vendor with no extra dialogue options, automatically open their vendor window.")
+assert(vendor.order > mythic.order and mythic.hidden() and not vendor.hidden())
+retail, forever = true, false
+assert(not mythic.hidden() and vendor.hidden())
+assert(vendor.disabled())
+SlackHacks.db.profile.dialog.autoClickFirstOption = true
+assert(not vendor.disabled())
+--- Applies options without invoking unrelated secure UI lifecycle work.
+---@param key string Setting name.
+---@param value boolean Setting value.
+function module:SetOption(key, value) SlackHacks.db.profile.dialog[key] = value end
+vendor.set({}, true)
+assert(vendor.get())
+assert(SlackHacks.dbDefaults.profile.dialog.autoClickFirstOptionVendorOnly == false)
+assert(SlackHacks.dbDefaults.profile.quest == nil)
 local keybindings = SlackHacks.options.args.controls.args.keybindings
 local bindingArgs = keybindings.args
 local questExtraAction = args.extraActionKey1
 local questAutoAccept = args.autoAcceptKey1
-local first, second = bindingArgs.questNpcBinding5Key1, bindingArgs.questNpcBinding5Key2
+local first, second = bindingArgs.dialogBinding5Key1, bindingArgs.dialogBinding5Key2
 assert(questExtraAction.type == "keybinding" and questAutoAccept.type == "keybinding")
 assert(first.type == "keybinding" and second.type == "keybinding")
 assert(first.hidden == nil and second.hidden == nil)
 assert(not first.disabled() and first.get() == extraKey(1))
-SlackHacks.db.profile.quest.questItemButton = true
+SlackHacks.db.profile.dialog.questItemButton = true
 assert(first.hidden == nil and second.hidden == nil and not first.disabled())
 supported = false
 assert(first.hidden == nil and second.hidden == nil)
 supported = true
-SlackHacks.db.profile.quest.enabled = false
+SlackHacks.db.profile.dialog.enabled = false
 assert(first.disabled())
-SlackHacks.db.profile.quest.enabled = true
+SlackHacks.db.profile.dialog.enabled = true
 combat = true
 assert(second.disabled())
 combat = false
@@ -174,9 +201,9 @@ assert(GetBindingAction("F12") == EXTRA)
 questExtraAction.set({}, "CTRL-F12")
 assert(GetBindingAction("CTRL-F12") == EXTRA)
 
-local toggle = bindingArgs.questNpcBinding2Key1
+local toggle = bindingArgs.dialogBinding2Key1
 local toggleAction = "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT"
-SlackHacks.db.profile.quest.enabled = false
+SlackHacks.db.profile.dialog.enabled = false
 assert(not toggle.disabled())
 toggle.set({}, "CTRL-Q")
 assert(GetBindingAction("CTRL-Q") == toggleAction and toggle.get() == "CTRL-Q")
@@ -191,14 +218,14 @@ assert(args.dialogKeybindingsGroup.args.numberKeys.type == "toggle")
 assert(bindingArgs.convenienceHeader.type == "header")
 assert(bindingArgs.specializationHeader.type == "header")
 assert(bindingArgs.bestUseItemsHeader.type == "header")
-assert(bindingArgs.questNpcHeader.type == "header")
+assert(bindingArgs.dialogHeader.type == "header")
 assert(bindingArgs.dialogKeybindingsHeader.type == "header")
 assert(bindingArgs.numberKeys.type == "toggle" and bindingArgs.spacebar.type == "toggle")
 
 assert(bindingArgs.convenienceBinding1Key1.type == "keybinding" and bindingArgs.convenienceBinding7Key2.type == "keybinding")
 assert(bindingArgs.specializationBinding1Key1.type == "keybinding" and bindingArgs.specializationBinding4Key2.type == "keybinding")
 assert(bindingArgs.bestUseItemsBinding1Key1.type == "keybinding" and bindingArgs.bestUseItemsBinding3Key2.type == "keybinding")
-assert(bindingArgs.questNpcBinding1Key1.type == "keybinding" and bindingArgs.questNpcBinding4Key2.type == "keybinding")
+assert(bindingArgs.dialogBinding1Key1.type == "keybinding" and bindingArgs.dialogBinding4Key2.type == "keybinding")
 assert(SlackHacks.options.args.utilities.args.bestUseItemBindings == nil)
 local convenienceActions = {
   "SLACKHACKS_RELOADUI", "SLACKHACKS_RESTART_SOUND", "SLACKHACKS_MOUNT", "SLACKHACKS_SETBINDINGS",
@@ -216,7 +243,7 @@ for _, group in ipairs({
   { "convenienceBinding", convenienceActions },
   { "specializationBinding", specializationActions },
   { "bestUseItemsBinding", bestActions },
-  { "questNpcBinding", questActions }
+  { "dialogBinding", questActions }
 }) do
   for index, action in ipairs(group[2]) do
     for slot = 1, 2 do

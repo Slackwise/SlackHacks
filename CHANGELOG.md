@@ -1,5 +1,13 @@
 # SlackHacks Changelog
 
+## v27
+
+### Dialog
+- Renamed the Quest / NPC module and its settings to Dialog, preserving existing profile settings.
+- Added "Only when Interacting with Vendor" below the Mythic restriction on non-Retail clients. Auto-clicks only the sole "I want to browse your goods." option when no quests are listed.
+- Hid the Mythic restriction on WoW Forever and the vendor restriction on Retail; hidden restrictions do not block auto-clicking.
+- Fixed vendor-only auto-clicking being blocked by forced service gossip. The exact vendor match still requires a sole option with no quests.
+
 ## v26
 
 ### Utilities

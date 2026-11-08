@@ -133,12 +133,13 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Mouse-Wheel Scaling:** Hold a designated modifier key (`None`, `Shift`, `Ctrl`, or `Alt`) and scroll over a title bar to scale the window (0.3x to 2.5x).
 * **Scale Memory:** Configurable persistence (Do Not Remember, In Session Only, or Remember Permanently).
 
-### Quest / NPC
+### Dialog
 * **Auto-Accept Quests:** Automatically accepts quests on interact.
 * **Auto-Complete Quests:** Automatically completes quests that have no choices in reward.
 * **NPC Dialog Auto-Click:**
   * **Auto-Click First Dialog Option:** Automatically clicks an NPC dialog's option if it's the only option and no quests are listed.
-  * **Only During Mythic Runs:** Optionally restricts auto-clicking to Mythic+ runs whose timer is running.
+  * **Only During Mythic Runs:** Optionally restricts auto-clicking to Mythic+ runs whose timer is running. Hidden on WoW Forever.
+  * **Only when Interacting with Vendor:** If talking to a vendor with no extra dialogue options, automatically open their vendor window, even when the NPC forces its gossip to display. Matches "I want to browse your goods." and is hidden on Retail.
 * **Dialog Keybindings:**
   * **Number Key Dialog Options:** Maps quest and NPC dialog selections to the number keys (1–9, 0), displaying each shortcut after the icon and before the selection text (e.g., "{Icon} 1. See my wares.").
   * **Spacebar to Accept/Complete Quest:** Independently enables Spacebar to accept, continue, or complete the current quest using Blizzard's normal buttons and confirmation prompts.
