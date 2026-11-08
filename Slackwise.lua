@@ -1054,6 +1054,17 @@ BINDINGS = {
       {"ALT-Z", "Insignia of the Alliance", "ITEM"}, -- PvP Trinket
     },
     DRUID = {
+      MACROS = {
+        { 
+          "*", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [form:1] Maul; [form:3] Claw; Wrath
+            /startattack 
+            /cast [form:1] Maul; [form:3] Claw; Wrath
+          ]])
+        },
+      },
+      {"E",             "*", BT.MACRO},
+      {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
       {"SHIFT-1",       "Healing Touch"},
       {"2",             "Wrath"},
