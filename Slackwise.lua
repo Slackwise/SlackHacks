@@ -52,11 +52,14 @@ SLACKWISE_CONFIG = {
   },
 }
 
---- Set game CVars to personal preferred values.
+--- Set personal CVars, enabling all supported combat text on non-Retail clients.
 function setSlackwiseCvars()
   if not isSlackwise() then return end
 
-  local enableRetail = bool2int(isRetail())
+  local retail = isRetail()
+  local enableRetail = bool2int(retail)
+  -- Lua treats 0 as truthy; negate the boolean before converting it to a CVar value.
+  local enableCombatText = bool2int(not retail)
 
   -- Logging:
   ensureCVar("advancedCombatLogging", 1) -- The checkbox "Advanced Combat Logging" in settings
@@ -68,13 +71,30 @@ function setSlackwiseCvars()
   ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
 
   -- Floating Combat Text:
-  ensureCVar("floatingCombatTextCombatLogPeriodicSpells", 1) -- Periodic Damage (DoTs)
-  ensureCVar("floatingCombatTextPetMeleeDamage", 1)          -- Pet Melee Damage
-  ensureCVar("floatingCombatTextPetSpellDamage", 1)          -- Pet Spell Damage
-  ensureCVar("floatingCombatTextCombatDamage",      not enableRetail)  -- Direct Damage (White/Yellow Hits)
-  ensureCVar("floatingCombatTextCombatDamage_v2",   not enableRetail)  -- Direct Damage (White/Yellow Hits) v2 ?
-  ensureCVar("floatingCombatTextCombatHealing",     not enableRetail)  -- All Healing
-  ensureCVar("floatingCombatTextCombatHealing_v2",  not enableRetail)  -- All Healing v2 ?
+  local combatTextCvars = {
+    floatingCombatTextCombatLogPeriodicSpells = 1,
+    floatingCombatTextPetMeleeDamage = 1,
+    floatingCombatTextPetSpellDamage = 1,
+    floatingCombatTextCombatDamage = enableCombatText,
+    floatingCombatTextCombatDamage_v2 = enableCombatText,
+    floatingCombatTextCombatHealing = enableCombatText,
+    floatingCombatTextCombatHealing_v2 = enableCombatText,
+  }
+  if not retail then
+    combatTextCvars.enableFloatingCombatText = 1
+    for _, category in ipairs({
+      "Auras", "CombatState", "ComboPoints", "DamageReduction", "DodgeParryMiss",
+      "EnergyGains", "FriendlyHealers", "HonorGains", "LowManaHealth",
+      "PeriodicEnergyGains", "Reactives", "RepChanges",
+    }) do
+      combatTextCvars["floatingCombatText" .. category] = 1
+      combatTextCvars["floatingCombatText" .. category .. "_v2"] = 1
+    end
+  end
+  for cvar, value in pairs(combatTextCvars) do
+    -- Classic and Forever expose different legacy/_v2 CVars; only set supported ones.
+    if GetCVar(cvar) ~= nil then ensureCVar(cvar, value) end
+  end
 end
 
 --- Merge personal configuration overrides from `SLACKWISE_CONFIG` into the addon DB.
