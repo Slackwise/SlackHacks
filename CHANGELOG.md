@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v28
+
+### Combat
+- Added an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet.
+
 ## v27
 
 ### Dialog

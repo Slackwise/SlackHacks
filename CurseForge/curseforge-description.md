@@ -156,11 +156,11 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Configuration:** Granular toggles for Flasks, Oils, Augment Runes, and Vantus Runes, with configurable rune stack counts and optional chat prefix enforcement.
 * **Combat Safe:** Vending pauses in combat; entering combat clears the queue, and new requests are only accepted out of combat.
 
-### Combat (**WIP!**)
-* **Raise Casting Nameplates:** Temporarily increases the frame level of enemy nameplates while casting so cast bars remain visible in overlapping packs.
+### Combat
+* **Assist Tank Macro:** Generates an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet.
 
-#### Paladin
-* **Holy Shock Tracker:** HUD element displaying Holy Shock charge count and recharge progress, with Edit Mode positioning and an in-combat-only display setting.
+### Nameplates (**WIP!**)
+* **Raise Casting Nameplates:** Draws casting enemy nameplates above overlapping nameplates so their cast bars remain visible.
 
 ---
 

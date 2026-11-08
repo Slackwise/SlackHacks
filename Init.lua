@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 13
+CONFIG_VERSION = 14
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -38,6 +38,7 @@ CONFIG_VERSION_RELEASES = {
   [11] = 22,
   [12] = 26,
   [13] = 27,
+  [14] = 28,
 }
 
 function getAddonVersion()
@@ -614,6 +615,30 @@ CONFIG_MIGRATIONS = {
         dialog.autoClickFirstOptionVendorOnly = false
       end
       p.quest = nil
+    end
+
+    local migrated = {}
+    for _, p in pairs(Self.db.profiles or {}) do
+      migrateProfile(p)
+      migrated[p] = true
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  -- Config v14, ships in addon v28.
+  --- Moves casting-nameplate settings into Nameplates, preserving every profile's saved choices.
+  [14] = function()
+    --- Move the saved casting preference over AceDB defaults, leaving Paladin and new Combat settings intact.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      local legacy = rawget(p, "combat")
+      if type(legacy) ~= "table" then return end
+      if type(p.nameplates) ~= "table" then p.nameplates = {} end
+      local value = rawget(legacy, "raiseCastingNameplates")
+      if value ~= nil then p.nameplates.raiseCastingNameplates = value end
+      legacy.raiseCastingNameplates = nil
     end
 
     local migrated = {}

@@ -78,6 +78,8 @@ local function createChargeTrackingFrame()
   container.count = count
 end
 
+--- Return the Combat module's saved Paladin tracker settings.
+---@return table settings
 local function getPaladinDb()
   if not db.profile.combat then db.profile.combat = {} end
   if not db.profile.combat.paladin then db.profile.combat.paladin = {} end
@@ -189,12 +191,15 @@ local function createSelection()
   return selection
 end
 
+--- Check whether the tester-only tracker should be shown in the current combat state.
+---@param inCombat boolean|nil Explicit combat state, or nil to query it.
+---@return boolean enabled
 local function shouldTrack(inCombat)
   if inCombat == nil then
     inCombat = InCombatLockdown()
   end
   local p = getPaladinDb()
-  return isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and p.trackHolyShockCharges and (not p.onlyInCombat or inCombat)
+  return isSlackwise() and isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and p.trackHolyShockCharges and (not p.onlyInCombat or inCombat)
 end
 
 local function enterEditMode()
@@ -295,12 +300,15 @@ function module:OnHolyShockCast(_, unitTarget, _, spellID)
   self:RefreshDisplay()
 end
 
+--- Show the tester's enabled tracker or Edit Mode preview, hiding it for other users.
+---@param inCombat boolean|nil Explicit combat state, or nil to query it.
+---@return nil
 local function updateVisibility(inCombat)
   if not container then return end
 
   if isEditing then
     local p = getPaladinDb()
-    local isHolyPaladin = isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and p.trackHolyShockCharges
+    local isHolyPaladin = isSlackwise() and isRetail() and getClassName() == "PALADIN" and getSpecName() == "HOLY" and p.trackHolyShockCharges
     if isHolyPaladin then
       updatePosition()
       container:Show()
@@ -410,5 +418,3 @@ function module:OnDisable()
   end
   if container then container:Hide() end
 end
-
-

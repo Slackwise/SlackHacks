@@ -220,7 +220,7 @@ end
 ---@param unitTarget string - Unit token whose nameplate was added.
 ---@return nil
 function handleNameplateAdded(addonSelf, eventName, unitTarget)
-	if not db.profile.combat.raiseCastingNameplates or next(activeCasters) == nil then
+	if not db.profile.nameplates.raiseCastingNameplates or next(activeCasters) == nil then
 		return
 	end
 
@@ -241,7 +241,7 @@ end
 ---@param unitTarget string - Unit token that started or updated a cast.
 ---@return nil
 function handleCasts(addonSelf, eventName, unitTarget)
-	if not db.profile.combat.raiseCastingNameplates then
+	if not db.profile.nameplates.raiseCastingNameplates then
 		return
 	end
 
@@ -260,4 +260,3 @@ end
 function handleCastStops(addonSelf, eventName, unitTarget)
 	stopTrackingCastingNameplate(unitTarget)
 end
-
