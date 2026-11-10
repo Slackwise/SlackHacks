@@ -1062,6 +1062,27 @@ BINDINGS = {
             /cast [form:1] Maul; [form:3] Claw; Wrath
           ]])
         },
+        { 
+          "BEAR", "Ability_Racial_BearForm", multilineTrim([[
+            #showtooltip Bear Form
+            /cast [noform:1] Bear Form
+            /equipset [form:1] MeleeWeapon
+          ]])
+        },
+        { 
+          "NOFORM", "Classicon_druid", multilineTrim([[
+            #showtooltip Moonkin Form
+            /cancelform
+            /equipset CasterWeapon
+          ]])
+        },
+        { 
+          "BASH", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Bash
+            /cast [noform:1] Bear Form
+            /cast Bash
+          ]])
+        },
       },
       --Click-Casting
       {"BUTTON1",                 "Healing Touch", BT.CLICKCAST},
@@ -1075,7 +1096,7 @@ BINDINGS = {
       -- {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
       -- {"BUTTON5",                 "Purify",     BT.CLICKCAST},
 
-      {"E",             "*", BT.MACRO},
+      {"SHIFT-E",       "*", BT.MACRO},
       {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
       {"2",             "Healing Touch"},
@@ -1084,8 +1105,8 @@ BINDINGS = {
       {"T",             "Growl"},
       {"SHIFT-T",       "Demoralizing Roar"},
       {"F",             "Entangling Roots"},
-      {"V",             {"BEAR", "Ability_Racial_BearForm", "/cast [form:1] Frenzied Regeneration; Bear Form"}},
-      {"B",             {"NOFORM", "Classicon_druid", "/cancelform"}},
+      {"V",             "BEAR", BT.MACRO},
+      {"B",             "NOFORM", BT.MACRO},
       {"CTRL-F",        "Nature's Grasp"},
       {"SHIFT-Z",       "Shadowmeld"},
       {"CTRL-Z",        "Shadowmeld"},
@@ -1096,6 +1117,7 @@ BINDINGS = {
     },
     HUNTER = {
       {"1",             "Serpent Sting"},
+      {"4",             "Arcane Shot"},
       {"SHIFT-E",       "Wing Clip"},
       {"CTRL-E",        "Raptor Strike"},
       -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
