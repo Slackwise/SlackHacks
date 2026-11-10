@@ -109,17 +109,21 @@ local function applyAttackTooltip(commands)
       usesWand = itemClass == 2 and itemSubclass == 19
     end
   end
-  local spellID = usesWand and 5019 or (class == "HUNTER" and 75 or 6603)
   local name
-  if C_Spell and C_Spell.GetSpellName then
-    name = C_Spell.GetSpellName(spellID)
-  elseif GetSpellInfo then
-    name = GetSpellInfo(spellID)
+  if class == "HUNTER" then
+    name = "Auto Shot"
+  else
+    local spellID = usesWand and 5019 or 6603
+    if C_Spell and C_Spell.GetSpellName then
+      name = C_Spell.GetSpellName(spellID)
+    elseif GetSpellInfo then
+      name = GetSpellInfo(spellID)
+    end
+    -- Some clients do not expose unlearned ranged spells; the requested English names remain usable there.
+    name = name or (usesWand and "Shoot" or "Attack")
   end
-  -- Some clients do not expose unlearned ranged spells; the requested English names remain usable there.
-  name = name or (usesWand and "Shoot" or (class == "HUNTER" and "Auto Shot" or "Attack"))
-  local body = ("\n" .. commands):gsub("\n#showtooltip[ \t]*\r?\n", "\n#showtooltip " .. name .. "\n")
-  body = body:gsub("\n#showtooltip[ \t]*$", "\n#showtooltip " .. name)
+  local body = ("\n" .. commands):gsub("\n#showtooltip[ \t]*\r?\n", "\n#showtooltip" .. (name and (" " .. name) or "") .. "\n")
+  body = body:gsub("\n#showtooltip[ \t]*$", "\n#showtooltip" .. (name and (" " .. name) or ""))
   if usesWand then
     -- !Shoot starts wand auto-fire without toggling it off when the assist key is pressed again.
     body = body:gsub("\n/startattack[ \t]*\r?\n", "\n/cast !" .. name .. "\n")

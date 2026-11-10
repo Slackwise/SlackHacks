@@ -60,8 +60,16 @@ function addon.getClassName() return playerClass end
 ---@param commands string Template.
 ---@return string commands
 local function render(commands)
-  local name = playerClass == "MAGE" and "Shoot" or (playerClass == "HUNTER" and "Auto Shot" or "Attack")
-  return (commands:gsub("#showtooltip\n", "#showtooltip " .. name .. "\n"))
+  local name
+  if playerClass == "MAGE" then
+    name = "Shoot"
+  elseif playerClass == "HUNTER" then
+    name = "Auto Shot"
+  else
+    name = "Attack"
+  end
+  local tooltip = name and (" " .. name) or ""
+  return (commands:gsub("#showtooltip\n", "#showtooltip" .. tooltip .. "\n"))
 end
 local p = { enabled = false, macroName = "ASSIST_TANK", macroCommands = DEFAULT,
   useCustomMacro = false, addFocusAssist = false }
