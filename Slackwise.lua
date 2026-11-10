@@ -1096,8 +1096,9 @@ BINDINGS = {
     },
     HUNTER = {
       {"1",             "Serpent Sting"},
-      {"E",             "Raptor Strike"},
-      {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
+      {"SHIFT-E",       "Wing Clip"},
+      {"CTRL-E",        "Raptor Strike"},
+      -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
       {"T",             "Aspect of the Monkey"},
       {"CTRL-G",        "Elune's Light"},
       {"SHIFT-Z",       "Shadowmeld"},
