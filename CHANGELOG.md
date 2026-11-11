@@ -1,5 +1,11 @@
 # SlackHacks Changelog
 
+## v29
+
+### Combat
+- Tank Assist: fixed macro
+- Assist Tank: no longer explicitly injects Auto Shot.
+
 ## v28
 
 ### Combat

@@ -14,6 +14,11 @@ function CreateFrame() return {} end
 Enum, StaticPopupDialogs = {}, {}
 assert(loadfile("Init.lua"))()
 
+local foreverClient = false
+--- Report whether the test is simulating WoW Forever.
+---@return boolean forever
+function addon.isForever() return foreverClient end
+
 --- Copy a plain saved configuration for independent test cases.
 ---@param value any Original value.
 ---@return any copy
@@ -50,8 +55,8 @@ for version = 0, 13 do
   assert(active.nameplates.raiseCastingNameplates and other.nameplates.raiseCastingNameplates == false)
 end
 
-local DEFAULT = "#showtooltip\n/assist [group,exists,nodead] TANK\n/startattack"
-local FOCUS = "#showtooltip\n/assist [@focus,help,nodead] focus; [group,exists,nodead] TANK\n/startattack"
+local DEFAULT = "#showtooltip\n/assist [group] TANK\n/startattack"
+local FOCUS = "#showtooltip\n/assist [@focus,help,nodead] focus; [group] TANK\n/startattack"
 local playerClass = "WARRIOR"
 --- Report the class used to select the generated tooltip.
 ---@return string class
@@ -60,8 +65,23 @@ function addon.getClassName() return playerClass end
 ---@param commands string Template.
 ---@return string commands
 local function render(commands)
-  local name = playerClass == "MAGE" and "Shoot" or (playerClass == "HUNTER" and "Auto Shot" or "Attack")
-  return (commands:gsub("#showtooltip\n", "#showtooltip " .. name .. "\n"))
+  local name
+  if playerClass == "MAGE" then
+    name = "Shoot"
+  elseif playerClass == "HUNTER" then
+    name = "Auto Shot"
+  else
+    name = "Attack"
+  end
+  local tooltip = name and (" " .. name) or ""
+  return (commands:gsub("#showtooltip\n", "#showtooltip" .. tooltip .. "\n"))
+end
+--- Substitute a tank's name into a standard template.
+---@param commands string Macro template.
+---@param name string Tank name.
+---@return string body Expanded macro.
+local function renderTank(commands, name)
+  return (render(commands):gsub("TANK", function() return name end))
 end
 local p = { enabled = false, macroName = "ASSIST_TANK", macroCommands = DEFAULT,
   useCustomMacro = false, addFocusAssist = false }
@@ -217,11 +237,12 @@ grouped = true
 units = { { name = "Tank", role = "TANK" } }
 module:SetOption("enabled", true)
 assert(creates == 1 and macros[1].name == "ASSIST_TANK")
-assert(macros[1].body == render(DEFAULT):gsub("TANK", "Tank"))
+assert(macros[1].body == renderTank(DEFAULT, "Tank"))
 for _, class in ipairs({ "HUNTER", "WARLOCK" }) do
   playerClass = class
   module:Refresh()
-  assert(macros[1].body:find("/assist [group,exists,nodead] Tank", 1, true))
+  assert(macros[1].body:find("/assist [group] Tank", 1, true))
+  assert(not macros[1].body:find("[group,exists,nodead]", 1, true))
   assert(not macros[1].body:find("@pet", 1, true))
 end
 playerClass = "WARRIOR"
@@ -246,9 +267,16 @@ module:Refresh()
 assert(creates == 1 and edits == unchangedEdits)
 units[1] = { name = "Other", realm = "Other Realm", role = "TANK" }
 module[events.ROLE_CHANGED_INFORM](module)
-assert(macros[1].body == render(DEFAULT):gsub("TANK", "Other-OtherRealm") and edits == unchangedEdits + 1)
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm") and edits == unchangedEdits + 1)
+foreverClient = true
+module:Refresh()
+assert(macros[1].body == renderTank(DEFAULT, "Other Other Realm"))
+assert(messages[#messages] == "Assist Tank Macro recreated targeting: Other Other Realm")
+foreverClient = false
+module:Refresh()
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
 module:SetOption("addFocusAssist", true)
-assert(module:GetCommands() == FOCUS and macros[1].body == render(FOCUS):gsub("TANK", "Other-OtherRealm"))
+assert(module:GetCommands() == FOCUS and macros[1].body == renderTank(FOCUS, "Other-OtherRealm"))
 assert(messages[#messages] == "Assist Tank Macro recreated targeting: Other-OtherRealm")
 module:SetOption("useCustomMacro", true)
 module:SetDraft("macroCommands", "/assist TANK\n/target TANK")
@@ -278,8 +306,8 @@ assert(not module:SaveMacro() and macros[1].body == before and p.macroCommands:f
 module:SetDraft("macroCommands", "TANK" .. string.rep("x", 251))
 assert(not module:SaveMacro() and macros[1].body == before)
 module:ResetCommands()
-assert(module:GetDraft("macroCommands") == FOCUS and macros[1].body == render(FOCUS):gsub("TANK", "Other-OtherRealm"))
-assert(module:SaveMacro() and macros[1].body == render(FOCUS):gsub("TANK", "Other-OtherRealm"))
+assert(module:GetDraft("macroCommands") == FOCUS and macros[1].body == renderTank(FOCUS, "Other-OtherRealm"))
+assert(module:SaveMacro() and macros[1].body == renderTank(FOCUS, "Other-OtherRealm"))
 module:SetOption("useCustomMacro", false)
 
 -- Combat changes coalesce and resolve the latest tank, not a stale event's name.
@@ -297,7 +325,7 @@ combat = false
 module:PLAYER_REGEN_ENABLED()
 assert(macros[1].body == "/assist Latest-OtherRealm\n/startattack")
 module:SetOption("useCustomMacro", false)
-assert(macros[1].body == render(FOCUS):gsub("TANK", "Latest-OtherRealm"))
+assert(macros[1].body == renderTank(FOCUS, "Latest-OtherRealm"))
 combat = true
 units[1].name = "Disabled"
 module:Refresh()
@@ -320,16 +348,16 @@ grouped, raid = true, true
 units = { { player = true, name = "Self", role = "TANK" },
   { name = "Dps", role = "DAMAGER" }, { name = "RaidTank", role = "TANK" } }
 module:Refresh()
-assert(macros[1].body == render(FOCUS):gsub("TANK", "RaidTank"))
+assert(macros[1].body == renderTank(FOCUS, "RaidTank"))
 combat, grouped = true, false
 module:Refresh()
-assert(macros[1].body == render(FOCUS):gsub("TANK", "RaidTank"))
+assert(macros[1].body == renderTank(FOCUS, "RaidTank"))
 combat = false
 module:PLAYER_REGEN_ENABLED()
 assert(macros[1].body == "#showtooltip Attack\n/startattack")
 grouped = true
 module:Refresh()
-assert(macros[1].body == render(FOCUS):gsub("TANK", "RaidTank"))
+assert(macros[1].body == renderTank(FOCUS, "RaidTank"))
 units[3].role = "HEALER"
 before = macros[1].body
 assert(module:SaveMacro() and macros[1].body == "#showtooltip Attack\n/startattack")
@@ -345,7 +373,7 @@ module:SaveMacro()
 assert(#macros == 3 and messages[#messages]:find("No free", 1, true))
 module:SetDraft("macroName", "SECOND")
 units[3].name = "NewTank"
-assert(module:SaveMacro() and macros[2].body == render(FOCUS):gsub("TANK", "NewTank"))
+assert(module:SaveMacro() and macros[2].body == renderTank(FOCUS, "NewTank"))
 fail = true
 units[3].name = "ErrorTank"
 module:Refresh()
@@ -390,9 +418,6 @@ local retail, tester = true, true
 --- Report the test client.
 ---@return boolean retail
 function addon.isRetail() return retail end
---- Report the Forever client.
----@return boolean forever
-function addon.isForever() return false end
 --- Report the current tester gate.
 ---@return boolean tester
 function addon.isSlackwise() return tester end

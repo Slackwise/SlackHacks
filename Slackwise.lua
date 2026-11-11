@@ -1062,28 +1062,66 @@ BINDINGS = {
             /cast [form:1] Maul; [form:3] Claw; Wrath
           ]])
         },
+        { 
+          "BEAR", "Ability_Racial_BearForm", multilineTrim([[
+            #showtooltip Bear Form
+            /cast [noform:1] Bear Form
+            /equipset [form:1] MeleeWeapon
+          ]])
+        },
+        { 
+          "NOFORM", "Classicon_druid", multilineTrim([[
+            #showtooltip Moonkin Form
+            /cancelform
+            /equipset CasterWeapon
+          ]])
+        },
+        { 
+          "BASH", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Bash
+            /cast [noform:1] Bear Form
+            /cast Bash
+          ]])
+        },
       },
-      {"E",             "*", BT.MACRO},
+      --Click-Casting
+      {"BUTTON1",                 "Healing Touch", BT.CLICKCAST},
+      {"SHIFT-BUTTON1",           "Regrowth", BT.CLICKCAST},
+      -- {"ALT-CTRL-BUTTON1",        "Redemption", BT.CLICKCAST},
+      -- {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption", BT.CLICKCAST},
+      {"BUTTON2",                 "Rejuvenation", BT.CLICKCAST},
+      -- {"ALT-CTRL-BUTTON1",        "Lay on Hands", BT.CLICKCAST},
+      {"BUTTON4",                 "Thorns",  BT.CLICKCAST},
+      {"SHIFT-BUTTON4",           "Mark of the Wild",    BT.CLICKCAST},
+      -- {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
+      -- {"BUTTON5",                 "Purify",     BT.CLICKCAST},
+
+      {"SHIFT-E",       "*", BT.MACRO},
       {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
-      {"SHIFT-1",       "Healing Touch"},
-      {"2",             "Wrath"},
+      {"2",             "Healing Touch"},
       {"4",             "Moonfire"},
+      {"R",             "Wrath"},
       {"T",             "Growl"},
-      {"SHIFT-E",       "Maul"},
       {"SHIFT-T",       "Demoralizing Roar"},
-      {"F",             "Entangling Roots"},
-      {"V",             {"BEAR", "Ability_Racial_BearForm", "/cast [form:1] Frenzied Regeneration; Bear Form"}},
-      {"B",             {"NOFORM", "Classicon_druid", "/cancelform"}},
+      {"F",             "BASH", BT.MACRO},
+      {"SHIFT-F",       "Entangling Roots"},
       {"CTRL-F",        "Nature's Grasp"},
-      {"ALT-CTRL-Z",    "Shadowmeld"},
+      {"V",             "BEAR", BT.MACRO},
+      {"B",             "NOFORM", BT.MACRO},
+      {"SHIFT-Z",       "Shadowmeld"},
+      {"CTRL-Z",        "Shadowmeld"},
       {"CTRL-G",        "Elune's Light"},
       {"CTRL-H",        "Teleport: Moonglade"},
+      {"ALT-CTRL-Z",       "Rebirth"},
+      {"ALT-CTRL-SHIFT-Z", "Revive"},
     },
     HUNTER = {
       {"1",             "Serpent Sting"},
-      {"E",             "Raptor Strike"},
-      {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
+      {"4",             "Arcane Shot"},
+      {"SHIFT-E",       "Wing Clip"},
+      {"CTRL-E",        "Raptor Strike"},
+      -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
       {"T",             "Aspect of the Monkey"},
       {"CTRL-G",        "Elune's Light"},
       {"SHIFT-Z",       "Shadowmeld"},
