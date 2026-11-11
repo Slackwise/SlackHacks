@@ -123,7 +123,7 @@ dbDefaults = {
       assistTankMacro = {
         enabled = false,
         macroName = "ASSIST_TANK",
-        macroCommands = "#showtooltip\n/assist [group,exists,nodead] TANK\n/startattack",
+        macroCommands = "#showtooltip\n/assist [group] TANK\n/startattack",
         useCustomMacro = false,
         addFocusAssist = false
       },
@@ -2708,7 +2708,7 @@ options = {
           args = {
             description = {
               type = "description",
-              name = "Automatically creates and updates a macro that will find the TANK in a group and '/assist' them. " ..
+              name = "Automatically creates and updates a macro that will '/assist' the TANK by name. " ..
                 "Without a tank, Hunters and Warlocks assist their living pet; other classes attack their current target.",
               order = 0
             },

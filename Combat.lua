@@ -3,8 +3,8 @@ setfenv(1, _G.SlackHacks)
 local module = Self:NewModule("Combat", "AceEvent-3.0")
 Self.Combat = module
 
-local DEFAULT_COMMANDS = "#showtooltip\n/assist [group,exists,nodead] TANK\n/startattack"
-local FOCUS_COMMANDS = "#showtooltip\n/assist [@focus,help,nodead] focus; [group,exists,nodead] TANK\n/startattack"
+local DEFAULT_COMMANDS = "#showtooltip\n/assist [group] TANK\n/startattack"
+local FOCUS_COMMANDS = "#showtooltip\n/assist [@focus,help,nodead] focus; [group] TANK\n/startattack"
 local NO_TANK_COMMANDS = "#showtooltip\n/startattack"
 local PET_COMMANDS = "#showtooltip\n/assist [@pet,exists,nodead] pet\n/startattack"
 local MACRO_ICON = "inv_misc_questionmark"
@@ -67,7 +67,7 @@ function module:ResetCommands()
   self:SaveMacro(false)
 end
 
---- Find the first other group member assigned Tank, retaining realm names for cross-realm groups.
+--- Find the first other group member assigned Tank.
 ---@return string|nil name Tank name, or nil if no eligible tank is known.
 local function findTank()
   if not IsInGroup() then return nil end
@@ -81,7 +81,10 @@ local function findTank()
       local name, realm = UnitFullName(unit)
       if not (_G.issecretvalue and (_G.issecretvalue(name) or _G.issecretvalue(realm)))
         and name and name ~= "" then
-        return realm and realm ~= "" and (name .. "-" .. realm:gsub("%s", "")) or name
+        if realm and realm ~= "" then
+          return name .. (isForever() and (" " .. realm) or ("-" .. realm:gsub("%s", "")))
+        end
+        return name
       end
     end
   end
