@@ -1150,7 +1150,9 @@ BINDINGS = {
           "STOP!", "inv_misc_questionmark", multilineTrim([[
             /stopcasting
             /stopattack
-            /petpassive
+            /petstopattack
+            /petfollow [nomod]
+            /petpassive [mod:shift]
           ]])
         },
         { 
@@ -1194,22 +1196,59 @@ BINDINGS = {
             /cast [pet:Cat] !Prowl
           ]])
         },
+        { 
+          "HAWK", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Hawk
+            /cancelaura Aspect of the Cheetah
+            /cast Aspect of the Hawk
+          ]])
+        },
+        { 
+          "MONKEY", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Hawk
+            /cancelaura Aspect of the Cheetah
+            /cast Aspect of the Monkey
+          ]])
+        },
+        { 
+          "CHEETAH", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Cheetah
+            /cast Aspect of the Cheetah
+          ]])
+        },
+        { 
+          "BEAST", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Cheetah
+            /cast Aspect of the Beast
+          ]])
+        },
+        { 
+          "C", "inv_misc_questionmark", multilineTrim([[
+            /cast [mod:ctr] Freeze Trap; [mod:shift] Flame Trap; Flare
+          ]])
+        },
       },
       {"BUTTON4",       "MOUSE4", BT.MACRO},
       {"BUTTON5",       "PET_CURSOR", BT.MACRO},
       {"`",             "STOP!", BT.MACRO},
       {"1",             "Serpent Sting"},
-      {"2",             "Hunter's Mark"},
+      {"2",             "Aimed Shot"},
+      {"3",             "Multi-Shot"},
       {"4",             "Arcane Shot"},
-      {"SHIFT-E",       "Wing Clip"},
+      {"5",             "Hunter's Mark"},
+      {"SHIFT-5",       "HAWK", BT.MACRO},
+      {"E",             "Wing Clip"},
       {"CTRL-E",        "Raptor Strike"},
       -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},
       {"ALT-CTRL-Q",    "PET_TOGGLE", BT.MACRO},
-      {"T",             "Aspect of the Monkey"},
       {"F",             "Concussive Shot"},
       {"CTRL-G",        "Elune's Light"},
+      {"Z",             "CHEETAH", BT.MACRO},
+      {"C",             "C", BT.MACRO},
+      {"V",             "MONKEY", BT.MACRO},
+      {"B",             "MONKEY", BT.MACRO},
       {"SHIFT-Z",       "SHADOWMELD", BT.MACRO},
       {"ALT-CTRL-Z",    "SHADOWMELD", BT.MACRO},
     },
