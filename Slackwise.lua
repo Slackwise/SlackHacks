@@ -1141,16 +1141,77 @@ BINDINGS = {
       {"ALT-CTRL-SHIFT-Z", "Revive"},
     },
     HUNTER = {
+      MACROS = {
+        { 
+          "*", "inv_misc_questionmark", multilineTrim([[
+          ]])
+        },
+        { 
+          "STOP!", "inv_misc_questionmark", multilineTrim([[
+            /stopcasting
+            /stopattack
+            /petpassive
+          ]])
+        },
+        { 
+          "MOUSE4", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
+          ]])
+        },
+        { 
+          "PET_CONTROL", "inv_misc_questionmark", multilineTrim([[
+            /use [mod:alt,nopet] Call Pet;[mod:alt,pet] Mend Pet
+            /petattack [nomod,harm,nodead]
+            /petfollow [mod:shift,nomod:ctrl]
+          ]])
+        },
+        {
+          "PET_TOGGLE", "inv_misc_questionmark", multilineTrim([[
+            /use [@pet,dead] Revive Pet; [pet] Dismiss Pet; Revive Pet
+          ]])
+        },
+        {
+          "PET_MOVE", "inv_misc_questionmark", multilineTrim([[
+            /petmoveto [@cursor]
+          ]])
+        },
+        {
+          "PET_CURSOR", "inv_misc_questionmark", multilineTrim([[
+            /petattack [harm, @mouseover]
+          ]])
+        },
+        { 
+          "CHAINEAGLE", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Eagle Eye
+            /cast !Eagle Eye
+          ]])
+        },
+        { 
+          "SHADOWMELD", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /cast !Shadowmeld
+            /cast [pet:Cat] !Prowl
+          ]])
+        },
+      },
+      {"BUTTON4",       "MOUSE4", BT.MACRO},
+      {"BUTTON5",       "PET_CURSOR", BT.MACRO},
+      {"`",             "STOP!", BT.MACRO},
       {"1",             "Serpent Sting"},
       {"2",             "Hunter's Mark"},
       {"4",             "Arcane Shot"},
       {"SHIFT-E",       "Wing Clip"},
       {"CTRL-E",        "Raptor Strike"},
       -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
+      {"Q",             "PET_CONTROL", BT.MACRO},
+      {"CTRL-Q",        "PET_MOVE", BT.MACRO},
+      {"ALT-CTRL-Q",    "PET_TOGGLE", BT.MACRO},
       {"T",             "Aspect of the Monkey"},
+      {"F",             "Concussive Shot"},
       {"CTRL-G",        "Elune's Light"},
-      {"SHIFT-Z",       "Shadowmeld"},
-      {"ALT-CTRL-Z",    "Shadowmeld"},
+      {"SHIFT-Z",       "SHADOWMELD", BT.MACRO},
+      {"ALT-CTRL-Z",    "SHADOWMELD", BT.MACRO},
     },
     MAGE = {
       MACROS = {
