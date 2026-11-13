@@ -1083,25 +1083,49 @@ BINDINGS = {
             /cast Bash
           ]])
         },
+        { 
+          "SPENDER", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [form:1] Maul; [form:3] Ferocious Bite; Wrath
+            /startattack 
+            /cast [form:1] Maul; [form:3] Ferocious Bite; Wrath
+          ]])
+        },
+        { 
+          "R", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [form:1] Swipe; [form:3] Claw; Wrath
+            /startattack 
+            /cast [form:1] Swipe; [form:3] Ferocious Bite; Wrath
+          ]])
+        },
+        { 
+          "TRAVEL", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [swimming] Aquatic Form; Travel Form
+            /cast [swimming] Aquatic Form; Travel Form
+          ]])
+        },
       },
+
+      {"SHIFT-SPACE",             "TRAVEL", BT.MACRO},
+
       --Click-Casting
       {"BUTTON1",                 "Healing Touch", BT.CLICKCAST},
       {"SHIFT-BUTTON1",           "Regrowth", BT.CLICKCAST},
-      -- {"ALT-CTRL-BUTTON1",        "Redemption", BT.CLICKCAST},
-      -- {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption", BT.CLICKCAST},
+      {"ALT-CTRL-BUTTON1",        "Revive", BT.CLICKCAST},
+      {"ALT-CTRL-SHIFT-BUTTON1",  "Rebirth", BT.CLICKCAST},
       {"BUTTON2",                 "Rejuvenation", BT.CLICKCAST},
       -- {"ALT-CTRL-BUTTON1",        "Lay on Hands", BT.CLICKCAST},
       {"BUTTON4",                 "Thorns",  BT.CLICKCAST},
       {"SHIFT-BUTTON4",           "Mark of the Wild",    BT.CLICKCAST},
       -- {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
-      -- {"BUTTON5",                 "Purify",     BT.CLICKCAST},
+      {"BUTTON5",                 "Cure Poison",     BT.CLICKCAST},
 
-      {"SHIFT-E",       "*", BT.MACRO},
+      {"E",             "*", BT.MACRO},
       {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
       {"2",             "Healing Touch"},
       {"4",             "Moonfire"},
-      {"R",             "Wrath"},
+      {"Q",             "SPENDER", BT.MACRO},
+      {"R",             "R", BT.MACRO},
       {"T",             "Growl"},
       {"SHIFT-T",       "Demoralizing Roar"},
       {"F",             "BASH", BT.MACRO},
@@ -1118,6 +1142,7 @@ BINDINGS = {
     },
     HUNTER = {
       {"1",             "Serpent Sting"},
+      {"2",             "Hunter's Mark"},
       {"4",             "Arcane Shot"},
       {"SHIFT-E",       "Wing Clip"},
       {"CTRL-E",        "Raptor Strike"},
