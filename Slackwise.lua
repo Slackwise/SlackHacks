@@ -67,7 +67,7 @@ function setSlackwiseCvars()
 
   -- Nameplates:
   ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", enableRetail) -- Enable name-only nameplates for friendlies
-  ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
+  ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", enableRetail) -- Class-color friendly nameplates
   ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
 
   -- Floating Combat Text:
@@ -1237,10 +1237,10 @@ BINDINGS = {
       {"4",             "Arcane Shot"},
       {"5",             "Hunter's Mark"},
       {"SHIFT-5",       "HAWK", BT.MACRO},
-      {"E",             "Wing Clip"},
-      {"CTRL-E",        "Raptor Strike"},
+      {"R",             "Wing Clip"},
+      {"SHIFT-R",       "Raptor Strike"},
+      {"CTRL-R",        "Raptor Strike"},
       {"F7",            "CHAINEAGLE", BT.MACRO},
-      -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},
       {"ALT-CTRL-Q",    "PET_TOGGLE", BT.MACRO},
