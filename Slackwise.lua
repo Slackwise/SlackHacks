@@ -1251,7 +1251,7 @@ BINDINGS = {
       {"SHIFT-T",       "Scorpid Sting"},
       {"CTRL-T",        "Distracting Shot"},
       {"CTRL-SHIFT-T",  "Viper String"},
-      {"ALT-T",         {"FLARE", {"/cast [@player] Flare"}},
+      {"ALT-T",         {"FLARE", "/cast [@player] Flare"}},
       {"F",             "Concussive Shot"},
       {"CTRL-C",        "Scatter Shot"},
       {"CTRL-SHIFT-F",  "Scare Beast"},
