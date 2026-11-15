@@ -1205,7 +1205,7 @@ BINDINGS = {
         },
         { 
           "MONKEY", "inv_misc_questionmark", multilineTrim([[
-            #showtooltip Aspect of the Hawk
+            #showtooltip Aspect of the Monkey
             /cancelaura Aspect of the Cheetah
             /cast !Aspect of the Monkey
           ]])
@@ -1218,7 +1218,8 @@ BINDINGS = {
         },
         { 
           "BEAST", "inv_misc_questionmark", multilineTrim([[
-            #showtooltip Aspect of the Cheetah
+            /cancelaura Aspect of the Cheetah
+            #showtooltip Aspect of the Beast
             /cast !Aspect of the Beast
           ]])
         },
