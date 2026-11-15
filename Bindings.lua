@@ -226,7 +226,7 @@ GLOBAL_MACRO_SLOTS = 120 -- Slots 1-120 are general/account-wide macros; 121-150
 --- the general and per-character macro lists if it already exists in the wrong one for `perCharacter`.
 --- `GetMacroIndexByName` searches both lists, so an existing macro in either context is found and reused.
 ---@param name string - The macro's name.
----@param icon number - The macro's icon fileID.
+---@param icon number|string - The macro's icon fileID or texture name.
 ---@param body string - The macro's script/text contents.
 ---@param perCharacter boolean - Whether the macro should be per-character rather than general/account-wide.
 ---@return number - The macro's slot index.
@@ -474,8 +474,9 @@ end
 
 --- A binding entry is `{key, name, bindingType}`, where `bindingType` is optional and defaults to "SPELL",
 --- or to "MACRO" if `name` is a macro defined in a `MACROS` table.
---- If `name` is a table `{macroName, icon, body}` instead of a string, the binding is treated as a macro
---- (no `bindingType` needed): the macro is created/updated to match the definition, then bound to `key`.
+--- If `name` is a table `{macroName, icon, body}` or `{macroName, body}` instead of a string, the binding is
+--- treated as a macro (no `bindingType` needed). The two-field form uses the question mark icon.
+--- The macro is created/updated to match the definition, then bound to `key`.
 --- Click-cast bindings bind a mouse button `key` (e.g. "CTRL-BUTTON4") via the game's Click Casting feature
 --- (clicking on unit frames):
 ---   "CLICKCAST"      - `name` is a spell name, or an interaction name ("TARGET"/"CONTEXTMENU").
@@ -487,6 +488,9 @@ function setBinding(binding, perCharacter)
   local isClickCast = bindingType == BT.CLICKCAST or bindingType == BT.CLICKCASTMACRO
   if type(name) == "table" then
     local macroName, icon, body = unpack(name)
+    if #name == 2 then
+      icon, body = "inv_misc_questionmark", icon
+    end
     defineMacro(macroName, icon, body, perCharacter)
     namedMacros[macroName] = true
     if isClickCast then
