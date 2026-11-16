@@ -1374,13 +1374,15 @@ end
 ---@param order number Display order.
 ---@param unavailable function|nil Additional disabled predicate.
 ---@param detail string|nil Additional explanation for this action.
+---@param hidden function|nil Predicate for hiding this control.
 ---@return table option AceConfig keybinding option.
-local function bindingKeyOption(action, label, slot, order, unavailable, detail)
+local function bindingKeyOption(action, label, slot, order, unavailable, detail, hidden)
   return {
     name = label .. " - Key " .. slot,
     desc = (detail and detail .. " " or "") .. "Changes the game's saved binding. Press Escape while choosing a key to clear this slot. The game may reorder the remaining keys.",
     type = "keybinding",
     order = order,
+    hidden = hidden,
     --- Prevent changes while bindings are protected or the action is unavailable.
     ---@return boolean
     disabled = function() return not not (InCombatLockdown() or (unavailable and unavailable())) end,
@@ -1409,7 +1411,7 @@ end
 ---@param prefix string Unique option-key prefix for this section.
 ---@param name string Section heading.
 ---@param order number Section display order.
----@param actions table List of { command, label, unavailable, detail } entries.
+---@param actions table List of { command, label, unavailable, detail, hidden } entries.
 ---@param description string|nil Explanation shown below the heading.
 local function addBindingOptions(args, prefix, name, order, actions, description)
   args[prefix .. "Header"] = { type = "header", name = name, order = order }
@@ -1419,7 +1421,7 @@ local function addBindingOptions(args, prefix, name, order, actions, description
   for index, entry in ipairs(actions) do
     for slot = 1, 2 do
       args[prefix .. "Binding" .. index .. "Key" .. slot] = bindingKeyOption(
-        entry[1], entry[2], slot, order + index + slot / 10, entry[3], entry[4]
+        entry[1], entry[2], slot, order + index + slot / 10, entry[3], entry[4], entry.hidden
       )
     end
   end
@@ -1436,7 +1438,7 @@ addBindingOptions(keybindingOptions, "convenience", "Convenience", 1, {
   { "SLACKHACKS_RELOADUI", "Reload UI" },
   { "SLACKHACKS_RESTART_SOUND", "Restart Sound" },
   { "SLACKHACKS_MOUNT", "Mount" },
-  { "SLACKHACKS_SETBINDINGS", "Load Keybindings" },
+  { "SLACKHACKS_SETBINDINGS", "Load Keybindings", hidden = function() return not isSlackwise() end },
   { "SLACKHACKS_OPTIONS", "Open Options" },
   { "SLACKHACKS_QUICK_KEYBIND_MODE", "Open Quick Keybind Mode" },
   { "SLACKHACKS_CLICK_CASTING", "Open Click Casting" }

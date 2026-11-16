@@ -5,10 +5,10 @@
 -- Change implicit global scope to our addon "namespace":
 setfenv(1, _G.SlackHacks)
 
--- if not isSlackwise() then
---   -- Cancel loading the rest of the file:
---   return -- Does not impact loading subsequent files, though!
--- end
+if not isSlackwise() then
+  -- Cancel loading personal configs and binding presets for other users.
+  return -- Does not impact loading subsequent files, though!
+end
 
 SLACKWISE_CONFIG = {
   global = {
@@ -1005,7 +1005,7 @@ BINDINGS = {
       -- Main Attacks 
       {"Q",       "Judgement"},
       {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
-      {"CTRL-E",  "ENGAGE_ASSIST", BT.MACRO }, -- Holy Strike
+      {"CTRL-E",  {"SKULL", "/tm 8"}}, -- Holy Strike
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
       {"6",       "Exorcism"},

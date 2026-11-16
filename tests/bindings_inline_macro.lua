@@ -2,6 +2,11 @@
 
 SlackHacks = setmetatable({}, { __index = _G })
 local macros, bindings, profile = {}, {}, nil
+local isOwner = false
+
+--- Report whether this binding test is running as Slackwise.
+---@return boolean
+function SlackHacks.isSlackwise() return isOwner end
 
 --- Find a mocked macro by name.
 ---@param name string Macro name.
@@ -85,5 +90,14 @@ addon.setBinding({ "BUTTON1", { "CLICK", "/say click" }, addon.BT.CLICKCAST }, t
 addon.applyClickCastBindings()
 assert(macros[122].icon == "inv_misc_questionmark" and macros[122].body == "/say click")
 assert(#profile == 1 and profile[1].actionID == 122 and profile[1].button == "LeftButton")
+
+local previousBindings = {}
+for key, value in pairs(bindings) do previousBindings[key] = value end
+addon.setBindings()
+for key, value in pairs(bindings) do
+  assert(previousBindings[key] == value, "Non-owner setBindings call changed an existing binding")
+  previousBindings[key] = nil
+end
+assert(next(previousBindings) == nil, "Non-owner setBindings call cleared a binding")
 
 print("Inline macro binding tests passed.")

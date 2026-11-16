@@ -140,6 +140,10 @@ end
 SlackHacks.Self.Talents = { MAX_SPECS = 0 }
 SlackHacks.db = { profile = { dialog = { enabled = true, questItemButton = false } } }
 local retail, forever = false, true
+local isOwner = false
+--- Report whether the mocked user is Slackwise.
+---@return boolean
+function SlackHacks.isSlackwise() return isOwner end
 --- Reports the mocked Retail client.
 ---@return boolean
 function SlackHacks.isRetail() return retail end
@@ -175,6 +179,11 @@ local keybindings = SlackHacks.options.args.controls.args.keybindings
 local bindingArgs = keybindings.args
 local questExtraAction = args.extraActionKey1
 local questAutoAccept = args.autoAcceptKey1
+local personalBindings = bindingArgs.convenienceBinding4Key1
+assert(personalBindings.hidden())
+isOwner = true
+assert(not personalBindings.hidden())
+isOwner = false
 local first, second = bindingArgs.dialogBinding5Key1, bindingArgs.dialogBinding5Key2
 assert(questExtraAction.type == "keybinding" and questAutoAccept.type == "keybinding")
 assert(first.type == "keybinding" and second.type == "keybinding")
