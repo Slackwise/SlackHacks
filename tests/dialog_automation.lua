@@ -207,6 +207,10 @@ check(nil)
 shifted = false
 options[1].name = "I would like to check my deposit box"
 check(nil) -- The deposit box match is exact.
+options[1].name = "Train me."
+check(1) -- Trainers with a generic icon are recognized under forced gossip.
+options[1].name = "Train me"
+check(nil) -- The trainer match is exact.
 options[1].name = "Localized service text"
 options[2] = { gossipOptionID = 2, orderIndex = 2, name = "Tell me more." }
 check(nil)

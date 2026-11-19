@@ -298,6 +298,7 @@ local function isServiceGossipOption(option)
     or option.name == "I want to browse your goods."
     or option.name == "I need a ride."
     or option.name == "I would like to check my deposit box."
+    or option.name == "Train me."
   return not not (isService and (option.status == nil or option.status == 0)
     and not option.spellID and (not option.rewards or #option.rewards == 0))
 end
