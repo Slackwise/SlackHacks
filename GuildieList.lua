@@ -91,12 +91,14 @@ end
 
 --- Records each guild member's faction, race and Timerunning season, keyed by GUID. The legacy guild roster
 --- (GetGuildRosterInfo) has none of these, but cross-faction guilds made the guild a Communities club whose member
---- info does, so this reads it the way Blizzard's Communities member list does. None of these change, so results
---- are cached for the session and this only re-runs when an online member isn't cached yet (e.g. someone joined).
+--- info does. Results are cached for the session, and a refresh retries the lookup for uncached members.
 local function scanMemberClubInfo()
   local clubId = C_Club.GetGuildClubId()
   if not clubId then return end
-  for _, memberId in ipairs(C_Club.GetClubMembers(clubId) or {}) do
+  local memberIds = C_Club.GetClubMembers(clubId)
+  -- The whole list may be secret in restricted contexts, even when the legacy roster is still readable.
+  if (_G.issecretvalue and _G.issecretvalue(memberIds)) or not memberIds then return end
+  for _, memberId in ipairs(memberIds) do
     local info = C_Club.GetMemberInfo(clubId, memberId)
     -- GUIDs can be secret values in restricted (combat) contexts, and secret values can't be used as table keys.
     if info and info.guid and not (_G.issecretvalue and _G.issecretvalue(info.guid)) then
