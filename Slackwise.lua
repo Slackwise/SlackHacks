@@ -1159,15 +1159,24 @@ BINDINGS = {
         { 
           "ENGAGE", "inv_misc_questionmark", multilineTrim([[
             #showtooltip Hunter's Mark
-            /cast !Hunter's Mark
             /petattack
+            /cast !Hunter's Mark
+          ]])
+        },
+        { 
+          "ENGAGE_CURSOR", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Hunter's Mark
+            /target [@mouseover,harm,nodead]
+            /petattack
+            /startattack
+            /cast !Hunter's Mark
           ]])
         },
         { 
           "MOUSE4", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
             /petattack [nomod, harm, @mouseover]
-            /cast [mod:shift,@cursor] Volley; [@cursor] Flare
+            /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
           ]])
         },
         { 
@@ -1244,6 +1253,8 @@ BINDINGS = {
           ]])
         },
       },
+      {"SHIFT-BUTTON2", "PET_CURSOR", BT.MACRO},
+      {"CTRL-BUTTON2",  "ENGAGE_CURSOR", BT.MACRO},
       {"BUTTON4",       "MOUSE4", BT.MACRO},
       {"BUTTON5",       "MOUSE5", BT.MACRO},
       {"`",             "STOP!", BT.MACRO},
