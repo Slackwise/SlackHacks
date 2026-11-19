@@ -39,17 +39,17 @@ addon.CONFIG_MIGRATIONS[13]()
 assert(active.dialog.enabled and other.dialog.autoClickFirstOptionVendorOnly)
 
 -- A saved old value must beat a new default materialized in the active profile.
-other.dialog.autoClickFirstOptionServiceNPCOnly = false
+other.dialog.autoClickFirstOptionServicesOnly = false
 detached.dialog.autoClickFirstOptionVendorOnly = true
 addon.CONFIG_MIGRATIONS[15]()
-assert(active.dialog.autoClickFirstOptionServiceNPCOnly == false)
-assert(other.dialog.autoClickFirstOptionServiceNPCOnly == true)
-assert(detached.dialog.autoClickFirstOptionServiceNPCOnly == true)
+assert(active.dialog.autoClickFirstOptionServicesOnly == false)
+assert(other.dialog.autoClickFirstOptionServicesOnly == true)
+assert(detached.dialog.autoClickFirstOptionServicesOnly == true)
 assert(rawget(active.dialog, "autoClickFirstOptionVendorOnly") == nil)
 assert(rawget(other.dialog, "autoClickFirstOptionVendorOnly") == nil)
 assert(rawget(detached.dialog, "autoClickFirstOptionVendorOnly") == nil)
 addon.CONFIG_MIGRATIONS[15]()
-assert(other.dialog.autoClickFirstOptionServiceNPCOnly == true)
+assert(other.dialog.autoClickFirstOptionServicesOnly == true)
 
 local module = {}
 --- Supplies the renamed dialog module.
@@ -77,7 +77,7 @@ for version = 0, 14 do
   assert(addon.db.global.configVersion == 15)
   assert(type(profile.dialog) == "table" and rawget(profile, "quest") == nil)
   if version >= 13 then
-    assert(profile.dialog.autoClickFirstOptionServiceNPCOnly and rawget(profile.dialog, "autoClickFirstOptionVendorOnly") == nil)
+    assert(profile.dialog.autoClickFirstOptionServicesOnly and rawget(profile.dialog, "autoClickFirstOptionVendorOnly") == nil)
   end
 end
 --- Keeps secure frame binding work inactive in this isolated automation test.
@@ -134,7 +134,7 @@ C_GossipInfo = {
 assert(loadfile("Dialog.lua"))()
 assert(addon.Dialog == module and addon.Quest == nil)
 local s = { enabled = true, autoClickFirstOption = true,
-  autoClickFirstOptionServiceNPCOnly = true, autoClickFirstOptionMythicOnly = true }
+  autoClickFirstOptionServicesOnly = true, autoClickFirstOptionMythicOnly = true }
 addon.db = { profile = { dialog = s } }
 
 --- Opens the mocked dialog and checks whether it advanced.
@@ -160,9 +160,9 @@ check(nil, false) -- Forced gossip still cannot loop.
 shifted = true
 check(nil) -- Shift still suppresses the forced service shortcut.
 shifted = false
-s.autoClickFirstOptionServiceNPCOnly = false
+s.autoClickFirstOptionServicesOnly = false
 check(nil) -- General auto-clicking still respects forced gossip.
-s.autoClickFirstOptionServiceNPCOnly = true
+s.autoClickFirstOptionServicesOnly = true
 for _, icon in ipairs({ 132050, 132051, 132056, 132057, 132058, 528409, 1130518, 1673939 }) do
   options[1].icon = icon
   check(1) -- Recognized services work even when forced gossip is enabled.
@@ -221,9 +221,9 @@ options[1].name = "Tell me more."
 options[1].icon = 132053
 check(nil)
 forced = false
-s.autoClickFirstOptionServiceNPCOnly = false
+s.autoClickFirstOptionServicesOnly = false
 check(1)
-s.autoClickFirstOptionServiceNPCOnly = true
+s.autoClickFirstOptionServicesOnly = true
 retail, forever = true, false
 check(nil) -- Neither the Mythic countdown nor Service NPC mode allows generic chat.
 running = true
@@ -243,12 +243,12 @@ check(nil) -- Service NPC mode is honored on Retail.
 running = true
 check(nil) -- A running Mythic only overrides Service NPC mode when its option is on.
 running = false
-s.autoClickFirstOptionServiceNPCOnly = false
+s.autoClickFirstOptionServicesOnly = false
 check(1)
 s.autoClickFirstOptionMythicOnly = true
 check(nil) -- Mythic-only mode alone still waits for the run timer.
 s.autoClickFirstOptionMythicOnly = false
-s.autoClickFirstOptionServiceNPCOnly = true
+s.autoClickFirstOptionServicesOnly = true
 s.autoClickFirstOption = false
 check(nil)
 s.autoClickFirstOption = true

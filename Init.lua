@@ -652,7 +652,7 @@ CONFIG_MIGRATIONS = {
     end
   end,
   -- Config v15, ships in addon v30.
-  --- Renames the service NPC restriction in every saved profile.
+  --- Renames the vendor-only restriction to services-only in every saved profile.
   [15] = function()
     --- Moves the old saved value over any materialized AceDB default.
     ---@param p table|nil Saved profile.
@@ -662,7 +662,7 @@ CONFIG_MIGRATIONS = {
       if type(dialog) ~= "table" then return end
       local oldValue = rawget(dialog, "autoClickFirstOptionVendorOnly")
       if oldValue ~= nil then
-        dialog.autoClickFirstOptionServiceNPCOnly = oldValue
+        dialog.autoClickFirstOptionServicesOnly = oldValue
         dialog.autoClickFirstOptionVendorOnly = nil
       end
     end
