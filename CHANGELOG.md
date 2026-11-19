@@ -1,5 +1,20 @@
 # SlackHacks Changelog
 
+## v30
+
+### Dialog
+- Renamed the vendor-only auto-click restriction to Service NPC.
+- Service NPC auto-clicking also recognizes the "I need a ride.", "I would like to check my deposit box.", and "Train me." dialogs.
+- Fixed Auto-Click First Dialog Option clicking every NPC on Retail while Service NPC mode was on. The option is now available on all clients; with the Mythic restriction on, a running Mythic still allows any dialog.
+
+### Combat
+- Added "As Tank, Mark Skull Instead" (on by default): when you are the group's assigned tank, the Assist Tank Macro marks your target with a skull instead of assisting nobody.
+- Added an Assist Tank Macro keybinding,
+- The default Assist Tank Macro name is now `@TANK`.
+
+### Utilities
+- Added Show In-Game Navigation, which toggles the Retail in-world objective diamond (`showInGameNavigation` CVar).
+
 ## v29
 
 ### Combat

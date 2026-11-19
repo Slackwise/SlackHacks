@@ -5,10 +5,10 @@
 -- Change implicit global scope to our addon "namespace":
 setfenv(1, _G.SlackHacks)
 
--- if not isSlackwise() then
---   -- Cancel loading the rest of the file:
---   return -- Does not impact loading subsequent files, though!
--- end
+if not isSlackwise() then
+  -- Cancel loading personal configs and binding presets for other users.
+  return -- Does not impact loading subsequent files, though!
+end
 
 SLACKWISE_CONFIG = {
   global = {
@@ -67,7 +67,7 @@ function setSlackwiseCvars()
 
   -- Nameplates:
   ensureCVar("nameplateShowOnlyNameForFriendlyPlayerUnits", enableRetail) -- Enable name-only nameplates for friendlies
-  ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", 1) -- Class-color friendly nameplates
+  ensureCVar("nameplateUseClassColorForFriendlyPlayerUnitNames", enableRetail) -- Class-color friendly nameplates
   ensureCVar("nameplateSimplifiedScale", 0.5) -- Change scale of "Simplified" nameplates (for minor enemies)
 
   -- Floating Combat Text:
@@ -1005,7 +1005,7 @@ BINDINGS = {
       -- Main Attacks 
       {"Q",       "Judgement"},
       {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
-      {"CTRL-E",  "ENGAGE_ASSIST", BT.MACRO }, -- Holy Strike
+      {"CTRL-E",  {"SKULL", "/tm 8"}}, -- Holy Strike
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
       {"6",       "Exorcism"},
@@ -1083,25 +1083,50 @@ BINDINGS = {
             /cast Bash
           ]])
         },
+        { 
+          "SPENDER", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [form:1] Maul; [form:3] Ferocious Bite; Wrath
+            /startattack 
+            /cast [form:1] Maul; [form:3] Ferocious Bite; Wrath
+          ]])
+        },
+        { 
+          "R", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [form:1] Swipe; [form:3] Claw; Wrath
+            /startattack 
+            /cast [form:1] Swipe; [form:3] Ferocious Bite; Wrath
+          ]])
+        },
+        { 
+          "TRAVEL", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip [swimming] Aquatic Form; Travel Form
+            /cast [swimming] Aquatic Form; Travel Form
+          ]])
+        },
       },
+
+      {"SHIFT-SPACE",             "TRAVEL", BT.MACRO},
+
       --Click-Casting
       {"BUTTON1",                 "Healing Touch", BT.CLICKCAST},
       {"SHIFT-BUTTON1",           "Regrowth", BT.CLICKCAST},
-      -- {"ALT-CTRL-BUTTON1",        "Redemption", BT.CLICKCAST},
-      -- {"ALT-CTRL-SHIFT-BUTTON1",  "Redemption", BT.CLICKCAST},
+      {"ALT-CTRL-BUTTON1",        "Revive", BT.CLICKCAST},
+      {"ALT-CTRL-SHIFT-BUTTON1",  "Rebirth", BT.CLICKCAST},
       {"BUTTON2",                 "Rejuvenation", BT.CLICKCAST},
       -- {"ALT-CTRL-BUTTON1",        "Lay on Hands", BT.CLICKCAST},
       {"BUTTON4",                 "Thorns",  BT.CLICKCAST},
       {"SHIFT-BUTTON4",           "Mark of the Wild",    BT.CLICKCAST},
       -- {"CTRL-BUTTON4",            "Blessing of Protection", BT.CLICKCAST},
-      -- {"BUTTON5",                 "Purify",     BT.CLICKCAST},
+      {"BUTTON5",                 "Cure Poison",     BT.CLICKCAST},
 
-      {"SHIFT-E",       "*", BT.MACRO},
+      {"E",             "*", BT.MACRO},
       {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
       {"2",             "Healing Touch"},
       {"4",             "Moonfire"},
-      {"R",             "Wrath"},
+      {"5",             "Faerie Fire"},
+      {"Q",             "SPENDER", BT.MACRO},
+      {"R",             "R", BT.MACRO},
       {"T",             "Growl"},
       {"SHIFT-T",       "Demoralizing Roar"},
       {"F",             "BASH", BT.MACRO},
@@ -1117,15 +1142,134 @@ BINDINGS = {
       {"ALT-CTRL-SHIFT-Z", "Revive"},
     },
     HUNTER = {
+      MACROS = {
+        { 
+          "*", "inv_misc_questionmark", multilineTrim([[
+          ]])
+        },
+        { 
+          "STOP!", "inv_misc_questionmark", multilineTrim([[
+            /stopcasting
+            /stopattack
+            /petstopattack
+            /petfollow [nomod]
+            /petpassive [mod:shift]
+          ]])
+        },
+        { 
+          "MOUSE4", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
+          ]])
+        },
+        { 
+          "PET_CONTROL", "inv_misc_questionmark", multilineTrim([[
+            /use [mod:alt,nopet] Call Pet;[mod:alt,pet] Mend Pet
+            /petattack [nomod,harm,nodead]
+            /petfollow [mod:shift,nomod:ctrl]
+          ]])
+        },
+        {
+          "PET_TOGGLE", "inv_misc_questionmark", multilineTrim([[
+            /use [@pet,dead] Revive Pet; [pet] Dismiss Pet; Revive Pet
+          ]])
+        },
+        {
+          "PET_MOVE", "inv_misc_questionmark", multilineTrim([[
+            /petmoveto [@cursor]
+          ]])
+        },
+        {
+          "PET_CURSOR", "inv_misc_questionmark", multilineTrim([[
+            /petattack [harm, @mouseover]
+          ]])
+        },
+        { 
+          "CHAINEAGLE", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Eagle Eye
+            /cast !Eagle Eye
+          ]])
+        },
+        { 
+          "SHADOWMELD", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /cast !Shadowmeld
+            /cast [pet:Cat] !Prowl
+          ]])
+        },
+        { 
+          "HAWK", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Hawk
+            /cancelaura Aspect of the Cheetah
+            /cast !Aspect of the Hawk
+          ]])
+        },
+        { 
+          "MONKEY", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Monkey
+            /cancelaura Aspect of the Cheetah
+            /cast !Aspect of the Monkey
+          ]])
+        },
+        { 
+          "CHEETAH", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Aspect of the Cheetah
+            /cast !Aspect of the Cheetah
+          ]])
+        },
+        { 
+          "BEAST", "inv_misc_questionmark", multilineTrim([[
+            /cancelaura Aspect of the Cheetah
+            #showtooltip Aspect of the Beast
+            /cast !Aspect of the Beast
+          ]])
+        },
+        { 
+          "C", "inv_misc_questionmark", multilineTrim([[
+            /cast [mod:ctr] Freeze Trap; [mod:shift] Flame Trap; Flare
+          ]])
+        },
+      },
+      {"BUTTON4",       "MOUSE4", BT.MACRO},
+      {"BUTTON5",       "PET_CURSOR", BT.MACRO},
+      {"`",             "STOP!", BT.MACRO},
       {"1",             "Serpent Sting"},
+      {"2",             "Aimed Shot"},
+      {"SHIFT-2",       "Sniper Shot"},
+      {"3",             "Multi-Shot"},
+      {"SHIFT-3",       {"VOLLEY_TARGET", "/cast [@target] !Volley"}},
       {"4",             "Arcane Shot"},
-      {"SHIFT-E",       "Wing Clip"},
-      {"CTRL-E",        "Raptor Strike"},
-      -- {"R",             {"!RANGE", "inv_misc_questionmark", "#showtooltip Auto Shot\n/cast !Auto Shot"}},
-      {"T",             "Aspect of the Monkey"},
+      {"5",             "Hunter's Mark"},
+      {"F5",            "CHAINEAGLE", BT.MACRO},
+      {"Q",             "PET_CONTROL", BT.MACRO},
+      {"CTRL-Q",        "PET_MOVE", BT.MACRO},
+      {"ALT-CTRL-Q",    "PET_TOGGLE", BT.MACRO},
+      {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
+      {"R",             "Wing Clip"},
+      {"SHIFT-R",       "Raptor Strike"},
+      {"CTRL-R",        "Mongoose Bite"},
+      {"CTRL-SHIFT-R",  "Immolation Trap"},
+      {"ALT-R",         "BEAST", BT.MACRO},
+      {"T",             "HAWK", BT.MACRO},
+      {"SHIFT-T",       "Scorpid Sting"},
+      {"CTRL-T",        "Distracting Shot"},
+      {"CTRL-SHIFT-T",  "Viper String"},
+      {"ALT-T",         {"FLARE", "/cast [@player] Flare"}},
+      {"F",             "Concussive Shot"},
+      {"CTRL-C",        "Scatter Shot"},
+      {"CTRL-SHIFT-F",  "Scare Beast"},
+      {"G",             "Rapid Fire"},
       {"CTRL-G",        "Elune's Light"},
-      {"SHIFT-Z",       "Shadowmeld"},
-      {"ALT-CTRL-Z",    "Shadowmeld"},
+      {"Z",             "CHEETAH", BT.MACRO},
+      {"C",             "Frost Trap"},
+      {"SHIFT-C",       "Freezing Trap"},
+      {"CTRL-C",        "Freezing Trap"},
+      {"CTRL-SHIFT-C",  "Explosive Trap"},
+      {"ALT-CTRL-C",    {"VOLLEY_TARGET", "/cast [@player] !Volley"}},
+      {"V",             "MONKEY", BT.MACRO},
+      {"SHIFT-Z",       "Aspect of the Pack"},
+      {"CTRL-Z",        {"FEIGN", "/cast !Feign Death"}},
+      {"ALT-CTRL-Z",    "SHADOWMELD", BT.MACRO},
     },
     MAGE = {
       MACROS = {

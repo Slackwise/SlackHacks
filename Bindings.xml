@@ -50,4 +50,6 @@
   <Binding name="SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION" category="BINDING_HEADER_SLACKHACKS">
     SlackHacks.toggleAllDialogAutomation()
   </Binding>
+  <Binding name="SLACKHACKS_ASSIST_TANK" category="BINDING_HEADER_SLACKHACKS">
+  </Binding>
 </Bindings>

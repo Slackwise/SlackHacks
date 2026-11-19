@@ -114,7 +114,7 @@ dbDefaults = {
       autoComplete = false,
       autoClickFirstOption = false,
       autoClickFirstOptionMythicOnly = false,
-      autoClickFirstOptionVendorOnly = false,
+      autoClickFirstOptionServicesOnly = false,
       numberKeys = false,
       spacebar = false,
       questItemButton = false
@@ -122,10 +122,11 @@ dbDefaults = {
     combat = {
       assistTankMacro = {
         enabled = false,
-        macroName = "ASSIST_TANK",
+        macroName = "@TANK",
         macroCommands = "#showtooltip\n/assist [group] TANK\n/startattack",
         useCustomMacro = false,
-        addFocusAssist = false
+        addFocusAssist = true,
+        tankMarkSkull = true
       },
       paladin = {
         trackHolyShockCharges = false,
@@ -1374,13 +1375,15 @@ end
 ---@param order number Display order.
 ---@param unavailable function|nil Additional disabled predicate.
 ---@param detail string|nil Additional explanation for this action.
+---@param hidden function|nil Predicate for hiding this control.
 ---@return table option AceConfig keybinding option.
-local function bindingKeyOption(action, label, slot, order, unavailable, detail)
+local function bindingKeyOption(action, label, slot, order, unavailable, detail, hidden)
   return {
     name = label .. " - Key " .. slot,
     desc = (detail and detail .. " " or "") .. "Changes the game's saved binding. Press Escape while choosing a key to clear this slot. The game may reorder the remaining keys.",
     type = "keybinding",
     order = order,
+    hidden = hidden,
     --- Prevent changes while bindings are protected or the action is unavailable.
     ---@return boolean
     disabled = function() return not not (InCombatLockdown() or (unavailable and unavailable())) end,
@@ -1409,7 +1412,7 @@ end
 ---@param prefix string Unique option-key prefix for this section.
 ---@param name string Section heading.
 ---@param order number Section display order.
----@param actions table List of { command, label, unavailable, detail } entries.
+---@param actions table List of { command, label, unavailable, detail, hidden } entries.
 ---@param description string|nil Explanation shown below the heading.
 local function addBindingOptions(args, prefix, name, order, actions, description)
   args[prefix .. "Header"] = { type = "header", name = name, order = order }
@@ -1419,7 +1422,7 @@ local function addBindingOptions(args, prefix, name, order, actions, description
   for index, entry in ipairs(actions) do
     for slot = 1, 2 do
       args[prefix .. "Binding" .. index .. "Key" .. slot] = bindingKeyOption(
-        entry[1], entry[2], slot, order + index + slot / 10, entry[3], entry[4]
+        entry[1], entry[2], slot, order + index + slot / 10, entry[3], entry[4], entry.hidden
       )
     end
   end
@@ -1432,11 +1435,12 @@ local function dialogBindingUnavailable()
 end
 
 local keybindingOptions = {}
+local ASSIST_TANK_BINDING_DETAIL = "Runs the generated Assist Tank Macro once it is enabled."
 addBindingOptions(keybindingOptions, "convenience", "Convenience", 1, {
   { "SLACKHACKS_RELOADUI", "Reload UI" },
   { "SLACKHACKS_RESTART_SOUND", "Restart Sound" },
   { "SLACKHACKS_MOUNT", "Mount" },
-  { "SLACKHACKS_SETBINDINGS", "Load Keybindings" },
+  { "SLACKHACKS_SETBINDINGS", "Load Keybindings", hidden = function() return not isSlackwise() end },
   { "SLACKHACKS_OPTIONS", "Open Options" },
   { "SLACKHACKS_QUICK_KEYBIND_MODE", "Open Quick Keybind Mode" },
   { "SLACKHACKS_CLICK_CASTING", "Open Click Casting" }
@@ -1452,6 +1456,9 @@ addBindingOptions(keybindingOptions, "bestUseItems", "Best Use Items", 100, {
   { "SLACKHACKS_BEST_MANA_POTION", "Use Best Mana Potion" },
   { "SLACKHACKS_BEST_BANDAGE", "Use Best Bandage" }
 }, "Use the strongest matching item in your bags with these keys. Equal-strength items use the smallest stack first.")
+addBindingOptions(keybindingOptions, "combat", "Combat", 150, {
+  { "SLACKHACKS_ASSIST_TANK", "Assist Tank Macro", nil, ASSIST_TANK_BINDING_DETAIL }
+})
 addBindingOptions(keybindingOptions, "dialog", "Dialog", 200, {
   { "SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts" },
   { "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests" },
@@ -2500,6 +2507,24 @@ options = {
           end,
           order = 2
         },
+        showInGameNavigation = {
+          name = "Show In-Game Navigation",
+          desc = "Renders the Retail in-world diamond pointing where to go for objectives.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Hides the toggle on clients without the navigation CVar.
+          ---@return boolean hidden Whether the option should be hidden.
+          hidden = function() return not Self.Utilities:SupportsInGameNavigation() end,
+          --- Reads the client's in-world navigation CVar.
+          ---@return boolean shown Whether in-world navigation is shown.
+          get = function() return Self.Utilities:IsInGameNavigationShown() end,
+          --- Toggles the client's in-world navigation CVar.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Whether to show in-world navigation.
+          set = function(_, value) Self.Utilities:SetInGameNavigationShown(value) end,
+          order = 2.5
+        },
         nodes = {
           name = "Loot Sparkles & Nameplates",
           type = "group",
@@ -2718,10 +2743,12 @@ options = {
               width = "full",
               order = 1
             },
+            assistTankKey1 = bindingKeyOption("SLACKHACKS_ASSIST_TANK", "Assist Tank Macro", 1, 1.1, nil, ASSIST_TANK_BINDING_DETAIL),
+            assistTankKey2 = bindingKeyOption("SLACKHACKS_ASSIST_TANK", "Assist Tank Macro", 2, 1.2, nil, ASSIST_TANK_BINDING_DETAIL),
             macroName = {
               type = "input",
               name = "Macro Name",
-              desc = "Character-specific macro name (1 to 16 characters). Defaults to ASSIST_TANK.",
+              desc = "Character-specific macro name (1 to 16 characters). Defaults to @TANK.",
               width = "full",
               order = 3
             },
@@ -2746,6 +2773,14 @@ options = {
               ---@return boolean disabled
               disabled = function() return db.profile.combat.assistTankMacro.useCustomMacro end,
               order = 2
+            },
+            tankMarkSkull = {
+              type = "toggle",
+              name = "As Tank, Mark |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:0|t Skull Instead",
+              desc = "Marks current target as skull instead of assisting yourself (lol).",
+              descStyle = "inline",
+              width = "full",
+              order = 2.5
             },
             customMacro = {
               type = "group",
@@ -4193,32 +4228,6 @@ options = {
         },
         toggleAllKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 1, 0.2),
         toggleAllKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 2, 0.21),
-        autoAccept = {
-          name = "Auto-Accept Quests",
-          desc = "Automatically accepts quests on interact.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.dialog.enabled end,
-          get = function() return db.profile.dialog.autoAccept end,
-          set = function(_, value) Self.Dialog:SetOption("autoAccept", value) end,
-          order = 1
-        },
-        autoAcceptKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 1, 1.1),
-        autoAcceptKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 2, 1.2),
-        autoComplete = {
-          name = "Auto-Complete Quests",
-          desc = "Automatically completes quests that have no choices in reward.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.dialog.enabled end,
-          get = function() return db.profile.dialog.autoComplete end,
-          set = function(_, value) Self.Dialog:SetOption("autoComplete", value) end,
-          order = 2
-        },
-        autoCompleteKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 1, 2.1),
-        autoCompleteKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 2, 2.2),
         autoClickGroup = {
           type = "group",
           name = "NPC Dialog Auto-Click",
@@ -4259,25 +4268,24 @@ options = {
               set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionMythicOnly", value) end,
               order = 3.5
             },
-            autoClickFirstOptionVendorOnly = {
-              name = "Only when Interacting with Vendor",
-              desc = "If talking to a vendor with no extra dialogue options, automatically open their vendor window.",
+            autoClickFirstOptionServicesOnly = {
+              name = "Only when interacting with Service NPC",
+              desc = "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              hidden = isRetail,
               --- Disables the restriction when its parent automation is off.
               ---@return boolean
               disabled = function()
                 return not db.profile.dialog.enabled or not db.profile.dialog.autoClickFirstOption
               end,
-              --- Reads the profile's vendor-only restriction.
+              --- Reads the profile's service NPC restriction.
               ---@return boolean
-              get = function() return db.profile.dialog.autoClickFirstOptionVendorOnly end,
+              get = function() return db.profile.dialog.autoClickFirstOptionServicesOnly end,
               --- Applies the restriction without changing the parent automation setting.
               ---@param _ table AceConfig option info.
               ---@param value boolean
-              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionVendorOnly", value) end,
+              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionServicesOnly", value) end,
               order = 3.6
             }
           }
@@ -4319,20 +4327,93 @@ options = {
             }
           }
         },
-        questItemButton = {
-          name = "Use 'Extra Action Button' for Quest Items",
-          desc = "Shows the 'Extra Action Button' when there is a quest item to use.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          hidden = function() return not Self.Dialog:IsQuestItemButtonSupported() end,
-          disabled = function() return not db.profile.dialog.enabled end,
-          get = function() return db.profile.dialog.questItemButton end,
-          set = function(_, value) Self.Dialog:SetOption("questItemButton", value) end,
-          order = 5
+        extraActionGroup = {
+          type = "group",
+          name = "Extra Action Button",
+          inline = true,
+          order = 5,
+          args = {
+            questItemButton = {
+              name = "Use 'Extra Action Button' for Quest Items",
+              desc = "Shows the 'Extra Action Button' when there is a quest item to use.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Hide the quest item control on unsupported clients.
+              ---@return boolean
+              hidden = function() return not Self.Dialog:IsQuestItemButtonSupported() end,
+              --- Disable the control while the Dialog module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.dialog.enabled end,
+              --- Read the quest item button setting.
+              ---@return boolean
+              get = function() return db.profile.dialog.questItemButton end,
+              --- Apply the quest item button setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("questItemButton", value) end,
+              order = 1
+            },
+            extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 1.1, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
+            extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 1.2, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
+          }
         },
-        extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 5.1, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
-        extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 5.2, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
+        autoAcceptGroup = {
+          type = "group",
+          name = "Auto-Accept Quests",
+          inline = true,
+          order = 6,
+          args = {
+            autoAccept = {
+              name = "Auto-Accept Quests",
+              desc = "Automatically accepts quests on interact.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disable the control while the Dialog module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.dialog.enabled end,
+              --- Read the auto-accept setting.
+              ---@return boolean
+              get = function() return db.profile.dialog.autoAccept end,
+              --- Apply the auto-accept setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("autoAccept", value) end,
+              order = 1
+            },
+            autoAcceptKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 1, 1.1),
+            autoAcceptKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 2, 1.2)
+          }
+        },
+        autoCompleteGroup = {
+          type = "group",
+          name = "Auto-Complete Quests",
+          inline = true,
+          order = 7,
+          args = {
+            autoComplete = {
+              name = "Auto-Complete Quests",
+              desc = "Automatically completes quests that have no choices in reward.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disable the control while the Dialog module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.dialog.enabled end,
+              --- Read the auto-complete setting.
+              ---@return boolean
+              get = function() return db.profile.dialog.autoComplete end,
+              --- Apply the auto-complete setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("autoComplete", value) end,
+              order = 1
+            },
+            autoCompleteKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 1, 1.1),
+            autoCompleteKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 2, 1.2)
+          }
+        }
       }
     },
     bind = {
