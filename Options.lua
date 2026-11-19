@@ -4241,7 +4241,6 @@ options = {
               type = "toggle",
               descStyle = "inline",
               width = "full",
-              hidden = isRetail,
               --- Disables the restriction when its parent automation is off.
               ---@return boolean
               disabled = function()

@@ -297,6 +297,7 @@ local function isServiceGossipOption(option)
   local isService = SERVICE_GOSSIP_ICONS[option.icon]
     or option.name == "I want to browse your goods."
     or option.name == "I need a ride."
+    or option.name == "I would like to check my deposit box."
   return not not (isService and (option.status == nil or option.status == 0)
     and not option.spellID and (not option.rewards or #option.rewards == 0))
 end
@@ -313,6 +314,27 @@ local function selectGossipOption(option)
   end
 end
 
+--- Applies the Auto-Click First Dialog Option restrictions to a sole gossip option.
+--- An active Mythic run (with its option on) allows any dialog; otherwise Service NPC mode allows only services.
+---@param s table Dialog settings.
+---@param option table Sole gossip option.
+---@return boolean
+local function canAutoClickOption(s, option)
+  -- The Mythic option is hidden on Forever, so a value saved from another client must not block it there.
+  local mythicOnly = not isForever() and s.autoClickFirstOptionMythicOnly
+  local isService = s.autoClickFirstOptionServiceNPCOnly and isServiceGossipOption(option)
+  local allowed
+  if mythicOnly and isMythicRunTimerRunning() then
+    allowed = true
+  elseif s.autoClickFirstOptionServiceNPCOnly then
+    allowed = isService
+  else
+    allowed = not mythicOnly
+  end
+  -- ForceGossip keeps service dialogs visible; the explicit Service NPC mode opts out for recognized services.
+  return not not (allowed and (isService or not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip())))
+end
+
 --- Returns true if automation acted on the gossip (and therefore the dialog is moving on).
 ---@param availableQuests table Available quest entries.
 ---@param activeQuests table Active quest entries.
@@ -320,7 +342,6 @@ end
 ---@return boolean
 local function automateGossip(availableQuests, activeQuests, options)
   local s = settings()
-  local serviceNPCOnly = not isRetail() and s.autoClickFirstOptionServiceNPCOnly
   if isAutomationSuppressed() then return false end
 
   if s.autoComplete then
@@ -342,11 +363,7 @@ local function automateGossip(availableQuests, activeQuests, options)
   end
 
   if s.autoClickFirstOption and #availableQuests == 0 and #activeQuests == 0 and #options == 1
-    -- Hidden restrictions must not carry over and block automation when switching game clients.
-    and (isForever() or not s.autoClickFirstOptionMythicOnly or isMythicRunTimerRunning())
-    and (not serviceNPCOnly or isServiceGossipOption(options[1]))
-    -- ForceGossip keeps service dialogs visible; the explicit service-only mode opts out for recognized services.
-    and (serviceNPCOnly or not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip())) then
+    and canAutoClickOption(s, options[1]) then
     local option = options[1]
     local now = GetTime()
     -- Guard against NPCs that re-open the same single-option gossip, which would otherwise loop forever.
