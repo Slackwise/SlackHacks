@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: What isn't working right?
+about: Report any issues with the addon
 title: 'BUG: Short Description Here'
 labels: 'bug'
 assignees: 'Slackwise'
