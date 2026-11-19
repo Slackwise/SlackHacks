@@ -1,20 +1,18 @@
 ---
-name: Feature request
+name: Feature Request
 about: Suggest an idea for this project
-title: ''
-labels: ''
-assignees: ''
+title: 'Short Feature Description Here'
+labels: 'feature'
+assignees: 'Slackwise'
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Feature or Bug?
+If this is an issue in the addon, create a Bug Report instead.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+## Is there a specific option you would like in the UI?
+If it's a checkbox or alternative behavior to one of the existing features, please describe it here.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Large new feature?
+If you have a large new module or big idea to add, you'll need to explain what problem it solves and what other addons don't solve this issue. (Also valid if they solve the issue but poorly or with low performance. Let me know and I'll recreate.)
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
