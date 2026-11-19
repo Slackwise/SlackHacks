@@ -161,9 +161,9 @@ local mythic = args.autoClickGroup.args.autoClickFirstOptionMythicOnly
 local serviceNPC = args.autoClickGroup.args.autoClickFirstOptionServiceNPCOnly
 assert(serviceNPC.name == "Only when interacting with Service NPC")
 assert(serviceNPC.desc == "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.")
-assert(serviceNPC.order > mythic.order and mythic.hidden() and not serviceNPC.hidden())
+assert(serviceNPC.order > mythic.order and mythic.hidden() and serviceNPC.hidden == nil)
 retail, forever = true, false
-assert(not mythic.hidden() and serviceNPC.hidden())
+assert(not mythic.hidden() and serviceNPC.hidden == nil)
 assert(serviceNPC.disabled())
 SlackHacks.db.profile.dialog.autoClickFirstOption = true
 assert(not serviceNPC.disabled())

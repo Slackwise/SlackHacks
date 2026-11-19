@@ -4,7 +4,8 @@
 
 ### Dialog
 - Renamed the vendor-only auto-click restriction to Service NPC, preserving existing profile settings. It also recognizes bank, flight, training, and other service options by their icons.
-- Service NPC auto-clicking also recognizes the "I need a ride." dialog.
+- Service NPC auto-clicking also recognizes the "I need a ride." and "I would like to check my deposit box." dialogs.
+- Fixed Auto-Click First Dialog Option clicking every NPC on Retail while Service NPC mode was on. The option is now available on all clients; with the Mythic restriction on, a running Mythic still allows any dialog.
 
 ## v29
 

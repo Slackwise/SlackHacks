@@ -200,6 +200,13 @@ check(nil)
 available = {}
 options[1].name = "I need a ride"
 check(nil) -- The text match is exact.
+options[1].name = "I would like to check my deposit box."
+check(1) -- Deposit boxes with a generic icon are recognized under forced gossip.
+shifted = true
+check(nil)
+shifted = false
+options[1].name = "I would like to check my deposit box"
+check(nil) -- The deposit box match is exact.
 options[1].name = "Localized service text"
 options[2] = { gossipOptionID = 2, orderIndex = 2, name = "Tell me more." }
 check(nil)
@@ -218,15 +225,30 @@ s.autoClickFirstOptionServiceNPCOnly = false
 check(1)
 s.autoClickFirstOptionServiceNPCOnly = true
 retail, forever = true, false
-check(nil) -- Retail still honors Mythic countdowns.
+check(nil) -- Neither the Mythic countdown nor Service NPC mode allows generic chat.
 running = true
-check(1) -- Retail ignores the hidden service restriction.
+check(1) -- A running Mythic overrides Service NPC mode.
 forced = true
-check(nil) -- A hidden service setting must not bypass forced gossip on Retail.
+check(nil) -- The Mythic override still respects forced gossip for generic chat.
 forced = false
 running = false
+options[1].icon = 132060
+check(1) -- Service NPCs still work outside a Mythic run when both restrictions are on.
+forced = true
+check(1) -- Service NPC mode bypasses forced gossip on Retail too.
+forced = false
+options[1].icon = 132053
 s.autoClickFirstOptionMythicOnly = false
+check(nil) -- Service NPC mode is honored on Retail.
+running = true
+check(nil) -- A running Mythic only overrides Service NPC mode when its option is on.
+running = false
+s.autoClickFirstOptionServiceNPCOnly = false
 check(1)
+s.autoClickFirstOptionMythicOnly = true
+check(nil) -- Mythic-only mode alone still waits for the run timer.
+s.autoClickFirstOptionMythicOnly = false
+s.autoClickFirstOptionServiceNPCOnly = true
 s.autoClickFirstOption = false
 check(nil)
 s.autoClickFirstOption = true
