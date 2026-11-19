@@ -1153,6 +1153,7 @@ BINDINGS = {
             /petstopattack
             /petfollow [nomod]
             /petpassive [mod:shift]
+            /cast Disengage
           ]])
         },
         { 
