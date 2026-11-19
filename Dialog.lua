@@ -289,13 +289,14 @@ local SERVICE_GOSSIP_ICONS = {
   [1673939] = true, -- Transmogrification
 }
 
---- Reports whether an option opens a recognized service without selecting a reward or spell.
+--- Reports whether an option is a recognized service action without a reward or spell.
 ---@param option table Gossip option.
 ---@return boolean
 local function isServiceGossipOption(option)
-  -- Keep the previous vendor text match for clients that report a generic icon.
+  -- Some service options use a generic icon rather than their service's icon.
   local isService = SERVICE_GOSSIP_ICONS[option.icon]
     or option.name == "I want to browse your goods."
+    or option.name == "I need a ride."
   return not not (isService and (option.status == nil or option.status == 0)
     and not option.spellID and (not option.rewards or #option.rewards == 0))
 end

@@ -4,6 +4,7 @@
 
 ### Dialog
 - Renamed the vendor-only auto-click restriction to Service NPC, preserving existing profile settings. It also recognizes bank, flight, training, and other service options by their icons.
+- Service NPC auto-clicking also recognizes the "I need a ride." dialog.
 
 ## v29
 
