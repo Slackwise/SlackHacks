@@ -295,6 +295,7 @@ function module:OnDisable()
 end
 
 local LOOT_CVAR = "outlineModeShowLootEffectWhenDisabled"
+local IN_GAME_NAVIGATION_CVAR = "showInGameNavigation"
 local WANTED = "1"
 local DISABLED = "0"
 local watchedCVars = {
@@ -452,6 +453,24 @@ function module:SetLootSparklesEnabled(enabled)
   nodeSettings.lootSparkles = enabled == true
   if nodeSettings.lootSparkles then nativeLootEffectWasEnabled = true end
   applyLootSparkles()
+end
+
+--- Reports whether the client exposes the in-world objective navigation CVar.
+---@return boolean supported True when the CVar exists.
+function module:SupportsInGameNavigation()
+  return readCVar(IN_GAME_NAVIGATION_CVAR) ~= nil
+end
+
+--- Reads whether Blizzard's in-world objective navigation marker is shown.
+---@return boolean shown True when the CVar is enabled.
+function module:IsInGameNavigationShown()
+  return readCVar(IN_GAME_NAVIGATION_CVAR) == "1"
+end
+
+--- Shows or hides Blizzard's in-world objective navigation marker.
+---@param shown boolean Whether to show the marker.
+function module:SetInGameNavigationShown(shown)
+  writeCVar(IN_GAME_NAVIGATION_CVAR, shown and "1" or "0")
 end
 
 --- Refreshes loot effects and native node-nameplate behavior after a profile change.

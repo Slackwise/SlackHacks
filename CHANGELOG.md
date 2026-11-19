@@ -7,6 +7,9 @@
 - Service NPC auto-clicking also recognizes the "I need a ride." and "I would like to check my deposit box." dialogs.
 - Fixed Auto-Click First Dialog Option clicking every NPC on Retail while Service NPC mode was on. The option is now available on all clients; with the Mythic restriction on, a running Mythic still allows any dialog.
 
+### Utilities
+- Added Show In-Game Navigation, which toggles the Retail in-world objective diamond (`showInGameNavigation` CVar).
+
 ## v29
 
 ### Combat
