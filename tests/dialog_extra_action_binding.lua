@@ -158,27 +158,44 @@ assert(loadfile("Options.lua"))()
 local args = SlackHacks.options.args.dialog.args
 assert(SlackHacks.options.args.dialog.name == "Dialog" and SlackHacks.options.args.quest == nil)
 local mythic = args.autoClickGroup.args.autoClickFirstOptionMythicOnly
-local vendor = args.autoClickGroup.args.autoClickFirstOptionVendorOnly
-assert(vendor.name == "Only when Interacting with Vendor")
-assert(vendor.desc == "If talking to a vendor with no extra dialogue options, automatically open their vendor window.")
-assert(vendor.order > mythic.order and mythic.hidden() and not vendor.hidden())
+local serviceNPC = args.autoClickGroup.args.autoClickFirstOptionServiceNPCOnly
+assert(serviceNPC.name == "Only when interacting with Service NPC")
+assert(serviceNPC.desc == "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.")
+assert(serviceNPC.order > mythic.order and mythic.hidden() and not serviceNPC.hidden())
 retail, forever = true, false
-assert(not mythic.hidden() and vendor.hidden())
-assert(vendor.disabled())
+assert(not mythic.hidden() and serviceNPC.hidden())
+assert(serviceNPC.disabled())
 SlackHacks.db.profile.dialog.autoClickFirstOption = true
-assert(not vendor.disabled())
+assert(not serviceNPC.disabled())
 --- Applies options without invoking unrelated secure UI lifecycle work.
 ---@param key string Setting name.
 ---@param value boolean Setting value.
 function module:SetOption(key, value) SlackHacks.db.profile.dialog[key] = value end
-vendor.set({}, true)
-assert(vendor.get())
-assert(SlackHacks.dbDefaults.profile.dialog.autoClickFirstOptionVendorOnly == false)
+serviceNPC.set({}, true)
+assert(serviceNPC.get())
+assert(SlackHacks.dbDefaults.profile.dialog.autoClickFirstOptionServiceNPCOnly == false)
 assert(SlackHacks.dbDefaults.profile.quest == nil)
 local keybindings = SlackHacks.options.args.controls.args.keybindings
 local bindingArgs = keybindings.args
-local questExtraAction = args.extraActionKey1
-local questAutoAccept = args.autoAcceptKey1
+local extraAction = args.extraActionGroup
+local autoAccept = args.autoAcceptGroup
+local autoComplete = args.autoCompleteGroup
+assert(extraAction.type == "group" and extraAction.inline and extraAction.order > args.dialogKeybindingsGroup.order)
+assert(autoAccept.type == "group" and autoAccept.inline and autoAccept.order > extraAction.order)
+assert(autoComplete.type == "group" and autoComplete.inline and autoComplete.order > autoAccept.order)
+for key, option in pairs(args) do
+  if key ~= "autoAcceptGroup" and key ~= "autoCompleteGroup" then
+    assert(option.order < autoAccept.order)
+  end
+end
+assert(extraAction.args.questItemButton.type == "toggle")
+assert(extraAction.args.extraActionKey1.type == "keybinding" and extraAction.args.extraActionKey2.type == "keybinding")
+assert(autoAccept.args.autoAccept.type == "toggle")
+assert(autoAccept.args.autoAcceptKey1.type == "keybinding" and autoAccept.args.autoAcceptKey2.type == "keybinding")
+assert(autoComplete.args.autoComplete.type == "toggle")
+assert(autoComplete.args.autoCompleteKey1.type == "keybinding" and autoComplete.args.autoCompleteKey2.type == "keybinding")
+local questExtraAction = extraAction.args.extraActionKey1
+local questAutoAccept = autoAccept.args.autoAcceptKey1
 local personalBindings = bindingArgs.convenienceBinding4Key1
 assert(personalBindings.hidden())
 isOwner = true
@@ -193,10 +210,18 @@ SlackHacks.db.profile.dialog.questItemButton = true
 assert(first.hidden == nil and second.hidden == nil and not first.disabled())
 supported = false
 assert(first.hidden == nil and second.hidden == nil)
+assert(extraAction.args.questItemButton.hidden() and not questExtraAction.disabled())
 supported = true
+assert(not extraAction.args.questItemButton.hidden())
 SlackHacks.db.profile.dialog.enabled = false
 assert(first.disabled())
+assert(extraAction.args.questItemButton.disabled() and autoAccept.args.autoAccept.disabled() and autoComplete.args.autoComplete.disabled())
+assert(not questAutoAccept.disabled())
 SlackHacks.db.profile.dialog.enabled = true
+autoAccept.args.autoAccept.set({}, true)
+autoComplete.args.autoComplete.set({}, true)
+extraAction.args.questItemButton.set({}, false)
+assert(autoAccept.args.autoAccept.get() and autoComplete.args.autoComplete.get() and not extraAction.args.questItemButton.get())
 combat = true
 assert(second.disabled())
 combat = false
@@ -221,7 +246,6 @@ assert(GetBindingAction("CTRL-W") == toggleAction and questAutoAccept.get() == "
 assert(keybindings.name == "Keybindings")
 assert(keybindings.inline ~= true)
 assert(args.toggleAllKey1.type == "keybinding" and args.toggleAllKey2.type == "keybinding")
-assert(args.autoCompleteKey1.type == "keybinding" and args.autoCompleteKey2.type == "keybinding")
 assert(args.autoClickGroup.args.autoClickKey1.type == "keybinding" and args.autoClickGroup.args.autoClickKey2.type == "keybinding")
 assert(args.dialogKeybindingsGroup.args.numberKeys.type == "toggle")
 assert(bindingArgs.convenienceHeader.type == "header")

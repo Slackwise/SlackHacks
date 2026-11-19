@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 14
+CONFIG_VERSION = 15
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -39,6 +39,7 @@ CONFIG_VERSION_RELEASES = {
   [12] = 26,
   [13] = 27,
   [14] = 28,
+  [15] = 30,
 }
 
 function getAddonVersion()
@@ -639,6 +640,31 @@ CONFIG_MIGRATIONS = {
       local value = rawget(legacy, "raiseCastingNameplates")
       if value ~= nil then p.nameplates.raiseCastingNameplates = value end
       legacy.raiseCastingNameplates = nil
+    end
+
+    local migrated = {}
+    for _, p in pairs(Self.db.profiles or {}) do
+      migrateProfile(p)
+      migrated[p] = true
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  -- Config v15, ships in addon v30.
+  --- Renames the service NPC restriction in every saved profile.
+  [15] = function()
+    --- Moves the old saved value over any materialized AceDB default.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      if type(p) ~= "table" then return end
+      local dialog = rawget(p, "dialog")
+      if type(dialog) ~= "table" then return end
+      local oldValue = rawget(dialog, "autoClickFirstOptionVendorOnly")
+      if oldValue ~= nil then
+        dialog.autoClickFirstOptionServiceNPCOnly = oldValue
+        dialog.autoClickFirstOptionVendorOnly = nil
+      end
     end
 
     local migrated = {}

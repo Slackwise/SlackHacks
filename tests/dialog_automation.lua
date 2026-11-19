@@ -14,8 +14,8 @@ function CreateFrame() return {} end
 Enum = {}
 StaticPopupDialogs = {}
 assert(loadfile("Init.lua"))()
-assert(addon.CONFIG_VERSION == 14 and addon.CONFIG_VERSION_RELEASES[13] == 27
-  and addon.CONFIG_VERSION_RELEASES[14] == 28)
+assert(addon.CONFIG_VERSION == 15 and addon.CONFIG_VERSION_RELEASES[13] == 27
+  and addon.CONFIG_VERSION_RELEASES[14] == 28 and addon.CONFIG_VERSION_RELEASES[15] == 30)
 
 local legacy = { enabled = true, autoAccept = true, autoComplete = false,
   autoClickFirstOption = true, autoClickFirstOptionMythicOnly = true,
@@ -38,6 +38,19 @@ assert(detached.dialog.spacebar == true and detached.dialog.enabled == false)
 addon.CONFIG_MIGRATIONS[13]()
 assert(active.dialog.enabled and other.dialog.autoClickFirstOptionVendorOnly)
 
+-- A saved old value must beat a new default materialized in the active profile.
+other.dialog.autoClickFirstOptionServiceNPCOnly = false
+detached.dialog.autoClickFirstOptionVendorOnly = true
+addon.CONFIG_MIGRATIONS[15]()
+assert(active.dialog.autoClickFirstOptionServiceNPCOnly == false)
+assert(other.dialog.autoClickFirstOptionServiceNPCOnly == true)
+assert(detached.dialog.autoClickFirstOptionServiceNPCOnly == true)
+assert(rawget(active.dialog, "autoClickFirstOptionVendorOnly") == nil)
+assert(rawget(other.dialog, "autoClickFirstOptionVendorOnly") == nil)
+assert(rawget(detached.dialog, "autoClickFirstOptionVendorOnly") == nil)
+addon.CONFIG_MIGRATIONS[15]()
+assert(other.dialog.autoClickFirstOptionServiceNPCOnly == true)
+
 local module = {}
 --- Supplies the renamed dialog module.
 ---@param name string Module name.
@@ -55,13 +68,17 @@ function wipe(values) for key in pairs(values) do values[key] = nil end end
 --- Fails the test if a supported migration path would reset user settings.
 ---@param reason string Migration failure.
 function addon.resetConfig(reason) error(reason) end
-for version = 0, 12 do
+for version = 0, 14 do
   local profile = {}
+  if version >= 13 then profile.dialog = { autoClickFirstOptionVendorOnly = true } end
   addon.db = { global = { configVersion = version }, profile = profile,
     profiles = { Default = profile } }
   addon.migrateConfig()
-  assert(addon.db.global.configVersion == 14)
+  assert(addon.db.global.configVersion == 15)
   assert(type(profile.dialog) == "table" and rawget(profile, "quest") == nil)
+  if version >= 13 then
+    assert(profile.dialog.autoClickFirstOptionServiceNPCOnly and rawget(profile.dialog, "autoClickFirstOptionVendorOnly") == nil)
+  end
 end
 --- Keeps secure frame binding work inactive in this isolated automation test.
 ---@return boolean
@@ -117,7 +134,7 @@ C_GossipInfo = {
 assert(loadfile("Dialog.lua"))()
 assert(addon.Dialog == module and addon.Quest == nil)
 local s = { enabled = true, autoClickFirstOption = true,
-  autoClickFirstOptionVendorOnly = true, autoClickFirstOptionMythicOnly = true }
+  autoClickFirstOptionServiceNPCOnly = true, autoClickFirstOptionMythicOnly = true }
 addon.db = { profile = { dialog = s } }
 
 --- Opens the mocked dialog and checks whether it advanced.
@@ -130,7 +147,7 @@ local function check(expected, advance)
   assert(selected == expected, "unexpected selection: " .. tostring(selected))
 end
 
-options = { { gossipOptionID = 1, orderIndex = 1, name = "I want to browse your goods." } }
+options = { { gossipOptionID = 1, orderIndex = 1, icon = 132060, name = "Localized vendor text" } }
 check(1) -- Forever ignores the hidden Mythic restriction.
 check(nil, false) -- Reopened gossip cannot loop.
 check(1)
@@ -138,14 +155,36 @@ shifted = true
 check(nil)
 shifted = false
 forced = true
-check(1) -- Explicit vendor-only mode bypasses forced service gossip.
+check(1) -- Explicit service-only mode bypasses forced service gossip.
 check(nil, false) -- Forced gossip still cannot loop.
 shifted = true
-check(nil) -- Shift still suppresses the forced vendor shortcut.
+check(nil) -- Shift still suppresses the forced service shortcut.
 shifted = false
-s.autoClickFirstOptionVendorOnly = false
+s.autoClickFirstOptionServiceNPCOnly = false
 check(nil) -- General auto-clicking still respects forced gossip.
-s.autoClickFirstOptionVendorOnly = true
+s.autoClickFirstOptionServiceNPCOnly = true
+for _, icon in ipairs({ 132050, 132051, 132056, 132057, 132058, 528409, 1130518, 1673939 }) do
+  options[1].icon = icon
+  check(1) -- Recognized services work even when forced gossip is enabled.
+end
+for _, icon in ipairs({ 132052, 132053, 132054, 132055, 132059 }) do
+  options[1].icon = icon
+  check(nil) -- Generic chat and potentially consequential actions remain manual.
+end
+options[1].icon = 132050
+options[1].status = 1
+check(nil)
+options[1].status = nil
+options[1].spellID = 123
+check(nil)
+options[1].spellID = nil
+options[1].rewards = { {} }
+check(nil)
+options[1].rewards = nil
+options[1].icon = 132053
+options[1].name = "I want to browse your goods."
+check(1) -- Preserve the existing vendor text match even with a generic icon.
+options[1].name = "Localized service text"
 options[2] = { gossipOptionID = 2, orderIndex = 2, name = "Tell me more." }
 check(nil)
 options[2] = nil
@@ -156,17 +195,18 @@ activeQuests = { { questID = 11 } }
 check(nil)
 activeQuests = {}
 options[1].name = "Tell me more."
+options[1].icon = 132053
 check(nil)
 forced = false
-s.autoClickFirstOptionVendorOnly = false
+s.autoClickFirstOptionServiceNPCOnly = false
 check(1)
-s.autoClickFirstOptionVendorOnly = true
+s.autoClickFirstOptionServiceNPCOnly = true
 retail, forever = true, false
 check(nil) -- Retail still honors Mythic countdowns.
 running = true
-check(1) -- Retail ignores the hidden vendor restriction.
+check(1) -- Retail ignores the hidden service restriction.
 forced = true
-check(nil) -- A hidden vendor setting must not bypass forced gossip on Retail.
+check(nil) -- A hidden service setting must not bypass forced gossip on Retail.
 forced = false
 running = false
 s.autoClickFirstOptionMythicOnly = false
@@ -179,7 +219,7 @@ forced = true
 options[1] = { orderIndex = 1, name = "I want to browse your goods." }
 check(1) -- Index-only gossip clients are supported.
 s.autoClickFirstOption = false
-check(nil) -- Vendor-only mode still requires its parent automation.
+check(nil) -- Service-only mode still requires its parent automation.
 s.autoClickFirstOption = true
 options = {}
 check(nil)

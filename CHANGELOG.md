@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v30
+
+### Dialog
+- Renamed the vendor-only auto-click restriction to Service NPC, preserving existing profile settings. It also recognizes bank, flight, training, and other service options by their icons.
+
 ## v29
 
 ### Combat
