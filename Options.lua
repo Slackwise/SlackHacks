@@ -2502,6 +2502,24 @@ options = {
           end,
           order = 2
         },
+        showInGameNavigation = {
+          name = "Show In-Game Navigation",
+          desc = "Renders the Retail in-world diamond pointing where to go for objectives.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Hides the toggle on clients without the navigation CVar.
+          ---@return boolean hidden Whether the option should be hidden.
+          hidden = function() return not Self.Utilities:SupportsInGameNavigation() end,
+          --- Reads the client's in-world navigation CVar.
+          ---@return boolean shown Whether in-world navigation is shown.
+          get = function() return Self.Utilities:IsInGameNavigationShown() end,
+          --- Toggles the client's in-world navigation CVar.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Whether to show in-world navigation.
+          set = function(_, value) Self.Utilities:SetInGameNavigationShown(value) end,
+          order = 2.5
+        },
         nodes = {
           name = "Loot Sparkles & Nameplates",
           type = "group",
