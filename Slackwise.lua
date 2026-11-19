@@ -1157,9 +1157,23 @@ BINDINGS = {
           ]])
         },
         { 
+          "ENGAGE", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Hunter's Mark
+            /cast !Hunter's Mark
+            /petattack
+          ]])
+        },
+        { 
           "MOUSE4", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
-            /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
+            /petattack [nomod, harm, @mouseover]
+            /cast [mod:shift,@cursor] Volley; [@cursor] Flare
+          ]])
+        },
+        { 
+          "MOUSE5", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /cast [@mouseover,harm,nodead] Hunter's Mark
           ]])
         },
         { 
@@ -1231,7 +1245,7 @@ BINDINGS = {
         },
       },
       {"BUTTON4",       "MOUSE4", BT.MACRO},
-      {"BUTTON5",       "PET_CURSOR", BT.MACRO},
+      {"BUTTON5",       "MOUSE5", BT.MACRO},
       {"`",             "STOP!", BT.MACRO},
       {"1",             "Serpent Sting"},
       {"2",             "Aimed Shot"},
@@ -1240,6 +1254,7 @@ BINDINGS = {
       {"SHIFT-3",       {"VOLLEY_TARGET", "/cast [@target] !Volley"}},
       {"4",             "Arcane Shot"},
       {"5",             "Hunter's Mark"},
+      {"SHIFT-5",       "ENGAGE", BT.MACRO},
       {"F5",            "CHAINEAGLE", BT.MACRO},
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},
