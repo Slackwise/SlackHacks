@@ -114,7 +114,7 @@ dbDefaults = {
       autoComplete = false,
       autoClickFirstOption = false,
       autoClickFirstOptionMythicOnly = false,
-      autoClickFirstOptionVendorOnly = false,
+      autoClickFirstOptionServiceNPCOnly = false,
       numberKeys = false,
       spacebar = false,
       questItemButton = false
@@ -4195,32 +4195,6 @@ options = {
         },
         toggleAllKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 1, 0.2),
         toggleAllKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts", 2, 0.21),
-        autoAccept = {
-          name = "Auto-Accept Quests",
-          desc = "Automatically accepts quests on interact.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.dialog.enabled end,
-          get = function() return db.profile.dialog.autoAccept end,
-          set = function(_, value) Self.Dialog:SetOption("autoAccept", value) end,
-          order = 1
-        },
-        autoAcceptKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 1, 1.1),
-        autoAcceptKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 2, 1.2),
-        autoComplete = {
-          name = "Auto-Complete Quests",
-          desc = "Automatically completes quests that have no choices in reward.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          disabled = function() return not db.profile.dialog.enabled end,
-          get = function() return db.profile.dialog.autoComplete end,
-          set = function(_, value) Self.Dialog:SetOption("autoComplete", value) end,
-          order = 2
-        },
-        autoCompleteKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 1, 2.1),
-        autoCompleteKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 2, 2.2),
         autoClickGroup = {
           type = "group",
           name = "NPC Dialog Auto-Click",
@@ -4261,9 +4235,9 @@ options = {
               set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionMythicOnly", value) end,
               order = 3.5
             },
-            autoClickFirstOptionVendorOnly = {
-              name = "Only when Interacting with Vendor",
-              desc = "If talking to a vendor with no extra dialogue options, automatically open their vendor window.",
+            autoClickFirstOptionServiceNPCOnly = {
+              name = "Only when interacting with Service NPC",
+              desc = "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.",
               type = "toggle",
               descStyle = "inline",
               width = "full",
@@ -4273,13 +4247,13 @@ options = {
               disabled = function()
                 return not db.profile.dialog.enabled or not db.profile.dialog.autoClickFirstOption
               end,
-              --- Reads the profile's vendor-only restriction.
+              --- Reads the profile's service NPC restriction.
               ---@return boolean
-              get = function() return db.profile.dialog.autoClickFirstOptionVendorOnly end,
+              get = function() return db.profile.dialog.autoClickFirstOptionServiceNPCOnly end,
               --- Applies the restriction without changing the parent automation setting.
               ---@param _ table AceConfig option info.
               ---@param value boolean
-              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionVendorOnly", value) end,
+              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionServiceNPCOnly", value) end,
               order = 3.6
             }
           }
@@ -4321,20 +4295,93 @@ options = {
             }
           }
         },
-        questItemButton = {
-          name = "Use 'Extra Action Button' for Quest Items",
-          desc = "Shows the 'Extra Action Button' when there is a quest item to use.",
-          type = "toggle",
-          descStyle = "inline",
-          width = "full",
-          hidden = function() return not Self.Dialog:IsQuestItemButtonSupported() end,
-          disabled = function() return not db.profile.dialog.enabled end,
-          get = function() return db.profile.dialog.questItemButton end,
-          set = function(_, value) Self.Dialog:SetOption("questItemButton", value) end,
-          order = 5
+        extraActionGroup = {
+          type = "group",
+          name = "Extra Action Button",
+          inline = true,
+          order = 5,
+          args = {
+            questItemButton = {
+              name = "Use 'Extra Action Button' for Quest Items",
+              desc = "Shows the 'Extra Action Button' when there is a quest item to use.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Hide the quest item control on unsupported clients.
+              ---@return boolean
+              hidden = function() return not Self.Dialog:IsQuestItemButtonSupported() end,
+              --- Disable the control while the Dialog module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.dialog.enabled end,
+              --- Read the quest item button setting.
+              ---@return boolean
+              get = function() return db.profile.dialog.questItemButton end,
+              --- Apply the quest item button setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("questItemButton", value) end,
+              order = 1
+            },
+            extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 1.1, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
+            extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 1.2, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
+          }
         },
-        extraActionKey1 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 1, 5.1, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail."),
-        extraActionKey2 = bindingKeyOption("EXTRAACTIONBUTTON1", "Extra Action", 2, 5.2, dialogBindingUnavailable, "Also changes the real Extra Action Button on Retail.")
+        autoAcceptGroup = {
+          type = "group",
+          name = "Auto-Accept Quests",
+          inline = true,
+          order = 6,
+          args = {
+            autoAccept = {
+              name = "Auto-Accept Quests",
+              desc = "Automatically accepts quests on interact.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disable the control while the Dialog module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.dialog.enabled end,
+              --- Read the auto-accept setting.
+              ---@return boolean
+              get = function() return db.profile.dialog.autoAccept end,
+              --- Apply the auto-accept setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("autoAccept", value) end,
+              order = 1
+            },
+            autoAcceptKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 1, 1.1),
+            autoAcceptKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests", 2, 1.2)
+          }
+        },
+        autoCompleteGroup = {
+          type = "group",
+          name = "Auto-Complete Quests",
+          inline = true,
+          order = 7,
+          args = {
+            autoComplete = {
+              name = "Auto-Complete Quests",
+              desc = "Automatically completes quests that have no choices in reward.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              --- Disable the control while the Dialog module is off.
+              ---@return boolean
+              disabled = function() return not db.profile.dialog.enabled end,
+              --- Read the auto-complete setting.
+              ---@return boolean
+              get = function() return db.profile.dialog.autoComplete end,
+              --- Apply the auto-complete setting.
+              ---@param _ table AceConfig option info.
+              ---@param value boolean
+              set = function(_, value) Self.Dialog:SetOption("autoComplete", value) end,
+              order = 1
+            },
+            autoCompleteKey1 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 1, 1.1),
+            autoCompleteKey2 = bindingKeyOption("SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE", "Toggle Auto-Complete Quests", 2, 1.2)
+          }
+        }
       }
     },
     bind = {

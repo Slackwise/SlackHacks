@@ -275,6 +275,31 @@ end
 
 local lastAutoOptionID, lastAutoOptionTime
 
+-- Service icons identify the action rather than relying on localized gossip text. Exclude actions such as
+-- changing a hearthstone, unlearning, or resurrection, which may have consequences beyond opening a window.
+local SERVICE_GOSSIP_ICONS = {
+  [132050] = true, -- Bank
+  [132051] = true, -- Battlegrounds
+  [132056] = true, -- Tabards
+  [132057] = true, -- Flight paths
+  [132058] = true, -- Training
+  [132060] = true, -- Vendor
+  [528409] = true, -- Auction house
+  [1130518] = true, -- Work orders
+  [1673939] = true, -- Transmogrification
+}
+
+--- Reports whether an option opens a recognized service without selecting a reward or spell.
+---@param option table Gossip option.
+---@return boolean
+local function isServiceGossipOption(option)
+  -- Keep the previous vendor text match for clients that report a generic icon.
+  local isService = SERVICE_GOSSIP_ICONS[option.icon]
+    or option.name == "I want to browse your goods."
+  return not not (isService and (option.status == nil or option.status == 0)
+    and not option.spellID and (not option.rewards or #option.rewards == 0))
+end
+
 local function sortGossipOptions(a, b)
   return (a.orderIndex or 0) < (b.orderIndex or 0)
 end
@@ -294,7 +319,7 @@ end
 ---@return boolean
 local function automateGossip(availableQuests, activeQuests, options)
   local s = settings()
-  local vendorOnly = not isRetail() and s.autoClickFirstOptionVendorOnly
+  local serviceNPCOnly = not isRetail() and s.autoClickFirstOptionServiceNPCOnly
   if isAutomationSuppressed() then return false end
 
   if s.autoComplete then
@@ -318,9 +343,9 @@ local function automateGossip(availableQuests, activeQuests, options)
   if s.autoClickFirstOption and #availableQuests == 0 and #activeQuests == 0 and #options == 1
     -- Hidden restrictions must not carry over and block automation when switching game clients.
     and (isForever() or not s.autoClickFirstOptionMythicOnly or isMythicRunTimerRunning())
-    and (not vendorOnly or options[1].name == "I want to browse your goods.")
-    -- ForceGossip keeps service dialogs visible; the explicit vendor-only mode opts out for this match.
-    and (vendorOnly or not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip())) then
+    and (not serviceNPCOnly or isServiceGossipOption(options[1]))
+    -- ForceGossip keeps service dialogs visible; the explicit service-only mode opts out for recognized services.
+    and (serviceNPCOnly or not (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip())) then
     local option = options[1]
     local now = GetTime()
     -- Guard against NPCs that re-open the same single-option gossip, which would otherwise loop forever.

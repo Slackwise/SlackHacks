@@ -1124,6 +1124,7 @@ BINDINGS = {
       {"1",             "Rejuvenation"},
       {"2",             "Healing Touch"},
       {"4",             "Moonfire"},
+      {"5",             "Faerie Fire"},
       {"Q",             "SPENDER", BT.MACRO},
       {"R",             "R", BT.MACRO},
       {"T",             "Growl"},
@@ -1153,7 +1154,6 @@ BINDINGS = {
             /petstopattack
             /petfollow [nomod]
             /petpassive [mod:shift]
-            /cast Disengage
           ]])
         },
         { 

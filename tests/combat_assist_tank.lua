@@ -45,7 +45,7 @@ for version = 0, 13 do
   addon.db = { global = { configVersion = version },
     profiles = { Default = active, Other = other }, profile = detached }
   addon.migrateConfig()
-  assert(addon.db.global.configVersion == 14 and addon.CONFIG_VERSION_RELEASES[14] == 28)
+  assert(addon.db.global.configVersion == 15 and addon.CONFIG_VERSION_RELEASES[14] == 28)
   assert(active.nameplates.raiseCastingNameplates and detached.nameplates.raiseCastingNameplates)
   assert(other.nameplates.raiseCastingNameplates == false)
   assert(active.combat.raiseCastingNameplates == nil)
