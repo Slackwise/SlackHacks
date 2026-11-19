@@ -184,6 +184,22 @@ options[1].rewards = nil
 options[1].icon = 132053
 options[1].name = "I want to browse your goods."
 check(1) -- Preserve the existing vendor text match even with a generic icon.
+options[1].name = "I need a ride."
+check(1) -- A ride with a generic icon is recognized even under forced gossip.
+shifted = true
+check(nil)
+shifted = false
+options[1].status = 1
+check(nil)
+options[1].status = nil
+options[2] = { gossipOptionID = 2, orderIndex = 2, name = "Tell me more." }
+check(nil)
+options[2] = nil
+available = { { questID = 10 } }
+check(nil)
+available = {}
+options[1].name = "I need a ride"
+check(nil) -- The text match is exact.
 options[1].name = "Localized service text"
 options[2] = { gossipOptionID = 2, orderIndex = 2, name = "Tell me more." }
 check(nil)
