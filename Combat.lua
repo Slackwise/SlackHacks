@@ -7,10 +7,14 @@ local DEFAULT_COMMANDS = "#showtooltip\n/assist [group] TANK\n/startattack"
 local FOCUS_COMMANDS = "#showtooltip\n/assist [@focus,help,nodead] focus; [group] TANK\n/startattack"
 local NO_TANK_COMMANDS = "#showtooltip\n/startattack"
 local PET_COMMANDS = "#showtooltip\n/assist [@pet,exists,nodead] pet\n/startattack"
+local SKULL_COMMANDS = "#showtooltip\n/tm 8\n/startattack"
 local MACRO_ICON = "inv_misc_questionmark"
 local MAX_BODY_LENGTH = 255
+local BINDING_ACTION = "SLACKHACKS_ASSIST_TANK"
 local drafts = setmetatable({}, { __mode = "k" })
 local pendingUpdate = false
+local pendingBindingUpdate = false
+local bindingOwner, lastBindingSignature
 local lastError
 
 --- Return the active profile's assist-macro settings.
@@ -88,6 +92,14 @@ local function findTank()
       end
     end
   end
+end
+
+--- Report whether the player is assigned the Tank role in their group.
+---@return boolean tank
+local function isPlayerTank()
+  if not IsInGroup() then return false end
+  local role = UnitGroupRolesAssigned("player")
+  return not (_G.issecretvalue and _G.issecretvalue(role)) and role == "TANK"
 end
 
 --- Expand every placeholder without treating percent signs in a name as replacement escapes.
@@ -193,9 +205,11 @@ function module:UpdateMacro(notify)
     return false
   end
   -- Keep the macro available for keybinding before grouping; never assist an obsolete tank after leaving.
+  -- Without another tank to assist, a tank marks their own target instead of assisting nobody.
+  local markSkull = not tank and p.tankMarkSkull and isPlayerTank()
   local class = getClassName()
-  local assistPet = not tank and (class == "HUNTER" or class == "WARLOCK")
-  local fallback = assistPet and PET_COMMANDS or NO_TANK_COMMANDS
+  local assistPet = not tank and not markSkull and (class == "HUNTER" or class == "WARLOCK")
+  local fallback = markSkull and SKULL_COMMANDS or assistPet and PET_COMMANDS or NO_TANK_COMMANDS
   local body = applyAttackTooltip(tank and expandCommands(commands, tank) or fallback)
   if #body > MAX_BODY_LENGTH then
     reportError("Macro Commands exceed the 255-byte limit after resolving the attack tooltip.", notify)
@@ -238,7 +252,7 @@ function module:UpdateMacro(notify)
   end
   lastError = nil
   if shouldWrite then
-    local target = tank or (assistPet and "Pet" or "(no tank/pet)")
+    local target = tank or (markSkull and "Skull") or (assistPet and "Pet" or "(no tank/pet)")
     prn("Assist Tank Macro recreated targeting: " .. target)
   end
   return true
@@ -262,6 +276,7 @@ function module:SaveMacro(notify)
   end
   local p = settings()
   p.macroName, p.macroCommands = name, commands
+  self:UpdateBinding()
   if p.enabled then
     self:UpdateMacro(notify)
   elseif notify then
@@ -284,6 +299,38 @@ end
 ---@return nil
 function module:Refresh()
   self:UpdateMacro()
+  self:UpdateBinding()
+end
+
+--- Redirect the SlackHacks Assist Tank Macro binding's saved keys to the character macro.
+--- The binding has no body of its own because running a macro from a binding requires an override.
+---@return nil
+function module:UpdateBinding()
+  if InCombatLockdown() then
+    if not pendingBindingUpdate then
+      pendingBindingUpdate = true
+      -- The addon-level queue still runs after this module unregisters its events on disable.
+      runAfterCombat(function()
+        pendingBindingUpdate = false
+        module:UpdateBinding()
+      end)
+    end
+    return
+  end
+  pendingBindingUpdate = false
+  local p = settings()
+  local active = self:IsEnabled() and p.enabled
+  local keys = { GetBindingKey(BINDING_ACTION) }
+  -- Overrides fire UPDATE_BINDINGS themselves, so skip unchanged state to avoid a refresh loop.
+  local signature = (active and p.macroName or "") .. "=" .. table.concat(keys, ",")
+  if signature == lastBindingSignature then return end
+  lastBindingSignature = signature
+  bindingOwner = bindingOwner or CreateFrame("Frame")
+  ClearOverrideBindings(bindingOwner)
+  if not active then return end
+  for _, key in ipairs(keys) do
+    SetOverrideBindingMacro(bindingOwner, false, key, p.macroName)
+  end
 end
 
 --- Process one deferred update against the latest roster and settings after combat.
@@ -318,6 +365,7 @@ function module:OnEnable()
     self:RegisterEvent(event, "Refresh")
   end
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
+  self:RegisterEvent("UPDATE_BINDINGS", "UpdateBinding")
   self:Refresh()
 end
 
@@ -327,4 +375,5 @@ function module:OnDisable()
   self:UnregisterAllEvents()
   pendingUpdate = false
   lastError = nil
+  self:UpdateBinding()
 end

@@ -122,10 +122,11 @@ dbDefaults = {
     combat = {
       assistTankMacro = {
         enabled = false,
-        macroName = "ASSIST_TANK",
+        macroName = "@TANK",
         macroCommands = "#showtooltip\n/assist [group] TANK\n/startattack",
         useCustomMacro = false,
-        addFocusAssist = false
+        addFocusAssist = true,
+        tankMarkSkull = true
       },
       paladin = {
         trackHolyShockCharges = false,
@@ -1434,6 +1435,7 @@ local function dialogBindingUnavailable()
 end
 
 local keybindingOptions = {}
+local ASSIST_TANK_BINDING_DETAIL = "Runs the generated Assist Tank Macro once it is enabled."
 addBindingOptions(keybindingOptions, "convenience", "Convenience", 1, {
   { "SLACKHACKS_RELOADUI", "Reload UI" },
   { "SLACKHACKS_RESTART_SOUND", "Restart Sound" },
@@ -1454,6 +1456,9 @@ addBindingOptions(keybindingOptions, "bestUseItems", "Best Use Items", 100, {
   { "SLACKHACKS_BEST_MANA_POTION", "Use Best Mana Potion" },
   { "SLACKHACKS_BEST_BANDAGE", "Use Best Bandage" }
 }, "Use the strongest matching item in your bags with these keys. Equal-strength items use the smallest stack first.")
+addBindingOptions(keybindingOptions, "combat", "Combat", 150, {
+  { "SLACKHACKS_ASSIST_TANK", "Assist Tank Macro", nil, ASSIST_TANK_BINDING_DETAIL }
+})
 addBindingOptions(keybindingOptions, "dialog", "Dialog", 200, {
   { "SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION", "Toggle All NPC Auto-Interacts" },
   { "SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT", "Toggle Auto-Accept Quests" },
@@ -2738,10 +2743,12 @@ options = {
               width = "full",
               order = 1
             },
+            assistTankKey1 = bindingKeyOption("SLACKHACKS_ASSIST_TANK", "Assist Tank Macro", 1, 1.1, nil, ASSIST_TANK_BINDING_DETAIL),
+            assistTankKey2 = bindingKeyOption("SLACKHACKS_ASSIST_TANK", "Assist Tank Macro", 2, 1.2, nil, ASSIST_TANK_BINDING_DETAIL),
             macroName = {
               type = "input",
               name = "Macro Name",
-              desc = "Character-specific macro name (1 to 16 characters). Defaults to ASSIST_TANK.",
+              desc = "Character-specific macro name (1 to 16 characters). Defaults to @TANK.",
               width = "full",
               order = 3
             },
@@ -2766,6 +2773,14 @@ options = {
               ---@return boolean disabled
               disabled = function() return db.profile.combat.assistTankMacro.useCustomMacro end,
               order = 2
+            },
+            tankMarkSkull = {
+              type = "toggle",
+              name = "As Tank, Mark |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:0|t Skull Instead",
+              desc = "Marks current target as skull instead of assisting yourself (lol).",
+              descStyle = "inline",
+              width = "full",
+              order = 2.5
             },
             customMacro = {
               type = "group",

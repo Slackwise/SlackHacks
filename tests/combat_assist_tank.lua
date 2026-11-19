@@ -41,10 +41,16 @@ for version = 0, 13 do
     nameplates = { raiseCastingNameplates = false } }
   local other = { combat = { raiseCastingNameplates = false,
     assistTankMacro = { enabled = true, macroName = "KEEP" } } }
+  local enabledDefault = { combat = { assistTankMacro = { enabled = true } } }
+  local disabledDefault = { combat = { assistTankMacro = { enabled = false } } }
   local detached = { combat = { raiseCastingNameplates = true } }
   addon.db = { global = { configVersion = version },
-    profiles = { Default = active, Other = other }, profile = detached }
+    profiles = { Default = active, Other = other, EnabledDefault = enabledDefault, DisabledDefault = disabledDefault },
+    profile = detached }
   addon.migrateConfig()
+  -- Enabled profiles keep the macro on their bars; others adopt the new @TANK default.
+  assert(enabledDefault.combat.assistTankMacro.macroName == "ASSIST_TANK")
+  assert(disabledDefault.combat.assistTankMacro.macroName == nil)
   assert(addon.db.global.configVersion == 15 and addon.CONFIG_VERSION_RELEASES[14] == 28)
   assert(active.nameplates.raiseCastingNameplates and detached.nameplates.raiseCastingNameplates)
   assert(other.nameplates.raiseCastingNameplates == false)
@@ -116,6 +122,29 @@ function InCombatLockdown() return combat end
 function addon.prn(message) messages[#messages + 1] = message end
 
 local grouped, raid, units = false, false, {}
+local boundKeys, overrides, clears, afterCombat = {}, {}, 0, {}
+--- Return the saved keys for a binding action.
+---@param action string Binding action.
+---@return string ... keys
+function GetBindingKey(action) assert(action == "SLACKHACKS_ASSIST_TANK"); return unpack(boundKeys) end
+--- Remove all overrides owned by the Combat module.
+function ClearOverrideBindings()
+  assert(not combat)
+  clears = clears + 1
+  overrides = {}
+end
+--- Record a key redirected to a macro.
+---@param _ table Owner frame.
+---@param priority boolean Override priority.
+---@param key string Bound key.
+---@param macro string Macro name.
+function SetOverrideBindingMacro(_, priority, key, macro)
+  assert(not combat and priority == false)
+  overrides[key] = macro
+end
+--- Queue work until combat ends.
+---@param callback function Deferred work.
+function addon.runAfterCombat(callback) afterCombat[#afterCombat + 1] = callback end
 --- Report group membership.
 ---@return boolean grouped
 function IsInGroup() return grouped end
@@ -132,10 +161,14 @@ function GetNumSubgroupMembers() return #units end
 ---@param token string Unit token.
 ---@return table|nil unit
 local function unit(token) return units[tonumber(token:match("%d+$"))] end
+local playerRole = "NONE"
 --- Report a member's assigned role.
 ---@param token string Unit token.
 ---@return string role
-function UnitGroupRolesAssigned(token) return unit(token).role end
+function UnitGroupRolesAssigned(token)
+  if token == "player" then return playerRole end
+  return unit(token).role
+end
 --- Identify the player in a raid roster.
 ---@param token string Unit token.
 ---@param other string Comparison token.
@@ -196,7 +229,35 @@ module:OnInitialize()
 module:OnEnable()
 for _, event in ipairs({ "GROUP_JOINED", "GROUP_ROSTER_UPDATE", "PLAYER_ROLES_ASSIGNED",
   "ROLE_CHANGED_INFORM", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }) do assert(events[event]) end
+assert(events.UPDATE_BINDINGS == "UpdateBinding")
 assert(creates == 0 and module:GetCommands() == DEFAULT)
+boundKeys = { "CTRL-E" }
+module:UpdateBinding()
+assert(next(overrides) == nil) -- The binding does nothing until the feature is enabled.
+module:SetOption("enabled", true)
+assert(overrides["CTRL-E"] == "ASSIST_TANK")
+local clearCount = clears
+module:UpdateBinding()
+assert(clears == clearCount) -- Unchanged keys must not rebuild overrides (UPDATE_BINDINGS loop).
+boundKeys = { "CTRL-E", "F5" }
+module:UpdateBinding()
+assert(overrides["CTRL-E"] == "ASSIST_TANK" and overrides.F5 == "ASSIST_TANK")
+combat = true
+boundKeys = { "F6" }
+module:UpdateBinding()
+module:UpdateBinding()
+assert(#afterCombat == 1 and overrides.F5) -- Overrides are protected during combat.
+combat = false
+table.remove(afterCombat)()
+assert(overrides.F6 == "ASSIST_TANK" and overrides["CTRL-E"] == nil)
+p.macroName = "RENAMED"
+module:UpdateBinding()
+assert(overrides.F6 == "RENAMED") -- Renaming the macro retargets the binding.
+p.macroName = "ASSIST_TANK"
+module:SetOption("enabled", false)
+assert(next(overrides) == nil)
+boundKeys = {}
+module:UpdateBinding()
 module:SetOption("enabled", true)
 assert(creates == 1 and macros[1].body == "#showtooltip Attack\n/startattack")
 assert(macros[1].icon == "inv_misc_questionmark")
@@ -233,6 +294,22 @@ macros[1].icon = 1
 module:SaveMacro()
 assert(macros[1].body == "#showtooltip Attack\n/startattack" and macros[1].icon == "inv_misc_questionmark")
 assert(macros[1].name == "ASSIST_TANK" and account[1].body == "/say account untouched")
+grouped, playerRole = true, "TANK"
+module:SetOption("tankMarkSkull", true)
+assert(macros[1].body == "#showtooltip Attack\n/tm 8\n/startattack")
+assert(messages[#messages] == "Assist Tank Macro recreated targeting: Skull")
+module:SetOption("tankMarkSkull", false)
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
+module:SetOption("tankMarkSkull", true)
+playerRole = "DAMAGER"
+module:Refresh()
+assert(macros[1].body == "#showtooltip Attack\n/startattack") -- Only tanks mark targets.
+playerRole = "TANK"
+units = { { name = "OffTank", role = "TANK" } }
+module:Refresh()
+assert(macros[1].body == renderTank(DEFAULT, "OffTank")) -- Another tank is still assisted.
+grouped, playerRole, units = false, "NONE", {}
+module:SetOption("tankMarkSkull", nil)
 grouped = true
 units = { { name = "Tank", role = "TANK" } }
 module:SetOption("enabled", true)
@@ -429,6 +506,7 @@ assert(addon.dbDefaults.profile.combat.raiseCastingNameplates == nil)
 assert(addon.dbDefaults.profile.nameplates.raiseCastingNameplates == false)
 assert(addon.dbDefaults.profile.combat.assistTankMacro.enabled == false)
 assert(addon.dbDefaults.profile.combat.assistTankMacro.macroCommands == DEFAULT)
+assert(addon.dbDefaults.profile.combat.assistTankMacro.macroName == "@TANK")
 assert(addon.options.args.nameplates.args.paladin == nil)
 local group = addon.options.args.combat.args.assistTankMacro
 assert(group.args.enabled.order < group.args.addFocusAssist.order
@@ -441,6 +519,13 @@ assert(group.get({ "macroName" }) == "PROFILE_TWO")
 assert(custom.macroCommands.multiline == 5 and custom.macroCommands.disabled())
 assert(custom.resetCommands.disabled() and custom.saveMacro.disabled())
 assert(not group.args.addFocusAssist.disabled())
+assert(addon.dbDefaults.profile.combat.assistTankMacro.tankMarkSkull == true)
+assert(group.args.addFocusAssist.order < group.args.tankMarkSkull.order
+  and group.args.tankMarkSkull.order < group.args.macroName.order)
+assert(group.args.tankMarkSkull.name:find("UI-RaidTargetingIcon_8", 1, true))
+assert(group.args.assistTankKey1.type == "keybinding" and group.args.assistTankKey2.type == "keybinding")
+assert(group.args.enabled.order < group.args.assistTankKey1.order
+  and group.args.assistTankKey2.order < group.args.addFocusAssist.order)
 group.set({ "customMacro", "useCustomMacro" }, true)
 assert(not custom.macroCommands.disabled() and group.args.addFocusAssist.disabled())
 assert(not custom.resetCommands.disabled() and not custom.saveMacro.disabled())
