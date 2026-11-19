@@ -20,6 +20,8 @@ BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_AUTO_ACCEPT = "Toggle Auto-Accept Quests"
 BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_AUTO_COMPLETE = "Toggle Auto-Complete Quests"
 BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_AUTO_CLICK_FIRST_OPTION = "Toggle Auto-Click First Dialog Option"
 BINDING_NAME_SLACKHACKS_TOGGLE_QUEST_ALL_AUTOMATION = "Toggle ALL NPC Auto-Interacts"
+-- The Combat module redirects this binding's keys to the generated character macro.
+BINDING_NAME_SLACKHACKS_ASSIST_TANK = "Assist Tank Macro"
 
 
 -- Change implicit global scope to our addon "namespace":

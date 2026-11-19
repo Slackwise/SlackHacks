@@ -276,6 +276,7 @@ for _, group in ipairs({
   { "convenienceBinding", convenienceActions },
   { "specializationBinding", specializationActions },
   { "bestUseItemsBinding", bestActions },
+  { "combatBinding", { "SLACKHACKS_ASSIST_TANK" } },
   { "dialogBinding", questActions }
 }) do
   for index, action in ipairs(group[2]) do

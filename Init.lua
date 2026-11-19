@@ -652,18 +652,25 @@ CONFIG_MIGRATIONS = {
     end
   end,
   -- Config v15, ships in addon v30.
-  --- Renames the vendor-only restriction to services-only in every saved profile.
+  --- Renames the vendor-only restriction to services-only and keeps existing Assist Tank Macro names.
   [15] = function()
-    --- Moves the old saved value over any materialized AceDB default.
+    --- Moves renamed settings over any materialized AceDB defaults.
     ---@param p table|nil Saved profile.
     local function migrateProfile(p)
       if type(p) ~= "table" then return end
       local dialog = rawget(p, "dialog")
-      if type(dialog) ~= "table" then return end
-      local oldValue = rawget(dialog, "autoClickFirstOptionVendorOnly")
-      if oldValue ~= nil then
-        dialog.autoClickFirstOptionServicesOnly = oldValue
-        dialog.autoClickFirstOptionVendorOnly = nil
+      if type(dialog) == "table" then
+        local oldValue = rawget(dialog, "autoClickFirstOptionVendorOnly")
+        if oldValue ~= nil then
+          dialog.autoClickFirstOptionServicesOnly = oldValue
+          dialog.autoClickFirstOptionVendorOnly = nil
+        end
+      end
+      -- The default macro name became @TANK; enabled profiles keep the macro already on their bars.
+      local combat = rawget(p, "combat")
+      local assist = type(combat) == "table" and rawget(combat, "assistTankMacro")
+      if type(assist) == "table" and rawget(assist, "enabled") == true and rawget(assist, "macroName") == nil then
+        assist.macroName = "ASSIST_TANK"
       end
     end
 
