@@ -114,7 +114,7 @@ dbDefaults = {
       autoComplete = false,
       autoClickFirstOption = false,
       autoClickFirstOptionMythicOnly = false,
-      autoClickFirstOptionServiceNPCOnly = false,
+      autoClickFirstOptionServicesOnly = false,
       numberKeys = false,
       spacebar = false,
       questItemButton = false
@@ -4235,7 +4235,7 @@ options = {
               set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionMythicOnly", value) end,
               order = 3.5
             },
-            autoClickFirstOptionServiceNPCOnly = {
+            autoClickFirstOptionServicesOnly = {
               name = "Only when interacting with Service NPC",
               desc = "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.",
               type = "toggle",
@@ -4248,11 +4248,11 @@ options = {
               end,
               --- Reads the profile's service NPC restriction.
               ---@return boolean
-              get = function() return db.profile.dialog.autoClickFirstOptionServiceNPCOnly end,
+              get = function() return db.profile.dialog.autoClickFirstOptionServicesOnly end,
               --- Applies the restriction without changing the parent automation setting.
               ---@param _ table AceConfig option info.
               ---@param value boolean
-              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionServiceNPCOnly", value) end,
+              set = function(_, value) Self.Dialog:SetOption("autoClickFirstOptionServicesOnly", value) end,
               order = 3.6
             }
           }

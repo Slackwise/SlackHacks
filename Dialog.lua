@@ -322,11 +322,11 @@ end
 local function canAutoClickOption(s, option)
   -- The Mythic option is hidden on Forever, so a value saved from another client must not block it there.
   local mythicOnly = not isForever() and s.autoClickFirstOptionMythicOnly
-  local isService = s.autoClickFirstOptionServiceNPCOnly and isServiceGossipOption(option)
+  local isService = s.autoClickFirstOptionServicesOnly and isServiceGossipOption(option)
   local allowed
   if mythicOnly and isMythicRunTimerRunning() then
     allowed = true
-  elseif s.autoClickFirstOptionServiceNPCOnly then
+  elseif s.autoClickFirstOptionServicesOnly then
     allowed = isService
   else
     allowed = not mythicOnly

@@ -158,22 +158,22 @@ assert(loadfile("Options.lua"))()
 local args = SlackHacks.options.args.dialog.args
 assert(SlackHacks.options.args.dialog.name == "Dialog" and SlackHacks.options.args.quest == nil)
 local mythic = args.autoClickGroup.args.autoClickFirstOptionMythicOnly
-local serviceNPC = args.autoClickGroup.args.autoClickFirstOptionServiceNPCOnly
-assert(serviceNPC.name == "Only when interacting with Service NPC")
-assert(serviceNPC.desc == "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.")
-assert(serviceNPC.order > mythic.order and mythic.hidden() and serviceNPC.hidden == nil)
+local services = args.autoClickGroup.args.autoClickFirstOptionServicesOnly
+assert(services.name == "Only when interacting with Service NPC")
+assert(services.desc == "Automatically accept-open vendors, the bank, flight paths, and other pointless dialogs automatically.")
+assert(services.order > mythic.order and mythic.hidden() and services.hidden == nil)
 retail, forever = true, false
-assert(not mythic.hidden() and serviceNPC.hidden == nil)
-assert(serviceNPC.disabled())
+assert(not mythic.hidden() and services.hidden == nil)
+assert(services.disabled())
 SlackHacks.db.profile.dialog.autoClickFirstOption = true
-assert(not serviceNPC.disabled())
+assert(not services.disabled())
 --- Applies options without invoking unrelated secure UI lifecycle work.
 ---@param key string Setting name.
 ---@param value boolean Setting value.
 function module:SetOption(key, value) SlackHacks.db.profile.dialog[key] = value end
-serviceNPC.set({}, true)
-assert(serviceNPC.get())
-assert(SlackHacks.dbDefaults.profile.dialog.autoClickFirstOptionServiceNPCOnly == false)
+services.set({}, true)
+assert(services.get())
+assert(SlackHacks.dbDefaults.profile.dialog.autoClickFirstOptionServicesOnly == false)
 assert(SlackHacks.dbDefaults.profile.quest == nil)
 local keybindings = SlackHacks.options.args.controls.args.keybindings
 local bindingArgs = keybindings.args
