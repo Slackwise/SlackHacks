@@ -158,7 +158,7 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Combat Safe:** Vending pauses in combat; entering combat clears the queue, and new requests are only accepted out of combat.
 
 ### Combat
-* **Assist Tank Macro:** Generates an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet. Includes its own keybinding, and tanks can mark their target with a skull instead.
+* **Assist Tank Macro:** Generates an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet. Optionally assist your current friendly target first. Includes its own keybinding, and tanks can mark their target with a skull instead.
 
 ### Nameplates (**WIP!**)
 * **Raise Casting Nameplates:** Draws casting enemy nameplates above overlapping nameplates so their cast bars remain visible.

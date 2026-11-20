@@ -227,8 +227,8 @@ end
 assert(loadfile("Combat.lua"))()
 module:OnInitialize()
 module:OnEnable()
-for _, event in ipairs({ "GROUP_JOINED", "GROUP_ROSTER_UPDATE", "PLAYER_ROLES_ASSIGNED",
-  "ROLE_CHANGED_INFORM", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }) do assert(events[event]) end
+for _, event in ipairs({ "GROUP_JOINED", "GROUP_LEFT", "GROUP_ROSTER_UPDATE", "PLAYER_ROLES_ASSIGNED",
+  "ROLE_CHANGED_INFORM", "UNIT_NAME_UPDATE", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }) do assert(events[event]) end
 assert(events.UPDATE_BINDINGS == "UpdateBinding")
 assert(creates == 0 and module:GetCommands() == DEFAULT)
 boundKeys = { "CTRL-E" }
@@ -315,6 +315,37 @@ units = { { name = "Tank", role = "TANK" } }
 module:SetOption("enabled", true)
 assert(creates == 1 and macros[1].name == "ASSIST_TANK")
 assert(macros[1].body == renderTank(DEFAULT, "Tank"))
+
+-- A friendly current target has priority over the tank, focus, and pet fallback.
+module:SetOption("assistCurrentTarget", true)
+assert(module:GetDraft("macroCommands") == "#showtooltip\n/assist [@target,help] target; [group] TANK\n/startattack")
+assert(macros[1].body == "#showtooltip Attack\n/assist [@target,help] target; [group] Tank\n/startattack")
+module:SetOption("addFocusAssist", true)
+assert(macros[1].body == "#showtooltip Attack\n/assist [@target,help] target; [@focus,help,nodead] focus; [group] Tank\n/startattack")
+module:SetOption("useCustomMacro", true)
+assert(macros[1].body == renderTank(DEFAULT, "Tank")) -- Custom commands are never rewritten.
+module:SetOption("useCustomMacro", false)
+units = {}
+playerClass = "HUNTER"
+module:Refresh()
+assert(macros[1].body == "#showtooltip Auto Shot\n/assist [@target,help] target; [@pet,exists,nodead] pet\n/startattack")
+playerClass = "WARRIOR"
+module:Refresh()
+assert(macros[1].body == "#showtooltip Attack\n/assist [@target,help] target\n/startattack")
+playerRole = "TANK"
+module:SetOption("tankMarkSkull", true)
+assert(macros[1].body == "#showtooltip Attack\n/assist [@target,help] target\n/tm 8\n/startattack")
+combat = true
+module:SetOption("assistCurrentTarget", false)
+assert(macros[1].body:find("[@target,help]", 1, true))
+combat = false
+module:PLAYER_REGEN_ENABLED()
+assert(macros[1].body == "#showtooltip Attack\n/tm 8\n/startattack")
+playerRole, units = "NONE", { { name = "Tank", role = "TANK" } }
+module:SetOption("tankMarkSkull", nil)
+module:SetOption("addFocusAssist", false)
+assert(macros[1].body == renderTank(DEFAULT, "Tank"))
+
 for _, class in ipairs({ "HUNTER", "WARLOCK" }) do
   playerClass = class
   module:Refresh()
@@ -345,6 +376,59 @@ assert(creates == 1 and edits == unchangedEdits)
 units[1] = { name = "Other", realm = "Other Realm", role = "TANK" }
 module[events.ROLE_CHANGED_INFORM](module)
 assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm") and edits == unchangedEdits + 1)
+
+-- Role assignment events refresh the macro using the current roster.
+units[1].role = "DAMAGER"
+module[events.ROLE_CHANGED_INFORM](module, "ROLE_CHANGED_INFORM")
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
+units[1].role = "TANK"
+module[events.PLAYER_ROLES_ASSIGNED](module, "PLAYER_ROLES_ASSIGNED")
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
+
+-- A role event in combat queues a protected macro update.
+units[1].role = "DAMAGER"
+module[events.PLAYER_ROLES_ASSIGNED](module, "PLAYER_ROLES_ASSIGNED")
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
+units[1].role = "TANK"
+combat = true
+module[events.PLAYER_ROLES_ASSIGNED](module, "PLAYER_ROLES_ASSIGNED")
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
+combat = false
+module:PLAYER_REGEN_ENABLED()
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
+
+-- A late name update triggers the same refresh; unrelated unit names do not.
+units[1].name = nil
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
+units[1].name = "Other"
+module:UNIT_NAME_UPDATE("UNIT_NAME_UPDATE", "target")
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
+module:UNIT_NAME_UPDATE("UNIT_NAME_UPDATE", "party1")
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
+
+-- Events in combat defer the write and resolve the current roster after combat.
+combat = true
+units[1].role = "DAMAGER"
+module[events.ROLE_CHANGED_INFORM](module, "ROLE_CHANGED_INFORM")
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
+units[1] = { name = "NewTank", role = "TANK" }
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
+combat = false
+module:PLAYER_REGEN_ENABLED()
+assert(macros[1].body == renderTank(DEFAULT, "NewTank"))
+units[1] = { name = "Other", realm = "Other Realm", role = "TANK" }
+module:Refresh()
+
+-- Role and roster events must not reactivate the feature after it is disabled.
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+module:SetOption("enabled", false)
+local disabledBody = macros[1].body
+units[1].name = "Ignored"
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+assert(macros[1].body == disabledBody)
+units[1].name = "Other"
+module:SetOption("enabled", true)
 foreverClient = true
 module:Refresh()
 assert(macros[1].body == renderTank(DEFAULT, "Other Other Realm"))
@@ -427,7 +511,7 @@ units = { { player = true, name = "Self", role = "TANK" },
 module:Refresh()
 assert(macros[1].body == renderTank(FOCUS, "RaidTank"))
 combat, grouped = true, false
-module:Refresh()
+module[events.GROUP_LEFT](module, "GROUP_LEFT")
 assert(macros[1].body == renderTank(FOCUS, "RaidTank"))
 combat = false
 module:PLAYER_REGEN_ENABLED()
@@ -505,6 +589,7 @@ assert(loadfile("Options.lua"))()
 assert(addon.dbDefaults.profile.combat.raiseCastingNameplates == nil)
 assert(addon.dbDefaults.profile.nameplates.raiseCastingNameplates == false)
 assert(addon.dbDefaults.profile.combat.assistTankMacro.enabled == false)
+assert(addon.dbDefaults.profile.combat.assistTankMacro.assistCurrentTarget == false)
 assert(addon.dbDefaults.profile.combat.assistTankMacro.macroCommands == DEFAULT)
 assert(addon.dbDefaults.profile.combat.assistTankMacro.macroName == "@TANK")
 assert(addon.options.args.nameplates.args.paladin == nil)
@@ -519,6 +604,9 @@ assert(group.get({ "macroName" }) == "PROFILE_TWO")
 assert(custom.macroCommands.multiline == 5 and custom.macroCommands.disabled())
 assert(custom.resetCommands.disabled() and custom.saveMacro.disabled())
 assert(not group.args.addFocusAssist.disabled())
+assert(group.args.assistCurrentTarget.name == "Assist Current Target Over Tank")
+assert(group.args.assistCurrentTarget.desc == "If you have a current friendly target, assist them instead of the tank.")
+assert(not group.args.assistCurrentTarget.disabled())
 assert(addon.dbDefaults.profile.combat.assistTankMacro.tankMarkSkull == true)
 assert(group.args.addFocusAssist.order < group.args.tankMarkSkull.order
   and group.args.tankMarkSkull.order < group.args.macroName.order)
@@ -528,6 +616,7 @@ assert(group.args.enabled.order < group.args.assistTankKey1.order
   and group.args.assistTankKey2.order < group.args.addFocusAssist.order)
 group.set({ "customMacro", "useCustomMacro" }, true)
 assert(not custom.macroCommands.disabled() and group.args.addFocusAssist.disabled())
+assert(group.args.assistCurrentTarget.disabled())
 assert(not custom.resetCommands.disabled() and not custom.saveMacro.disabled())
 group.set({ "customMacro", "macroCommands" }, "/assist TANK")
 assert(group.get({ "customMacro", "macroCommands" }) == "/assist TANK")

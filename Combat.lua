@@ -23,10 +23,21 @@ local function settings()
   return db.profile.combat.assistTankMacro
 end
 
---- Return the standard commands for the current focus-assist preference.
+--- Give a friendly current target priority over an existing assist or no-tank fallback.
+---@param commands string Generated macro commands.
+---@return string commands Commands with the current-target assist condition.
+local function addCurrentTargetAssist(commands)
+  local updated, count = commands:gsub("\n/assist ", "\n/assist [@target,help] target; ", 1)
+  if count > 0 then return updated end
+  return (commands:gsub("\n", "\n/assist [@target,help] target\n", 1))
+end
+
+--- Return the standard commands for the current assist preferences.
 ---@return string commands
 function module:GetDefaultCommands()
-  return settings().addFocusAssist and FOCUS_COMMANDS or DEFAULT_COMMANDS
+  local p = settings()
+  local commands = p.addFocusAssist and FOCUS_COMMANDS or DEFAULT_COMMANDS
+  return p.assistCurrentTarget and addCurrentTargetAssist(commands) or commands
 end
 
 --- Return the saved template, ignoring custom commands when custom mode is off.
@@ -45,7 +56,7 @@ local function draft()
   return drafts[p]
 end
 
---- Read an editor field; standard templates remain read-only and reflect the focus checkbox.
+--- Read an editor field; standard templates remain read-only and reflect the assist preferences.
 ---@param key string Editor field name.
 ---@return string value
 function module:GetDraft(key)
@@ -210,6 +221,9 @@ function module:UpdateMacro(notify)
   local class = getClassName()
   local assistPet = not tank and not markSkull and (class == "HUNTER" or class == "WARLOCK")
   local fallback = markSkull and SKULL_COMMANDS or assistPet and PET_COMMANDS or NO_TANK_COMMANDS
+  if p.assistCurrentTarget and not p.useCustomMacro then
+    fallback = addCurrentTargetAssist(fallback)
+  end
   local body = applyAttackTooltip(tank and expandCommands(commands, tank) or fallback)
   if #body > MAX_BODY_LENGTH then
     reportError("Macro Commands exceed the 255-byte limit after resolving the attack tooltip.", notify)
@@ -302,6 +316,16 @@ function module:Refresh()
   self:UpdateBinding()
 end
 
+--- Refresh when the name of a group member becomes available after a roster update.
+---@param _ string Event name.
+---@param unit string Unit token.
+---@return nil
+function module:UNIT_NAME_UPDATE(_, unit)
+  if type(unit) == "string" and (unit == "player" or unit:match("^party%d+$") or unit:match("^raid%d+$")) then
+    self:Refresh()
+  end
+end
+
 --- Redirect the SlackHacks Assist Tank Macro binding's saved keys to the character macro.
 --- The binding has no body of its own because running a macro from a binding requires an override.
 ---@return nil
@@ -359,11 +383,13 @@ end
 ---@return nil
 function module:OnEnable()
   for _, event in ipairs({
-    "PLAYER_ENTERING_WORLD", "GROUP_JOINED", "GROUP_ROSTER_UPDATE",
-    "PLAYER_ROLES_ASSIGNED", "ROLE_CHANGED_INFORM", "PLAYER_EQUIPMENT_CHANGED",
+    "PLAYER_ENTERING_WORLD", "GROUP_JOINED", "GROUP_LEFT", "GROUP_ROSTER_UPDATE",
+    "PLAYER_ROLES_ASSIGNED", "ROLE_CHANGED_INFORM",
   }) do
     self:RegisterEvent(event, "Refresh")
   end
+  self:RegisterEvent("UNIT_NAME_UPDATE")
+  self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
   self:RegisterEvent("PLAYER_REGEN_ENABLED")
   self:RegisterEvent("UPDATE_BINDINGS", "UpdateBinding")
   self:Refresh()
