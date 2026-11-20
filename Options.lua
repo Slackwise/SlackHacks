@@ -4221,13 +4221,6 @@ options = {
       order = 9.5,
       args = {
         overview = goldModuleOverview("Automates quest and NPC dialogs, adds number-key shortcuts to dialog options, and shows an Extra Action Button for quest items."),
-        shiftNote = {
-          type = "description",
-          name = "|cffffffffHold |cff00ccffShift|cffffffff while interacting with an NPC to skip all automation for that interaction.|r",
-          fontSize = "small",
-          width = "full",
-          order = 0.05
-        },
         enabled = {
           name = "Enable Dialog Module",
           desc = "Enable the Dialog features below.",

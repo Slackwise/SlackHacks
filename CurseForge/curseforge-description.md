@@ -147,7 +147,6 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Safe Dialog Shortcuts:** Temporary keybindings are cleared when the dialog closes or combat starts. Turn-ins requiring a choice between rewards remain entirely manual: dialog shortcuts and auto-completion are disabled on that screen, even after selecting a reward.
 * **Quest Item Extra Action Button:** Shows an Extra Action Button for a quest item while you're inside that quest's area, bound to your Extra Action Button key. Items that must be used on a target are left out.
 * **Toggles:** Keybindings to toggle each auto option or all of them at once, plus an "All NPC Auto-Interacts" checkbox in the minimap icon menu.
-* Hold `Shift` while interacting to skip all automation.
 
 ### Self Vendor
 * **Chat Request Handling:** Listens in party, raid, instance, say, and whisper chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`). Enable **Only Vend to Fellow Guildies** to ignore requests from non-guild members.

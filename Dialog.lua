@@ -21,7 +21,6 @@ setfenv(1, _G.SlackHacks)
 --     code can no longer touch bindings). They're also cleared whenever the dialog closes.
 --   * The quest item button skips items that must be used on a unit (C_Item.IsHelpfulItem/IsHarmfulItem),
 --     so it only shows items used on the ground or without a target.
---   * Holding Shift while interacting suppresses all dialog automation for that interaction.
 
 --- The addon module instance. Exposed as `Self.Dialog` so Options.lua can call `:SetEnabled()`,
 --- `:SetOption()`, and `:IsQuestItemButtonSupported()` from the config UI.
@@ -55,12 +54,6 @@ local function settings()
     db.profile.dialog = s
   end
   return s
-end
-
---- Reports whether Shift suppresses automation for this interaction.
----@return boolean
-local function isAutomationSuppressed()
-  return IsShiftKeyDown()
 end
 
 --- Check for a Mythic+ run whose elapsed timer has started, excluding the opening countdown.
@@ -343,7 +336,6 @@ end
 ---@return boolean
 local function automateGossip(availableQuests, activeQuests, options)
   local s = settings()
-  if isAutomationSuppressed() then return false end
 
   if s.autoComplete then
     for _, quest in ipairs(activeQuests) do
@@ -411,20 +403,18 @@ function module:QUEST_GREETING()
   local numActive = GetNumActiveQuests()
   local numAvailable = GetNumAvailableQuests()
 
-  if not isAutomationSuppressed() then
-    if s.autoComplete then
-      for index = 1, numActive do
-        local _, isComplete = GetActiveTitle(index)
-        if isComplete then
-          SelectActiveQuest(index)
-          return
-        end
+  if s.autoComplete then
+    for index = 1, numActive do
+      local _, isComplete = GetActiveTitle(index)
+      if isComplete then
+        SelectActiveQuest(index)
+        return
       end
     end
-    if s.autoAccept and numAvailable > 0 then
-      SelectAvailableQuest(1)
-      return
-    end
+  end
+  if s.autoAccept and numAvailable > 0 then
+    SelectAvailableQuest(1)
+    return
   end
 
   -- Same order QuestFrameGreetingPanel lists them: active quests, then available quests.
@@ -441,7 +431,7 @@ end
 --- Offers manual acceptance through Spacebar or applies auto-accept.
 function module:QUEST_DETAIL()
   setQuestAction("detail")
-  if not settings().autoAccept or isAutomationSuppressed() then return end
+  if not settings().autoAccept then return end
   if QuestGetAutoAccept and QuestGetAutoAccept() then
     AcknowledgeAutoAcceptQuest()
   else
@@ -452,7 +442,7 @@ end
 --- Offers the normal quest-progress action or automatically advances a free turn-in.
 function module:QUEST_PROGRESS()
   setQuestAction("progress")
-  if not settings().autoComplete or isAutomationSuppressed() then return end
+  if not settings().autoComplete then return end
   if IsQuestCompletable() and GetQuestMoneyToGet() == 0 then
     CompleteQuest()
   end
@@ -462,7 +452,7 @@ end
 function module:QUEST_COMPLETE()
   setQuestAction("complete")
   if hasRewardChoices() then return end
-  if not settings().autoComplete or isAutomationSuppressed() then return end
+  if not settings().autoComplete then return end
   local numChoices = GetNumQuestChoices()
   if numChoices <= 1 and GetQuestMoneyToGet() == 0 then
     GetQuestReward(numChoices) -- 0 = no choice, 1 = the only choice

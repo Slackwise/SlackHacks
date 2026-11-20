@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v31
+- Dialog automation now works while holding Shift, including when using a Shift-modified interact key. Shift no longer bypasses automation.
+- Added an option to assist your current friendly target before the tank or focus.
+- Assist Tank Macro now refreshes when group members' names become available and when leaving a group, including during combat.
+
 ## v30
 
 ### Dialog
