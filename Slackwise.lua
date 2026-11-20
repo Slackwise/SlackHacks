@@ -308,7 +308,7 @@ BINDINGS = {
     {"CTRL-9",               "NONE", BT.COMMAND},
     {"CTRL-0",               "NONE", BT.COMMAND},
     {",",                    "NONE", BT.COMMAND},
-    {"ALT-CTRL-W",           "TOGGLEFOLLOW", BT.COMMAND},
+    {"ALT-CTRL-W",           "FOLLOWTARGET", BT.COMMAND},
     {"E",                    "INTERACTTARGET", BT.COMMAND},
     {"SHIFT-E",              "INTERACTTARGET", BT.COMMAND},
     {"CTRL-E",               "Single-Button Assistant"},
@@ -1070,6 +1070,15 @@ BINDINGS = {
           ]])
         },
         { 
+          "CAT", "Ability_Racial_CatForm", multilineTrim([[
+            #showtooltip Cat Form
+            /cast [noform:3] Cat Form
+            /equipset [form:3] MeleeWeapon
+            /cast [nomod] !Prowl
+            /cancelaura [mod:shift] Prowl
+          ]])
+        },
+        { 
           "NOFORM", "Classicon_druid", multilineTrim([[
             #showtooltip Moonkin Form
             /cancelform
@@ -1092,9 +1101,9 @@ BINDINGS = {
         },
         { 
           "R", "inv_misc_questionmark", multilineTrim([[
-            #showtooltip [form:1] Swipe; [form:3] Claw; Wrath
+            #showtooltip [form:1] Swipe; [form:3] Rip; Wrath
             /startattack 
-            /cast [form:1] Swipe; [form:3] Ferocious Bite; Wrath
+            /cast [form:1] Swipe; [form:3] Rip; Wrath
           ]])
         },
         { 
@@ -1120,7 +1129,7 @@ BINDINGS = {
       {"BUTTON5",                 "Cure Poison",     BT.CLICKCAST},
 
       {"E",             "*", BT.MACRO},
-      {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
+      {"CTRL-E",        "@TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
       {"2",             "Healing Touch"},
       {"4",             "Moonfire"},
@@ -1132,6 +1141,7 @@ BINDINGS = {
       {"F",             "BASH", BT.MACRO},
       {"SHIFT-F",       "Entangling Roots"},
       {"CTRL-F",        "Nature's Grasp"},
+      {"C",             "CAT", BT.MACRO},
       {"V",             "BEAR", BT.MACRO},
       {"B",             "NOFORM", BT.MACRO},
       {"SHIFT-Z",       "Shadowmeld"},
@@ -1223,7 +1233,7 @@ BINDINGS = {
         { 
           "HAWK", "inv_misc_questionmark", multilineTrim([[
             #showtooltip Aspect of the Hawk
-            /cancelaura Aspect of the Cheetah
+            /cancelaura [@player] Aspect of the Cheetah
             /cast !Aspect of the Hawk
           ]])
         },
