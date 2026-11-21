@@ -43,7 +43,8 @@ both files, so CI can inject its own configuration and secrets.
 
 Run `perl scripts/release.pl` from a clean development branch after committing
 the version bump and a non-empty `## v<VERSION>` section in `CHANGELOG.md`.
-The script merges into `prod`, creates an immutable version tag, atomically
+The script merges into `prod`, preferring the source branch on conflicts while
+retaining non-conflicting `prod` changes. It creates an immutable version tag, atomically
 pushes `prod` and the tag, and deploys that production checkout before restoring
 your original branch (also on deployment failure). `--no-push` prepares only
 the local release and never deploys. `--force` no longer bypasses dirty-worktree

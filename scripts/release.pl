@@ -119,6 +119,7 @@ if ($help) {
 Usage: perl release.pl [OPTIONS]
 
 Merges the working branch into the configured target branch and applies a version tag.
+Source changes win merge conflicts; non-conflicting target changes are retained.
 
 Options:
   -n, --dry-run        Show commands that would be executed without running them
@@ -351,6 +352,45 @@ sub run_cmd {
     return 0;
 }
 
+# Resolves remaining structural conflicts (such as modify/delete) using the source side.
+# @return Number of conflicted paths resolved.
+sub resolve_source_conflicts {
+    open my $pipe, '-|', 'git', 'ls-files', '--unmerged', '-z'
+        or die "Error: Cannot inspect merge conflicts: $!\n";
+    my $entries = do { local $/; <$pipe> } // '';
+    close $pipe or die "Error: Could not inspect merge conflicts.\n";
+    my %paths;
+    for my $entry (split /\0/, $entries) {
+        my ($oid, $stage, $path) = $entry =~ /\A\d+ ([0-9a-f]+) ([123])\t(.*)\z/s;
+        die "Error: Unrecognized Git conflict entry.\n" unless defined $path;
+        $paths{$path}{$stage} = $oid;
+    }
+    for my $path (sort keys %paths) {
+        # Literal pathspecs are necessary for filenames containing Git pathspec metacharacters.
+        my $literal = ":(literal)$path";
+        if ($paths{$path}{3}) {
+            # Git relocates a source file to path~branch if a production directory occupies its path.
+            # Identify the original by matching its source-tree blob, not by trusting the suffix alone.
+            my $source_entry = git_output('ls-tree', '-z', $source_commit, '--', $literal);
+            if ($source_entry eq '' && $path =~ /\A(.+)~[^\/]+\z/s) {
+                my $original = $1;
+                my $original_literal = ":(literal)$original";
+                my $entry = git_output('ls-tree', '-z', $source_commit, '--', $original_literal);
+                if ($entry =~ /\A\d+ blob \Q$paths{$path}{3}\E\t\Q$original\E\0\z/s) {
+                    run_cmd('git', 'rm', '-r', '-f', '--ignore-unmatch', '--', $original_literal, $literal);
+                    run_cmd('git', 'restore', '--source', $source_commit, '--staged', '--worktree', '--', $original_literal);
+                    next;
+                }
+            }
+            run_cmd('git', 'checkout', '--theirs', '--', $literal);
+            run_cmd('git', 'add', '--', $literal);
+        } else {
+            run_cmd('git', 'rm', '-f', '--ignore-unmatch', '--', $literal);
+        }
+    }
+    return scalar keys %paths;
+}
+
 # ------------------------------------------------------------------------------
 # Step 4: Checkout Target Branch ('prod')
 # ------------------------------------------------------------------------------
@@ -367,11 +407,25 @@ eval {
         die "Error: A merge is already in progress; resolve it before releasing.\n"
             if !$dry_run && -f git_output('rev-parse', '--git-path', 'MERGE_HEAD');
         $release_merge_started = !$dry_run;
-        run_cmd(
-            "git", "merge", $source_branch,
+        my @merge_cmd = (
+            "git", "merge", "-X", "theirs", $source_branch,
             "-m", "Release v$version",
             "-m", "Merge branch '$source_branch' into $target_branch"
         );
+        if ($dry_run) {
+            run_cmd(@merge_cmd);
+            print "Would resolve any remaining conflicts in favor of '$source_branch'.\n";
+        } else {
+            print "> " . join(" ", @merge_cmd) . "\n";
+            my $merge_status = system(@merge_cmd);
+            if ($merge_status != 0) {
+                die "Error: Release merge failed before conflicts could be resolved.\n"
+                    unless -f git_output('rev-parse', '--git-path', 'MERGE_HEAD');
+                my $resolved = resolve_source_conflicts();
+                die "Error: Release merge failed without resolvable conflicts.\n" unless $resolved;
+                run_cmd('git', 'commit', '--no-edit');
+            }
+        }
         $release_merge_started = 0;
 
         die "Error: Merged production TOC version differs from planned release $version.\n"
