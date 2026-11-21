@@ -126,6 +126,7 @@ dbDefaults = {
         macroCommands = "#showtooltip\n/assist [group] TANK\n/startattack",
         useCustomMacro = false,
         addFocusAssist = true,
+        assistCurrentTarget = false,
         tankMarkSkull = true
       },
       paladin = {
@@ -2774,6 +2775,17 @@ options = {
               disabled = function() return db.profile.combat.assistTankMacro.useCustomMacro end,
               order = 2
             },
+            assistCurrentTarget = {
+              type = "toggle",
+              name = "Assist Current Target Over Tank",
+              desc = "If you have a current friendly target, assist them instead of the tank.",
+              descStyle = "inline",
+              width = "full",
+              --- Custom mode controls its own assist commands.
+              ---@return boolean disabled
+              disabled = function() return db.profile.combat.assistTankMacro.useCustomMacro end,
+              order = 2.2
+            },
             tankMarkSkull = {
               type = "toggle",
               name = "As Tank, Mark |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:0|t Skull Instead",
@@ -2810,7 +2822,7 @@ options = {
                 resetCommands = {
                   type = "execute",
                   name = "Reset Commands",
-                  desc = "Restore and apply the standard commands for the focus preference.",
+                  desc = "Restore and apply the standard commands for the assist preferences.",
                   --- Only allow resetting commands while the custom editor is editable.
                   ---@return boolean disabled
                   disabled = function() return not db.profile.combat.assistTankMacro.useCustomMacro end,
@@ -4209,13 +4221,6 @@ options = {
       order = 9.5,
       args = {
         overview = goldModuleOverview("Automates quest and NPC dialogs, adds number-key shortcuts to dialog options, and shows an Extra Action Button for quest items."),
-        shiftNote = {
-          type = "description",
-          name = "|cffffffffHold |cff00ccffShift|cffffffff while interacting with an NPC to skip all automation for that interaction.|r",
-          fontSize = "small",
-          width = "full",
-          order = 0.05
-        },
         enabled = {
           name = "Enable Dialog Module",
           desc = "Enable the Dialog features below.",

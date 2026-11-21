@@ -15,6 +15,7 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
 ### Utilities
 * **Lootable Object Sparkles (WoW Forever only):** Checkbox to enable the hidden feature that enables Classic WoW lootable object sparkles.
 * **TomTom `/way` Command:** Creates native Blizzard waypoints using TomTom-style `/way` commands, without needing TomTom or overriding it when installed.
+* **Show In-Game Navigation:** Toggles the in-world diamond pointing toward objectives on clients that support it.
 
 ### Controls
 * **Camera Distance:** Unlocks maximum camera zoom distance (`cameraDistanceMaxZoomFactor = 4`).
@@ -138,15 +139,14 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Auto-Complete Quests:** Automatically completes quests that have no choices in reward.
 * **NPC Dialog Auto-Click:**
   * **Auto-Click First Dialog Option:** Automatically clicks an NPC dialog's option if it's the only option and no quests are listed.
-  * **Only During Mythic Runs:** Optionally restricts auto-clicking to Mythic+ runs whose timer is running. Hidden on WoW Forever.
-  * **Only when Interacting with Vendor:** If talking to a vendor with no extra dialogue options, automatically open their vendor window, even when the NPC forces its gossip to display. Matches "I want to browse your goods." and is hidden on Retail.
+  * **Only During Mythic Runs:** Optionally restricts auto-clicking to Mythic+ runs whose timer is running. Hidden on WoW Forever. When combined with the Service NPC restriction, an active run allows other dialogs too.
+  * **Only when interacting with Service NPC:** Restricts auto-clicking to recognized service options such as vendors, banks, flight paths, and trainers, even when the NPC forces its gossip to display. Available on Retail as well as Classic clients.
 * **Dialog Keybindings:**
   * **Number Key Dialog Options:** Maps quest and NPC dialog selections to the number keys (1–9, 0), displaying each shortcut after the icon and before the selection text (e.g., "{Icon} 1. See my wares.").
   * **Spacebar to Accept/Complete Quest:** Independently enables Spacebar to accept, continue, or complete the current quest using Blizzard's normal buttons and confirmation prompts.
 * **Safe Dialog Shortcuts:** Temporary keybindings are cleared when the dialog closes or combat starts. Turn-ins requiring a choice between rewards remain entirely manual: dialog shortcuts and auto-completion are disabled on that screen, even after selecting a reward.
 * **Quest Item Extra Action Button:** Shows an Extra Action Button for a quest item while you're inside that quest's area, bound to your Extra Action Button key. Items that must be used on a target are left out.
 * **Toggles:** Keybindings to toggle each auto option or all of them at once, plus an "All NPC Auto-Interacts" checkbox in the minimap icon menu.
-* Hold `Shift` while interacting to skip all automation.
 
 ### Self Vendor
 * **Chat Request Handling:** Listens in party, raid, instance, say, and whisper chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`). Enable **Only Vend to Fellow Guildies** to ignore requests from non-guild members.
@@ -157,7 +157,7 @@ One "Enable Reminders Module" switch turns all Reminders features on or off at o
 * **Combat Safe:** Vending pauses in combat; entering combat clears the queue, and new requests are only accepted out of combat.
 
 ### Combat
-* **Assist Tank Macro:** Generates an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet. Includes its own keybinding, and tanks can mark their target with a skull instead.
+* **Assist Tank Macro:** Generates an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet. Optionally assist your current friendly target first. Includes its own keybinding, and tanks can mark their target with a skull instead.
 
 ### Nameplates (**WIP!**)
 * **Raise Casting Nameplates:** Draws casting enemy nameplates above overlapping nameplates so their cast bars remain visible.

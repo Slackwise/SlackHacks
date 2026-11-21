@@ -308,7 +308,7 @@ BINDINGS = {
     {"CTRL-9",               "NONE", BT.COMMAND},
     {"CTRL-0",               "NONE", BT.COMMAND},
     {",",                    "NONE", BT.COMMAND},
-    {"ALT-CTRL-W",           "TOGGLEFOLLOW", BT.COMMAND},
+    {"ALT-CTRL-W",           "FOLLOWTARGET", BT.COMMAND},
     {"E",                    "INTERACTTARGET", BT.COMMAND},
     {"SHIFT-E",              "INTERACTTARGET", BT.COMMAND},
     {"CTRL-E",               "Single-Button Assistant"},
@@ -1070,6 +1070,15 @@ BINDINGS = {
           ]])
         },
         { 
+          "CAT", "Ability_Racial_CatForm", multilineTrim([[
+            #showtooltip Cat Form
+            /cast [noform:3] Cat Form
+            /equipset [form:3] MeleeWeapon
+            /cast [nomod] !Prowl
+            /cancelaura [mod:shift] Prowl
+          ]])
+        },
+        { 
           "NOFORM", "Classicon_druid", multilineTrim([[
             #showtooltip Moonkin Form
             /cancelform
@@ -1092,9 +1101,9 @@ BINDINGS = {
         },
         { 
           "R", "inv_misc_questionmark", multilineTrim([[
-            #showtooltip [form:1] Swipe; [form:3] Claw; Wrath
+            #showtooltip [form:1] Swipe; [form:3] Rip; Wrath
             /startattack 
-            /cast [form:1] Swipe; [form:3] Ferocious Bite; Wrath
+            /cast [form:1] Swipe; [form:3] Rip; Wrath
           ]])
         },
         { 
@@ -1120,7 +1129,7 @@ BINDINGS = {
       {"BUTTON5",                 "Cure Poison",     BT.CLICKCAST},
 
       {"E",             "*", BT.MACRO},
-      {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
+      {"CTRL-E",        "@TANK", BT.MACRO},
       {"1",             "Rejuvenation"},
       {"2",             "Healing Touch"},
       {"4",             "Moonfire"},
@@ -1132,6 +1141,7 @@ BINDINGS = {
       {"F",             "BASH", BT.MACRO},
       {"SHIFT-F",       "Entangling Roots"},
       {"CTRL-F",        "Nature's Grasp"},
+      {"C",             "CAT", BT.MACRO},
       {"V",             "BEAR", BT.MACRO},
       {"B",             "NOFORM", BT.MACRO},
       {"SHIFT-Z",       "Shadowmeld"},
@@ -1157,9 +1167,32 @@ BINDINGS = {
           ]])
         },
         { 
+          "ENGAGE", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Hunter's Mark
+            /petattack
+            /cast !Hunter's Mark
+          ]])
+        },
+        { 
+          "ENGAGE_CURSOR", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip Hunter's Mark
+            /target [@mouseover,harm,nodead]
+            /petattack
+            /startattack
+            /cast !Hunter's Mark
+          ]])
+        },
+        { 
           "MOUSE4", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
+            /petattack [nomod, harm, @mouseover]
             /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
+          ]])
+        },
+        { 
+          "MOUSE5", "inv_misc_questionmark", multilineTrim([[
+            #showtooltip
+            /cast [@mouseover,harm,nodead] Hunter's Mark
           ]])
         },
         { 
@@ -1200,7 +1233,7 @@ BINDINGS = {
         { 
           "HAWK", "inv_misc_questionmark", multilineTrim([[
             #showtooltip Aspect of the Hawk
-            /cancelaura Aspect of the Cheetah
+            /cancelaura [@player] Aspect of the Cheetah
             /cast !Aspect of the Hawk
           ]])
         },
@@ -1230,8 +1263,10 @@ BINDINGS = {
           ]])
         },
       },
+      {"SHIFT-BUTTON2", "PET_CURSOR", BT.MACRO},
+      {"CTRL-BUTTON2",  "ENGAGE_CURSOR", BT.MACRO},
       {"BUTTON4",       "MOUSE4", BT.MACRO},
-      {"BUTTON5",       "PET_CURSOR", BT.MACRO},
+      {"BUTTON5",       "MOUSE5", BT.MACRO},
       {"`",             "STOP!", BT.MACRO},
       {"1",             "Serpent Sting"},
       {"2",             "Aimed Shot"},
@@ -1240,6 +1275,7 @@ BINDINGS = {
       {"SHIFT-3",       {"VOLLEY_TARGET", "/cast [@target] !Volley"}},
       {"4",             "Arcane Shot"},
       {"5",             "Hunter's Mark"},
+      {"SHIFT-5",       "ENGAGE", BT.MACRO},
       {"F5",            "CHAINEAGLE", BT.MACRO},
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},

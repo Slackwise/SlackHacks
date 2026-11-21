@@ -152,13 +152,13 @@ check(1) -- Forever ignores the hidden Mythic restriction.
 check(nil, false) -- Reopened gossip cannot loop.
 check(1)
 shifted = true
-check(nil)
+check(1) -- Shift-modified interact keys do not suppress auto-clicking.
 shifted = false
 forced = true
 check(1) -- Explicit service-only mode bypasses forced service gossip.
 check(nil, false) -- Forced gossip still cannot loop.
 shifted = true
-check(nil) -- Shift still suppresses the forced service shortcut.
+check(1) -- Shift-modified interact keys also work for forced service gossip.
 shifted = false
 s.autoClickFirstOptionServicesOnly = false
 check(nil) -- General auto-clicking still respects forced gossip.
@@ -187,7 +187,7 @@ check(1) -- Preserve the existing vendor text match even with a generic icon.
 options[1].name = "I need a ride."
 check(1) -- A ride with a generic icon is recognized even under forced gossip.
 shifted = true
-check(nil)
+check(1)
 shifted = false
 options[1].status = 1
 check(nil)
@@ -203,7 +203,7 @@ check(nil) -- The text match is exact.
 options[1].name = "I would like to check my deposit box."
 check(1) -- Deposit boxes with a generic icon are recognized under forced gossip.
 shifted = true
-check(nil)
+check(1)
 shifted = false
 options[1].name = "I would like to check my deposit box"
 check(nil) -- The deposit box match is exact.
@@ -265,5 +265,68 @@ check(nil) -- Service-only mode still requires its parent automation.
 s.autoClickFirstOption = true
 options = {}
 check(nil)
+
+-- Quest automation also remains active for Shift-modified interactions.
+local questAction, greetingActive, greetingAvailable, questChoices = nil, 0, 0, 0
+--- Record a gossip quest selection.
+---@param id number Quest ID.
+function C_GossipInfo.SelectAvailableQuest(id) questAction = "available:" .. id end
+--- Record a completed gossip quest selection.
+---@param id number Quest ID.
+function C_GossipInfo.SelectActiveQuest(id) questAction = "active:" .. id end
+--- Return the number of active greeting quests.
+---@return number
+function GetNumActiveQuests() return greetingActive end
+--- Return the number of available greeting quests.
+---@return number
+function GetNumAvailableQuests() return greetingAvailable end
+--- Return a completed greeting quest.
+---@return string, boolean
+function GetActiveTitle() return "Quest", true end
+--- Record an active greeting quest selection.
+---@param index number Quest index.
+function SelectActiveQuest(index) questAction = "greeting-active:" .. index end
+--- Record an available greeting quest selection.
+---@param index number Quest index.
+function SelectAvailableQuest(index) questAction = "greeting-available:" .. index end
+--- Record acceptance of a quest.
+function AcceptQuest() questAction = "accept" end
+--- Return whether a quest can be completed.
+---@return boolean
+function IsQuestCompletable() return true end
+--- Return the money required for a quest.
+---@return number
+function GetQuestMoneyToGet() return 0 end
+--- Record completion of the quest progress page.
+function CompleteQuest() questAction = "progress" end
+--- Return the number of reward choices.
+---@return number
+function GetNumQuestChoices() return questChoices end
+--- Record claiming a quest reward.
+---@param index number Reward index.
+function GetQuestReward(index) questAction = "reward:" .. index end
+
+shifted, s.autoAccept, s.autoComplete = true, true, true
+available = { { questID = 10 } }
+module:GOSSIP_SHOW()
+assert(questAction == "available:10")
+available, activeQuests = {}, { { questID = 11, isComplete = true } }
+module:GOSSIP_SHOW()
+assert(questAction == "active:11")
+greetingActive, greetingAvailable = 1, 1
+module:QUEST_GREETING()
+assert(questAction == "greeting-active:1")
+greetingActive = 0
+module:QUEST_GREETING()
+assert(questAction == "greeting-available:1")
+module:QUEST_DETAIL()
+assert(questAction == "accept")
+module:QUEST_PROGRESS()
+assert(questAction == "progress")
+module:QUEST_COMPLETE()
+assert(questAction == "reward:0")
+questAction, questChoices = nil, 2
+module:QUEST_COMPLETE()
+assert(questAction == nil) -- Reward choices still require manual selection.
 
 print("dialog automation and migration tests passed")
