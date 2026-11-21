@@ -1,6 +1,7 @@
 # SlackHacks Changelog
 
 ## v31
+
 - Fixed Assist Tank Macro incorrectly reporting full character macro slots on clients with more than 18 slots.
 - Dialog automation now works while holding Shift, including when using a Shift-modified interact key. Shift no longer bypasses automation.
 - Added an option to assist your current friendly target before the tank or focus.
