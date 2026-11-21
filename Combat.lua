@@ -229,7 +229,14 @@ function module:UpdateMacro(notify)
     reportError("Macro Commands exceed the 255-byte limit after resolving the attack tooltip.", notify)
     return false
   end
-  local accountLimit = MAX_ACCOUNT_MACROS or 120
+  -- Retail and Forever expose these through MacroConsts; older clients use globals.
+  local macroConsts = Constants and Constants.MacroConsts
+  local accountLimit = macroConsts and macroConsts.MAX_ACCOUNT_MACROS or MAX_ACCOUNT_MACROS
+  local characterLimit = macroConsts and macroConsts.MAX_CHARACTER_MACROS or MAX_CHARACTER_MACROS
+  if type(accountLimit) ~= "number" or type(characterLimit) ~= "number" then
+    reportError("The game's macro slot limits are unavailable; cannot safely update the character macro.", notify)
+    return false
+  end
   local _, characterCount = GetNumMacros()
   local macroIndex, oldBody
   -- A same-named account macro must never be edited. Character slots start after the account capacity,
@@ -241,8 +248,8 @@ function module:UpdateMacro(notify)
       break
     end
   end
-  if not macroIndex and characterCount >= (MAX_CHARACTER_MACROS or 18) then
-    reportError("No free character-specific macro slots. Delete a character macro and save again.", notify)
+  if not macroIndex and characterCount >= characterLimit then
+    reportError("No free character-specific macro slots. Delete a character macro or choose an existing character macro name and save again.", notify)
     return false
   end
   local shouldWrite = not macroIndex or oldBody ~= body or notify

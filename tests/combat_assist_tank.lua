@@ -181,6 +181,7 @@ function UnitIsUnit(token, other) return unit(token).player or false end
 function UnitFullName(token) return unit(token).name, unit(token).realm end
 
 MAX_ACCOUNT_MACROS, MAX_CHARACTER_MACROS = 120, 3
+local accountCapacity, characterCapacity = 120, 3
 local account = { { name = "ASSIST_TANK", body = "/say account untouched", icon = 1 } }
 local macros, creates, edits, fail, truncate = {}, 0, 0, false, false
 local resolvedIcon
@@ -194,7 +195,7 @@ function GetNumMacros() return #account, #macros end
 ---@return number|nil icon
 ---@return string|nil body
 function GetMacroInfo(index)
-  local macro = index > MAX_ACCOUNT_MACROS and macros[index - MAX_ACCOUNT_MACROS] or account[index]
+  local macro = index > accountCapacity and macros[index - accountCapacity] or account[index]
   if macro then return macro.name, resolvedIcon or macro.icon, macro.body end
 end
 --- Create a character macro, simulating API errors and truncation.
@@ -204,11 +205,11 @@ end
 ---@param perCharacter boolean Character-only flag.
 ---@return number index
 function CreateMacro(name, icon, body, perCharacter)
-  assert(not combat and perCharacter and #macros < MAX_CHARACTER_MACROS)
+  assert(not combat and perCharacter and #macros < characterCapacity)
   if fail then error("simulated macro error") end
   creates = creates + 1
   macros[#macros + 1] = { name = name, icon = icon, body = truncate and body:sub(1, 10) or body }
-  return MAX_ACCOUNT_MACROS + #macros
+  return accountCapacity + #macros
 end
 --- Edit only a character macro, simulating API errors.
 ---@param index number Character macro index.
@@ -217,10 +218,10 @@ end
 ---@param body string Macro body.
 ---@return number index
 function EditMacro(index, name, icon, body)
-  assert(not combat and index > MAX_ACCOUNT_MACROS)
+  assert(not combat and index > accountCapacity)
   if fail then error("simulated macro error") end
   edits = edits + 1
-  macros[index - MAX_ACCOUNT_MACROS] = { name = name, icon = icon, body = body }
+  macros[index - accountCapacity] = { name = name, icon = icon, body = body }
   return index
 end
 
@@ -535,6 +536,31 @@ assert(#macros == 3 and messages[#messages]:find("No free", 1, true))
 module:SetDraft("macroName", "SECOND")
 units[3].name = "NewTank"
 assert(module:SaveMacro() and macros[2].body == renderTank(FOCUS, "NewTank"))
+
+-- Modern clients expose 30 slots in MacroConsts rather than the legacy globals.
+local originalMacros, originalAccount = macros, account
+local originalName = p.macroName
+MAX_ACCOUNT_MACROS, MAX_CHARACTER_MACROS = nil, nil
+Constants = { MacroConsts = { MAX_ACCOUNT_MACROS = 120, MAX_CHARACTER_MACROS = 30 } }
+characterCapacity = 30
+macros, account = {}, { { name = "@TANK", icon = 1, body = "/say account untouched" } }
+for index = 1, 18 do macros[index] = { name = "M" .. index, icon = 1, body = "/say keep" } end
+p.macroName = "@TANK"
+assert(module:UpdateMacro() and #macros == 19 and macros[19].name == "@TANK")
+assert(account[1].body == "/say account untouched")
+for index = 20, 30 do macros[index] = { name = "M" .. index, icon = 1, body = "/say keep" } end
+macros[19], macros[30] = macros[30], macros[19]
+units[3].name = "NewerTank"
+module[events.ROLE_CHANGED_INFORM](module, "ROLE_CHANGED_INFORM")
+assert(macros[30].body == renderTank(FOCUS, "NewerTank"))
+p.macroName = "NO_SLOT"
+assert(not module:UpdateMacro() and messages[#messages]:find("No free", 1, true))
+assert(account[1].body == "/say account untouched" and #macros == 30)
+Constants = nil
+assert(not module:UpdateMacro() and messages[#messages]:find("slot limits are unavailable", 1, true))
+MAX_ACCOUNT_MACROS, MAX_CHARACTER_MACROS = 120, 3
+characterCapacity, macros, account, p.macroName = 3, originalMacros, originalAccount, originalName
+
 fail = true
 units[3].name = "ErrorTank"
 module:Refresh()
