@@ -7,6 +7,209 @@ local commandRegistered = false
 local commandHandler
 local USAGE = "Usage: /way [#mapID or zone name] x y [description]. Coordinates must be between 0 and 100."
 
+module.LootContainers = AUTO_OPEN_LOOT_CONTAINERS
+local lootContainerTypes = AUTO_OPEN_LOOT_CONTAINERS_BY_ID
+
+--- Builds category checkboxes from the same allowlist used by inventory detection.
+---@return table options AceConfig toggle definitions.
+function module:GetLootContainerOptions()
+  local options = {
+    description = {
+      type = "description", order = 0, width = "full",
+      name = "Open containers or consume knowledge items in checked categories only when newly acquired. Existing inventory is left alone. "
+        .. "Waits during combat, casting, and inventory interactions. Uses your normal auto-loot setting.",
+    },
+  }
+  for index, container in ipairs(self.LootContainers) do
+    if not container.retailOnly or isRetail() then
+      options[container.key] = {
+        type = "toggle", name = container.name, order = index, width = "full",
+        desc = container.desc, descStyle = "inline",
+      }
+    end
+  end
+  return options
+end
+
+--- Reads allowlisted carried items without counting bank storage or treating bag moves as acquisitions.
+---@return table counts Quantities indexed by item ID.
+---@return table slots Current bag/slot pairs indexed by item ID.
+local function scanLootContainers()
+  local counts, slots = {}, {}
+  for bag = 0, (NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS) do
+    for slot = 1, C_Container.GetContainerNumSlots(bag) do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      local category = info and lootContainerTypes[info.itemID]
+      if category and (not category.retailOnly or isRetail()) then
+        local itemID = info.itemID
+        counts[itemID] = (counts[itemID] or 0) + info.stackCount
+        if not info.isLocked then slots[itemID] = { bag, slot } end
+      end
+    end
+  end
+  return counts, slots
+end
+
+--- Discards queued work and establishes a baseline without opening existing inventory.
+function module:ResetLootContainerTracking()
+  self.lootContainerSettings = db.profile.utilities.autoOpenLootContainers
+  self.pendingLootContainers = {}
+  self.lootContainerItemDataRequests = {}
+  self.openingLootContainer = nil
+  self.lootContainerCounts = scanLootContainers()
+  if self.lootContainerFrame then self.lootContainerFrame:Hide() end
+end
+
+--- Changes one opt-in preference without retroactively opening existing containers.
+---@param key string Allowlist option key.
+---@param enabled boolean Whether newly acquired containers should be opened.
+function module:SetLootContainerEnabled(key, enabled)
+  db.profile.utilities.autoOpenLootContainers[key] = enabled
+  self:ResetLootContainerTracking()
+end
+
+--- Queues only positive item-count changes and reconciles containers removed or opened since the last scan.
+---@return table slots Unlocked container locations.
+function module:ScanNewLootContainers()
+  -- Picking up an existing stack can temporarily remove it from bag counts until the cursor is cleared.
+  if GetCursorInfo() then return {} end
+  local counts, slots = scanLootContainers()
+  local previous = self.lootContainerCounts
+  if previous then
+    for itemID, count in pairs(counts) do
+      local gained = count - (previous[itemID] or 0)
+      if gained > 0 and self.lootContainerSettings[lootContainerTypes[itemID].key] then
+        self.pendingLootContainers[itemID] = (self.pendingLootContainers[itemID] or 0) + gained
+      end
+    end
+  end
+  for itemID, count in pairs(self.pendingLootContainers) do
+    count = math.min(count, counts[itemID] or 0)
+    self.pendingLootContainers[itemID] = count > 0 and count or nil
+  end
+  local opening = self.openingLootContainer
+  if opening and (counts[opening.itemID] or 0) < opening.count then
+    self.openingLootContainer = nil
+  end
+  self.lootContainerCounts = counts
+  self.lootContainerFrame:SetShown(next(self.pendingLootContainers) ~= nil or self.openingLootContainer ~= nil)
+  return slots
+end
+
+--- Reports contexts where using a bag item could sell, transfer, trade, or interrupt instead of opening it.
+---@param interactions table Active inventory interactions.
+---@return boolean blocked Whether opening should wait.
+local function lootContainerOpeningBlocked(interactions)
+  if next(interactions) or InCombatLockdown() or UnitIsDeadOrGhost("player") or IsMounted()
+    or UnitCastingInfo("player") or UnitChannelInfo("player") or GetCursorInfo() then return true end
+  for _, name in ipairs(AUTO_OPEN_LOOT_BLOCKING_FRAMES) do
+    local frame = _G[name]
+    if frame and frame:IsShown() then return true end
+  end
+  return GetNumLootItems() > 0
+end
+
+--- Opens one newly acquired container at a time, waiting for consumption before attempting another.
+function module:OpenNextLootContainer()
+  if not self:IsEnabled() then return end
+  if self.lootContainerSettings ~= db.profile.utilities.autoOpenLootContainers then
+    self:ResetLootContainerTracking()
+    return
+  end
+  local slots = self:ScanNewLootContainers()
+  local opening = self.openingLootContainer
+  local blocked = lootContainerOpeningBlocked(self.lootContainerInteractions)
+  if opening then
+    if blocked then
+      -- A container may remain in the bags until its loot window is emptied manually.
+      opening.deadline = GetTime() + 5
+      return
+    end
+    if GetTime() >= opening.deadline then
+      -- Do not repeatedly use an item the server refused (full bags, unmet requirements, or protected use).
+      prn("Could not automatically use item " .. opening.itemID .. ". Use it manually; automatic retries were stopped.")
+      self.pendingLootContainers[opening.itemID] = nil
+      self.openingLootContainer = nil
+    end
+    return
+  end
+  if blocked then return end
+  for itemID, count in pairs(self.pendingLootContainers) do
+    local slot = slots[itemID]
+    local category = lootContainerTypes[itemID]
+    if slot and self.lootContainerSettings[category.key] then
+      local start, duration = C_Container.GetContainerItemCooldown(slot[1], slot[2])
+      if duration == 0 or start + duration <= GetTime() then
+        if category.key == "professionKnowledge" and not C_Item.GetItemInfo(itemID) then
+          local deadline = self.lootContainerItemDataRequests[itemID]
+          if not deadline then
+            self.lootContainerItemDataRequests[itemID] = GetTime() + 5
+            C_Item.RequestLoadItemDataByID(itemID)
+          elseif GetTime() >= deadline then
+            self.pendingLootContainers[itemID] = nil
+            prn("Item data is unavailable for profession knowledge item " .. itemID .. ". Use it manually.")
+          end
+        elseif category.key == "professionKnowledge" and not C_Item.IsUsableItem(itemID) then
+          self.pendingLootContainers[itemID] = nil
+          prn("Cannot use profession knowledge item " .. itemID .. ". Check its profession requirements and use it manually.")
+        else
+          self.pendingLootContainers[itemID] = count > 1 and count - 1 or nil
+          self.openingLootContainer = {
+            itemID = itemID, count = self.lootContainerCounts[itemID], deadline = GetTime() + 5,
+          }
+          C_Container.UseContainerItem(slot[1], slot[2])
+          return
+        end
+      end
+    end
+  end
+end
+
+--- Starts acquisition tracking with a separate frame so existing Utilities event handlers are not replaced.
+function module:EnableLootContainerTracking()
+  if not self.lootContainerFrame then
+    self.lootContainerFrame = CreateFrame("Frame")
+    local elapsedSinceOpen = 0
+    --- Processes queued containers at a bounded interval, only while work exists.
+    ---@param _ table Inventory event frame.
+    ---@param elapsed number Seconds since the previous update.
+    self.lootContainerFrame:SetScript("OnUpdate", function(_, elapsed)
+      elapsedSinceOpen = elapsedSinceOpen + elapsed
+      if elapsedSinceOpen < 0.5 then return end
+      elapsedSinceOpen = 0
+      self:OpenNextLootContainer()
+    end)
+    --- Resets across loading screens and detects acquisitions after complete bag updates.
+    ---@param frame table Inventory event frame.
+    ---@param event string Inventory or world-transition event.
+    self.lootContainerFrame:SetScript("OnEvent", function(frame, event)
+      local interaction = AUTO_OPEN_LOOT_INTERACTION_EVENTS[event]
+      if interaction then
+        self.lootContainerInteractions[interaction[1]] = interaction[2] or nil
+      elseif event == "PLAYER_LEAVING_WORLD" then
+        self.lootContainerInteractions = {}
+        self.lootContainerCounts = nil
+        self.pendingLootContainers = {}
+        self.openingLootContainer = nil
+        frame:Hide()
+      elseif event == "PLAYER_ENTERING_WORLD"
+        or self.lootContainerSettings ~= db.profile.utilities.autoOpenLootContainers then
+        self:ResetLootContainerTracking()
+      elseif self.lootContainerCounts then
+        self:ScanNewLootContainers()
+      end
+    end)
+  end
+  self.lootContainerInteractions = {}
+  self:ResetLootContainerTracking()
+  for _, event in ipairs(AUTO_OPEN_LOOT_TRACKING_EVENTS) do
+    self.lootContainerFrame:RegisterEvent(event)
+  end
+  for event in pairs(AUTO_OPEN_LOOT_INTERACTION_EVENTS) do
+    self.lootContainerFrame:RegisterEvent(event)
+  end
+end
+
 --- Reports whether the client supports native user waypoints.
 ---@return boolean supported Whether the required native APIs are available.
 function module:SupportsWaypoints()
@@ -251,8 +454,11 @@ local function wayCommandClaimed()
   return false
 end
 
---- Updates command ownership after option, profile, or addon-load changes.
+--- Updates command ownership and the inventory baseline after option, profile, or addon-load changes.
 function module:ApplyAll()
+  if self.lootContainerFrame and self.lootContainerSettings ~= db.profile.utilities.autoOpenLootContainers then
+    self:ResetLootContainerTracking()
+  end
   local claimed = wayCommandClaimed()
   local listen = self:IsEnabled() and db.profile.utilities.tomtomWayCommand
     and self:SupportsWaypoints() and not claimed
@@ -277,16 +483,21 @@ function module:OnInitialize()
   self:InitializeInteractableNodeHighlights()
 end
 
---- Registers the command when opted in, yielding if TomTom or another addon loads later.
+--- Starts utility listeners and inventory tracking, yielding /way if another addon claims it.
 function module:OnEnable()
   self:RegisterEvent("ADDON_LOADED", "ApplyAll")
   self:ApplyAll()
   self:EnableInteractableNodeHighlights()
+  self:EnableLootContainerTracking()
 end
 
---- Removes this module's command and addon-load listener.
+--- Removes this module's command, event listeners, and queued inventory work.
 function module:OnDisable()
   self:UnregisterAllEvents()
+  if self.lootContainerFrame then
+    self.lootContainerFrame:UnregisterAllEvents()
+    self:ResetLootContainerTracking()
+  end
   if commandRegistered then
     if SlashCmdList.ACECONSOLE_WAY == commandHandler then self:UnregisterChatCommand("way") end
     commandRegistered = false

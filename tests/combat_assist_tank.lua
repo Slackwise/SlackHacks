@@ -679,6 +679,10 @@ function addon.updateMinimapIcon() end
 --- Supply an anonymous test lookup key.
 ---@return string key
 function addon.getBattletag() return "test" end
+addon.Utilities = {}
+--- Supply the unrelated Utilities options generated during registration.
+---@return table options
+function addon.Utilities:GetLootContainerOptions() return {} end
 addon.db.global = { configVersion = 14, addonVersion = "28" }
 addon.registerOptions()
 local paladin = addon.options.args.combat.args.paladin

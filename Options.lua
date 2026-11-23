@@ -67,6 +67,7 @@ dbDefaults = {
     -- Additive utility defaults preserve existing profiles and keep native loot features opt-in.
     utilities = {
       tomtomWayCommand = false,
+      autoOpenLootContainers = { ["*"] = false },
       nodes = {
         lootSparkles = false,
         nameplates = {
@@ -2526,6 +2527,21 @@ options = {
           set = function(_, value) Self.Utilities:SetInGameNavigationShown(value) end,
           order = 2.5
         },
+        autoOpenLootContainers = {
+          name = "Auto-Open Loot Containers",
+          type = "group",
+          inline = true,
+          order = 2.75,
+          --- Reads the active profile's opt-in container preference.
+          ---@param info table AceConfig option path.
+          ---@return boolean enabled Whether this container is enabled.
+          get = function(info) return db.profile.utilities.autoOpenLootContainers[info[#info]] end,
+          --- Updates acquisition tracking without opening containers already in the bags.
+          ---@param info table AceConfig option path.
+          ---@param value boolean Whether to open newly acquired containers.
+          set = function(info, value) Self.Utilities:SetLootContainerEnabled(info[#info], value) end,
+          args = {},
+        },
         nodes = {
           name = "Loot Sparkles & Nameplates",
           type = "group",
@@ -4445,6 +4461,7 @@ options = {
 -- Registers the AceConfig options table above and the Blizzard options panel entry.
 -- Called from OnInitialize, after all addon files/modules have loaded.
 function registerOptions()
+  options.args.utilities.args.autoOpenLootContainers.args = Self.Utilities:GetLootContainerOptions()
   options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
   options.args.profiles.order = 1
   hookResetProfileOption()

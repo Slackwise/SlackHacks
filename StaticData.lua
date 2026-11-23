@@ -69,6 +69,162 @@ CONTENT_EXPANSIONS = {
 CURRENT_CONTENT = { expansion = "midnight", season = 2 }
 CURRENT_CONTENT_SEASON = CONTENT_EXPANSIONS[CURRENT_CONTENT.expansion].seasons[CURRENT_CONTENT.season]
 
+-- Recurring auto-open categories. Excludes lockboxes, choice rewards, annual gifts, and items whose use
+-- spends currency or starts a quest. Keys are saved as opt-in preferences.
+AUTO_OPEN_LOOT_CONTAINERS = {
+  {
+    key = "clams", name = "Clams",
+    ids = {
+      5523, -- Small Barnacled Clam.
+      5524, -- Thick-Shelled Clam.
+      7973, -- Big-Mouth Clam.
+      15874, -- Soft-Shelled Clam.
+      24476, -- Jaggal Clam.
+      36781, -- Darkwater Clam.
+      45909, -- Giant Darkwater Clam.
+    },
+    desc = "Opens recurring aquatic-creature drops, such as Small Barnacled, Big-Mouth, Jaggal, and Darkwater Clams. "
+      .. "Clams stack, but opening them automatically saves repeated clicks while farming.",
+  },
+  {
+    key = "dungeonRewards", name = "Dungeon Rewards",
+    ids = {
+      51999, -- Satchel of Helpful Goods.
+      52000, -- Satchel of Helpful Goods.
+      52001, -- Satchel of Helpful Goods.
+      52002, -- Satchel of Helpful Goods.
+      52003, -- Satchel of Helpful Goods.
+      52004, -- Satchel of Helpful Goods.
+      52005, -- Satchel of Helpful Goods.
+    },
+    desc = "Opens Satchels of Helpful Goods from dungeon queues. These rewards do not stack, "
+      .. "so repeated dungeon runs can otherwise fill bag slots with unopened satchels.",
+  },
+  {
+    key = "fishing", name = "Fishing",
+    ids = {
+      6643, -- Bloated Smallfish.
+      6645, -- Bloated Mud Snapper.
+      6647, -- Bloated Catfish.
+      13881, -- Bloated Redgill.
+      13891, -- Bloated Salmon.
+      35313, -- Bloated Barbed Gill Trout.
+      34863, -- Bag of Fishing Treasures (Outland).
+      46007, -- Bag of Fishing Treasures (Northrend).
+      67414, -- Bag of Shiny Things.
+      6356, -- Battered Chest.
+      6357, -- Sealed Crate.
+      13874, -- Heavy Crate.
+      20708, -- Tightly Sealed Trunk.
+      21113, -- Watertight Trunk.
+      21150, -- Iron Bound Trunk.
+      21228, -- Mithril Bound Trunk.
+      44475, -- Reinforced Crate.
+    },
+    desc = "Opens non-stacking fishing catches and daily rewards, such as Bloated Redgill, Bags of Fishing Treasures, "
+      .. "Bags of Shiny Things, and unlocked crates and trunks. Keeps fishing sessions from accumulating unopened containers.",
+  },
+  {
+    key = "holidayRewards", name = "Holiday Rewards",
+    ids = {
+      54516, -- Loot-Filled Pumpkin (legacy).
+      117392, -- Loot-Filled Pumpkin (Retail).
+      149574, -- Loot-Stuffed Pumpkin.
+      54535, -- Keg-Shaped Treasure Chest (legacy).
+      117393, -- Keg-Shaped Treasure Chest (Retail).
+      54536, -- Satchel of Chilled Goods (legacy).
+      117394, -- Satchel of Chilled Goods (Retail).
+      54537, -- Heart-Shaped Box.
+      37586, -- Handful of Candy (Handful of Treats on Retail).
+      34077, -- Crudely Wrapped Gift.
+      117395, -- Stolen Present.
+    },
+    desc = "Opens recurring seasonal rewards, such as Loot-Filled Pumpkins, Keg-Shaped Treasure Chests, "
+      .. "Heart-Shaped Boxes, Stolen Presents, and Handfuls of Candy or Treats. Most do not stack; "
+      .. "opening them avoids a buildup during daily event runs. Excludes annual presents.",
+  },
+  {
+    key = "dailyQuestRewards", name = "Daily Quest Rewards",
+    ids = {
+      33844, -- Barrel of Fish.
+      33857, -- Crate of Meat.
+      44751, -- Hyldnir Spoils.
+    },
+    desc = "Opens Barrels of Fish and Crates of Meat from cooking dailies, plus Hyldnir Spoils from polar-bear mount farming. "
+      .. "These repeatable rewards do not stack and have no reason to occupy a bag slot unopened.",
+  },
+  {
+    key = "professionKnowledge", name = "Profession Knowledge", retailOnly = true,
+    ids = {
+      -- Midnight weekly treasure drops.
+      259188, -- Lightbloomed Spore Sample (Alchemy).
+      259189, -- Aged Cruor (Alchemy).
+      259190, -- Thalassian Whetstone (Blacksmithing).
+      259191, -- Infused Quenching Oil (Blacksmithing).
+      259192, -- Voidstorm Ashes (Enchanting).
+      259193, -- Lost Thalassian Vellum (Enchanting).
+      259194, -- Dance Gear (Engineering).
+      259195, -- Dawn Capacitor (Engineering).
+      259196, -- Brilliant Phoenix Ink (Inscription).
+      259197, -- Loa-Blessed Rune (Inscription).
+      259198, -- Void-Touched Eversong Diamond Fragments (Jewelcrafting).
+      259199, -- Harandar Stone Sample (Jewelcrafting).
+      259200, -- Amani Tanning Oil (Leatherworking).
+      259201, -- Thalassian Mana Oil (Leatherworking).
+      259202, -- Embroidered Memento (Tailoring).
+      259203, -- Finely Woven Lynx Collar (Tailoring).
+      -- Recurring gathering/disenchanting knowledge and their catch-up drops.
+      267654, -- Swirling Arcane Essence (Enchanting).
+      267655, -- Brimming Mana Shard (Enchanting).
+      267653, -- Glimmering Powder (Enchanting catch-up).
+      238465, -- Thalassian Phoenix Plume (Herbalism).
+      238466, -- Thalassian Phoenix Tail (Herbalism).
+      238467, -- Thalassian Phoenix Ember (Herbalism catch-up).
+      237496, -- Igneous Rock Specimen (Mining).
+      237506, -- Septarian Nodule (Mining).
+      237507, -- Cloudy Quartz (Mining catch-up).
+      238625, -- Fine Void-Tempered Hide (Skinning).
+      238626, -- Mana-Infused Bone (Skinning).
+      238627, -- Manafused Sample (Skinning catch-up).
+      -- Crafting catch-up knowledge from patron orders.
+      246320, -- Flicker of Midnight Alchemy Knowledge.
+      246322, -- Flicker of Midnight Blacksmithing Knowledge.
+      246326, -- Flicker of Midnight Engineering Knowledge.
+      246328, -- Flicker of Midnight Inscription Knowledge.
+      246330, -- Flicker of Midnight Jewelcrafting Knowledge.
+      246332, -- Flicker of Midnight Leatherworking Knowledge.
+      246334, -- Flicker of Midnight Tailoring Knowledge.
+    },
+    desc = "Consumes recurring Midnight knowledge drops, such as Lightbloomed Spore Samples, Thalassian Phoenix Plumes, "
+      .. "and Flickers of Midnight Knowledge. Weekly treasures do not stack; consuming these items clears bag space "
+      .. "and grants unspent profession knowledge without choosing a specialization. Gathering and catch-up tokens "
+      .. "are included even though they stack. Excludes transferable treatises and one-time books. "
+      .. "Items the client cannot use automatically must be used manually.",
+  },
+}
+
+AUTO_OPEN_LOOT_CONTAINERS_BY_ID = {}
+for _, category in ipairs(AUTO_OPEN_LOOT_CONTAINERS) do
+  for _, itemID in ipairs(category.ids) do AUTO_OPEN_LOOT_CONTAINERS_BY_ID[itemID] = category end
+end
+
+-- Track interactions even when another addon replaces or hides Blizzard's corresponding frame.
+AUTO_OPEN_LOOT_INTERACTION_EVENTS = {
+  MERCHANT_SHOW = { "merchant", true }, MERCHANT_CLOSED = { "merchant", false },
+  BANKFRAME_OPENED = { "bank", true }, BANKFRAME_CLOSED = { "bank", false },
+  GUILDBANKFRAME_OPENED = { "guildBank", true }, GUILDBANKFRAME_CLOSED = { "guildBank", false },
+  MAIL_SHOW = { "mail", true }, MAIL_CLOSED = { "mail", false },
+  TRADE_SHOW = { "trade", true }, TRADE_CLOSED = { "trade", false },
+  AUCTION_HOUSE_SHOW = { "auction", true }, AUCTION_HOUSE_CLOSED = { "auction", false },
+  LOOT_OPENED = { "loot", true }, LOOT_CLOSED = { "loot", false },
+}
+
+AUTO_OPEN_LOOT_TRACKING_EVENTS = { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD", "PLAYER_LEAVING_WORLD" }
+AUTO_OPEN_LOOT_BLOCKING_FRAMES = {
+  "MerchantFrame", "BankFrame", "GuildBankFrame", "MailFrame", "TradeFrame",
+  "AuctionHouseFrame", "AuctionFrame", "ItemInteractionFrame", "ScrappingMachineFrame", "LootFrame",
+}
+
 ITEM_NAMES = {
   ["Sunfire Silk Spellthread"] = 240133,
   ["Arcanoweave Spellthread"] = 240155,
