@@ -4,12 +4,27 @@ set -u
 repo_path=""
 rerun=false
 
+# The updater re-executes a temporary copy while the repository is being replaced,
+# so its status formatter must not depend on files in the working tree.
+script_status() {
+  local level="$1" color="$2" message="$3"
+  if [[ -t 2 && -z "${NO_COLOR+x}" && "${TERM:-}" != dumb ]]; then
+    printf '\033[%sm[%s] %s\033[0m\n' "$color" "$level" "$message" >&2
+  else
+    printf '%s\n' "$message" >&2
+  fi
+}
+status_info() { script_status INFO 36 "$1"; }
+status_success() { script_status OK 32 "$1"; }
+status_warning() { script_status WARN 33 "$1"; }
+status_error() { script_status ERROR 31 "$1"; }
+
 usage() {
   echo "Usage: $(basename "$0") [--repo-path PATH] [--rerun]" >&2
 }
 
 show_error() {
-  echo "Error: $1" >&2
+  status_error "Error: $1"
 }
 
 pause_for_exit() {
@@ -107,11 +122,11 @@ install_git() {
 
 assert_git_installed() {
   if ! command -v git >/dev/null 2>&1; then
-    echo "Git was not found. Attempting to install it for this Linux system..." >&2
+    status_warning "Git was not found. Attempting to install it for this Linux system..."
     install_git
-    echo "Git installation completed successfully." >&2
+    status_success "Git installation completed successfully."
   else
-    echo "Git is already installed." >&2
+    status_info "Git is already installed."
   fi
 }
 
@@ -119,7 +134,7 @@ invoke_git_wipe() {
   local path="$1"
 
   # Discard any local modifications/untracked files before pulling so the update always applies cleanly.
-  echo "Discarding local changes for '$path'..." >&2
+  status_info "Discarding local changes for '$path'..."
   git -C "$path" reset --hard HEAD
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to discard local changes for '$path'. Please resolve any git issues and try again."
@@ -140,25 +155,25 @@ invoke_git_wipe() {
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to remove untracked files in submodules for '$path'. Please resolve any git issues and try again."
   fi
-  echo "Local changes discarded successfully." >&2
+  status_success "Local changes discarded successfully."
 }
 
 invoke_git_pull() {
   local path="$1"
 
-  echo "Starting git pull for '$path'..." >&2
+  status_info "Starting git pull for '$path'..."
   git -C "$path" pull --force --ff-only
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to pull the latest changes for '$path'. Please resolve any git issues and try again."
   fi
-  echo "Git pull completed successfully." >&2
+  status_success "Git pull completed successfully."
 
-  echo "Updating submodules for '$path'..." >&2
+  status_info "Updating submodules for '$path'..."
   git -C "$path" submodule update --init --recursive --force
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to update submodules for '$path'. Please resolve any git issues and try again."
   fi
-  echo "Submodule update completed successfully." >&2
+  status_success "Submodule update completed successfully."
 }
 
 while [[ $# -gt 0 ]]; do
@@ -185,7 +200,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$repo_path" ]]; then
-  echo "No repo path provided. Re-running the script from the current addon directory..." >&2
+  status_info "No repo path provided. Re-running the script from the current addon directory..."
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
   temp_script="$(mktemp "${TMPDIR:-/tmp}/$(basename "$0").XXXXXX")"
   cp "$0" "$temp_script"
@@ -198,7 +213,7 @@ if [[ ! -d "$repo_path" ]]; then
   fail_and_pause "Repository path does not exist: $repo_path"
 fi
 
-echo "Starting SlackHacks update for '$repo_path'..." >&2
+status_info "Starting SlackHacks update for '$repo_path'..."
 cd "$repo_path" || {
   fail_and_pause "Unable to access repository path: $repo_path"
 }
@@ -215,12 +230,12 @@ if [[ -f "$pulled_script" ]]; then
 fi
 
 if [[ "$rerun" != true && -f "$pulled_script" ]]; then
-  echo "Checking whether a newer version of this updater script is available..." >&2
+  status_info "Checking whether a newer version of this updater script is available..."
   running_hash="$(sha256sum "$0" | awk '{print $1}')"
   pulled_hash="$(sha256sum "$pulled_script" | awk '{print $1}')"
 
   if [[ "$running_hash" != "$pulled_hash" ]]; then
-    echo "A newer version of the updater was found. Re-running with the updated script..." >&2
+    status_info "A newer version of the updater was found. Re-running with the updated script..."
     temp_script="$(mktemp "${TMPDIR:-/tmp}/update-addon.XXXXXX")"
     cp "$pulled_script" "$temp_script"
     chmod +x "$temp_script"
@@ -229,5 +244,5 @@ if [[ "$rerun" != true && -f "$pulled_script" ]]; then
   fi
 fi
 
-echo "SlackHacks update completed successfully." >&2
+status_success "SlackHacks update completed successfully."
 pause_for_exit

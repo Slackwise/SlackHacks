@@ -6,6 +6,7 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 . "$SCRIPT_DIR/load-env.sh"
+. "$SCRIPT_DIR/output-style.sh"
 load_project_env "$REPO_ROOT"
 
 require_project_config ADDON_NAME
@@ -17,16 +18,16 @@ TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
 # 1. Git checkout the submodules
-echo "Updating git submodules..."
+status_info "Updating git submodules..."
 if ! command -v git >/dev/null 2>&1; then
-  echo "Error: git command not found." >&2
+  status_error "Error: git command not found."
   exit 1
 fi
 git submodule update --init --recursive
 
 # 2. Extract version from TOC file
 if [[ ! -f "$TOC_FILE" ]]; then
-  echo "Error: $TOC_FILE not found in $REPO_ROOT" >&2
+  status_error "Error: $TOC_FILE not found in $REPO_ROOT"
   exit 1
 fi
 
@@ -34,11 +35,11 @@ VERSION=$(grep -i '^[[:space:]]*##[[:space:]]*Version:' "$TOC_FILE" | head -n 1 
 VERSION="$(echo "$VERSION" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
 if [[ -z "$VERSION" ]]; then
-  echo "Error: Could not extract version from $TOC_FILE" >&2
+  status_error "Error: Could not extract version from $TOC_FILE"
   exit 1
 fi
 
-echo "Building ${FOLDER_NAME} (version: ${VERSION})..."
+status_info "Building ${FOLDER_NAME} (version: ${VERSION})..."
 
 # Create clean destination folder inside dist
 mkdir -p "$DIST_DIR"
@@ -65,7 +66,7 @@ copy_file() {
   cp -p "$src" "$dest"
 }
 
-echo "Copying files into ${TARGET_DIR}..."
+status_info "Copying files into ${TARGET_DIR}..."
 
 # 3. Copy files/folders recursively, skipping all dot (hidden) files:
 #    - All .lua, .toc, .xml files (excluding dist, Libs, and Assets)
@@ -106,7 +107,7 @@ if [[ -d "Libs" ]]; then
 fi
 
 # 4. Compress created folder into a zip named after the versioned addon inside dist
-echo "Compressing ${TARGET_DIR} into ${ZIP_PATH}..."
+status_info "Compressing ${TARGET_DIR} into ${ZIP_PATH}..."
 
 (
   cd "$DIST_DIR"
@@ -127,9 +128,9 @@ echo "Compressing ${TARGET_DIR} into ${ZIP_PATH}..."
   elif command -v 7z >/dev/null 2>&1; then
     7z a "$ZIP_NAME" "$FOLDER_NAME" >/dev/null
   else
-    echo "Error: No suitable compression tool found (tried zip, bsdtar, powershell, python, 7z)." >&2
+    status_error "Error: No suitable compression tool found (tried zip, bsdtar, powershell, python, 7z)."
     exit 1
   fi
 )
 
-echo "Build succeeded: ${ZIP_PATH}"
+status_success "Build succeeded: ${ZIP_PATH}"

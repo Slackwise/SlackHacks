@@ -4,6 +4,7 @@ use warnings;
 use utf8;
 use Exporter 'import';
 use File::Spec;
+use ScriptOutput qw(status_info status_success);
 use ReleaseUtil qw(read_changelog_file changelog_section find_changelog_section);
 
 # ==============================================================================
@@ -146,7 +147,7 @@ sub bump_toc_version {
         open my $wfh, ">:encoding(UTF-8)", $toc_file or die "Cannot write to $toc_file: $!\n";
         print $wfh @$lines;
         close $wfh;
-        print "Updated $toc_file: Version $old -> $new.\n";
+        status_success("Updated $toc_file: Version $old -> $new.");
     }
     return ($old, $new);
 }
@@ -237,7 +238,7 @@ sub changelog_base {
 sub collect_commits {
     my ($base) = @_;
     my @range = length $base ? ("$base..HEAD") : ('-n', '20');
-    print "Collecting git commits using range: @range\n";
+    status_info("Collecting git commits using range: @range");
     my ($ok, @raw) = git_lines('log', @range, '--no-merges', '--pretty=format:%s');
     warn "Warning: git log failed; no commits collected.\n" unless $ok;
     my @commits;
@@ -615,7 +616,7 @@ sub update_changelog {
         open my $wfh, ">:encoding(UTF-8)", $path or die "Cannot write to $path: $!\n";
         print $wfh $content;
         close $wfh;
-        print "\n$verb '## $tag' in changelog: $path\n";
+        status_success("\n$verb '## $tag' in changelog: $path");
     }
     print "----------------------------------------\n$preview----------------------------------------\n";
     open_in_vscode($path) unless $opt{dry_run} || $opt{no_open};

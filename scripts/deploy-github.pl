@@ -4,6 +4,8 @@ use warnings;
 use utf8;
 use FindBin;
 use lib $FindBin::Bin;
+use ScriptOutput qw(status_info status_success install_error_styling);
+install_error_styling();
 use ReleaseUtil qw(verify_release read_changelog json_file curl_response file_digest ensure_build);
 use Cwd qw(abs_path);
 use File::Spec;
@@ -226,11 +228,11 @@ if ($dry_run) {
     print "[Dry Run] Skipping Proton Pass token retrieval.\n";
     $github_token = "DRY_RUN_TOKEN";
 } else {
-    print "Fetching GitHub Token from Proton Pass...\n";
+    status_info("Fetching GitHub Token from Proton Pass...");
     $github_token = fetch_secret_from_proton_pass($proton_pass_item, $proton_pass_vault, $proton_pass_attribute);
     die "Error: Failed to retrieve GitHub API token. Set GITHUB_TOKEN or check PROTON_PASS_ITEM_GITHUB in scripts/defaults.env and your Proton Pass item.\n"
         unless defined $github_token;
-    print "Successfully retrieved GitHub Token.\n";
+    status_success("Successfully retrieved GitHub Token.");
 }
 
 # ------------------------------------------------------------------------------
@@ -290,7 +292,7 @@ my $tag_url = "$api_url/tags/$tag_name";
 my ($http_status, $response) = curl_response(@headers, $tag_url);
 my $release_data;
 if ($http_status == 404) {
-    print "Creating GitHub Release...\n";
+    status_info("Creating GitHub Release...");
     my $request_file = json_file($payload);
     ($http_status, $response) = curl_response(@headers, '-X', 'POST',
         '-H', 'Content-Type: application/json', '--data-binary', "\@$request_file", $api_url);
@@ -328,7 +330,7 @@ while (1) {
     for my $asset (@$assets) {
         next unless $asset->{name} eq $zip_name;
         if (($asset->{state} // '') eq 'uploaded' && ($asset->{digest} // '') eq $digest) {
-            print "Release and matching asset already published: $release_url\n";
+            status_success("Release and matching asset already published: $release_url");
             exit 0;
         }
         die "Error: Asset '$zip_name' already exists but its digest differs or is unavailable. " .
@@ -352,7 +354,7 @@ for my $asset_id (@replace_assets) {
 # ------------------------------------------------------------------------------
 my $upload_url = "https://uploads.github.com/repos/$github_repo/releases/$release_id/assets?name=$zip_name";
 
-print "Uploading asset $zip_name to GitHub release...\n";
+status_info("Uploading asset $zip_name to GitHub release...");
 my @upload_cmd = (
     "-X", "POST",
     "-H", "Accept: application/vnd.github+json",
@@ -371,7 +373,7 @@ if ($upload_http_status >= 200 && $upload_http_status < 300) {
         unless ref($asset) eq 'HASH' && $asset->{id} &&
             ($asset->{state} // '') eq 'uploaded' &&
             $asset->{name} eq $zip_name && $asset->{size} == -s $zip_path;
-    print "Asset uploaded successfully (HTTP $upload_http_status)!\n";
+    status_success("Asset uploaded successfully (HTTP $upload_http_status)!");
     print "Release URL: $release_url\n";
 } else {
     die "Error: Asset upload failed with HTTP status $upload_http_status.\nResponse: $upload_resp\n";

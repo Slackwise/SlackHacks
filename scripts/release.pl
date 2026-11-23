@@ -4,10 +4,13 @@ use warnings;
 use utf8;
 use FindBin;
 use lib $FindBin::Bin;
+use ScriptOutput qw(status_info status_success install_error_styling);
 use ReleaseUtil qw(git_output read_changelog_file changelog_section);
 use Cwd qw(abs_path);
 use File::Spec;
 use Getopt::Long qw(GetOptions);
+
+install_error_styling();
 
 # ==============================================================================
 # release.pl
@@ -39,7 +42,7 @@ sub return_to_dev {
             return 0;
         }
     }
-    print "Returning to branch 'dev'...\n";
+    status_info("Returning to branch 'dev'...");
     if (system("git", "checkout", "dev") != 0) {
         warn "Error: Could not return to branch 'dev'. Resolve the Git state and run 'git checkout dev'.\n";
         return 0;
@@ -396,14 +399,14 @@ sub resolve_source_conflicts {
 # ------------------------------------------------------------------------------
 my $release_error;
 eval {
-    print "\nSwitching to branch '$target_branch'...\n";
+    status_info("\nSwitching to branch '$target_branch'...");
     run_cmd("git", "checkout", $target_branch);
     run_cmd("git", "merge", "--ff-only", "refs/remotes/origin/$target_branch");
 
     if ($resuming) {
         run_cmd("git", "merge", "--ff-only", "refs/tags/$tag_name");
     } else {
-        print "Merging '$source_branch' into '$target_branch'...\n";
+        status_info("Merging '$source_branch' into '$target_branch'...");
         die "Error: A merge is already in progress; resolve it before releasing.\n"
             if !$dry_run && -f git_output('rev-parse', '--git-path', 'MERGE_HEAD');
         $release_merge_started = !$dry_run;
@@ -446,14 +449,14 @@ eval {
     }
 
     if ($push) {
-        print "Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...\n";
+        status_info("Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...");
         run_cmd("git", "push", "origin", $source_branch);
         my @lease = $rerelease ? ("--force-with-lease=refs/tags/$tag_name:$remote_tag_oid") : ();
         run_cmd("git", "push", "--atomic", @lease, "origin",
             "refs/heads/$target_branch:refs/heads/$target_branch",
             "refs/tags/$tag_name:refs/tags/$tag_name");
         unless ($dry_run) {
-            print "\nDeploying the pushed production release...\n";
+            status_info("\nDeploying the pushed production release...");
             run_cmd("bash", File::Spec->catfile($script_dir, "deploy.sh"),
                 $rerelease ? ('--rerelease') : ());
         }
@@ -468,9 +471,9 @@ die $release_error if defined $release_error;
 die "Error: Release finished but branch cleanup failed.\n" unless return_to_dev();
 $cleanup_pending = 0;
 
-print "\nRelease complete! Successfully merged '$source_branch' into '$target_branch' and tagged '$tag_name'.\n";
+status_success("\nRelease complete! Successfully merged '$source_branch' into '$target_branch' and tagged '$tag_name'.");
 if ($push) {
-    print "Pushed '$source_branch', '$target_branch', and '$tag_name' to origin successfully.\n";
+    status_success("Pushed '$source_branch', '$target_branch', and '$tag_name' to origin successfully.");
 } elsif ($rerelease) {
     print "Tip: Rerun release.pl --rerelease --push to publish this revised release and deploy.\n";
 } else {

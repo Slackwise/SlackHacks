@@ -1,4 +1,5 @@
 $sourceDir    = Split-Path -Parent $PSScriptRoot # Resolves to the addon's root folder regardless of the caller's working directory, so double-clicking works.
+. (Join-Path $PSScriptRoot 'OutputStyle.ps1')
 
 # Blizzard/Battle.net don't reliably write a WoW "InstallPath" key anymore, so we
 # derive the shared parent folder (which holds _retail_/_classic_era_/etc.) from
@@ -30,14 +31,14 @@ function Get-WowRoot {
 
 # Check if script is running as administrator, if not, relaunch as administrator.
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "Script is not running as administrator. Relaunching with administrator privileges..." -ForegroundColor Yellow
+    Write-ScriptStatus WARN "Script is not running as administrator. Relaunching with administrator privileges..."
     Start-Process powershell.exe -Verb RunAs -ArgumentList ("-File", $MyInvocation.MyCommand.Path)
     exit
 }
 
 try {
     $wowRoot = Get-WowRoot
-    Write-Host "Found WoW install at: $wowRoot" -ForegroundColor Green
+    Write-ScriptStatus INFO "Found WoW install at: $wowRoot"
 
     # Each installed game flavor (retail, classic, classic era, PTR, etc.) lives in its
     # own "_flavor_" folder directly under the WoW root, so discover them instead of
@@ -52,7 +53,7 @@ try {
     foreach ($dirName in $dirs.Keys) {
         $parentDir = Split-Path -Parent $dirs[$dirName]
         if (-not (Test-Path -Path $parentDir)) {
-            Write-Host "Skipping $($dirName.ToUpper()): directory does not exist"
+            Write-ScriptStatus INFO "Skipping $($dirName.ToUpper()): directory does not exist"
             continue
         }
 
@@ -62,26 +63,26 @@ try {
             $existingTarget = ($existingItem.Target | Select-Object -First 1)
             if ($existingTarget -and $existingTarget.TrimEnd('\') -ne $sourceDir.TrimEnd('\')) {
                 Remove-Item -Path $targetPath -Force
-                Write-Host "$($dirName.ToUpper()) was linked to '$existingTarget'; removing and relinking to '$sourceDir'." -ForegroundColor Yellow
+                Write-ScriptStatus WARN "$($dirName.ToUpper()) was linked to '$existingTarget'; removing and relinking to '$sourceDir'."
             }
         }
 
         try {
             New-Item -ItemType Junction -Path $dirs[$dirName] -Target $sourceDir -ErrorAction Stop | Out-Null
-            Write-Host "$($dirName.ToUpper()) succeeded." -ForegroundColor Green
+            Write-ScriptStatus OK "$($dirName.ToUpper()) succeeded."
         } catch [System.IO.IOException] {
-            Write-Host "$($dirName.ToUpper()) is already linked." -ForegroundColor Cyan
+            Write-ScriptStatus INFO "$($dirName.ToUpper()) is already linked."
         } catch {
-            Write-Host "Error while trying to junction $($dirName.ToUpper()):" -ForegroundColor Red
+            Write-ScriptStatus ERROR "Error while trying to junction $($dirName.ToUpper()):"
             Write-Error $_
             $hadFailure = $true
         }
     }
 
     if ($hadFailure) {
-        Write-Host "Finished with errors; see above." -ForegroundColor Red
+        Write-ScriptStatus ERROR "Finished with errors; see above."
     } else {
-        Write-Host "Done! SlackHacks addon links are set up." -ForegroundColor Green
+        Write-ScriptStatus OK "Done! SlackHacks addon links are set up."
     }
 } finally {
     pause

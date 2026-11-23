@@ -4,6 +4,8 @@ use warnings;
 use utf8;
 use FindBin;
 use lib $FindBin::Bin;
+use ScriptOutput qw(status_info status_success install_error_styling);
+install_error_styling();
 use ReleaseUtil qw(git_output verify_release read_changelog json_file curl_response file_digest ensure_build);
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use File::Path qw(make_path);
@@ -403,7 +405,7 @@ unless ($dry_run) {
             "before removing '$claim_file' to retry; an upload may already exist.\n";
     }
     if ($already_uploaded) {
-        print "CurseForge release $tag_name already uploaded (file $already_uploaded).\n";
+        status_success("CurseForge release $tag_name already uploaded (file $already_uploaded).");
         exit 0;
     }
     die "Error: This version was uploaded from a different commit. Use --rerelease to upload a new file.\n"
@@ -431,11 +433,11 @@ if ($dry_run) {
     print "[Dry Run] Skipping Proton Pass token retrieval.\n";
     $api_token = "DRY_RUN_TOKEN";
 } else {
-    print "Fetching CurseForge API Token from Proton Pass...\n";
+    status_info("Fetching CurseForge API Token from Proton Pass...");
     $api_token = fetch_secret_from_proton_pass($proton_pass_item, $proton_pass_vault, $proton_pass_attribute);
     die "Error: Failed to retrieve CurseForge API token. Set CURSEFORGE_API_TOKEN or check PROTON_PASS_ITEM_CURSEFORGE in scripts/defaults.env and your Proton Pass item.\n"
         unless defined $api_token;
-    print "Successfully retrieved CurseForge API Token.\n";
+    status_success("Successfully retrieved CurseForge API Token.");
 }
 
 # ------------------------------------------------------------------------------
@@ -454,7 +456,7 @@ if ($dry_run) {
     }
     print "[Dry Run] In live deployment, CurseForge API will be queried to look up the latest version IDs.\n";
 } else {
-    print "Resolving game version IDs dynamically from SlackHacks.toc via CurseForge API...\n";
+    status_info("Resolving game version IDs dynamically from SlackHacks.toc via CurseForge API...");
     my $resolved = resolve_game_versions_from_toc($api_token, @toc_interfaces);
     if ($resolved && @$resolved) {
         @game_version_ids = @$resolved;
@@ -505,7 +507,7 @@ if ($dry_run) {
     exit 0;
 }
 
-print "Uploading to CurseForge...\n";
+status_info("Uploading to CurseForge...");
 die "Error: No compatible CurseForge game versions resolved; refusing upload.\n" unless @game_version_ids;
 my $metadata_file = json_file($metadata);
 my $receipt = {
@@ -540,7 +542,7 @@ if ($http_status >= 200 && $http_status < 300) {
     close $completed_fh or die "Error: Cannot close upload result: $!\n";
     # A separate completion file avoids losing the pending claim on interrupted writes.
     rename $completed_file, "$state_file.complete" or die "Error: Cannot finalize upload receipt: $!\n";
-    print "Deployment to CurseForge succeeded (HTTP $http_status)!\n";
+    status_success("Deployment to CurseForge succeeded (HTTP $http_status)!");
     print "Response: $response\n";
 } else {
     die "Error: CurseForge deployment failed with HTTP status $http_status.\nResponse: $response\n";

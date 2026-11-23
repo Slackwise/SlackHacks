@@ -4,6 +4,8 @@ use warnings;
 use utf8;
 use FindBin;
 use lib $FindBin::Bin;
+use ScriptOutput qw(install_error_styling);
+install_error_styling();
 use File::Spec;
 use Cwd qw(abs_path);
 use Getopt::Long qw(GetOptions);

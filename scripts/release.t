@@ -171,7 +171,7 @@ sub prepare_scripts {
     git($repo, 'tag', '-d', 'v1');
     make_path("$repo/scripts");
     for my $file (qw(release.pl deploy.sh load-env.sh deploy-github.pl deploy-curseforge.pl
-                     ReleaseUtil.pm defaults.env)) {
+                     ReleaseUtil.pm ScriptOutput.pm output-style.sh defaults.env)) {
         my $content = slurp("$scripts/$file");
         if ($base_url) {
             $content =~ s{https://(?:api|uploads)\.github\.com}{$base_url}g;
@@ -792,7 +792,7 @@ sub changelog_fixture {
     my $repo = fixture();
     make_path("$repo/scripts");
     spew("$repo/scripts/$_", slurp("$scripts/$_"))
-        for qw(bump.pl changelog.pl ChangelogUtil.pm ReleaseUtil.pm defaults.env);
+        for qw(bump.pl changelog.pl ChangelogUtil.pm ReleaseUtil.pm ScriptOutput.pm defaults.env);
     spew("$repo/SlackHacks.toc", "## Interface: 120000\n## Version: 1\n");
     git($repo, 'add', '.');
     git($repo, 'commit', '-m', 'scripts');
@@ -913,11 +913,91 @@ test 'release.pl requires a non-empty section for the TOC version' => sub {
     like($result->{stdout} . $result->{stderr}, qr/non-empty '## v2' section is required/);
 };
 
+test 'status output stays plain when redirected' => sub {
+    for my $no_color (undef, '') {
+        my $perl = run_cmd(
+            cmd => [$^X, '-I', $scripts, '-MScriptOutput=status_info,status_success,status_warning,status_error,install_error_styling',
+                '-e', 'install_error_styling(); status_info("info"); status_success("ok"); status_warning("warning"); status_error("error"); die "fatal\n"'],
+            cwd => $root, env => { TERM => 'xterm', defined($no_color) ? (NO_COLOR => $no_color) : () },
+            unset => defined($no_color) ? [] : ['NO_COLOR'],
+        );
+        is($perl->{stdout}, "info\nok\n", 'Perl status stdout remains plain');
+        is($perl->{stderr}, "warning\nerror\nfatal\n", 'Perl diagnostics remain plain and on stderr');
+        is($perl->{status}, 255, 'Perl fatal error preserves exit status');
+
+        my $shell = run_cmd(
+            cmd => ['bash', '-c', '. "$1"; status_info info; status_success ok; status_warning warning; status_error error', 'bash', "$scripts/output-style.sh"],
+            cwd => $root, env => { TERM => 'xterm', defined($no_color) ? (NO_COLOR => $no_color) : () },
+            unset => defined($no_color) ? [] : ['NO_COLOR'],
+        );
+        is($shell->{stdout}, "info\nok\n", 'shell status stdout remains plain');
+        is($shell->{stderr}, "warning\nerror\n", 'shell diagnostics remain plain and on stderr');
+        is($shell->{status}, 0, 'shell status functions succeed');
+    }
+};
+
+test 'interactive Perl styling preserves diagnostics and honors NO_COLOR' => sub {
+    my $code = q{
+        no warnings 'redefine';
+        local *ScriptOutput::is_terminal = sub { 1 };
+        ScriptOutput::install_error_styling();
+        ScriptOutput::status_success("done");
+        eval { die "caught\n" };
+        print STDERR "caught=$@";
+        warn "warning\n";
+        die "fatal\n";
+    };
+    for my $no_color (undef, '') {
+        my $result = run_cmd(
+            cmd => [$^X, '-I', $scripts, '-MScriptOutput', '-e', $code],
+            cwd => $root, env => { TERM => 'xterm', defined($no_color) ? (NO_COLOR => $no_color) : () },
+            unset => [defined($no_color) ? () : 'NO_COLOR', 'ANSI_COLORS_DISABLED'],
+        );
+        is($result->{status}, 255, 'fatal error retains its status');
+        if (defined $no_color) {
+            is($result->{stdout}, "done\n", 'NO_COLOR disables success styling');
+            is($result->{stderr}, "caught=caught\nwarning\nfatal\n", 'NO_COLOR disables diagnostic styling');
+        } else {
+            like($result->{stdout}, qr/\e\[32m\[OK\] done\n\e\[0m/, 'success is green');
+            like($result->{stderr}, qr/caught=caught\n\e\[33mwarning\e\[0m\n\e\[31mfatal\e\[0m\n\z/,
+                'caught exception stays plain and diagnostics retain their newlines');
+        }
+    }
+};
+
+test 'interactive progress uses the optional progress library' => sub {
+    my $code = q{
+        BEGIN { $INC{'Term/ProgressBar.pm'} = __FILE__ }
+        package Term::ProgressBar;
+        sub new { my ($class, $args) = @_; print "$args->{name}:$args->{count}\n"; bless {}, $class }
+        sub update { print "completed $_[1]\n" }
+        package main;
+        no warnings 'redefine';
+        local *ScriptOutput::is_terminal = sub { 1 };
+        my $progress = ScriptOutput::start_progress('Installing Lua tools', 3);
+        $progress->update($_) for 1 .. 3;
+    };
+    my $result = run_cmd(cmd => [$^X, '-I', $scripts, '-MScriptOutput', '-e', $code],
+        cwd => $root, env => { TERM => 'xterm', NO_COLOR => '' });
+    is($result->{status}, 0, 'progress library is used successfully');
+    is($result->{stdout}, "Installing Lua tools:3\ncompleted 1\ncompleted 2\ncompleted 3\n",
+        'progress tracks three completed steps even with NO_COLOR');
+};
+
+test 'copied shell updater handles invalid paths independently' => sub {
+    my $dir = tempdir('slackhacks-updater-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+    my $copy = "$dir/updater.sh";
+    spew($copy, slurp("$scripts/update-addon.sh"));
+    my $result = run_cmd(cmd => ['bash', $copy, '--repo-path', "$dir/missing"], cwd => $dir);
+    isnt($result->{status}, 0, 'missing repository fails');
+    like($result->{stderr}, qr/Repository path does not exist/, 'error is reported without a shared helper');
+};
+
 test 'build.sh does not package CHANGELOG.md' => sub {
     my $repo = tempdir('slackhacks-build-XXXXXX', TMPDIR => 1, CLEANUP => 1);
     run(['git', 'init', '-q', $repo], $repo);
     make_path("$repo/scripts");
-    spew("$repo/scripts/$_", slurp("$scripts/$_")) for qw(build.sh load-env.sh defaults.env);
+    spew("$repo/scripts/$_", slurp("$scripts/$_")) for qw(build.sh load-env.sh output-style.sh defaults.env);
     spew("$repo/SlackHacks.toc", "## Version: 1\n## Interface: 120000\n");
     spew("$repo/Core.lua", "-- core\n");
     spew("$repo/CHANGELOG.md", "# SlackHacks Changelog\n\n## v1\n\nnotes\n");

@@ -6,12 +6,13 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 . "$SCRIPT_DIR/load-env.sh"
+. "$SCRIPT_DIR/output-style.sh"
 load_project_env "$REPO_ROOT"
 
-echo "=== Deploying to GitHub ==="
+status_info "=== Deploying to GitHub ==="
 perl "$SCRIPT_DIR/deploy-github.pl" "$@"
 
-echo "=== Deploying to CurseForge ==="
+status_info "=== Deploying to CurseForge ==="
 perl "$SCRIPT_DIR/deploy-curseforge.pl" "$@"
 
-echo "=== Deployment Complete ==="
+status_success "=== Deployment Complete ==="
