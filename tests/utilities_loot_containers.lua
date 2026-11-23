@@ -116,7 +116,7 @@ addon.Enum = { SelfVendorMode = {
 } }
 assert(loadfile("StaticData.lua"))()
 assert(loadfile("Utilities.lua"))()
-local settings = { clams = true, dungeonRewards = true, holidayRewards = true }
+local settings = { clams = true, holidayRewards = true }
 addon.db = { profile = { utilities = { autoOpenLootContainers = settings } } }
 module:EnableLootContainerTracking()
 local frame = module.lootContainerFrame
@@ -203,7 +203,7 @@ assert(#opened == 0 and not frame.shown)
 
 -- Annual presents, obsolete bags, and transferable treatises are excluded even when their category is enabled.
 settings.professionKnowledge = true
-for _, itemID in ipairs({ 21310, 21327, 21363, 17726, 17727, 52006, 69903, 245755 }) do
+for _, itemID in ipairs({ 21310, 21327, 21363, 17726, 17727, 51999, 52005, 52006, 69903, 245755 }) do
   reset()
   put(0, 1, itemID)
   fire()
@@ -309,7 +309,7 @@ end
 
 -- Inventory interactions, combat, mounting, casts, cursor items, and open loot defer queued rewards.
 reset()
-put(0, 1, 52005)
+put(0, 1, 54516)
 fire()
 combat = true; tick(); assert(#opened == 0)
 combat, mounted = false, true; tick(); assert(#opened == 0)
@@ -337,7 +337,7 @@ for _, name in ipairs({ "MerchantFrame", "BankFrame", "GuildBankFrame", "MailFra
 end
 tick()
 tick()
-assert(#opened == 1 and opened[1] == 52005)
+assert(#opened == 1 and opened[1] == 54516)
 
 -- A cooldown defers item use rather than turning a temporary failure into a discarded queue.
 reset()
@@ -413,7 +413,7 @@ group.set(path, true)
 tick()
 assert(group.get(path) and #opened == 0 and addon.db.profile.utilities.tomtomWayCommand)
 local options = module:GetLootContainerOptions()
-assert(options.clams.type == "toggle" and options.dungeonRewards.type == "toggle")
+assert(options.clams.type == "toggle" and options.fishing.type == "toggle")
 local toggleCount = 0
 for _, option in pairs(options) do
   if option.type == "toggle" then
@@ -421,8 +421,8 @@ for _, option in pairs(options) do
     assert(option.descStyle == "inline" and type(option.desc) == "string" and #option.desc > 0)
   end
 end
-assert(toggleCount == 6 and options.professionKnowledge and options.dailyQuestRewards
-  and not options.otherRewards and not options.helpfulGoods and not options.pumpkin)
+assert(toggleCount == 4 and options.professionKnowledge and not options.dailyQuestRewards
+  and not options.otherRewards and not options.dungeonRewards and not options.helpfulGoods and not options.pumpkin)
 
 -- Shutdown unregisters acquisition events and stops the queue.
 --- Supplies the unrelated AceEvent cleanup.

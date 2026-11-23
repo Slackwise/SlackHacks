@@ -83,22 +83,7 @@ AUTO_OPEN_LOOT_CONTAINERS = {
       36781, -- Darkwater Clam.
       45909, -- Giant Darkwater Clam.
     },
-    desc = "Opens recurring aquatic-creature drops, such as Small Barnacled, Big-Mouth, Jaggal, and Darkwater Clams. "
-      .. "Clams stack, but opening them automatically saves repeated clicks while farming.",
-  },
-  {
-    key = "dungeonRewards", name = "Dungeon Rewards",
-    ids = {
-      51999, -- Satchel of Helpful Goods.
-      52000, -- Satchel of Helpful Goods.
-      52001, -- Satchel of Helpful Goods.
-      52002, -- Satchel of Helpful Goods.
-      52003, -- Satchel of Helpful Goods.
-      52004, -- Satchel of Helpful Goods.
-      52005, -- Satchel of Helpful Goods.
-    },
-    desc = "Opens Satchels of Helpful Goods from dungeon queues. These rewards do not stack, "
-      .. "so repeated dungeon runs can otherwise fill bag slots with unopened satchels.",
+    desc = "Includes Small Barnacled, Big-Mouth, Jaggal, and Darkwater Clams.",
   },
   {
     key = "fishing", name = "Fishing",
@@ -121,8 +106,8 @@ AUTO_OPEN_LOOT_CONTAINERS = {
       21228, -- Mithril Bound Trunk.
       44475, -- Reinforced Crate.
     },
-    desc = "Opens non-stacking fishing catches and daily rewards, such as Bloated Redgill, Bags of Fishing Treasures, "
-      .. "Bags of Shiny Things, and unlocked crates and trunks. Keeps fishing sessions from accumulating unopened containers.",
+    desc = "Includes Bloated Redgill and other bloated fish, Bags of Fishing Treasures, Bags of Shiny Things, "
+      .. "and unlocked fishing crates and trunks.",
   },
   {
     key = "holidayRewards", name = "Holiday Rewards",
@@ -139,19 +124,8 @@ AUTO_OPEN_LOOT_CONTAINERS = {
       34077, -- Crudely Wrapped Gift.
       117395, -- Stolen Present.
     },
-    desc = "Opens recurring seasonal rewards, such as Loot-Filled Pumpkins, Keg-Shaped Treasure Chests, "
-      .. "Heart-Shaped Boxes, Stolen Presents, and Handfuls of Candy or Treats. Most do not stack; "
-      .. "opening them avoids a buildup during daily event runs. Excludes annual presents.",
-  },
-  {
-    key = "dailyQuestRewards", name = "Daily Quest Rewards",
-    ids = {
-      33844, -- Barrel of Fish.
-      33857, -- Crate of Meat.
-      44751, -- Hyldnir Spoils.
-    },
-    desc = "Opens Barrels of Fish and Crates of Meat from cooking dailies, plus Hyldnir Spoils from polar-bear mount farming. "
-      .. "These repeatable rewards do not stack and have no reason to occupy a bag slot unopened.",
+    desc = "Includes Loot-Filled Pumpkins, Keg-Shaped Treasure Chests, Heart-Shaped Boxes, Stolen Presents, "
+      .. "and Handfuls of Candy or Treats. Excludes annual presents.",
   },
   {
     key = "professionKnowledge", name = "Profession Knowledge", retailOnly = true,
@@ -195,11 +169,9 @@ AUTO_OPEN_LOOT_CONTAINERS = {
       246332, -- Flicker of Midnight Leatherworking Knowledge.
       246334, -- Flicker of Midnight Tailoring Knowledge.
     },
-    desc = "Consumes recurring Midnight knowledge drops, such as Lightbloomed Spore Samples, Thalassian Phoenix Plumes, "
-      .. "and Flickers of Midnight Knowledge. Weekly treasures do not stack; consuming these items clears bag space "
-      .. "and grants unspent profession knowledge without choosing a specialization. Gathering and catch-up tokens "
-      .. "are included even though they stack. Excludes transferable treatises and one-time books. "
-      .. "Items the client cannot use automatically must be used manually.",
+    desc = "Includes recurring Midnight treasure drops such as Lightbloomed Spore Samples, gathering items such as "
+      .. "Thalassian Phoenix Plumes, and crafting catch-up items such as Flickers of Midnight Knowledge. "
+      .. "Excludes transferable treatises and one-time books.",
   },
 }
 

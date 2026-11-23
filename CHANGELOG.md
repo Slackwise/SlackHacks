@@ -4,7 +4,7 @@
 
 ### Utilities
 
-- Added Auto-Open Loot Containers with opt-in categories for Clams, Dungeon Rewards, Fishing, Holiday Rewards, Daily Quest Rewards, and Retail Profession Knowledge.
+- Added Auto-Open Loot Containers with opt-in categories for Clams, Fishing, Holiday Rewards, and Retail Profession Knowledge.
 - Reduced Forever node-nameplate polling to every 0.5 seconds and paused it in rested areas and combat; event-driven updates remain active.
 
 ## v31
