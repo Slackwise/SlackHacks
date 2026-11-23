@@ -1176,12 +1176,12 @@ BINDINGS = {
           ]])
         },
         { 
+          -- The conditonals prevent automatical  target selection and
+          -- `/target` matches click-selection as `/startattack can't use `@mouseover`
           "ENGAGE_CURSOR", "inv_misc_questionmark", multilineTrim([[
-            #showtooltip Hunter's Mark
             /target [@mouseover,harm,nodead]
-            /petattack
-            /startattack
-            /cast !Hunter's Mark
+            /petattack [@mouseover,harm,nodead]
+            /startattack [harm,nodead]
           ]])
         },
         { 
