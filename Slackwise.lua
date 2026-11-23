@@ -1018,7 +1018,7 @@ BINDINGS = {
       {"ALT-CTRL-SHIFT-Z", "Redemption"},
 
       -- Ultimates and "OHSHIT" Buttons
-      {"G",             ""},
+      {"G",             "Divine Favor"},
       {"SHIFT-G",       ""},
       {"CTRL-G",        ""},
       {"CTRL-SHIFT-G",  ""},
@@ -1359,7 +1359,13 @@ BINDINGS = {
       {"SHIFT-Z",      "Shadowmeld"},
       {"CTRL-SHIFT-Z", "Shadowmeld"},
       {"V",            "SHIELD_SELF", BT.MACRO},
-    }
+    },
+    ROGUE = {
+      {"4", "Throw"},
+      {"E", "Sinister Strike"},
+      {"Q", "Eviscerate"},
+      {"C", "Stealth"},
+    },
   },
   SHAMAN = {
     MACROS = {
