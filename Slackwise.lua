@@ -981,6 +981,8 @@ BINDINGS = {
           ]])
         },
       },
+
+      {"B",                      "FOLLOWTARGET", BT.COMMAND},
       
       --Click-Casting
       {"BUTTON1",                 "Flash of Light", BT.CLICKCAST},
@@ -1005,7 +1007,7 @@ BINDINGS = {
       -- Main Attacks 
       {"Q",       "Judgement"},
       {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
-      {"CTRL-E",  {"SKULL", "/tm 8"}}, -- Holy Strike
+      {"CTRL-E",  "@TANK", BT.MACRO},
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
       {"6",       "Exorcism"},
