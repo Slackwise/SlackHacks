@@ -2,6 +2,10 @@
 
 ## v31
 
+### Utilities
+
+- Reduced Forever node-nameplate polling to every 0.5 seconds and paused it in rested areas and combat; event-driven updates remain active.
+
 ### Combat
 
 - Fixed Assist Tank Macro incorrectly reporting full character macro slots on clients with more than 18 slots.

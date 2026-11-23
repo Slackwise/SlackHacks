@@ -569,7 +569,7 @@ end
 local NODE_NAMEPLATE_UNIT = "softinteract"
 local NODE_NAMEPLATE_RANGE = 60
 local NODE_NAMEPLATE_ARC = 2
-local NODE_NAMEPLATE_UPDATE_INTERVAL = 0.12
+local NODE_NAMEPLATE_UPDATE_INTERVAL = 0.5
 local NODE_NAMEPLATE_DEFAULT_TEXT_COLOR = { r = 1, g = 0.88, b = 0.52 }
 local NODE_NAMEPLATE_CATEGORY_SETTING = {
   ore = "ore",
@@ -985,10 +985,12 @@ function module:RefreshNodeNameplates(force)
   end
 end
 
---- Enables or pauses the periodic node-nameplate poller.
+--- Enables the periodic node-nameplate poller only outside combat and rested areas.
 function module:UpdateNodeNameplatePoller()
   if module.nodeNameplatePoller then
-    module.nodeNameplatePoller:SetShown(isForever() and hasActiveNodeNameplateCategory())
+    module.nodeNameplatePoller:SetShown(
+      isForever() and hasActiveNodeNameplateCategory() and not InCombatLockdown() and not IsResting()
+    )
   end
 end
 
@@ -1052,8 +1054,12 @@ nodeNameplateEvents:SetScript("OnEvent", function(_, event, ...)
     module:UpdateNodeNameplatePoller()
   elseif event == "PLAYER_REGEN_DISABLED" then
     if hasActiveNodeNameplateCategory() then setNodeNameplateGate(false) end
+    module:UpdateNodeNameplatePoller()
   elseif event == "PLAYER_REGEN_ENABLED" then
     handleCombatEnd()
+    module:UpdateNodeNameplatePoller()
+  elseif event == "PLAYER_UPDATE_RESTING" then
+    module:UpdateNodeNameplatePoller()
   elseif event == "NAME_PLATE_UNIT_ADDED" then
     visibleNameplates[(...)] = true
     module:EvaluateNodeNameplate()
@@ -1082,6 +1088,7 @@ if isForever() then
     "VARIABLES_LOADED",
     "PLAYER_REGEN_DISABLED",
     "PLAYER_REGEN_ENABLED",
+    "PLAYER_UPDATE_RESTING",
     "NAME_PLATE_UNIT_ADDED",
     "NAME_PLATE_UNIT_REMOVED",
     "PLAYER_SOFT_INTERACT_CHANGED",
