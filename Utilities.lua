@@ -16,8 +16,8 @@ function module:GetLootContainerOptions()
   local options = {
     description = {
       type = "description", order = 0, width = "full",
-      name = "Open containers or consume knowledge items in checked categories only when newly acquired. Existing inventory is left alone. "
-        .. "Waits during combat, casting, and inventory interactions. Uses your normal auto-loot setting.",
+      name = "Open containers in checked categories only when newly acquired. Existing inventory is left alone. "
+        .. "Waits during combat, casting, and inventory interactions, including open mail. Uses your normal auto-loot setting.",
     },
   }
   for index, container in ipairs(self.LootContainers) do
@@ -54,7 +54,6 @@ end
 function module:ResetLootContainerTracking()
   self.lootContainerSettings = db.profile.utilities.autoOpenLootContainers
   self.pendingLootContainers = {}
-  self.lootContainerItemDataRequests = {}
   self.openingLootContainer = nil
   self.lootContainerCounts = scanLootContainers()
   if self.lootContainerFrame then self.lootContainerFrame:Hide() end
@@ -140,26 +139,12 @@ function module:OpenNextLootContainer()
     if slot and self.lootContainerSettings[category.key] then
       local start, duration = C_Container.GetContainerItemCooldown(slot[1], slot[2])
       if duration == 0 or start + duration <= GetTime() then
-        if category.key == "professionKnowledge" and not C_Item.GetItemInfo(itemID) then
-          local deadline = self.lootContainerItemDataRequests[itemID]
-          if not deadline then
-            self.lootContainerItemDataRequests[itemID] = GetTime() + 5
-            C_Item.RequestLoadItemDataByID(itemID)
-          elseif GetTime() >= deadline then
-            self.pendingLootContainers[itemID] = nil
-            prn("Item data is unavailable for profession knowledge item " .. itemID .. ". Use it manually.")
-          end
-        elseif category.key == "professionKnowledge" and not C_Item.IsUsableItem(itemID) then
-          self.pendingLootContainers[itemID] = nil
-          prn("Cannot use profession knowledge item " .. itemID .. ". Check its profession requirements and use it manually.")
-        else
-          self.pendingLootContainers[itemID] = count > 1 and count - 1 or nil
-          self.openingLootContainer = {
-            itemID = itemID, count = self.lootContainerCounts[itemID], deadline = GetTime() + 5,
-          }
-          C_Container.UseContainerItem(slot[1], slot[2])
-          return
-        end
+        self.pendingLootContainers[itemID] = count > 1 and count - 1 or nil
+        self.openingLootContainer = {
+          itemID = itemID, count = self.lootContainerCounts[itemID], deadline = GetTime() + 5,
+        }
+        C_Container.UseContainerItem(slot[1], slot[2])
+        return
       end
     end
   end
