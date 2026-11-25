@@ -10,7 +10,11 @@ use File::Path qw(make_path);
 use File::Spec;
 use File::Temp qw(tempdir);
 use FindBin qw($RealBin);
+use lib $RealBin;
 use HTTP::Tiny;
+use ScriptOutput qw(status_info status_success install_error_styling start_progress);
+
+install_error_styling();
 
 my $root = File::Spec->catdir($RealBin, File::Spec->updir());
 my $bin_dir = File::Spec->catdir($root, '.bin');
@@ -30,15 +34,19 @@ my $http = HTTP::Tiny->new(
 
 my $scratch_dir = tempdir('slackhacks-bootstrap-XXXXXX', DIR => $bin_dir, CLEANUP => 1);
 
+my $progress = start_progress('Installing Lua tools', 3);
 install_luac();
+$progress->update(1) if $progress;
 install_stylua();
+$progress->update(2) if $progress;
 install_lua_language_server();
+$progress->update(3) if $progress;
 
-print "Lua development tools are ready in .bin.\n";
+status_success("Lua development tools are ready in .bin.");
 
 sub install_luac {
     my $destination = File::Spec->catfile($bin_dir, 'luac.exe');
-    return print "Keeping existing luac.exe.\n" if -x $destination;
+    return status_success("Keeping existing luac.exe.") if -x $destination;
 
     my $archive = File::Spec->catfile($scratch_dir, 'lua-5.1.5_Win64_bin.zip');
     download(
@@ -53,12 +61,12 @@ sub install_luac {
     copy($compiler, $destination)
         or die "Could not install luac.exe: $!\n";
 
-    print "Installed Lua 5.1 bytecode compiler.\n";
+    status_success("Installed Lua 5.1 bytecode compiler.");
 }
 
 sub install_stylua {
     my $destination = File::Spec->catfile($bin_dir, 'stylua.exe');
-    return print "Keeping existing stylua.exe.\n" if -x $destination;
+    return status_success("Keeping existing stylua.exe.") if -x $destination;
 
     my $archive = File::Spec->catfile($scratch_dir, 'stylua-windows-x86_64.zip');
     download(
@@ -73,13 +81,13 @@ sub install_stylua {
     copy($formatter, $destination)
         or die "Could not install stylua.exe: $!\n";
 
-    print "Installed StyLua formatter and formatting checker.\n";
+    status_success("Installed StyLua formatter and formatting checker.");
 }
 
 sub install_lua_language_server {
     my $destination = File::Spec->catdir($bin_dir, 'lua-language-server');
     my $executable = File::Spec->catfile($destination, 'bin', 'lua-language-server.exe');
-    return print "Keeping existing Lua Language Server.\n" if -x $executable;
+    return status_success("Keeping existing Lua Language Server.") if -x $executable;
 
     my $archive = File::Spec->catfile($scratch_dir, 'lua-language-server-win32-x64.zip');
     download(
@@ -99,12 +107,12 @@ sub install_lua_language_server {
     rename($extracted, $destination)
         or die "Could not install Lua Language Server: $!\n";
 
-    print "Installed Lua Language Server.\n";
+    status_success("Installed Lua Language Server.");
 }
 
 sub download {
     my ($url, $destination) = @_;
-    print "Downloading $url\n";
+    status_info("Downloading $url");
 
     my $response = $http->get($url, {
         data_callback => sub {

@@ -981,6 +981,8 @@ BINDINGS = {
           ]])
         },
       },
+
+      {"B",                      "FOLLOWTARGET", BT.COMMAND},
       
       --Click-Casting
       {"BUTTON1",                 "Flash of Light", BT.CLICKCAST},
@@ -1005,7 +1007,7 @@ BINDINGS = {
       -- Main Attacks 
       {"Q",       "Judgement"},
       {"E",       "ENGAGE", BT.MACRO }, -- Holy Strike
-      {"CTRL-E",  {"SKULL", "/tm 8"}}, -- Holy Strike
+      {"CTRL-E",  "@TANK", BT.MACRO},
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
       {"6",       "Exorcism"},
@@ -1018,7 +1020,7 @@ BINDINGS = {
       {"ALT-CTRL-SHIFT-Z", "Redemption"},
 
       -- Ultimates and "OHSHIT" Buttons
-      {"G",             ""},
+      {"G",             "Divine Favor"},
       {"SHIFT-G",       ""},
       {"CTRL-G",        ""},
       {"CTRL-SHIFT-G",  ""},
@@ -1174,12 +1176,12 @@ BINDINGS = {
           ]])
         },
         { 
+          -- The conditonals prevent automatical  target selection and
+          -- `/target` matches click-selection as `/startattack can't use `@mouseover`
           "ENGAGE_CURSOR", "inv_misc_questionmark", multilineTrim([[
-            #showtooltip Hunter's Mark
             /target [@mouseover,harm,nodead]
-            /petattack
-            /startattack
-            /cast !Hunter's Mark
+            /petattack [@mouseover,harm,nodead]
+            /startattack [harm,nodead]
           ]])
         },
         { 
@@ -1359,7 +1361,13 @@ BINDINGS = {
       {"SHIFT-Z",      "Shadowmeld"},
       {"CTRL-SHIFT-Z", "Shadowmeld"},
       {"V",            "SHIELD_SELF", BT.MACRO},
-    }
+    },
+    ROGUE = {
+      {"4", "Throw"},
+      {"E", "Sinister Strike"},
+      {"Q", "Eviscerate"},
+      {"C", "Stealth"},
+    },
   },
   SHAMAN = {
     MACROS = {

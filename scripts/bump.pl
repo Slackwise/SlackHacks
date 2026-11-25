@@ -4,6 +4,8 @@ use warnings;
 use utf8;
 use FindBin;
 use lib $FindBin::Bin;
+use ScriptOutput qw(status_success install_error_styling);
+install_error_styling();
 use File::Spec;
 use Cwd qw(abs_path);
 use Getopt::Long qw(GetOptions);
@@ -105,4 +107,4 @@ if ($generate) {
     print "Skipped changelog generation. Run 'perl scripts/changelog.pl' to create it later.\n";
 }
 
-print "\nVersion bump complete! $addon_name is now v$new_version.\n";
+status_success("\nVersion bump complete! $addon_name is now v$new_version.");

@@ -69,6 +69,134 @@ CONTENT_EXPANSIONS = {
 CURRENT_CONTENT = { expansion = "midnight", season = 2 }
 CURRENT_CONTENT_SEASON = CONTENT_EXPANSIONS[CURRENT_CONTENT.expansion].seasons[CURRENT_CONTENT.season]
 
+-- Recurring auto-open categories. Excludes lockboxes, choice rewards, annual gifts, and items whose use
+-- spends currency or starts a quest. Keys are saved as opt-in preferences.
+AUTO_OPEN_LOOT_CONTAINERS = {
+  {
+    key = "clams", name = "Clams",
+    ids = {
+      5523, -- Small Barnacled Clam.
+      5524, -- Thick-Shelled Clam.
+      7973, -- Big-Mouth Clam.
+      15874, -- Soft-Shelled Clam.
+      24476, -- Jaggal Clam.
+      36781, -- Darkwater Clam.
+      45909, -- Giant Darkwater Clam.
+    },
+    desc = "Includes Small Barnacled, Big-Mouth, Jaggal, and Darkwater Clams.",
+  },
+  {
+    key = "fishing", name = "Fishing",
+    ids = {
+      6643, -- Bloated Smallfish.
+      6645, -- Bloated Mud Snapper.
+      6647, -- Bloated Catfish.
+      13881, -- Bloated Redgill.
+      13891, -- Bloated Salmon.
+      35313, -- Bloated Barbed Gill Trout.
+      34863, -- Bag of Fishing Treasures (Outland).
+      46007, -- Bag of Fishing Treasures (Northrend).
+      67414, -- Bag of Shiny Things.
+      6356, -- Battered Chest.
+      6357, -- Sealed Crate.
+      13874, -- Heavy Crate.
+      20708, -- Tightly Sealed Trunk.
+      21113, -- Watertight Trunk.
+      21150, -- Iron Bound Trunk.
+      21228, -- Mithril Bound Trunk.
+      44475, -- Reinforced Crate.
+    },
+    desc = "Includes Bloated Redgill and other bloated fish, Bags of Fishing Treasures, Bags of Shiny Things, "
+      .. "and unlocked fishing crates and trunks.",
+  },
+  {
+    key = "holidayRewards", name = "Holiday Rewards",
+    ids = {
+      54516, -- Loot-Filled Pumpkin (legacy).
+      117392, -- Loot-Filled Pumpkin (Retail).
+      149574, -- Loot-Stuffed Pumpkin.
+      54535, -- Keg-Shaped Treasure Chest (legacy).
+      117393, -- Keg-Shaped Treasure Chest (Retail).
+      54536, -- Satchel of Chilled Goods (legacy).
+      117394, -- Satchel of Chilled Goods (Retail).
+      54537, -- Heart-Shaped Box.
+      37586, -- Handful of Candy (Handful of Treats on Retail).
+      34077, -- Crudely Wrapped Gift.
+      117395, -- Stolen Present.
+    },
+    desc = "Includes Loot-Filled Pumpkins, Keg-Shaped Treasure Chests, Heart-Shaped Boxes, Stolen Presents, "
+      .. "and Handfuls of Candy or Treats. Excludes annual presents.",
+  },
+  {
+    key = "professionKnowledge", name = "Profession Knowledge", retailOnly = true,
+    ids = {
+      -- Midnight weekly treasure drops.
+      259188, -- Lightbloomed Spore Sample (Alchemy).
+      259189, -- Aged Cruor (Alchemy).
+      259190, -- Thalassian Whetstone (Blacksmithing).
+      259191, -- Infused Quenching Oil (Blacksmithing).
+      259192, -- Voidstorm Ashes (Enchanting).
+      259193, -- Lost Thalassian Vellum (Enchanting).
+      259194, -- Dance Gear (Engineering).
+      259195, -- Dawn Capacitor (Engineering).
+      259196, -- Brilliant Phoenix Ink (Inscription).
+      259197, -- Loa-Blessed Rune (Inscription).
+      259198, -- Void-Touched Eversong Diamond Fragments (Jewelcrafting).
+      259199, -- Harandar Stone Sample (Jewelcrafting).
+      259200, -- Amani Tanning Oil (Leatherworking).
+      259201, -- Thalassian Mana Oil (Leatherworking).
+      259202, -- Embroidered Memento (Tailoring).
+      259203, -- Finely Woven Lynx Collar (Tailoring).
+      -- Recurring gathering/disenchanting knowledge and their catch-up drops.
+      267654, -- Swirling Arcane Essence (Enchanting).
+      267655, -- Brimming Mana Shard (Enchanting).
+      267653, -- Glimmering Powder (Enchanting catch-up).
+      238465, -- Thalassian Phoenix Plume (Herbalism).
+      238466, -- Thalassian Phoenix Tail (Herbalism).
+      238467, -- Thalassian Phoenix Ember (Herbalism catch-up).
+      237496, -- Igneous Rock Specimen (Mining).
+      237506, -- Septarian Nodule (Mining).
+      237507, -- Cloudy Quartz (Mining catch-up).
+      238625, -- Fine Void-Tempered Hide (Skinning).
+      238626, -- Mana-Infused Bone (Skinning).
+      238627, -- Manafused Sample (Skinning catch-up).
+      -- Crafting catch-up knowledge from patron orders.
+      246320, -- Flicker of Midnight Alchemy Knowledge.
+      246322, -- Flicker of Midnight Blacksmithing Knowledge.
+      246326, -- Flicker of Midnight Engineering Knowledge.
+      246328, -- Flicker of Midnight Inscription Knowledge.
+      246330, -- Flicker of Midnight Jewelcrafting Knowledge.
+      246332, -- Flicker of Midnight Leatherworking Knowledge.
+      246334, -- Flicker of Midnight Tailoring Knowledge.
+    },
+    desc = "Includes recurring Midnight treasure drops such as Lightbloomed Spore Samples, gathering items such as "
+      .. "Thalassian Phoenix Plumes, and crafting catch-up items such as Flickers of Midnight Knowledge. "
+      .. "Excludes transferable treatises and one-time books.",
+  },
+}
+
+AUTO_OPEN_LOOT_CONTAINERS_BY_ID = {}
+for _, category in ipairs(AUTO_OPEN_LOOT_CONTAINERS) do
+  for _, itemID in ipairs(category.ids) do AUTO_OPEN_LOOT_CONTAINERS_BY_ID[itemID] = category end
+end
+
+-- Track interactions even when another addon replaces or hides Blizzard's corresponding frame.
+AUTO_OPEN_LOOT_INTERACTION_EVENTS = {
+  MERCHANT_SHOW = { "merchant", true }, MERCHANT_CLOSED = { "merchant", false },
+  BANKFRAME_OPENED = { "bank", true }, BANKFRAME_CLOSED = { "bank", false },
+  GUILDBANKFRAME_OPENED = { "guildBank", true }, GUILDBANKFRAME_CLOSED = { "guildBank", false },
+  MAIL_SHOW = { "mail", true }, MAIL_CLOSED = { "mail", false },
+  TRADE_SHOW = { "trade", true }, TRADE_CLOSED = { "trade", false },
+  AUCTION_HOUSE_SHOW = { "auction", true }, AUCTION_HOUSE_CLOSED = { "auction", false },
+  LOOT_OPENED = { "loot", true }, LOOT_CLOSED = { "loot", false },
+}
+
+AUTO_OPEN_LOOT_TRACKING_EVENTS = { "BAG_UPDATE_DELAYED", "PLAYER_ENTERING_WORLD", "PLAYER_LEAVING_WORLD" }
+AUTO_OPEN_LOOT_BLOCKING_FRAMES = {
+  "MerchantFrame", "BankFrame", "GuildBankFrame", "MailFrame", "TradeFrame",
+  "AuctionHouseFrame", "AuctionFrame", "ItemInteractionFrame", "ScrappingMachineFrame", "LootFrame",
+}
+
 ITEM_NAMES = {
   ["Sunfire Silk Spellthread"] = 240133,
   ["Arcanoweave Spellthread"] = 240155,

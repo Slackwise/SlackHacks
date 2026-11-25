@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/output-style.sh"
+
 load_project_env() {
   local repo_root="$1"
   local caller_env
   local caller_allexport=0
 
   if [[ ! -f "$repo_root/scripts/defaults.env" ]]; then
-    echo "Error: Missing scripts/defaults.env. Restore the project defaults file." >&2
+    status_error "Error: Missing scripts/defaults.env. Restore the project defaults file."
     return 1
   fi
 
@@ -30,7 +32,7 @@ load_project_env() {
 require_project_config() {
   local name="$1"
   if [[ -z "${!name:-}" ]]; then
-    echo "Error: Required setting $name is missing. Check scripts/defaults.env." >&2
+    status_error "Error: Required setting $name is missing. Check scripts/defaults.env."
     return 1
   fi
 }

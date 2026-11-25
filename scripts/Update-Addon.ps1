@@ -141,6 +141,9 @@ try {
         exit $LASTEXITCODE
     }
 
+    # Load before the reset/pull so this temporary copy does not need files afterwards.
+    . (Join-Path $RepoPath 'scripts\OutputStyle.ps1')
+    Write-ScriptStatus INFO "Starting SlackHacks update for '$RepoPath'..."
     Set-Location -Path $RepoPath
 
     Assert-GitInstalled
@@ -162,6 +165,7 @@ try {
             exit $LASTEXITCODE
         }
     }
+    Write-ScriptStatus OK 'SlackHacks update completed successfully.'
 } catch {
     Show-ErrorMessageBox -Title 'Update Failed' -Message "$($_.Exception.Message)`n`n$($_.ScriptStackTrace)"
     exit 1
