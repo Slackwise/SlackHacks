@@ -1171,6 +1171,9 @@ BINDINGS = {
         { 
           "ENGAGE", "inv_misc_questionmark", multilineTrim([[
             #showtooltip Hunter's Mark
+            /petautocaston Bite
+            /petautocaston Claw
+            /petautocaston Dash
             /petattack
             /cast !Hunter's Mark
           ]])
@@ -1282,7 +1285,7 @@ BINDINGS = {
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},
       {"ALT-CTRL-Q",    "PET_TOGGLE", BT.MACRO},
-      {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
+      {"CTRL-E",        "@TANK", BT.MACRO},
       {"R",             "Wing Clip"},
       {"SHIFT-R",       "Raptor Strike"},
       {"CTRL-R",        "Mongoose Bite"},
