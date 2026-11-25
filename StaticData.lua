@@ -127,52 +127,6 @@ AUTO_OPEN_LOOT_CONTAINERS = {
     desc = "Includes Loot-Filled Pumpkins, Keg-Shaped Treasure Chests, Heart-Shaped Boxes, Stolen Presents, "
       .. "and Handfuls of Candy or Treats. Excludes annual presents.",
   },
-  {
-    key = "professionKnowledge", name = "Profession Knowledge", retailOnly = true,
-    ids = {
-      -- Midnight weekly treasure drops.
-      259188, -- Lightbloomed Spore Sample (Alchemy).
-      259189, -- Aged Cruor (Alchemy).
-      259190, -- Thalassian Whetstone (Blacksmithing).
-      259191, -- Infused Quenching Oil (Blacksmithing).
-      259192, -- Voidstorm Ashes (Enchanting).
-      259193, -- Lost Thalassian Vellum (Enchanting).
-      259194, -- Dance Gear (Engineering).
-      259195, -- Dawn Capacitor (Engineering).
-      259196, -- Brilliant Phoenix Ink (Inscription).
-      259197, -- Loa-Blessed Rune (Inscription).
-      259198, -- Void-Touched Eversong Diamond Fragments (Jewelcrafting).
-      259199, -- Harandar Stone Sample (Jewelcrafting).
-      259200, -- Amani Tanning Oil (Leatherworking).
-      259201, -- Thalassian Mana Oil (Leatherworking).
-      259202, -- Embroidered Memento (Tailoring).
-      259203, -- Finely Woven Lynx Collar (Tailoring).
-      -- Recurring gathering/disenchanting knowledge and their catch-up drops.
-      267654, -- Swirling Arcane Essence (Enchanting).
-      267655, -- Brimming Mana Shard (Enchanting).
-      267653, -- Glimmering Powder (Enchanting catch-up).
-      238465, -- Thalassian Phoenix Plume (Herbalism).
-      238466, -- Thalassian Phoenix Tail (Herbalism).
-      238467, -- Thalassian Phoenix Ember (Herbalism catch-up).
-      237496, -- Igneous Rock Specimen (Mining).
-      237506, -- Septarian Nodule (Mining).
-      237507, -- Cloudy Quartz (Mining catch-up).
-      238625, -- Fine Void-Tempered Hide (Skinning).
-      238626, -- Mana-Infused Bone (Skinning).
-      238627, -- Manafused Sample (Skinning catch-up).
-      -- Crafting catch-up knowledge from patron orders.
-      246320, -- Flicker of Midnight Alchemy Knowledge.
-      246322, -- Flicker of Midnight Blacksmithing Knowledge.
-      246326, -- Flicker of Midnight Engineering Knowledge.
-      246328, -- Flicker of Midnight Inscription Knowledge.
-      246330, -- Flicker of Midnight Jewelcrafting Knowledge.
-      246332, -- Flicker of Midnight Leatherworking Knowledge.
-      246334, -- Flicker of Midnight Tailoring Knowledge.
-    },
-    desc = "Includes recurring Midnight treasure drops such as Lightbloomed Spore Samples, gathering items such as "
-      .. "Thalassian Phoenix Plumes, and crafting catch-up items such as Flickers of Midnight Knowledge. "
-      .. "Excludes transferable treatises and one-time books.",
-  },
 }
 
 AUTO_OPEN_LOOT_CONTAINERS_BY_ID = {}

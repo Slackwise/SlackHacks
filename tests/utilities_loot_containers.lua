@@ -7,7 +7,6 @@ local inventory, opened, messages = {}, {}, {}
 local now, combat, mounted, casting, cursor, loot = 0, false, false, false, false, 0
 local enabled, consume = true, true
 local cooldown = 0
-local retail, itemDataAvailable, knowledgeUsable, itemDataRequests = true, true, true, 0
 
 --- Supplies the Utilities module.
 ---@return table module
@@ -20,7 +19,7 @@ function module:IsEnabled() return enabled end
 function addon.isForever() return false end
 --- Reports whether the test is running on Retail.
 ---@return boolean retail
-function addon.isRetail() return retail end
+function addon.isRetail() return true end
 --- Creates a frame with event and script storage.
 ---@return table frame
 function CreateFrame()
@@ -99,17 +98,6 @@ C_Container = {
     end
   end,
 }
-C_Item = {
-  --- Supplies cached item data once it is available.
-  ---@return string|nil name
-  GetItemInfo = function() return itemDataAvailable and "Knowledge item" or nil end,
-  --- Reports whether the player's profession allows this item.
-  ---@return boolean usable
-  IsUsableItem = function() return knowledgeUsable end,
-  --- Records asynchronous item-data requests.
-  RequestLoadItemDataByID = function() itemDataRequests = itemDataRequests + 1 end,
-}
-
 addon.Enum = { SelfVendorMode = {
   CONSUMABLES = 1, OIL = 4, AUGMENT_RUNES = 5, VANTUS_RUNE = 6, AUGMENTS = 7,
   FLASK = 8, CRIT_FLASK = 9, MASTERY_FLASK = 10, HASTE_FLASK = 11, VERSATILITY_FLASK = 12,
@@ -149,7 +137,6 @@ end
 local function reset()
   inventory, opened, messages = {}, {}, {}
   combat, mounted, casting, cursor, loot, consume = false, false, false, false, 0, true
-  itemDataAvailable, knowledgeUsable, itemDataRequests = true, true, 0
   module:ResetLootContainerTracking()
 end
 
@@ -201,8 +188,7 @@ fire()
 tick()
 assert(#opened == 0 and not frame.shown)
 
--- Annual presents, obsolete bags, and transferable treatises are excluded even when their category is enabled.
-settings.professionKnowledge = true
+-- Annual presents, obsolete bags, and transferable treatises are excluded.
 for _, itemID in ipairs({ 21310, 21327, 21363, 17726, 17727, 51999, 52005, 52006, 69903, 245755 }) do
   reset()
   put(0, 1, itemID)
@@ -210,8 +196,6 @@ for _, itemID in ipairs({ 21310, 21327, 21363, 17726, 17727, 51999, 52005, 52006
   tick()
   assert(#opened == 0 and not frame.shown, tostring(itemID))
 end
-settings.professionKnowledge = nil
-
 -- A category checkbox controls every allowlisted item in that category, without changing other categories.
 for _, category in ipairs(module.LootContainers) do
   local previous = settings[category.key]
@@ -233,64 +217,44 @@ for _, category in ipairs(module.LootContainers) do
   settings[category.key] = previous
 end
 
--- Retail knowledge stays hidden and inactive on other clients even with a saved enabled preference.
+-- Knowledge items must not be used, even if the removed preference remains in an existing profile.
 settings.professionKnowledge = true
-retail = false
-reset()
-put(0, 1, 259188)
-fire()
-tick()
-assert(#opened == 0 and not frame.shown and module:GetLootContainerOptions().professionKnowledge == nil)
-retail = true
-
--- Newly gained stacking knowledge is consumed without touching older inventory.
-reset()
-put(0, 1, 238465, 7)
-module:ResetLootContainerTracking()
-put(0, 1, 238465, 10)
-fire()
-for _ = 1, 4 do tick() end
-assert(#opened == 3 and inventory[0][1].stackCount == 7 and not frame.shown)
-
--- Knowledge waits for item data, checks profession requirements, and reports failures without retry loops.
-reset()
-itemDataAvailable = false
-put(0, 1, 259188)
-fire()
-tick()
-tick()
-assert(#opened == 0 and itemDataRequests == 1 and #messages == 0)
-itemDataAvailable = true
-tick()
-tick()
-assert(#opened == 1 and not frame.shown)
-
-reset()
-itemDataAvailable = false
-put(0, 1, 259188)
-fire()
-tick()
-tick(6)
-tick()
-assert(#opened == 0 and itemDataRequests == 1 and #messages == 1 and not frame.shown)
-
-reset()
-knowledgeUsable = false
-put(0, 1, 259188)
-fire()
-tick()
-tick()
-assert(#opened == 0 and #messages == 1 and not frame.shown)
-
-reset()
-consume = false
-put(0, 1, 259188)
-fire()
-tick()
-tick(6)
-tick()
-assert(#opened == 1 and #messages == 1 and not frame.shown)
+for _, itemID in ipairs({
+  263454, 263455, 263456, 263457, 263458, 263459, 263460, 263461, 263462, 263463, 263464,
+  259188, 259189, 259190, 259191, 259192, 259193, 259194, 259195, 259196, 259197,
+  259198, 259199, 259200, 259201, 259202, 259203, 267654, 267655, 267653,
+  238465, 238466, 238467, 237496, 237506, 237507, 238625, 238626, 238627,
+  246320, 246321, 246322, 246323, 246324, 246325, 246326, 246327,
+  246328, 246329, 246330, 246331, 246332, 246333, 246334, 246335,
+}) do
+  reset()
+  put(0, 1, itemID, 4)
+  fire()
+  tick()
+  assert(#opened == 0 and not frame.shown, tostring(itemID))
+end
+for _, events in ipairs({ { "MAIL_SHOW", "MAIL_CLOSED" }, { "BANKFRAME_OPENED", "BANKFRAME_CLOSED" } }) do
+  reset()
+  fire(events[1])
+  put(0, 1, 246321, 4)
+  fire()
+  fire(events[2])
+  tick()
+  assert(#opened == 0 and not frame.shown, events[1])
+end
+assert(module:GetLootContainerOptions().professionKnowledge == nil)
 settings.professionKnowledge = nil
+
+-- A genuine container received from mail is processed after the mailbox closes.
+reset()
+fire("MAIL_SHOW")
+put(0, 1, 5523, 4)
+fire()
+tick()
+assert(#opened == 0 and frame.shown)
+fire("MAIL_CLOSED")
+for _ = 1, 5 do tick() end
+assert(#opened == 4 and inventory[0][1] == nil and not frame.shown)
 
 -- The shared clam setting covers every listed clam; locked items wait and bag moves are re-resolved.
 for _, itemID in ipairs(module.LootContainers[1].ids) do
@@ -421,7 +385,7 @@ for _, option in pairs(options) do
     assert(option.descStyle == "inline" and type(option.desc) == "string" and #option.desc > 0)
   end
 end
-assert(toggleCount == 4 and options.professionKnowledge and not options.dailyQuestRewards
+assert(toggleCount == 3 and not options.professionKnowledge and not options.dailyQuestRewards
   and not options.otherRewards and not options.dungeonRewards and not options.helpfulGoods and not options.pumpkin)
 
 -- Shutdown unregisters acquisition events and stops the queue.
