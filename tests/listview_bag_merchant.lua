@@ -8,7 +8,7 @@ UIParent = {}
 
 --- Supply the module used by the bag implementation.
 ---@return table module
-function SlackHacks:NewModule() return {} end
+function SlackHacks:NewModule() return { IsEnabled = function() return true end } end
 
 --- Include the reagent bag in bag actions.
 ---@return boolean modern
@@ -58,13 +58,21 @@ local slots = {
   { itemID = 6, itemName = "Auction", hyperlink = "Auction", quality = 1 },
   { itemID = 7, itemName = "Mail", hyperlink = "Mail", quality = 1 },
   { itemID = 8, itemName = "Grey", hyperlink = "Grey", quality = 0 },
+  { itemID = 9, itemName = "Protected Grey", hyperlink = "Protected Grey", quality = 0 },
+  { itemID = 10, itemName = "Uncached Grey", hyperlink = "Uncached Grey", quality = 0 },
 }
 for _, item in ipairs(slots) do profile.trashItems[statusKey(item.itemName, item.quality, 10, nil)] = true end
 profile.protectedItems[statusKey("Protected", 1, 10, nil)] = true
+profile.protectedItems[statusKey("Protected Grey", 0, 10, nil)] = true
 profile.bankItems = { [statusKey("Banked", 1, 10, nil)] = true }
 profile.auctionItems = { [statusKey("Auction", 1, 10, nil)] = true }
 profile.mailItems = { [statusKey("Mail", 1, 10, nil)] = true }
+slots[#slots + 1] = { itemID = 11, quality = 0 }
 local actions = {}
+local warnings = {}
+--- Record messages about unavailable item information.
+---@param message string Message shown to the player.
+function prn(message) warnings[#warnings + 1] = message end
 C_Container = {
   GetContainerNumSlots = function(bag) return bag == 0 and #slots or 0 end,
   GetContainerItemInfo = function(_, slot) return slots[slot] end,
@@ -74,8 +82,15 @@ C_Container = {
   end,
 }
 C_Item = {
-  GetItemInfo = function(link) return link, link, 1, 10 end,
-  GetDetailedItemLevelInfo = function() return 10 end,
+  GetItemInfo = function(link)
+    assert(link, "Item lookup must not receive an unavailable link")
+    if link == "Uncached Grey" then return nil end
+    return link, link, 1, 10
+  end,
+  GetDetailedItemLevelInfo = function(link)
+    assert(link, "Item-level lookup must not receive an unavailable link")
+    return link ~= "Uncached Grey" and 10 or nil
+  end,
 }
 local nativeJunk = 0
 C_MerchantFrame = {
@@ -143,5 +158,47 @@ updateButton()
 confirmation()
 assert(#actions == 6 and actions[6] == "native", "A closed merchant must not sell marked items")
 module:MERCHANT_SHOW()
-assert(#actions == 7 and actions[7] == "Marked", "Auto-sell must still run when a merchant opens")
+assert(#actions == 8 and actions[7] == "Marked" and actions[8] == "Grey",
+  "Auto-sell must sell marked and unprotected grey items only")
+assert(#warnings > 0 and warnings[#warnings]:find("could not be checked for sale", 1, true),
+  "Skipping uncached items must be reported to the player")
+slots[1].isLocked = false
+module:SellBlizzardGreyItems()
+assert(#actions == 9 and actions[9] == "native", "Grey-only native sales must not sell marked items")
+module.IsEnabled = function() return false end
+module:MERCHANT_SHOW()
+confirmation()
+assert(#actions == 10 and actions[10] == "native", "A disabled Ace module must not sell or extend native sales")
+
+-- Exercise both merchant event handlers: the two settings must never trigger competing sales.
+--- Supply the atlas markup initialized by Core.
+---@return string markup Placeholder markup.
+function CreateAtlasMarkup() return "" end
+assert(loadfile("Core.lua"))()
+SlackHacks.db.profile.inventory = { autoSellGreyItems = true, autoRepair = false }
+module.IsEnabled = function() return true end
+slots[1].isLocked, slots[8].isLocked = false, false
+actions = {}
+profile.autoSellMarkedItems = true
+SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
+module:MERCHANT_SHOW()
+assert(table.concat(actions, ",") == "Marked,Grey", "Auto-Sell Junk must override Blizzard's grey sale")
+slots[1].isLocked, slots[8].isLocked = false, false
+actions = {}
+profile.autoSellMarkedItems = false
+SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
+module:MERCHANT_SHOW()
+assert(table.concat(actions, ",") == "native", "Auto-Sell ALL Grey Items alone must use only Blizzard's sale")
+actions = {}
+SlackHacks.db.profile.inventory.autoSellGreyItems = false
+SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
+module:MERCHANT_SHOW()
+assert(#actions == 0, "Neither option enabled must not sell automatically")
+actions = {}
+SlackHacks.db.profile.inventory.autoSellGreyItems = true
+profile.autoSellMarkedItems = true
+module.IsEnabled = function() return false end
+SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
+module:MERCHANT_SHOW()
+assert(table.concat(actions, ",") == "native", "The independent grey option must work when the bag module is disabled")
 print("Listview bag merchant tests passed")

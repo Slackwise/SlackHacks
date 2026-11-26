@@ -8,7 +8,7 @@ UIParent = {}
 
 --- Supply the bag module.
 ---@return table module
-function SlackHacks:NewModule() return {} end
+function SlackHacks:NewModule() return { IsEnabled = function() return true end } end
 --- Include the modern reagent bag.
 ---@return boolean modern
 function SlackHacks.isRetailOrForever() return true end
@@ -46,6 +46,8 @@ local function widget()
   function object:SetEnabled(enabled) self.enabled = enabled end
   function object:SetAlpha(alpha) self.alpha = alpha end
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
+  function object:SetNormalTexture(texture) self.normalTexture = texture end
+  function object:SetPushedTexture(texture) self.pushedTexture = texture end
   function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
   function object:SetRotation(rotation) self.rotation = rotation end
   function object:SetTexCoord(...) self.texCoord = { ... } end
@@ -268,18 +270,31 @@ entries[1].selectStatus()
 assert(not getStatus("item") and not profile.mailAssignments.item)
 assert(notifications == merchantUpdates and notifications > 0)
 
--- Grey and uncached items cannot acquire flags, even from a previously opened menu.
-for _, quality in ipairs({ 0, -1 }) do
-  row.statusInfo.quality = quality ~= -1 and quality or nil
-  local previousMessages = #messages
-  button.scripts.OnClick(button, "RightButton")
-  button.scripts.OnClick(button, "LeftButton")
-  entries[2].selectStatus()
-  assert(not getStatus("item") and #messages == previousMessages + 3)
-  button.scripts.OnEnter(button)
-  assert(GameTooltip.text == (quality == 0 and "Grey items cannot be flagged."
-    or "Item quality is not yet available."))
-end
+-- Grey items can only be protected, including against stale menu selections.
+local selectJunk = entries[2].selectStatus
+row.statusInfo.quality = 0
+row.statusInfo.itemLevel = 10
+button.scripts.OnClick(button, "LeftButton")
+assert(#entries == 2 and entries[2].label:find("Protect", 1, true))
+entries[2].selectStatus()
+assert(profile.protectedItems.item and getStatus("item", 0).id == "protect")
+selectJunk()
+button.scripts.OnClick(button, "RightButton")
+assert(profile.protectedItems.item and not profile.trashItems.item)
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flag item for: Protect" and GameTooltip.lines[2]:find("ignore protection", 1, true))
+entries[1].selectStatus()
+assert(not getStatus("item", 0))
+
+-- Uncached items still cannot acquire flags.
+row.statusInfo.quality = nil
+local previousMessages = #messages
+button.scripts.OnClick(button, "RightButton")
+button.scripts.OnClick(button, "LeftButton")
+selectJunk()
+assert(not getStatus("item") and #messages == previousMessages + 3)
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Item quality is not yet available.")
 row.statusInfo.quality = 1
 
 -- Check the restriction matrix against interaction state and the click/drag blocker.
@@ -308,11 +323,20 @@ for _, case in ipairs(matrix) do
       row.actionBlocker.scripts.OnDragStart(row.actionBlocker)
       assert(#messages == previousMessages + 2 and messages[#messages]:find(expected, 1, true))
     end
-    assert(not blockedItemAction("item", 0), "Grey items must not be protected by legacy marks")
+    local greyExpected = case.field == "protectedItems" and expected or nil
+    assert(blockedItemAction("item", 0) == greyExpected, "Only Protect must guard grey items")
     upvalue(blockedItemAction, name, false)
   end
 end
 profile.trashItems.item = nil
+profile.protectedItems.item = row.statusInfo
+upvalue(blockedItemAction, "merchantOpen", true)
+profile.enabled = false
+assert(not blockedItemAction("item", 0) and not blockedItemAction("item", 1),
+  "Disabled modules must not block item interactions")
+profile.enabled = true
+upvalue(blockedItemAction, "merchantOpen", false)
+profile.protectedItems.item = nil
 
 -- Open and close events update guards even before Blizzard's frames become visible.
 module.OnNativeBagOpen = function() end
@@ -534,7 +558,7 @@ function module:RegisterEvent(event, handler)
 end
 EventRegistry = { RegisterCallback = function() end }
 upvalue(module.OnEnable, "installBagMenuOptions", function() end)
-upvalue(module.OnEnable, "buildFrame", function() end)
+local realBuildFrame = upvalue(module.OnEnable, "buildFrame", function() end)
 upvalue(module.OnEnable, "hookMerchantJunkButton", function() end)
 upvalue(module.OnEnable, "updateMerchantJunkButton", function() end)
 module:OnEnable()
@@ -1012,4 +1036,62 @@ assert(HasSendMailItem(1) and not HasSendMailItem(2) and bagSlots[3] and SendMai
 profile.mailAssignments[swordKey] = 1
 SendMailFrame.hooks.OnHide()
 assert(not picker.shown, "Closing the send tab must hide the mail recipient window")
+
+-- A secure mail hook must not disable Blizzard's send button after the module is disabled.
+upvalue(startMail, "mailJob", {})
+module.IsEnabled = function() return false end
+SendMailMailButton.enabled = true
+globalHooks.SendMailFrame_CanSend()
+assert(SendMailMailButton.enabled, "A disabled module must not block sending mail")
+upvalue(startMail, "mailJob", false)
+module.IsEnabled = function() return true end
+
+-- Build the actual top controls and verify their click and tooltip behavior.
+local constructed = {}
+CreateFrame = function(...)
+  local result = originalCreateFrame(...)
+  constructed[#constructed + 1] = result
+  return result
+end
+UISpecialFrames, ITEM_SEARCHBAR_LIST = {}, {}
+tinsert = table.insert
+function UnitName() return "Player" end
+GameTooltip_Hide = function() end
+upvalue(realBuildFrame, "frame", false)
+upvalue(realBuildFrame, "createFooter", function() end)
+realBuildFrame()
+local content = upvalue(realBuildFrame, "content")
+local openBags = content.openBagsButton
+assert(openBags.normalTexture == "Interface\\Buttons\\Button-Backpack-Up"
+  and openBags.pushedTexture == "Interface\\Buttons\\Button-Backpack-Down")
+openBags.scripts.OnEnter(openBags)
+assert(GameTooltip.text == "Open Bags (Temporarily)"
+  and GameTooltip.lines[1] == "Show the Blizzard default bag temporarily. You can toggle it permanently in the top-left icon context menu.")
+local opened = false
+upvalue(openBags.scripts.OnClick, "openDefaultBagsTemporarily", function() opened = true end)
+openBags.scripts.OnClick()
+assert(opened, "The backpack button must temporarily open Blizzard's bags")
+opened = false
+profile.enabled = false
+openBags.scripts.OnClick()
+assert(not opened, "The backpack button must not act when the module is disabled")
+profile.enabled = true
+local menuHandler = upvalue(realBuildFrame, "openBagSettingsMenu")
+local portraitButton
+for _, frame in ipairs(constructed) do
+  if frame.scripts.OnClick == menuHandler then portraitButton = frame end
+end
+assert(portraitButton and portraitButton.clicks[1] == "LeftButtonUp"
+  and portraitButton.clicks[2] == "RightButtonUp", "The portrait must open its context menu on either click")
+
+upvalue(startMail, "mailJob", {})
+module.IsEnabled = function() return false end
+EventRegistry.UnregisterCallback = function() end
+module.UpdateListViewBindings = function() end
+upvalue(module.OnDisable, "showDefaultBags", function() end)
+upvalue(module.OnDisable, "merchantOpen", false)
+SendMailMailButton.enabled = false
+module:OnDisable()
+assert(not upvalue(startMail, "mailJob") and SendMailMailButton.enabled,
+  "Disabling the module must stop mail preparation and restore Blizzard's send button")
 print("Listview bag status tests passed")

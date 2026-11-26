@@ -1606,8 +1606,8 @@ options = {
       args = {
         overview = goldModuleOverview("Small quality-of-life features for managing your inventory."),
         autoSellGreyItems = {
-          name = "Auto Sell Grey Items",
-          desc = "Automatically sell grey-quality items when visiting a merchant.",
+          name = "Auto-Sell |cffff4040ALL|r Grey Items",
+          desc = "Use Blizzard's grey-item sale when visiting a merchant. This sells all grey items, including protected items, unless Listview Bag's Auto-Sell Junk is enabled.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -1723,17 +1723,19 @@ options = {
               order = 2.5
             },
             autoSellMarkedItems = {
-              name = "Auto-Sell Items Marked for Vendoring",
-              desc = "Sell marked items automatically when opening a vendor.",
+              name = "Auto-Sell Junk",
+              desc = "Sell unprotected grey items and items marked as Junk when opening a vendor. This takes precedence over Auto-Sell ALL Grey Items.",
+              descStyle = "inline",
               type = "toggle",
               get = function() return db.profile.listviewBag.autoSellMarkedItems end,
-              set = function(_, value) db.profile.listviewBag.autoSellMarkedItems = value end,
+              set = function(_, value) Self.ListviewBag:SetAutoSellJunk(value) end,
+              disabled = function() return not db.profile.listviewBag.enabled end,
               width = "full",
               order = 3
             },
             autoVendorItems = {
-              name = "Auto-Vendor Items",
-              desc = "Uncheck an item to remove it from the auto-vendor list.",
+              name = "Junk Items",
+              desc = "Uncheck an item to remove it from the Junk list.",
               type = "group",
               inline = true,
               args = {},

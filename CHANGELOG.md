@@ -11,10 +11,11 @@
 - Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.
 - Mail flags can be assigned to saved recipients with custom nicknames and searchable icons, including icons outside Blizzard's default list. Recipient rows show both nickname and character name and can be edited.
 - The Send Mail tab can prepare flagged items for a selected recipient and refill the next batch after sending.
-- Item flags block conflicting Listview Bag actions; grey items can no longer be flagged.
+- Item flags block conflicting Listview Bag actions; grey items can be protected.
 - The Listview Bag flag column can now be sorted.
 - Added Listview Bag filters for item flags and categories, including an Essentials category for common reusable items; the dropdown shows how many filters are active.
 - Forever arrows and edible raw fish now appear under Consumables; edible raw fish also remain under Reagents.
+- The bag portrait menu switches views and controls crest tracking and Auto-Sell Junk. Auto-Sell Junk sells unprotected greys and marked items; Blizzard's grey sale still sells all greys when used separately.
 
 ## v33
 

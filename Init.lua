@@ -685,14 +685,14 @@ CONFIG_MIGRATIONS = {
     end
   end,
   -- Config v16, ships in addon v34.
-  --- Remove grey-item flags from every saved profile without changing other flags.
+  --- Remove unsupported grey-item flags while preserving grey protection in every saved profile.
   [16] = function()
     --- Remove flags whose saved status key or metadata identifies a grey item.
     ---@param p table|nil Saved profile.
     local function migrateProfile(p)
       local bag = type(p) == "table" and rawget(p, "listviewBag")
       if type(bag) ~= "table" then return end
-      for _, field in ipairs({ "trashItems", "protectedItems", "auctionItems", "bankItems", "mailItems" }) do
+      for _, field in ipairs({ "trashItems", "auctionItems", "bankItems", "mailItems" }) do
         local items = rawget(bag, field)
         if type(items) == "table" then
           for key, item in pairs(items) do

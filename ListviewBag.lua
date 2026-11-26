@@ -180,10 +180,12 @@ end
 
 --- Return the item's selected status, prioritizing non-junk flags for older overlapping marks.
 ---@param key string Item status key.
+---@param quality number|nil Item quality, if known.
 ---@return table|nil status Selected status definition.
-local function getItemStatus(key)
+local function getItemStatus(key, quality)
   local listviewSettings = settings()
   if listviewSettings.protectedItems[key] ~= nil then return PROTECT_STATUS end
+  if quality == 0 then return nil end
   for index = 2, #ITEM_STATUSES do
     local status = ITEM_STATUSES[index]
     if listviewSettings[status.field][key] ~= nil then return status end
@@ -191,8 +193,10 @@ local function getItemStatus(key)
   if listviewSettings.trashItems[key] ~= nil then return ITEM_STATUSES[1] end
 end
 
+--- Check both the saved setting and the actual Ace module state.
+---@return boolean enabled Whether Listview Bag behavior is active.
 local function isModuleEnabled()
-  return settings() and settings().enabled
+  return settings().enabled and module:IsEnabled()
 end
 
 local function itemStatusKey(itemName, quality, itemLevel, upgradeTrack)
@@ -353,7 +357,7 @@ local function collectGroups()
     end
     group.statusKey = itemStatusKey(group.itemName, group.quality, group.itemLevel, group.upgradeTrack)
     if sortColumn == "flag" then
-      local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
+      local status = getItemStatus(group.statusKey, group.quality)
       group.flagSortOrder = status and status.sortOrder or 0
     end
     group.statusInfo = {
@@ -408,7 +412,6 @@ local headerButtons = {}
 local columnLayout = {}
 local rowPool = {}
 local expandedGroups = {}
-local viewToggleButton
 local bagKeyBindingButton
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
 local sellMarkedTrashItems, updateMerchantJunkButton
@@ -579,7 +582,7 @@ end
 ---@return boolean matches Whether the item is visible.
 local function matchesFilters(group)
   local bag = settings()
-  local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
+  local status = getItemStatus(group.statusKey, group.quality)
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
   if FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID] and isForever() then
     return bag.categoryFilters.consumables ~= false or bag.categoryFilters.reagents ~= false
@@ -592,8 +595,14 @@ end
 ---@param statusInfo table Item metadata to save.
 ---@param selected table|nil Status definition, or nil to clear.
 local function setItemStatus(key, statusInfo, selected)
-  if selected and (statusInfo.quality == nil or statusInfo.quality == 0) then
-    prn(statusInfo.quality == 0 and "grey items cannot be flagged." or "item quality is not yet available.")
+  if not isModuleEnabled() then return end
+  if selected and (statusInfo.quality == nil or (statusInfo.quality == 0 and selected ~= PROTECT_STATUS)) then
+    prn(statusInfo.quality == 0 and "grey items can only be protected." or "item quality is not yet available.")
+    return
+  end
+  if selected == PROTECT_STATUS and statusInfo.quality == 0
+    and (not statusInfo.name or statusInfo.itemLevel == nil) then
+    prn("item information is not yet available; try protecting it again.")
     return
   end
   local listviewSettings = settings()
@@ -613,11 +622,11 @@ end
 ---@param quality number|nil Item quality.
 ---@return string|nil action Blocked action, or nil if interaction is allowed.
 local function blockedItemAction(key, quality)
-  if quality == 0 then return nil end
+  if not isModuleEnabled() then return nil end
   local bag = settings()
-  local protected = bag.protectedItems[key] ~= nil or bag.bankItems[key] ~= nil
-  local auction = bag.auctionItems[key] ~= nil
-  local mail = bag.mailItems[key] ~= nil
+  local protected = bag.protectedItems[key] ~= nil or (quality ~= 0 and bag.bankItems[key] ~= nil)
+  local auction = quality ~= 0 and bag.auctionItems[key] ~= nil
+  local mail = quality ~= 0 and bag.mailItems[key] ~= nil
   if merchantOpen and (protected or auction or mail) then
     return "vendoring"
   end
@@ -635,6 +644,7 @@ end
 --- Remember an item picked up through a list-view row.
 ---@param row table Item row at the time of pickup.
 local function rememberPickedUpItem(row)
+  if not isModuleEnabled() then return end
   local cursorType, _, link = GetCursorInfo()
   if cursorType == "item" and link and link == row.hyperlink then
     trackedCursorItem = { key = row.statusKey, quality = row.statusInfo.quality, link = link }
@@ -645,6 +655,7 @@ end
 
 --- Return a tracked cursor item if the newly opened destination conflicts with its flag.
 local function returnBlockedCursorItem()
+  if not isModuleEnabled() then return end
   if not trackedCursorItem then return end
   local cursorType, _, link = GetCursorInfo()
   if cursorType ~= "item" or link ~= trackedCursorItem.link then
@@ -1298,12 +1309,12 @@ local function installMailHooks()
     if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
   end)
   hooksecurefunc("SendMailFrame_CanSend", function()
-    if mailJob then SendMailMailButton:Disable() end
+    if isModuleEnabled() and mailJob then SendMailMailButton:Disable() end
   end)
   hooksecurefunc("SendMail", function(name)
     pendingMail = nil
     if isModuleEnabled() and SendMailFrame:IsShown() then mailSendPending = true end
-    if mailSelection and not mailJob and recipientPicker and recipientPicker.mailMode
+    if isModuleEnabled() and mailSelection and not mailJob and recipientPicker and recipientPicker.mailMode
       and recipientPicker:IsShown() and SendMailFrame:IsShown()
       and type(name) == "string" and name:lower() == mailSelection.recipient.character:lower() then
       pendingMail = { selection = mailSelection, character = name }
@@ -1337,28 +1348,32 @@ local function openItemStatusMenu(anchor, key, statusInfo)
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateTitle("Flag item for:")
-      root:CreateRadio("None", function() return not getItemStatus(key) end,
+      root:CreateRadio("None", function() return not getItemStatus(key, statusInfo.quality) end,
         function() setItemStatus(key, statusInfo, nil) end)
       for _, entry in ipairs(ITEM_STATUSES) do
         local status = entry
-        local label = statusMenuLabel(status)
-        root:CreateRadio(label, function() return getItemStatus(key) == status end,
-          function() selectItemStatus(anchor, key, statusInfo, status) end)
+        if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
+          local label = statusMenuLabel(status)
+          root:CreateRadio(label, function() return getItemStatus(key, statusInfo.quality) == status end,
+            function() selectItemStatus(anchor, key, statusInfo, status) end)
+        end
       end
     end)
   else
     local menu = {
       { text = "Flag item for:", isTitle = true, notCheckable = true },
-      { text = "None", checked = function() return not getItemStatus(key) end,
+      { text = "None", checked = function() return not getItemStatus(key, statusInfo.quality) end,
         func = function() setItemStatus(key, statusInfo, nil) end },
     }
     for _, entry in ipairs(ITEM_STATUSES) do
       local status = entry
-      menu[#menu + 1] = {
-        text = statusMenuLabel(status),
-        checked = function() return getItemStatus(key) == status end,
-        func = function() selectItemStatus(anchor, key, statusInfo, status) end,
-      }
+      if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
+        menu[#menu + 1] = {
+          text = statusMenuLabel(status),
+          checked = function() return getItemStatus(key, statusInfo.quality) == status end,
+          func = function() selectItemStatus(anchor, key, statusInfo, status) end,
+        }
+      end
     end
     if not module.statusMenu then
       module.statusMenu = CreateFrame("Frame", "SlackHacksListviewBagStatusMenu", UIParent, "UIDropDownMenuTemplate")
@@ -1449,12 +1464,17 @@ local function createRow(index)
   row.statusBtn.text:SetJustifyH("CENTER")
   row.statusBtn.text:SetText("...")
   row.statusBtn:SetScript("OnClick", function(self, button)
-    if row.statusInfo.quality == nil or row.statusInfo.quality == 0 then
-      prn(row.statusInfo.quality == 0 and "grey items cannot be flagged." or "item quality is not yet available.")
+    if not isModuleEnabled() then return end
+    if row.statusInfo.quality == nil then
+      prn("item quality is not yet available.")
       return
     end
     if button == "RightButton" then
-      local status = getItemStatus(row.statusKey)
+      if row.statusInfo.quality == 0 then
+        prn("grey items can only be protected using the flag menu.")
+        return
+      end
+      local status = getItemStatus(row.statusKey, row.statusInfo.quality)
       if status == ITEM_STATUSES[1] then
         setItemStatus(row.statusKey, row.statusInfo, nil)
       elseif not status then
@@ -1468,10 +1488,8 @@ local function createRow(index)
   end)
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    local status = getItemStatus(row.statusKey)
-    if row.statusInfo.quality == 0 then
-      GameTooltip:SetText("Grey items cannot be flagged.")
-    elseif row.statusInfo.quality == nil then
+    local status = getItemStatus(row.statusKey, row.statusInfo.quality)
+    if row.statusInfo.quality == nil then
       GameTooltip:SetText("Item quality is not yet available.")
     else
       local label = status and status.name or "None"
@@ -1481,9 +1499,13 @@ local function createRow(index)
         if recipient then label = label .. " (" .. recipient.nickname .. ")" end
       end
       GameTooltip:SetText("Flag item for: " .. label)
-      local rightClick = status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
+      local rightClick = row.statusInfo.quality == 0 and "Grey items can only be protected."
+        or status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
         or "Right-click to quick mark as Junk."
       GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick, 1, 1, 1, true)
+      if row.statusInfo.quality == 0 then
+        GameTooltip:AddLine("Blizzard's Sell All Junk and Auto-Sell ALL Grey Items ignore protection.", 1, 0.8, 0, true)
+      end
     end
     GameTooltip:Show()
   end)
@@ -1684,7 +1706,7 @@ renderRows = function()
       row.collapseBtn:Hide()
     end
 
-    updateStatusButton(row.statusBtn, data.quality ~= 0 and getItemStatus(data.statusKey) or nil)
+    updateStatusButton(row.statusBtn, getItemStatus(data.statusKey, data.quality))
 
     row.icon:SetTexture(data.icon)
     local qualityColor = ITEM_QUALITY_COLORS[data.quality or 1] or ITEM_QUALITY_COLORS[1]
@@ -2027,9 +2049,6 @@ end
 
 local function setShowListviewBag(show)
   settings().showListviewBag = show
-  if viewToggleButton then
-    viewToggleButton:SetChecked(show)
-  end
   if show then
     hideDefaultBags()
     module:UpdateListViewBindings()
@@ -2041,9 +2060,91 @@ local function setShowListviewBag(show)
   end
 end
 
+--- Switch between the list view and Blizzard's default bags.
+---@param show boolean Whether the list view replaces the default bags.
 function module:SetShowListviewBag(show)
   if not isModuleEnabled() then return end
   setShowListviewBag(show)
+end
+
+--- Set automatic junk selling and offer to disable Blizzard's separate grey-item option.
+---@param enabled boolean Whether to automatically sell unprotected junk.
+function module:SetAutoSellJunk(enabled)
+  local profile = db.profile
+  local bag = settings()
+  local wasEnabled = bag.autoSellMarkedItems
+  bag.autoSellMarkedItems = enabled
+  if wasEnabled and not enabled and profile.inventory.autoSellGreyItems then
+    StaticPopupDialogs.SLACKHACKS_DISABLE_AUTO_SELL_GREYS = {
+      text = "Also disable Auto-Sell ALL Grey Items? Otherwise Blizzard will sell every grey item, including protected items.",
+      button1 = YES,
+      button2 = NO,
+      timeout = 0,
+      whileDead = true,
+      hideOnEscape = true,
+      OnAccept = function(_, data)
+        if db.profile ~= data or data.listviewBag.autoSellMarkedItems then
+          prn("the profile or auto-sell setting changed; Auto-Sell ALL Grey Items was not changed.")
+          return
+        end
+        data.inventory.autoSellGreyItems = false
+        local registry = LibStub("AceConfigRegistry-3.0", true)
+        if registry then registry:NotifyChange("SlackHacks") end
+      end,
+    }
+    if not StaticPopup_Show("SLACKHACKS_DISABLE_AUTO_SELL_GREYS", nil, nil, profile) then
+      prn("Auto-Sell ALL Grey Items is still enabled and will sell protected grey items.")
+    end
+  end
+  local registry = LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
+end
+
+--- Open settings for the list-view bag from its portrait.
+---@param anchor table Portrait button.
+local function openBagSettingsMenu(anchor)
+  if not isModuleEnabled() then return end
+  GameTooltip:Hide()
+  --- Permanently switch to Blizzard's bags.
+  local function switchToDefault()
+    if isModuleEnabled() then setShowListviewBag(false) end
+  end
+  --- Report whether crest currencies are tracked.
+  ---@return boolean tracked Whether crest tracking is enabled.
+  local function trackCrests() return settings().trackCrestCurrencies end
+  --- Toggle crest tracking and update the footer.
+  local function toggleCrests()
+    if not isModuleEnabled() or not isRetail() then return end
+    settings().trackCrestCurrencies = not settings().trackCrestCurrencies
+    module:RefreshFooter()
+  end
+  --- Report whether automatic junk selling is enabled.
+  ---@return boolean enabled Whether automatic junk selling is enabled.
+  local function autoSell() return settings().autoSellMarkedItems end
+  --- Toggle automatic junk selling.
+  local function toggleAutoSell()
+    if isModuleEnabled() then module:SetAutoSellJunk(not settings().autoSellMarkedItems) end
+  end
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    MenuUtil.CreateContextMenu(anchor, function(_, root)
+      root:CreateButton("Switch back to default bags", switchToDefault)
+      local crests = root:CreateCheckbox("Track Crest Currencies", trackCrests, toggleCrests)
+      if not isRetail() then crests:SetEnabled(false) end
+      root:CreateCheckbox("Auto-Sell Junk", autoSell, toggleAutoSell)
+    end)
+  else
+    local menu = {
+      { text = "Switch back to default bags", notCheckable = true, func = switchToDefault },
+      { text = "Track Crest Currencies", isNotRadio = true, keepShownOnClick = true,
+        disabled = not isRetail(), checked = trackCrests, func = toggleCrests },
+      { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
+        checked = autoSell, func = toggleAutoSell },
+    }
+    if not module.bagSettingsMenu then
+      module.bagSettingsMenu = CreateFrame("Frame", "SlackHacksListviewBagSettingsMenu", UIParent, "UIDropDownMenuTemplate")
+    end
+    EasyMenu(menu, module.bagSettingsMenu, "cursor", 0, 0, "MENU")
+  end
 end
 
 local function updateListViewBindings()
@@ -2101,7 +2202,7 @@ local function installBagMenuOptions()
     Menu.ModifyMenu(menuTag, function(_, rootDescription)
       if not isModuleEnabled() then return end
       rootDescription:CreateDivider()
-      rootDescription:CreateButton("Show SlackHacks's Listview Bag", function()
+      rootDescription:CreateButton("Switch to SlackHacks' Listview Bag", function()
         settings().enabled = true
         settings().showListviewBag = true
         if module:IsEnabled() then
@@ -2199,17 +2300,18 @@ local function buildFrame()
   portraitMask:SetAllPoints(content.portrait)
   content.portrait:AddMaskTexture(portraitMask)
 
-  -- Invisible click target for the view-toggle, above the border so it's always clickable; the actual
+  -- Invisible click target for the settings menu, above the border so it's always clickable; the actual
   -- portrait icon underneath (see portraitContainer above) is what's visually framed by the border ring.
-  viewToggleButton = CreateFrame("CheckButton", nil, content)
-  viewToggleButton:SetAllPoints(content.portrait)
-  viewToggleButton:SetScript("OnClick", function(self) setShowListviewBag(self:GetChecked()) end)
-  viewToggleButton:SetScript("OnEnter", function(self)
+  local portraitButton = CreateFrame("Button", nil, content)
+  portraitButton:SetAllPoints(content.portrait)
+  portraitButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  portraitButton:SetScript("OnClick", openBagSettingsMenu)
+  portraitButton:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText("Toggle List View")
+    GameTooltip:SetText("Bag Settings")
     GameTooltip:Show()
   end)
-  viewToggleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  portraitButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
   -- Matches PortraitFrameBaseTemplate's own TitleContainer anchors/frame level exactly.
   content.title = content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -2220,7 +2322,7 @@ local function buildFrame()
 
   -- The whole top strip is a native move handle (StartMoving/StopMovingOrSizing), matching how every
   -- other Blizzard window is dragged. Starts right of the portrait icon so it doesn't steal clicks
-  -- from the view-toggle button sitting on top of that icon.
+  -- from the settings button sitting on top of that icon.
   local dragHandle = CreateFrame("Frame", nil, content)
   dragHandle:SetPoint("TOPLEFT", content, "TOPLEFT", 58, 0)
   dragHandle:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, 0)
@@ -2238,13 +2340,22 @@ local function buildFrame()
   content.closeButton = CreateFrame("Button", nil, content, "UIPanelCloseButtonDefaultAnchors")
   content.closeButton:SetScript("OnClick", function() frame:Hide() end) -- just closes; doesn't change the view mode
 
-  content.openBagsButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-  content.openBagsButton:SetSize(82, 20)
+  content.openBagsButton = CreateFrame("Button", nil, content)
+  content.openBagsButton:SetSize(24, 24)
   content.openBagsButton:SetPoint("TOPRIGHT", content, "TOPRIGHT", -28, -32)
-  content.openBagsButton:SetText("Open Bags")
+  content.openBagsButton:SetNormalTexture("Interface\\Buttons\\Button-Backpack-Up")
+  content.openBagsButton:SetPushedTexture("Interface\\Buttons\\Button-Backpack-Down")
+  content.openBagsButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
   content.openBagsButton:SetScript("OnClick", function()
-    openDefaultBagsTemporarily()
+    if isModuleEnabled() then openDefaultBagsTemporarily() end
   end)
+  content.openBagsButton:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Open Bags (Temporarily)")
+    GameTooltip:AddLine("Show the Blizzard default bag temporarily. You can toggle it permanently in the top-left icon context menu.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  content.openBagsButton:SetScript("OnLeave", GameTooltip_Hide)
 
   bagKeyBindingButton = CreateFrame("Button", "SlackHacksListviewBagToggleButton", UIParent)
   bagKeyBindingButton:SetSize(1, 1)
@@ -2325,28 +2436,41 @@ end
 -- sells the item) but drives off the player's own per-item/per-armor-piece "trash" flags instead of
 -- quality.
 
---- Visit every bag slot holding a marked-trash item that a merchant would actually buy right now.
+--- Visit sellable marked items and, when requested, unprotected grey items.
 -- Skip items without vendor value and locked items already being sold or otherwise in use.
--- @param callback function|nil called as callback(bagID, slot) for each sellable slot.
--- @return number count of sellable trash slots found.
-local function forEachSellableTrashSlot(callback)
-  local count = 0
+---@param callback function|nil Called with bag ID and slot for each sellable item.
+---@param includeGrey boolean|nil Whether to include unprotected grey items.
+---@return number count Number of sellable slots found.
+---@return number unavailable Number of slots whose item information is incomplete.
+local function forEachSellableTrashSlot(callback, includeGrey)
+  local count, unavailable = 0, 0
   for _, bagID in ipairs(bagIDs()) do
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID and not info.hasNoValue and not info.isLocked then
-        local itemName, itemLink, quality, itemLevel = C_Item.GetItemInfo(info.hyperlink)
+        local itemName, itemLink, quality, itemLevel
+        if info.hyperlink then
+          itemName, itemLink, quality, itemLevel = C_Item.GetItemInfo(info.hyperlink)
+        end
         local itemQuality = info.quality or quality
-        local upgradeTrack = getUpgradeTrack(bagID, slot)
-        local key = itemStatusKey(itemName or info.itemName, itemQuality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
-        if itemQuality ~= nil and itemQuality ~= 0 and isTrashItem(key) and not isProtectedItem(key) then
-          count = count + 1
-          if callback then callback(bagID, slot) end
+        local level = info.hyperlink and C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel
+        -- An incomplete status key cannot reliably match a saved protection flag.
+        if itemName and itemQuality ~= nil and level ~= nil then
+          local upgradeTrack = getUpgradeTrack(bagID, slot)
+          local key = itemStatusKey(itemName, itemQuality, level, upgradeTrack)
+          local grey = itemQuality == 0 and includeGrey and settings().protectedItems[key] == nil
+          local marked = itemQuality ~= 0 and isTrashItem(key) and not isProtectedItem(key)
+          if grey or marked then
+            count = count + 1
+            if callback then callback(bagID, slot) end
+          end
+        else
+          unavailable = unavailable + 1
         end
       end
     end
   end
-  return count
+  return count, unavailable
 end
 
 --- Extend the native junk button's enabled state to include sellable marked items.
@@ -2358,13 +2482,28 @@ updateMerchantJunkButton = function()
   MerchantSellAllJunkButton:SetEnabled(hasItems)
 end
 
---- Sell every marked-trash item a merchant will buy, then refresh the native button state.
-sellMarkedTrashItems = function()
-  forEachSellableTrashSlot(C_Container.UseContainerItem)
+--- Sell marked items and optionally unprotected greys, then refresh the native button state.
+---@param includeGrey boolean|nil Whether to sell unprotected grey items too.
+sellMarkedTrashItems = function(includeGrey)
+  if not isModuleEnabled() then return end
+  local _, unavailable = forEachSellableTrashSlot(C_Container.UseContainerItem, includeGrey)
+  if unavailable > 0 then
+    prn("some item details are not loaded, so those items could not be checked for sale. Try again when they are available.")
+  end
   updateMerchantJunkButton()
 end
 
 local merchantJunkHooked = false
+local sellingNativeGreys = false
+
+--- Invoke Blizzard's grey-only sale without adding Listview Bag's marked items.
+function module:SellBlizzardGreyItems()
+  sellingNativeGreys = true
+  local ok, message = pcall(C_MerchantFrame.SellAllJunkItems)
+  sellingNativeGreys = false
+  if not ok then error(message, 0) end
+end
+
 --- Hook Blizzard's merchant updates and its actual sale, including the stored confirmation callback.
 local function hookMerchantJunkButton()
   if merchantJunkHooked or not _G.MerchantFrame_Update or not _G.MerchantSellAllJunkButton
@@ -2375,7 +2514,7 @@ local function hookMerchantJunkButton()
   -- Blizzard stores the original confirmation function in popup data, so hooking its global name
   -- misses confirmation. Hook the API it calls instead, after Blizzard has started its sale.
   hooksecurefunc(C_MerchantFrame, "SellAllJunkItems", function()
-    if merchantOpen and isModuleEnabled() then
+    if merchantOpen and isModuleEnabled() and not sellingNativeGreys then
       sellMarkedTrashItems()
     end
   end)
@@ -2443,6 +2582,7 @@ end
 function module:OnDisable()
   trackedCursorItem = nil
   if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
+  if mailJob then stopMailJob("mail preparation stopped because Listview Bag was disabled.") end
   mailSendPending, pendingMail = false, nil
   if frame then frame:Hide() end
   self:UpdateListViewBindings()
@@ -2452,6 +2592,7 @@ function module:OnDisable()
 end
 
 function module:MERCHANT_SHOW()
+  if not isModuleEnabled() then return end
   merchantOpen = true
   returnBlockedCursorItem()
   hookMerchantJunkButton()
@@ -2460,7 +2601,7 @@ function module:MERCHANT_SHOW()
     frame:Show()
   end
   if settings().autoSellMarkedItems then
-    sellMarkedTrashItems()
+    sellMarkedTrashItems(true)
   end
   updateMerchantJunkButton()
   renderRows()
@@ -2474,6 +2615,7 @@ end
 --- Keep the list view open and refresh guards when an item-interaction window opens.
 ---@param event string Interaction-open event.
 function module:OnBagInteractionOpen(event)
+  if not isModuleEnabled() then return end
   if event == "MAIL_SHOW" then
     mailOpen = true
     installMailHooks()

@@ -42,7 +42,7 @@ Directly applies and restores hidden client CVars not present in default interfa
 * **Square Minimap:** Changes the minimap shape from circular to square with a top title bar.
 
 ### Inventory
-* **Auto-Sell Greys:** Automatically sells poor-quality (grey) items when opening a merchant window.
+* **Auto-Sell ALL Grey Items:** Uses Blizzard's sale for every grey item when opening a merchant, including protected items. Listview Bag's Auto-Sell Junk takes precedence when enabled.
 * **Hide Bags Frame:** Hides the Blizzard bag bar buttons and backpack container icon for players using keybinds.
 
 #### Auto Repair
@@ -54,9 +54,11 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Sorting:** Ascending and descending sort support on all columns. Flag sorting puts unflagged items first in ascending order, followed by Junk, Auction, Mail, Bank, and Protect.
 * **Search:** Real-time text search filter.
 * **Filters:** Choose which item flags and categories to show; reagent-bag items are always included and use the same filters. The dropdown counts unchecked filters; items must match a checked flag and category. Essentials includes Hearthstone, Cozy Sleeping Bag, Night Watchman's Torch, and common reusable profession tools. Forever arrows are Consumables, and edible raw fish match both Consumables and Reagents. Other overlapping item properties are classified in priority order: Essentials, Quest Items, Junk, Reagents, Equipment, Consumables, Profession Goods, then Other. Classification may differ from Blizzard's bag sorting.
-* **Item Protection:** Protect items from conflicting vendor, auction, and mail interactions in Listview Bag.
+* **Item Protection:** Protect items, including greys, from conflicting Listview Bag actions and Auto-Sell Junk. Blizzard's Sell All Junk and Auto-Sell ALL Grey Items do not respect this protection.
 * **Junk Marking:** Mark specific items to be automatically sold at merchants or vendored with Blizzard's "Sell All Junk" button.
-* **Item Flags:** Left-click an item's flag button to choose Junk, Auction, Protect, Bank, or Mail; right-click it to toggle Junk without replacing other flags. Flags block conflicting interactions in Listview Bag: Auction, Protect, Bank, and Mail prevent vendor sales; Protect and Bank also prevent auctioning and mailing; Mail also prevents auctioning and banking. A conflicting item picked up from Listview Bag is returned when the destination opens. Grey items cannot be flagged. Auction and Bank flags do not automatically move or list items; normal bags and Blizzard's junk sale are unaffected.
+* **Item Flags:** Left-click an item's flag button to choose Junk, Auction, Protect, Bank, or Mail; right-click it to toggle Junk without replacing other flags. Grey items can be protected but cannot use other flags. Flags block conflicting interactions in Listview Bag: Auction, Protect, Bank, and Mail prevent vendor sales; Protect and Bank also prevent auctioning and mailing; Mail also prevents auctioning and banking. A conflicting item picked up from Listview Bag is returned when the destination opens. Auction and Bank flags do not automatically move or list items; normal bags and Blizzard's junk sale are unaffected.
+* **Auto-Sell Junk:** Automatically sells unprotected grey items and items marked Junk when opening a merchant, instead of Blizzard's automatic grey sale. Turning it off offers to also disable Auto-Sell ALL Grey Items.
+* **Bag Controls:** Use the backpack button to temporarily show Blizzard's bags. The portrait menu switches permanently to the default bags and offers crest tracking and Auto-Sell Junk options.
 * **Mail Recipients:** Assign Mail-flagged items to saved character names with an editable nickname and searchable icon. On the Send Mail tab, select a recipient to prepare a draft with their marked items; send each batch yourself and the next is prepared automatically. Replacing an existing draft requires confirmation. The All icon filter includes additional named icons; Spell and Item show Blizzard's corresponding lists. Deleting a recipient leaves its items flagged for Mail but unassigned.
 
 ### Info Display

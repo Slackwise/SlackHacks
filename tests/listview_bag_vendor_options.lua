@@ -8,7 +8,7 @@ UIParent = {}
 
 --- Supply the bag module.
 ---@return table module
-function SlackHacks:NewModule() return {} end
+function SlackHacks:NewModule() return { IsEnabled = function() return true end } end
 --- Include the modern reagent bag.
 ---@return boolean modern
 function SlackHacks.isRetailOrForever() return true end
@@ -128,4 +128,105 @@ local list = profile.trashItems
 args.clear.func()
 assert(next(list) == nil and profile.trashItems == list and profile.protectedItems.keep)
 assert(refreshes == 2 and getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args.clear.disabled())
+
+-- Both the portrait menu and Ace options use the same auto-sell confirmation.
+SlackHacks.db.profile.inventory = { autoSellGreyItems = true }
+profile.autoSellMarkedItems = true
+profile.trackCrestCurrencies = true
+--- Select the Retail client for the crest checkbox.
+---@return boolean retailClient
+function SlackHacks.isRetail() return true end
+GameTooltip = { Hide = function() end }
+StaticPopupDialogs = {}
+local popup
+--- Capture the confirmation and its profile.
+---@param kind string Popup identifier.
+---@param _ any Unused text argument.
+---@param __ any Unused text argument.
+---@param data table Profile captured by the popup.
+---@return table dialog Mock dialog.
+function StaticPopup_Show(kind, _, __, data) popup = { kind = kind, data = data }; return popup end
+local menuEntries = {}
+MenuUtil = {
+  CreateContextMenu = function(anchor, build)
+    menuEntries = {}
+    local root = {
+      CreateButton = function(_, text, select)
+        menuEntries[text] = { select = select }
+      end,
+      CreateCheckbox = function(_, text, checked, select)
+        local entry = { checked = checked, select = select }
+        function entry:SetEnabled(value) self.enabled = value end
+        menuEntries[text] = entry
+        return entry
+      end,
+    }
+    build(anchor, root)
+  end,
+}
+local buildFrame = upvalue(module.OnEnable, "buildFrame")
+local openBagSettings = upvalue(buildFrame, "openBagSettingsMenu")
+local switched
+upvalue(openBagSettings, "setShowListviewBag", function(value) switched = value end)
+local footerRefreshes = 0
+function module:RefreshFooter() footerRefreshes = footerRefreshes + 1 end
+openBagSettings({})
+assert(menuEntries["Switch back to default bags"] and menuEntries["Track Crest Currencies"].checked()
+  and menuEntries["Auto-Sell Junk"].checked())
+menuEntries["Switch back to default bags"].select()
+assert(switched == false)
+menuEntries["Track Crest Currencies"].select()
+assert(not profile.trackCrestCurrencies and footerRefreshes == 1)
+menuEntries["Auto-Sell Junk"].select()
+assert(not profile.autoSellMarkedItems and SlackHacks.db.profile.inventory.autoSellGreyItems)
+assert(popup.kind == "SLACKHACKS_DISABLE_AUTO_SELL_GREYS", "Disabling must ask about the separate grey option")
+-- Dismissing the prompt leaves the independent grey option enabled.
+profile.autoSellMarkedItems = true
+local autoOption = getOptions().args.inventory.args.listviewBag.args.autoSellMarkedItems
+autoOption.set(nil, false)
+StaticPopupDialogs.SLACKHACKS_DISABLE_AUTO_SELL_GREYS.OnAccept(nil, popup.data)
+assert(not profile.autoSellMarkedItems and not SlackHacks.db.profile.inventory.autoSellGreyItems)
+
+profile.autoSellMarkedItems = true
+SlackHacks.db.profile.inventory.autoSellGreyItems = true
+autoOption.set(nil, false)
+profile.autoSellMarkedItems = true
+SlackHacks.prn = function() end
+StaticPopupDialogs.SLACKHACKS_DISABLE_AUTO_SELL_GREYS.OnAccept(nil, popup.data)
+assert(SlackHacks.db.profile.inventory.autoSellGreyItems, "A stale prompt must not change a re-enabled setting")
+
+local legacy
+MenuUtil = nil
+--- Capture the legacy settings menu.
+---@param entries table Menu entries.
+function EasyMenu(entries) legacy = entries end
+openBagSettings({})
+assert(legacy[1].text == "Switch back to default bags" and legacy[2].text == "Track Crest Currencies"
+  and legacy[3].text == "Auto-Sell Junk")
+legacy[2].func()
+assert(profile.trackCrestCurrencies and footerRefreshes == 2)
+SlackHacks.isRetail = function() return false end
+openBagSettings({})
+assert(legacy[2].disabled, "Crest tracking must be unavailable outside Retail")
+legacy[2].func()
+assert(profile.trackCrestCurrencies and footerRefreshes == 2)
+
+local nativeMenus = {}
+Menu = { ModifyMenu = function(tag, builder) nativeMenus[tag] = builder end }
+local installBagMenuOptions = upvalue(module.OnEnable, "installBagMenuOptions")
+installBagMenuOptions()
+for _, tag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }) do
+  local label
+  local root = {
+    CreateDivider = function() end,
+    CreateButton = function(_, text) label = text end,
+  }
+  nativeMenus[tag](nil, root)
+  assert(label == "Switch to SlackHacks' Listview Bag")
+  profile.enabled = false
+  label = nil
+  nativeMenus[tag](nil, root)
+  assert(not label, "Disabled modules must not add native bag menu actions")
+  profile.enabled = true
+end
 print("Listview bag vendor options tests passed")

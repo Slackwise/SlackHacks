@@ -13,7 +13,7 @@ C_AddOns = { LoadAddOn = function() end }
 
 --- Supply the addon module required to load the bag implementation.
 ---@return table module
-function SlackHacks:NewModule() return {} end
+function SlackHacks:NewModule() return { IsEnabled = function() return true end } end
 
 --- Select the mocked client type.
 ---@return boolean retailClient

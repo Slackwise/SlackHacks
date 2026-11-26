@@ -36,13 +36,17 @@ local function makeProfile()
   end
   return { listviewBag = bag }
 end
---- Confirm that only identifiable grey flags were removed.
+--- Confirm that grey protection and unrelated flags survive migration.
 ---@param profile table Profile to check.
 local function checkProfile(profile)
   assert(profile.listviewBag.enabled)
   for _, field in ipairs(fields) do
     local items = profile.listviewBag[field]
-    assert(items[grey] == nil and items.legacyGrey == nil, field .. " must remove grey flags")
+    if field == "protectedItems" then
+      assert(items[grey] and items.legacyGrey, "Grey protection must survive migration")
+    else
+      assert(items[grey] == nil and items.legacyGrey == nil, field .. " must remove unsupported grey flags")
+    end
     assert(items[common].quality == 1 and items.unknown.name == "Unknown", field .. " must preserve other flags")
   end
 end
