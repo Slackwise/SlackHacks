@@ -102,11 +102,20 @@ local function optionKey(value)
   return "item:" .. value:gsub(".", function(char) return ("%02x"):format(char:byte()) end)
 end
 assert(group.inline and args.clear.confirm and not args.clear.disabled())
-assert(args[optionKey(key)].name == link and args[optionKey(key)].tooltipHyperlink == link)
-assert(args[optionKey(key)].image == 123 and args[optionKey(key)].get())
-assert(args[optionKey("old")].name == baseLink and args[optionKey("old")].image == 123 and args.legacyInfo)
-assert(args[optionKey("uncached")].name == "Uncached" and not args[optionKey("uncached")].tooltipHyperlink)
-assert(args[optionKey("clear")].name == "clear", "Legacy keys must not collide with the clear button")
+local row = args[optionKey(key)]
+assert(row.type == "group" and row.inline and row.name == "")
+assert(row.args.item.type == "description" and row.args.item.dialogControl == "InteractiveLabel"
+  and row.args.item.name == "|T123:18:18|t " .. link and row.args.item.tooltipHyperlink == link)
+assert(row.args.remove.type == "execute" and row.args.remove.name == "Remove"
+  and row.args.item.order < row.args.remove.order
+  and row.args.item.width == "relative" and row.args.remove.width == "relative"
+  and row.args.item.relWidth + row.args.remove.relWidth <= 1,
+  "Each item must have a remove button to its right")
+assert(args[optionKey("old")].args.item.name == "|T123:18:18|t " .. baseLink
+  and args[optionKey("old")].args.item.tooltipHyperlink == baseLink and args.legacyInfo)
+assert(args[optionKey("uncached")].args.item.name == "Uncached"
+  and not args[optionKey("uncached")].args.item.tooltipHyperlink)
+assert(args[optionKey("clear")].args.item.name == "clear", "Legacy keys must not collide with the clear button")
 assert(loadfile("Libs/Ace3/LibStub/LibStub.lua"))()
 assert(loadfile("Libs/Ace3/CallbackHandler-1.0/CallbackHandler-1.0.lua"))()
 assert(loadfile("Libs/Ace3/AceConfig-3.0/AceConfigRegistry-3.0/AceConfigRegistry-3.0.lua"))()
@@ -121,13 +130,18 @@ local otherArgs = registry:GetOptionsTable("VendorItems", "dialog", "Test-1.0").
 assert(otherArgs[optionKey("other")] and not otherArgs[optionKey(key)], "Options must follow profile changes")
 SlackHacks.db.profile.listviewBag = profile
 args = registry:GetOptionsTable("VendorItems", "dialog", "Test-1.0").args
-args[optionKey("old")].set(nil, false)
+args[optionKey("old")].args.remove.func()
 assert(not profile.trashItems.old and profile.trashItems[key] == legacy and refreshes == 1)
+assert(not getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args[optionKey("old")],
+  "Deleting an item must remove its row from the options")
+args[optionKey(key)].args.remove.func()
+assert(not profile.trashItems[key] and profile.trashItems.uncached and profile.protectedItems.keep and refreshes == 2,
+  "Deleting a linked item must leave other items and protection flags untouched")
 
 local list = profile.trashItems
 args.clear.func()
 assert(next(list) == nil and profile.trashItems == list and profile.protectedItems.keep)
-assert(refreshes == 2 and getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args.clear.disabled())
+assert(refreshes == 3 and getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args.clear.disabled())
 
 -- Both the portrait menu and Ace options use the same auto-sell confirmation.
 SlackHacks.db.profile.inventory = { autoSellGreyItems = true }

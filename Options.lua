@@ -1016,23 +1016,38 @@ local function listviewVendorItemOptions()
     end
     -- Status keys contain control characters, which AceConfig forbids in option keys.
     local optionKey = "item:" .. tostring(itemKey):gsub(".", function(char) return ("%02x"):format(char:byte()) end)
+    local label = link or (type(entry) == "table" and entry.name) or tostring(itemKey)
+    if itemIcon then label = ("|T%s:18:18|t %s"):format(itemIcon, label) end
     args[optionKey] = {
-      type = "toggle",
-      name = link or (type(entry) == "table" and entry.name) or tostring(itemKey),
-      desc = type(entry) == "table" and not entry.link
-        and "Older entries show the base item until the exact item is seen in your bags."
-        or "Uncheck to remove this item from the auto-vendor list.",
-      tooltipHyperlink = link,
-      image = itemIcon,
-      get = function() return db.profile.listviewBag.trashItems[itemKey] ~= nil end,
-      set = function(_, value)
-        if not value then
-          db.profile.listviewBag.trashItems[itemKey] = nil
-          if Self.ListviewBag then Self.ListviewBag:Refresh() end
-        end
-      end,
-      width = "full",
+      type = "group",
+      name = "",
+      inline = true,
       order = 1,
+      args = {
+        item = {
+          type = "description",
+          dialogControl = "InteractiveLabel",
+          name = label,
+          desc = type(entry) == "table" and not entry.link
+            and "Older entries show the base item until the exact item is seen in your bags." or nil,
+          tooltipHyperlink = link,
+          width = "relative",
+          relWidth = 0.78,
+          order = 1,
+        },
+        remove = {
+          type = "execute",
+          name = "Remove",
+          desc = "Remove this item from the Junk list.",
+          func = function()
+            db.profile.listviewBag.trashItems[itemKey] = nil
+            if Self.ListviewBag then Self.ListviewBag:Refresh() end
+          end,
+          width = "relative",
+          relWidth = 0.2,
+          order = 2,
+        },
+      },
     }
   end
   return args
@@ -1744,7 +1759,7 @@ options = {
             },
             autoVendorItems = {
               name = "Junk Items",
-              desc = "Uncheck an item to remove it from the Junk list.",
+              desc = "Remove an item from the Junk list.",
               type = "group",
               inline = true,
               args = {},
