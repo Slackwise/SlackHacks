@@ -652,13 +652,13 @@ profile.trashItems.pick = row.statusInfo
 openPicker(button, "pick", row.statusInfo)
 assert(picker.shown and profile.trashItems.pick and not profile.mailItems.pick)
 assert(picker.TitleContainer.TitleText.text == "Mail Recipients")
-assert(inset.Bg.atlas == "UI-Character-Info-Stat-BG"
-  and inset.paneTextures[1].atlas == "UI-Character-Info-Stat-StoneBG3")
-local innerBorder = inset.paneTextures[2]
+assert(inset.Bg.atlas == "UI-Character-Info-Stat-BG" and #inset.paneTextures == 1)
+local innerBorder = inset.paneTextures[1]
 assert(innerBorder.atlas == "common-insideframe"
   and innerBorder.points.TOPLEFT[1] == inset and innerBorder.points.TOPLEFT[3] == 1
-  and innerBorder.points.TOPLEFT[4] == -59 and innerBorder.points.BOTTOMRIGHT[3] == -4)
-assert(picker.width == 245 and scroll.points.TOPLEFT[1] == 11 and scroll.points.BOTTOMRIGHT[1] == -26)
+  and innerBorder.points.TOPLEFT[4] == 1 and innerBorder.points.BOTTOMRIGHT[3] == -4)
+assert(picker.width == 245 and picker.height == 560
+  and scroll.points.TOPLEFT[1] == 11 and scroll.points.TOPLEFT[2] == -29 and scroll.points.BOTTOMRIGHT[1] == -26)
 assert(viewPadding[1] == 0 and viewPadding[2] == 0 and viewPadding[3] == 3
   and viewPadding[4] == 0 and viewPadding[5] == 2)
 local scrollWidth = picker.width + scroll.points.BOTTOMRIGHT[1] - scroll.points.TOPLEFT[1]
@@ -773,8 +773,10 @@ SlackHacks.isForever = function() return false end
 openPicker(button, "retail", row.statusInfo)
 assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0,
   "Retail must retain its native inset background")
-assert(picker.width == 220 and picker.width + scroll.points.BOTTOMRIGHT[1] - scroll.points.TOPLEFT[1] == 172
-  and scrollBar.points.TOPLEFT[3] == 8)
+assert(picker.width == 220 and picker.height == 560 and scroll.points.TOPLEFT[2] == -29
+  and picker.width + scroll.points.BOTTOMRIGHT[1] - scroll.points.TOPLEFT[1] == 172
+  and scrollBar.points.TOPLEFT[3] == 8 and scrollBar.points.TOPLEFT[4] == 0)
+assert(picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2] >= 10 * 44 + 9 * viewPadding[5] + 5)
 assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
 local retailRow = pickerRow({ id = 1, recipient = { nickname = "Retail", character = "Retail-Realm", icon = 123 } })
 assert(retailRow.characterText.text == "Retail-Realm" and retailRow.text.points.TOPLEFT[3] == 44
