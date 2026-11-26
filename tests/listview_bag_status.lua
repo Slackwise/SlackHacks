@@ -48,6 +48,9 @@ local function widget()
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetNormalTexture(texture) self.normalTexture = texture end
   function object:SetPushedTexture(texture) self.pushedTexture = texture end
+  function object:SetNormalAtlas(atlas) self.normalAtlas = atlas end
+  function object:SetPushedAtlas(atlas) self.pushedAtlas = atlas end
+  function object:SetHighlightAtlas(atlas) self.highlightAtlas = atlas end
   function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
   function object:SetRotation(rotation) self.rotation = rotation end
   function object:SetTexCoord(...) self.texCoord = { ... } end
@@ -1077,9 +1080,19 @@ openBags.scripts.OnClick()
 assert(not opened, "The backpack button must not act when the module is disabled")
 profile.enabled = true
 local menuHandler = upvalue(realBuildFrame, "openBagSettingsMenu")
+local cog = content.settingsButton
+assert(cog.normalAtlas == "common-dropdown-a-button-settings-shadowless"
+  and cog.pushedAtlas == "common-dropdown-a-button-settings-pressed-shadowless"
+  and cog.highlightAtlas == "common-dropdown-a-button-settings-hover-shadowless")
+assert(openBags.points.RIGHT[1] == cog and openBags.points.RIGHT[2] == "LEFT"
+  and openBags.points.RIGHT[3] < 0, "The settings cog must sit to the right of the backpack button")
+assert(cog.scripts.OnClick == menuHandler and cog.clicks[1] == "LeftButtonUp"
+  and cog.clicks[2] == "RightButtonUp", "The cog must open the portrait's settings menu")
+cog.scripts.OnEnter(cog)
+assert(GameTooltip.text == "Bag Settings")
 local portraitButton
 for _, frame in ipairs(constructed) do
-  if frame.scripts.OnClick == menuHandler then portraitButton = frame end
+  if frame ~= cog and frame.scripts.OnClick == menuHandler then portraitButton = frame end
 end
 assert(portraitButton and portraitButton.clicks[1] == "LeftButtonUp"
   and portraitButton.clicks[2] == "RightButtonUp", "The portrait must open its context menu on either click")
