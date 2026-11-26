@@ -20,7 +20,9 @@ local function widget()
   --- Accept irrelevant frame setup.
   local function noop() end
   setmetatable(object, { __index = function(_, key)
-    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" then return noop end
+    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" and key ~= "mailMode" then
+      return noop
+    end
   end })
   function object:SetScript(event, handler) self.scripts[event] = handler end
   function object:HookScript(event, handler) self.hooks[event] = handler end
@@ -41,6 +43,8 @@ local function widget()
   function object:SetHeight(height) self.height = height end
   function object:SetTextColor(...) self.textColor = { ... } end
   function object:SetWordWrap(enabled) self.wordWrap = enabled end
+  function object:SetEnabled(enabled) self.enabled = enabled end
+  function object:SetAlpha(alpha) self.alpha = alpha end
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
   function object:SetRotation(rotation) self.rotation = rotation end
@@ -556,6 +560,7 @@ function CreateFrame(kind, name, parent, template)
   function result:IsShown() return self.shown end
   function result:SetSize(width, height) self.width, self.height = width, height end
   function result:SetPoint(point, ...) self.points[point] = { ... } end
+  function result:SetParent(parent) self.parent = parent end
   if name == "SlackHacksMailRecipientPicker" then
     assert(template == "DefaultPanelBaseTemplate")
     result.TitleContainer = { TitleText = widget() }
@@ -785,4 +790,226 @@ assert(retailRow.characterText.text == "Retail-Realm" and retailRow.text.points.
 popup:Hide()
 newRecipient.scripts.OnClick()
 assert(popup.shown, "Retail's new-recipient button must open the popup")
+
+-- Exercise sending, batching, draft replacement, and native send-tab lifecycle.
+local timers, globalHooks, bagSlots, reagentBagSlots, attachments = {}, {}, {}, {}, {}
+local visibilityDelay, delayNextAttachment = {}, true
+C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+--- Run queued client callbacks until the mail operation settles.
+local function drainMailTimers()
+  local count = 0
+  while #timers > 0 do
+    count = count + 1
+    assert(count < 300, "Mail preparation did not settle")
+    table.remove(timers, 1)()
+  end
+end
+--- Capture secure hooks used by the mail integration.
+function hooksecurefunc(target, callback)
+  assert(type(target) == "string")
+  globalHooks[target] = callback
+end
+MailFrame, SendMailFrame = widget(), widget()
+function MailFrame:IsShown() return self.shown end
+function SendMailFrame:IsShown() return self.shown end
+MailFrame.shown, SendMailFrame.shown = true, true
+SendMailFrame.previousItem = ""
+--- Construct an edit box for the mocked compose frame.
+---@return table box Mock edit box.
+local function mailEditBox()
+  local box = widget()
+  box.text = ""
+  function box:GetText() return self.text end
+  return box
+end
+SendMailNameEditBox, SendMailSubjectEditBox, SendMailBodyEditBox = mailEditBox(), mailEditBox(), mailEditBox()
+SendMailMoney, SendMailCODButton, SendMailMailButton = widget(), widget(), widget()
+SendMailMoney.copper = 0
+SendMailCODButton.checked = false
+function SendMailCODButton:GetChecked() return self.checked end
+function SendMailMailButton:Disable() self.enabled = false end
+function MoneyInputFrame_GetCopper(money) return money.copper end
+function SendMailFrame_CanSend() SendMailMailButton.enabled = true end
+function SendMailFrame_Reset()
+  SendMailNameEditBox:SetText("")
+  SendMailSubjectEditBox:SetText("")
+  SendMailBodyEditBox:SetText("")
+  SendMailMoney.copper, SendMailCODButton.checked, SendMailFrame.previousItem = 0, false, ""
+end
+ATTACHMENTS_MAX_SEND = 12
+function HasSendMailItem(index)
+  if visibilityDelay[index] and visibilityDelay[index] > 0 then
+    visibilityDelay[index] = visibilityDelay[index] - 1
+    return false
+  end
+  return attachments[index] ~= nil
+end
+function GetSendMailItem(index)
+  local item = attachments[index]
+  if item then return item.itemName, item.itemID, item.iconFileID, item.stackCount, item.quality end
+end
+function GetSendMailItemLink(index) return attachments[index] and attachments[index].hyperlink end
+local moving
+function C_Container.GetContainerNumSlots(bagID) return bagID == 0 and 20 or bagID == 5 and 1 or 0 end
+function C_Container.GetContainerItemInfo(bagID, slot)
+  return bagID == 0 and bagSlots[slot] or bagID == 5 and reagentBagSlots[slot] or nil
+end
+function C_Container.PickupContainerItem(bagID, slot)
+  local slots = bagID == 5 and reagentBagSlots or bagSlots
+  moving = slots[slot]
+  slots[slot] = nil
+  cursorType, cursorLink = "item", moving.hyperlink
+end
+function C_Item.GetItemInfo(link)
+  if link == "unassigned-link" then
+    return "Unrelated", link, 1, 10, nil, nil, nil, nil, "", nil, 1, 0, nil, 0, nil, nil, false
+  end
+  local reagent = link == "reagent-link"
+  return reagent and "Herb" or "Sword", link, 1, 10, nil, nil, nil, nil,
+    reagent and "" or "INVTYPE_CHEST", nil, 1, reagent and 7 or 4, nil, 0, nil, nil, reagent
+end
+function C_Item.GetDetailedItemLevelInfo() return 10 end
+function ClickSendMailItemButton(index, clear)
+  if clear then
+    local item = attachments[index]
+    for slot = 1, 20 do
+      if not bagSlots[slot] then bagSlots[slot] = item; break end
+    end
+    attachments[index] = nil
+    if not next(attachments) then
+      if SendMailSubjectEditBox:GetText() == SendMailFrame.previousItem then SendMailSubjectEditBox:SetText("") end
+      SendMailFrame.previousItem = ""
+      SendMailCODButton.checked = false
+    end
+  else
+    attachments[index] = moving
+    if delayNextAttachment then visibilityDelay[index], delayNextAttachment = 2, false end
+    cursorType, cursorLink, moving = nil, nil, nil
+    if SendMailSubjectEditBox:GetText() == "" then
+      SendMailFrame.previousItem = attachments[index].itemName
+      SendMailSubjectEditBox:SetText(SendMailFrame.previousItem)
+    end
+  end
+end
+local mailDialog
+function StaticPopup_Show(kind, _, _, data) mailDialog = { kind = kind, data = data }; return {} end
+profile.showListviewBag = false
+profile.mailRecipients = {
+  [1] = { nickname = "Alt", character = "Alt-Realm", icon = 1 },
+  [2] = { nickname = "Empty", character = "Empty-Realm", icon = 2 },
+}
+profile.mailItems, profile.mailAssignments = {}, {}
+local swordKey, herbKey = statusKey("Sword", 1, 10, nil), statusKey("Herb", 1, 10, nil)
+profile.mailItems[swordKey], profile.mailItems[herbKey] = {}, {}
+profile.mailAssignments[swordKey], profile.mailAssignments[herbKey] = 1, 1
+for slot = 1, 13 do
+  local reagent = slot == 6 or slot == 7
+  bagSlots[slot] = {
+    itemID = reagent and 2 or 1, itemName = reagent and "Herb" or "Sword",
+    hyperlink = reagent and "reagent-link" or "sword-link", quality = 1, stackCount = 1,
+  }
+end
+local collectMail = upvalue(module.OnMailSendSuccess, "collectRecipientMailItems")
+upvalue(collectMail, "getUpgradeTrack", function() return nil end)
+profile.showReagentBagContents = false
+reagentBagSlots[1] = {
+  itemID = 2, itemName = "Herb", hyperlink = "reagent-link", quality = 1, stackCount = 1, isFiltered = true,
+}
+assert(#collectMail(profile)[1] == 14, "Mail preparation must include filtered reagent-bag items")
+profile.bankItems[swordKey] = {}
+assert(#collectMail(profile)[1] == 3, "Conflicting protected flags must prevent automatic mailing")
+profile.bankItems[swordKey] = nil
+reagentBagSlots[1] = nil
+upvalue(openPicker, "recipientPicker", false)
+upvalue(selectStatus, "openMailRecipientPicker", openPicker)
+module:OnBagInteractionOpen("MAIL_SHOW")
+SendMailFrame.hooks.OnShow()
+assert(picker.shown and picker.parent == UIParent and picker.points.TOPLEFT[1] == MailFrame)
+assert(#scroll.elements == 2 and scroll.elements[1].enabled and not scroll.elements[2].enabled)
+local disabledRow = pickerRow(scroll.elements[2])
+assert(not disabledRow.enabled and disabledRow.alpha < 1)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+assert(SendMailNameEditBox:GetText() == "Alt-Realm" and not SendMailMailButton.enabled)
+table.remove(timers, 1)()
+assert(bagSlots[2] and not HasSendMailItem(2), "The next stack must wait for attachment confirmation")
+drainMailTimers()
+assert(SendMailMailButton.enabled and SendMailSubjectEditBox:GetText() == "Equipment (10), Reagents (2)")
+assert(HasSendMailItem(12) and bagSlots[13] and not bagSlots[1])
+bagSlots[13].isLocked = true
+module:OnMailInfoUpdate()
+assert(scroll.elements[1].enabled, "A temporarily locked item must not make its recipient look finished")
+globalHooks.SendMail("Alt-Realm")
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+StaticPopupDialogs.SLACKHACKS_REPLACE_MAIL_DRAFT.OnAccept(nil, mailDialog.data)
+assert(HasSendMailItem(12) and SendMailNameEditBox:GetText() == "Alt-Realm",
+  "A pending send must not be replaced while awaiting confirmation")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+table.remove(timers, 1)()
+assert(#timers > 0 and not HasSendMailItem(1), "The next batch must wait for locked items")
+bagSlots[13].isLocked = false
+drainMailTimers()
+assert(SendMailNameEditBox:GetText() == "Alt-Realm" and SendMailSubjectEditBox:GetText() == "Sword")
+assert(HasSendMailItem(1) and not bagSlots[13])
+assert(not scroll.elements[1].enabled, "Recipients without remaining bag items must be disabled")
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(SendMailNameEditBox:GetText() == "" and not scroll.elements[1].enabled)
+
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+SendMailNameEditBox:SetText("Someone")
+SendMailSubjectEditBox:SetText("Existing")
+SendMailBodyEditBox:SetText("Keep until confirmed")
+SendMailMoney.copper = 42
+attachments[1] = { itemID = 3, itemName = "Unrelated", hyperlink = "unassigned-link", quality = 1, stackCount = 2 }
+recipientRow.scripts.OnClick()
+assert(mailDialog.kind == "SLACKHACKS_REPLACE_MAIL_DRAFT" and HasSendMailItem(1))
+SendMailBodyEditBox:SetText("Changed while confirming")
+StaticPopupDialogs.SLACKHACKS_REPLACE_MAIL_DRAFT.OnAccept(nil, mailDialog.data)
+assert(SendMailNameEditBox:GetText() == "Someone" and HasSendMailItem(1) and bagSlots[1])
+recipientRow.scripts.OnClick()
+StaticPopupDialogs.SLACKHACKS_REPLACE_MAIL_DRAFT.OnAccept(nil, mailDialog.data)
+drainMailTimers()
+assert(SendMailNameEditBox:GetText() == "Alt-Realm" and SendMailSubjectEditBox:GetText() == "Sword"
+  and SendMailBodyEditBox:GetText() == "" and SendMailMoney.copper == 0 and attachments[1].itemID == 1)
+assert(bagSlots[2] and bagSlots[2].itemID == 3, "Replacing a draft must return its previous attachment")
+
+local startMail = upvalue(module.OnMailSendSuccess, "startRecipientMail")
+local advanceMail = upvalue(startMail, "advanceMailJob")
+local formatSubject = upvalue(advanceMail, "mailSubject")
+assert(formatSubject({ { name = "Single item", count = 20, category = "reagents" } }) == "Single item")
+assert(formatSubject({
+  { name = "Sword", count = 1, category = "equipment" },
+  { name = "Herb", count = 5, category = "reagents" },
+}) == "Equipment (1), Reagents (5)")
+local abbreviated = formatSubject({
+  { count = 1, category = "equipment" }, { count = 1, category = "consumables" },
+  { count = 1, category = "professionGoods" }, { count = 1, category = "junk" },
+  { count = 1, category = "quest" }, { count = 1, category = "reagents" },
+  { count = 1, category = "special" }, { count = 1, category = "other" },
+})
+assert(#abbreviated <= 64 and abbreviated:find("Equip", 1, true) and abbreviated:find("Reag", 1, true))
+
+attachments = {}
+SendMailFrame_Reset()
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+bagSlots[3] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+profile.mailAssignments[swordKey] = nil
+drainMailTimers()
+assert(HasSendMailItem(1) and not HasSendMailItem(2) and bagSlots[3] and SendMailMailButton.enabled,
+  "Changing a flag during preparation must stop before attaching another stack")
+profile.mailAssignments[swordKey] = 1
+SendMailFrame.hooks.OnHide()
+assert(not picker.shown, "Closing the send tab must hide the mail recipient window")
 print("Listview bag status tests passed")

@@ -518,6 +518,30 @@ end
 -- Row widgets
 --=====================================================================
 
+--- Classify an item using the same exclusive categories as the bag filters.
+---@param group table Collected item and its metadata.
+---@return string category Item category identifier.
+local function itemCategory(group)
+  -- The game does not expose its sorter classification. Resolve overlapping item properties
+  -- in priority order, independently of which filters are enabled.
+  if ESSENTIAL_ITEM_IDS[group.itemID] then
+    return "special"
+  elseif group.classID == 12 or group.bindType == 4 then
+    return "quest"
+  elseif group.quality == 0 and group.sellPrice ~= nil then
+    return "junk"
+  elseif group.isCraftingReagent then
+    return "reagents"
+  elseif EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()) then
+    return "equipment"
+  elseif group.classID == 0 then
+    return "consumables"
+  elseif group.classID == 7 then
+    return "professionGoods"
+  end
+  return "other"
+end
+
 --- Check an item against the selected flag and item-category filters.
 ---@param group table Collected item and its metadata.
 ---@return boolean matches Whether the item is visible.
@@ -525,28 +549,7 @@ local function matchesFilters(group)
   local bag = settings()
   local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
-
-  -- The game does not expose its sorter classification. Resolve overlapping item properties
-  -- in priority order, independently of which filters are enabled.
-  local category
-  if ESSENTIAL_ITEM_IDS[group.itemID] then
-    category = "special"
-  elseif group.classID == 12 or group.bindType == 4 then
-    category = "quest"
-  elseif group.quality == 0 and group.sellPrice ~= nil then
-    category = "junk"
-  elseif group.isCraftingReagent then
-    category = "reagents"
-  elseif EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()) then
-    category = "equipment"
-  elseif group.classID == 0 then
-    category = "consumables"
-  elseif group.classID == 7 then
-    category = "professionGoods"
-  else
-    category = "other"
-  end
-  return bag.categoryFilters[category] ~= false
+  return bag.categoryFilters[itemCategory(group)] ~= false
 end
 
 --- Replace an item's status while retaining the metadata used by vendor matching.
@@ -645,6 +648,283 @@ local function statusMenuLabel(status)
 end
 
 local recipientPicker
+local mailSelection, pendingMail, mailJob
+local mailSendPending = false
+local mailHooksInstalled = false
+
+--- Collect bag stacks assigned to each mail recipient, regardless of display filters.
+---@param bag table Current profile bag settings.
+---@return table items Recipient IDs mapped to bag stacks.
+local function collectRecipientMailItems(bag)
+  local items = {}
+  for _, bagID in ipairs(bagIDs()) do
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.itemID and info.hyperlink then
+        local name, _, quality, level, _, _, _, _, equipLoc, _, sellPrice, classID, _, bindType, _, _, reagent =
+          C_Item.GetItemInfo(info.hyperlink)
+        name = name or info.itemName
+        quality = info.quality or quality
+        if name and classID ~= nil and quality and quality ~= 0 then
+          local track = getUpgradeTrack(bagID, slot)
+          local key = itemStatusKey(name, quality,
+            C_Item.GetDetailedItemLevelInfo(info.hyperlink) or level, track)
+          local id = bag.mailAssignments[key]
+          if id and bag.mailRecipients[id] and getItemStatus(key) == ITEM_STATUSES[5] then
+            items[id] = items[id] or {}
+            items[id][#items[id] + 1] = {
+              bagID = bagID, slot = slot, itemID = info.itemID, link = info.hyperlink,
+              name = name, count = info.stackCount or 1, locked = info.isLocked, statusKey = key,
+              category = itemCategory({
+                itemID = info.itemID, quality = quality, classID = classID, bindType = bindType,
+                equipLoc = equipLoc, sellPrice = sellPrice, isCraftingReagent = reagent,
+              }),
+            }
+          end
+        end
+      end
+    end
+  end
+  return items
+end
+
+--- Select stacks that are currently available to attach.
+---@param items table Recipient's bag stacks.
+---@return table available Unlocked stacks.
+local function unlockedMailItems(items)
+  local available = {}
+  for _, item in ipairs(items or {}) do
+    if not item.locked then available[#available + 1] = item end
+  end
+  return available
+end
+
+local MAIL_CATEGORY_SHORT = {
+  equipment = "Equip.", consumables = "Cons.", professionGoods = "Prof. Goods",
+  junk = "Junk", quest = "Quest", reagents = "Reag.", special = "Ess.", other = "Other",
+}
+local MAIL_CATEGORY_TINY = {
+  equipment = "Equip", consumables = "Cons", professionGoods = "Prof",
+  junk = "Junk", quest = "Quest", reagents = "Reag", special = "Ess", other = "Other",
+}
+
+--- Summarize attached stacks within the native 64-character subject limit.
+---@param items table Confirmed attachments and their categories.
+---@return string subject Mail subject.
+local function mailSubject(items)
+  if #items == 1 then return items[1].name end
+  local counts, total = {}, 0
+  for _, item in ipairs(items) do
+    counts[item.category] = (counts[item.category] or 0) + item.count
+    total = total + item.count
+  end
+  for style = 1, 3 do
+    local parts = {}
+    for _, category in ipairs(ITEM_CATEGORIES) do
+      if counts[category.id] then
+        local label = style == 1 and category.name
+          or style == 2 and MAIL_CATEGORY_SHORT[category.id] or MAIL_CATEGORY_TINY[category.id]
+        parts[#parts + 1] = style == 3 and (label .. ":" .. counts[category.id])
+          or (label .. " (" .. counts[category.id] .. ")")
+      end
+    end
+    local subject = table.concat(parts, style == 3 and " " or ", ")
+    if #subject <= 64 then return subject end
+  end
+  return "Items (" .. total .. ")"
+end
+
+--- Capture the compose fields and attachments before asking to replace a draft.
+---@return table draft Current draft state.
+local function captureMailDraft()
+  local draft = {
+    name = SendMailNameEditBox:GetText(), subject = SendMailSubjectEditBox:GetText(),
+    body = SendMailBodyEditBox:GetText(), money = MoneyInputFrame_GetCopper(SendMailMoney),
+    cod = SendMailCODButton:GetChecked(), previousItem = SendMailFrame.previousItem, attachments = {},
+  }
+  for index = 1, ATTACHMENTS_MAX_SEND do
+    if HasSendMailItem(index) then
+      local _, itemID, _, count = GetSendMailItem(index)
+      draft.attachments[index] = { itemID = itemID, count = count, link = GetSendMailItemLink(index) }
+    end
+  end
+  return draft
+end
+
+--- Determine whether a captured draft contains anything the player could lose.
+---@param draft table Captured compose state.
+---@return boolean occupied Whether the draft contains data.
+local function mailDraftOccupied(draft)
+  return draft.name ~= "" or draft.subject ~= "" or draft.body ~= "" or draft.money > 0
+    or next(draft.attachments) ~= nil
+end
+
+--- Compare a draft with the state shown in a replacement confirmation.
+---@param original table Confirmed draft state.
+---@param current table Current draft state.
+---@return boolean matches Whether the draft is unchanged.
+local function sameMailDraft(original, current)
+  if original.name ~= current.name or original.subject ~= current.subject or original.body ~= current.body
+    or original.money ~= current.money or original.cod ~= current.cod then return false end
+  for index = 1, ATTACHMENTS_MAX_SEND do
+    local a, b = original.attachments[index], current.attachments[index]
+    if (a == nil) ~= (b == nil) or (a and (a.itemID ~= b.itemID or a.count ~= b.count or a.link ~= b.link)) then
+      return false
+    end
+  end
+  return true
+end
+
+--- Stop an attachment operation and restore Blizzard's normal send-button state.
+---@param message string|nil Failure explanation.
+local function stopMailJob(message)
+  mailJob = nil
+  if SendMailFrame and SendMailFrame:IsShown() then SendMailFrame_CanSend() end
+  if message then prn(message) end
+  if recipientPicker and recipientPicker:IsShown() and recipientPicker.mailMode then
+    if recipientPicker.bag ~= settings() then recipientPicker:Hide() else recipientPicker.refreshRecipients() end
+  end
+end
+
+--- Continue clearing or attaching one stack after the client confirms the preceding operation.
+---@param job table Active operation.
+local function advanceMailJob(job)
+  if mailJob ~= job then return end
+  if not isModuleEnabled() or settings() ~= job.bag or not SendMailFrame:IsShown()
+    or job.bag.mailRecipients[job.id] ~= job.recipient then
+    stopMailJob("mail preparation stopped because the recipient or mail window changed.")
+    return
+  end
+  if job.waiting then
+    local present = HasSendMailItem(job.waiting.slot)
+    if (job.phase == "clearing" and not present) or (job.phase == "attaching" and present) then
+      if job.phase == "attaching" then
+        local _, itemID = GetSendMailItem(job.waiting.slot)
+        if itemID ~= job.waiting.item.itemID then
+          stopMailJob("mail preparation stopped because an attachment changed.")
+          return
+        end
+        job.attached[#job.attached + 1] = job.waiting.item
+      end
+      job.waiting = nil
+      job.attempts = 0
+      job.index = job.index + 1
+    else
+      job.attempts = job.attempts + 1
+      if job.attempts >= 200 then
+        stopMailJob("mail preparation timed out; check the attachments and any confirmation dialogs.")
+        return
+      end
+      C_Timer.After(0.1, function() advanceMailJob(job) end)
+      return
+    end
+  end
+  if job.phase == "clearing" then
+    local current = captureMailDraft()
+    local allRemoved = not next(current.attachments)
+    for index = 1, job.index - 1 do
+      if job.draft.attachments[index] then
+        if current.attachments[index] then
+          stopMailJob("the mail attachments changed; select the recipient again.")
+          return
+        end
+        current.attachments[index] = job.draft.attachments[index]
+      end
+    end
+    -- Blizzard updates its automatic subject and COD mode as attachments are removed.
+    if job.draft.subject == job.draft.previousItem and current.subject == current.previousItem then
+      current.subject = job.draft.subject
+    end
+    if job.index > 1 and allRemoved then current.cod = job.draft.cod end
+    if not sameMailDraft(job.draft, current) then
+      stopMailJob("the mail draft changed; select the recipient again.")
+      return
+    end
+    while job.index <= ATTACHMENTS_MAX_SEND and not job.draft.attachments[job.index] do
+      job.index = job.index + 1
+    end
+    if job.index <= ATTACHMENTS_MAX_SEND then
+      ClickSendMailItemButton(job.index, true)
+      job.waiting = { slot = job.index }
+    else
+      SendMailFrame_Reset()
+      job.phase, job.index = "attaching", 1
+      job.items = unlockedMailItems(collectRecipientMailItems(job.bag)[job.id])
+      SendMailNameEditBox:SetText(job.recipient.character)
+    end
+  end
+  if job.phase == "attaching" and not job.waiting then
+    if SendMailNameEditBox:GetText() ~= job.recipient.character then
+      stopMailJob("the mail recipient changed; attachment preparation stopped.")
+      return
+    end
+    local item = job.items[job.index]
+    if not item or job.index > ATTACHMENTS_MAX_SEND then
+      if #job.attached > 0 then
+        local subject = SendMailSubjectEditBox:GetText()
+        if subject == "" or subject == SendMailFrame.previousItem then
+          SendMailSubjectEditBox:SetText(mailSubject(job.attached))
+        else
+          prn("the mail subject was changed, so it was left unchanged.")
+        end
+      else
+        prn("no available items are marked for this recipient.")
+      end
+      stopMailJob()
+      return
+    end
+    local current = C_Container.GetContainerItemInfo(item.bagID, item.slot)
+    if not current or current.isLocked or current.itemID ~= item.itemID or current.hyperlink ~= item.link
+      or (current.stackCount or 1) ~= item.count or job.bag.mailAssignments[item.statusKey] ~= job.id
+      or getItemStatus(item.statusKey) ~= ITEM_STATUSES[5] or GetCursorInfo() then
+      stopMailJob("a bag item or the cursor changed; select the recipient again.")
+      return
+    end
+    C_Container.PickupContainerItem(item.bagID, item.slot)
+    local cursorType, _, cursorLink = GetCursorInfo()
+    if cursorType ~= "item" or cursorLink ~= item.link then
+      stopMailJob("unable to pick up " .. (item.name or "the item") .. " for mailing.")
+      return
+    end
+    ClickSendMailItemButton(job.index)
+    if GetCursorInfo() then
+      ClearCursor()
+      stopMailJob("unable to attach " .. (item.name or "the item") .. "; check whether it can be mailed.")
+      return
+    end
+    job.waiting = { slot = job.index, item = item }
+  end
+  C_Timer.After(0.1, function() advanceMailJob(job) end)
+end
+
+--- Start preparing a recipient's mail after any replacement has been confirmed.
+---@param bag table Current profile bag settings.
+---@param id number Recipient identifier.
+---@param recipient table Recipient data.
+---@param draft table Confirmed current draft.
+local function startRecipientMail(bag, id, recipient, draft)
+  if mailJob then prn("wait for the current mail preparation to finish."); return end
+  if mailSendPending then prn("wait for the current mail to finish sending."); return end
+  if not SendMailFrame:IsShown() or bag ~= settings() or bag.mailRecipients[id] ~= recipient then
+    prn("the mail window or recipient changed; select the recipient again.")
+    return
+  end
+  if GetCursorInfo() then prn("put down the item on your cursor before preparing mail."); return end
+  if not sameMailDraft(draft, captureMailDraft()) then
+    prn("the mail draft changed; select the recipient again.")
+    return
+  end
+  local items = unlockedMailItems(collectRecipientMailItems(bag)[id])
+  if #items == 0 then prn("no unlocked items are available for this recipient."); return end
+  mailSelection = { bag = bag, id = id, recipient = recipient }
+  mailJob = {
+    bag = bag, id = id, recipient = recipient, draft = draft, items = items, attached = {},
+    phase = mailDraftOccupied(draft) and "clearing" or "attaching", index = 1, attempts = 0,
+  }
+  if mailJob.phase == "attaching" then SendMailNameEditBox:SetText(recipient.character) end
+  SendMailMailButton:Disable()
+  advanceMailJob(mailJob)
+end
 
 --- Remove a recipient and unassign its items without clearing their Mail flags.
 ---@param bag table Profile bag settings.
@@ -660,7 +940,7 @@ end
 ---@param anchor table Flag button.
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata.
-local function openMailRecipientPicker(anchor, key, statusInfo)
+local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
   if not recipientPicker then
     local forever = isForever()
     local picker = CreateFrame("Frame", "SlackHacksMailRecipientPicker", frame, "DefaultPanelBaseTemplate")
@@ -698,8 +978,9 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
     --- Refresh the list from the profile that opened the picker.
     local function refreshRecipients()
       local elements = {}
+      local available = picker.mailMode and collectRecipientMailItems(picker.bag) or nil
       for id, recipient in pairs(picker.bag.mailRecipients) do
-        elements[#elements + 1] = { id = id, recipient = recipient }
+        elements[#elements + 1] = { id = id, recipient = recipient, enabled = not available or available[id] ~= nil }
       end
       table.sort(elements, function(a, b)
         return a.recipient.nickname:lower() < b.recipient.nickname:lower()
@@ -775,6 +1056,10 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
     picker:SetScript("OnHide", function(self)
       self.popup:Hide()
       self.editingRecipient = nil
+      if self.mailMode then
+        if mailJob then stopMailJob("mail preparation stopped because the recipient window was closed.") end
+        mailSelection, pendingMail = nil, nil
+      end
     end)
 
     local newRecipient
@@ -849,7 +1134,25 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
       end,
     }
 
+    StaticPopupDialogs.SLACKHACKS_REPLACE_MAIL_DRAFT = {
+      text = "Replace the current mail draft? Attached items will be returned to your bags.",
+      button1 = ACCEPT,
+      button2 = CANCEL,
+      timeout = 0,
+      whileDead = true,
+      hideOnEscape = true,
+      OnAccept = function(_, data)
+        if not picker:IsShown() or not picker.mailMode or picker.bag ~= data.bag then
+          prn("the mail recipient window changed; select the recipient again.")
+          return
+        end
+        startRecipientMail(data.bag, data.id, data.recipient, data.draft)
+      end,
+    }
+
     view:SetElementInitializer("GearSetButtonTemplate", function(row, element)
+      row:SetEnabled(element.enabled)
+      row:SetAlpha(element.enabled and 1 or 0.45)
       row.text:ClearAllPoints()
       row.text:SetPoint("TOPLEFT", row, "TOPLEFT", forever and 55 or 44, -7)
       row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", forever and -55 or -36, -7)
@@ -901,6 +1204,24 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
       row:SetScript("OnLeave", function(self) self.HighlightBar:Hide(); GameTooltip:Hide() end)
       row:SetScript("OnClick", function()
         if picker.bag ~= settings() then picker:Hide(); return end
+        if picker.mailMode then
+          if not element.enabled then return end
+          if picker.bag.mailRecipients[element.id] ~= element.recipient then
+            prn("the mail recipient no longer exists; please reopen the recipient list.")
+            refreshRecipients()
+            return
+          end
+          if mailJob then prn("wait for the current mail preparation to finish."); return end
+          local draft = captureMailDraft()
+          if mailDraftOccupied(draft) then
+            local dialog = StaticPopup_Show("SLACKHACKS_REPLACE_MAIL_DRAFT", nil, nil,
+              { bag = picker.bag, id = element.id, recipient = element.recipient, draft = draft })
+            if not dialog then prn("unable to show the mail draft replacement confirmation.") end
+          else
+            startRecipientMail(picker.bag, element.id, element.recipient, draft)
+          end
+          return
+        end
         if not picker.bag.mailRecipients[element.id] then
           refreshRecipients()
         else
@@ -920,13 +1241,39 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
     recipientPicker = picker
   end
   recipientPicker:Hide()
+  recipientPicker:SetParent(mailMode and UIParent or frame)
   recipientPicker.bag = settings()
+  recipientPicker.mailMode = mailMode
   recipientPicker.key = key
   recipientPicker.statusInfo = statusInfo
   recipientPicker:ClearAllPoints()
   recipientPicker:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 4, 0)
   recipientPicker.refreshRecipients()
   recipientPicker:Show()
+end
+
+--- Install send-tab hooks once Blizzard's mail UI has loaded.
+local function installMailHooks()
+  if mailHooksInstalled or not MailFrame or not SendMailFrame then return end
+  mailHooksInstalled = true
+  SendMailFrame:HookScript("OnShow", function()
+    if isModuleEnabled() and MailFrame:IsShown() then openMailRecipientPicker(MailFrame, nil, nil, true) end
+  end)
+  SendMailFrame:HookScript("OnHide", function()
+    if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
+  end)
+  hooksecurefunc("SendMailFrame_CanSend", function()
+    if mailJob then SendMailMailButton:Disable() end
+  end)
+  hooksecurefunc("SendMail", function(name)
+    pendingMail = nil
+    if isModuleEnabled() and SendMailFrame:IsShown() then mailSendPending = true end
+    if mailSelection and not mailJob and recipientPicker and recipientPicker.mailMode
+      and recipientPicker:IsShown() and SendMailFrame:IsShown()
+      and type(name) == "string" and name:lower() == mailSelection.recipient.character:lower() then
+      pendingMail = { selection = mailSelection, character = name }
+    end
+  end)
 end
 
 --- Select a flag, requesting a recipient before applying Mail.
@@ -2040,6 +2387,10 @@ function module:OnEnable()
   bankOpen = BankFrame and BankFrame:IsShown() or false
   guildBankOpen = GuildBankFrame and GuildBankFrame:IsShown() or false
   hookMerchantJunkButton()
+  installMailHooks()
+  if MailFrame and SendMailFrame and SendMailFrame:IsShown() then
+    openMailRecipientPicker(MailFrame, nil, nil, true)
+  end
   updateMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
@@ -2053,6 +2404,10 @@ function module:OnEnable()
   self:RegisterEvent("MERCHANT_CLOSED")
   self:RegisterEvent("MAIL_SHOW", "OnBagInteractionOpen")
   self:RegisterEvent("MAIL_CLOSED", "OnBagInteractionClosed")
+  self:RegisterEvent("MAIL_SEND_SUCCESS", "OnMailSendSuccess")
+  self:RegisterEvent("MAIL_FAILED", "OnMailSendFailed")
+  self:RegisterEvent("MAIL_SEND_INFO_UPDATE", "OnMailInfoUpdate")
+  self:RegisterEvent("ADDON_LOADED", "OnMailAddonLoaded")
   self:RegisterEvent("AUCTION_HOUSE_SHOW", "OnBagInteractionOpen")
   self:RegisterEvent("AUCTION_HOUSE_CLOSED", "OnBagInteractionClosed")
   self:RegisterEvent("BANKFRAME_OPENED", "OnBagInteractionOpen")
@@ -2067,6 +2422,8 @@ end
 
 function module:OnDisable()
   trackedCursorItem = nil
+  if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
+  mailSendPending, pendingMail = false, nil
   if frame then frame:Hide() end
   self:UpdateListViewBindings()
   showDefaultBags()
@@ -2097,7 +2454,13 @@ end
 --- Keep the list view open and refresh guards when an item-interaction window opens.
 ---@param event string Interaction-open event.
 function module:OnBagInteractionOpen(event)
-  if event == "MAIL_SHOW" then mailOpen = true end
+  if event == "MAIL_SHOW" then
+    mailOpen = true
+    installMailHooks()
+    if MailFrame and SendMailFrame and SendMailFrame:IsShown() then
+      openMailRecipientPicker(MailFrame, nil, nil, true)
+    end
+  end
   if event == "AUCTION_HOUSE_SHOW" then auctionOpen = true end
   if event == "BANKFRAME_OPENED" then bankOpen = true end
   if event == "GUILDBANKFRAME_OPENED" then guildBankOpen = true end
@@ -2118,11 +2481,79 @@ end
 --- Clear interaction state and refresh item guards when a window closes.
 ---@param event string Interaction-close event.
 function module:OnBagInteractionClosed(event)
-  if event == "MAIL_CLOSED" then mailOpen = false end
+  if event == "MAIL_CLOSED" then
+    mailOpen = false
+    if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
+    pendingMail = nil
+    mailSendPending = false
+  end
   if event == "AUCTION_HOUSE_CLOSED" then auctionOpen = false end
   if event == "BANKFRAME_CLOSED" then bankOpen = false end
   if event == "GUILDBANKFRAME_CLOSED" then guildBankOpen = false end
   renderRows()
+end
+
+--- Install mail hooks if Blizzard's load-on-demand mail UI loads after this module.
+---@param _ string Event name.
+---@param addonName string Loaded addon.
+function module:OnMailAddonLoaded(_, addonName)
+  if addonName ~= "Blizzard_MailFrame" then return end
+  installMailHooks()
+  if mailOpen and MailFrame and SendMailFrame and SendMailFrame:IsShown() then
+    openMailRecipientPicker(MailFrame, nil, nil, true)
+  end
+end
+
+--- Refill the same recipient after Blizzard has reset the successfully sent draft.
+function module:OnMailSendSuccess()
+  local sent = pendingMail
+  pendingMail = nil
+  mailSendPending = false
+  if not sent then return end
+  local selected = sent.selection
+  --- Wait for transient bag locks before preparing the next batch.
+  ---@param attempts number Number of lock checks.
+  local function prepareNextBatch(attempts)
+    if not isModuleEnabled() or mailSelection ~= selected or settings() ~= selected.bag
+      or not recipientPicker or not recipientPicker:IsShown() or not recipientPicker.mailMode
+      or not SendMailFrame:IsShown() or selected.bag.mailRecipients[selected.id] ~= selected.recipient
+      or selected.recipient.character:lower() ~= sent.character:lower() then return end
+    local items = collectRecipientMailItems(selected.bag)[selected.id]
+    if not items or #items == 0 then
+      recipientPicker.refreshRecipients()
+      return
+    end
+    if #unlockedMailItems(items) == 0 then
+      if attempts < 20 then
+        C_Timer.After(0.1, function() prepareNextBatch(attempts + 1) end)
+      else
+        prn("the remaining items are locked; select the recipient when they become available.")
+        recipientPicker.refreshRecipients()
+      end
+      return
+    end
+    local draft = captureMailDraft()
+    if mailDraftOccupied(draft) then
+      prn("the mail draft changed after sending; select the recipient to prepare the next batch.")
+      recipientPicker.refreshRecipients()
+      return
+    end
+    startRecipientMail(selected.bag, selected.id, selected.recipient, draft)
+  end
+  C_Timer.After(0, function() prepareNextBatch(0) end)
+end
+
+--- Forget a failed send without preparing another batch.
+function module:OnMailSendFailed()
+  pendingMail = nil
+  mailSendPending = false
+end
+
+--- Refresh recipient availability after the compose attachments change.
+function module:OnMailInfoUpdate()
+  if not mailJob and recipientPicker and recipientPicker:IsShown() and recipientPicker.mailMode then
+    recipientPicker.refreshRecipients()
+  end
 end
 
 --- Show the list view for a native open request without toggling an already-open window closed.
@@ -2146,6 +2577,9 @@ function module:Refresh()
   if not frame then return end
   renderRows()
   updateMerchantJunkButton()
+  if not mailJob and recipientPicker and recipientPicker:IsShown() and recipientPicker.mailMode then
+    recipientPicker.refreshRecipients()
+  end
   if frame:IsShown() then
     updateFooter()
   end
