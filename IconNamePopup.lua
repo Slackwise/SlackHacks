@@ -40,17 +40,37 @@ function CreateIconNamePopupFrame(parent, options)
   local library = LibStub("LibRPMedia-1.2")
   local icons = {}
 
-  --- Rebuild the displayed icon indices from the native provider and the library's filenames.
+  --- Rebuild the displayed icons from the native provider and matching library file icons.
   local function refreshIcons()
     if not popup.iconDataProvider then return end
     local query = search:GetText():lower()
     icons = {}
+    local includeLibrary = popup.iconFilter == IconSelectorPopupFrameIconFilterTypes.All
+    local seen = {}
     for index = 1, popup.iconDataProvider:GetNumIcons() do
       local icon = popup.iconDataProvider:GetIconByIndex(index)
       local name
       if query ~= "" then name = type(icon) == "number" and library:GetIconNameByID(icon) or icon end
       if query == "" or (type(name) == "string" and name:lower():find(query, 1, true)) then
         icons[#icons + 1] = icon
+        if includeLibrary then
+          if type(icon) == "number" then
+            seen[icon] = true
+          elseif type(icon) == "string" then
+            local basename = icon:match("([^\\/:]+)$")
+            local info = basename and library:GetIconInfoByName(basename:lower():gsub("%.blp$", ""))
+            if info and info.file then seen[info.file] = true end
+          end
+        end
+      end
+    end
+    -- Library icons have no native Spell/Item classification, so add them only to All.
+    if includeLibrary then
+      for info in library:FindIcons(query, { reuseTable = {} }) do
+        if info.file and not seen[info.file] then
+          icons[#icons + 1] = info.file
+          seen[info.file] = true
+        end
       end
     end
     popup.IconSelector:UpdateSelections()
@@ -74,6 +94,21 @@ function CreateIconNamePopupFrame(parent, options)
   --- Return the number of visible icons.
   ---@return number count Icon count.
   function popup:GetNumIcons() return #icons end
+
+  --- Open the selector with optional existing name and icon values.
+  ---@param name string|nil Existing name, or nil for a new entry.
+  ---@param icon number|string|nil Existing icon, or nil for the default.
+  function popup:Open(name, icon)
+    if self:IsShown() then self:Hide() end
+    self:Show()
+    if name then self.BorderBox.IconSelectorEditBox:SetText(name) end
+    if icon then
+      self.IconSelector:SetSelectedIndex(self:GetIndexOfIcon(icon))
+      self.BorderBox.SelectedIconArea.SelectedIconButton:SetIconTexture(icon)
+      self.IconSelector:ScrollToSelectedIndex()
+      self:SetSelectedIconText()
+    end
+  end
 
   --- Apply Blizzard's icon-type filter before updating the text filter.
   ---@param filter number Native icon filter.

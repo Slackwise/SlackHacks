@@ -749,15 +749,31 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
           controls.name:SetFocus()
           return false
         end
-        local id = 1
-        while picker.bag.mailRecipients[id] do id = id + 1 end
-        picker.bag.mailRecipients[id] = { nickname = nickname, character = character, icon = icon }
+        local editing = picker.editingRecipient
+        if editing then
+          if picker.bag.mailRecipients[editing.id] ~= editing.recipient then
+            prn("the mail recipient no longer exists; please reopen the recipient list.")
+            return false
+          end
+          editing.recipient.nickname = nickname
+          editing.recipient.character = character
+          editing.recipient.icon = icon
+          picker.editingRecipient = nil
+          renderRows()
+        else
+          local id = 1
+          while picker.bag.mailRecipients[id] do id = id + 1 end
+          picker.bag.mailRecipients[id] = { nickname = nickname, character = character, icon = icon }
+        end
         controls.name:SetText("")
         refreshRecipients()
         return true
       end,
     })
-    picker:SetScript("OnHide", function(self) self.popup:Hide() end)
+    picker:SetScript("OnHide", function(self)
+      self.popup:Hide()
+      self.editingRecipient = nil
+    end)
 
     local newRecipient
     if isForever() then
@@ -806,8 +822,9 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
     newRecipient:SetPoint("BOTTOM", picker, "BOTTOM", 0, 12)
     newRecipient:SetScript("OnClick", function()
       if picker.bag ~= settings() then picker:Hide(); return end
+      picker.editingRecipient = nil
       picker.popup.extraControls.name:SetText("")
-      picker.popup:Show()
+      picker.popup:Open()
     end)
 
     StaticPopupDialogs.SLACKHACKS_DELETE_MAIL_RECIPIENT = {
@@ -819,6 +836,11 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
       hideOnEscape = true,
       OnAccept = function(_, data)
         if data.bag ~= settings() or data.bag.mailRecipients[data.id] ~= data.recipient then return end
+        if picker.bag == data.bag and picker.editingRecipient
+          and picker.editingRecipient.recipient == data.recipient then
+          picker.popup:Hide()
+          picker.editingRecipient = nil
+        end
         deleteMailRecipient(data.bag, data.id)
         if picker:IsShown() and picker.bag == data.bag then refreshRecipients() end
         renderRows()
@@ -826,14 +848,50 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
     }
 
     view:SetElementInitializer("GearSetButtonTemplate", function(row, element)
+      row.text:ClearAllPoints()
+      row.text:SetPoint("TOPLEFT", row, "TOPLEFT", 44, -7)
+      row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -34, -7)
+      row.text:SetHeight(14)
+      row.text:SetWordWrap(false)
       row.text:SetText(element.recipient.nickname)
+      if not row.characterText then
+        row.characterText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.characterText:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -1)
+        row.characterText:SetPoint("TOPRIGHT", row.text, "BOTTOMRIGHT", 0, -1)
+        row.characterText:SetHeight(12)
+        row.characterText:SetJustifyH("LEFT")
+        row.characterText:SetWordWrap(false)
+        row.characterText:SetTextColor(1, 1, 1)
+      end
+      row.characterText:SetText(element.recipient.character)
       row.icon:SetTexture(element.recipient.icon)
       row.SpecRing:Hide()
       row.SpecIcon:Hide()
       row.SelectedBar:Hide()
       row.HighlightBar:Hide()
-      row.EditButton:Hide()
+      row.DeleteButton:ClearAllPoints()
+      row.DeleteButton:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
       row.DeleteButton:Show()
+      row.EditButton:ClearAllPoints()
+      row.EditButton:SetPoint("RIGHT", row.DeleteButton, "LEFT", -1, 0)
+      row.EditButton:Show()
+      row.EditButton:SetScript("OnMouseDown", nil)
+      row.EditButton:SetScript("OnEnter", function(self)
+        self.texture:SetAlpha(1)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Edit mail recipient")
+      end)
+      row.EditButton:SetScript("OnClick", function()
+        if picker.bag ~= settings() then picker:Hide(); return end
+        if picker.bag.mailRecipients[element.id] ~= element.recipient then
+          prn("the mail recipient no longer exists; please reopen the recipient list.")
+          refreshRecipients()
+          return
+        end
+        picker.editingRecipient = element
+        picker.popup:Open(element.recipient.nickname, element.recipient.icon)
+        picker.popup.extraControls.name:SetText(element.recipient.character)
+      end)
       -- The native template operates on equipment sets, so replace every equipment action.
       row:SetScript("OnDoubleClick", nil)
       row:SetScript("OnDragStart", nil)

@@ -16,10 +16,12 @@ function SlackHacks.isRetailOrForever() return true end
 --- Construct a minimal UI object that records scripts, text, textures, and visibility.
 ---@return table widget
 local function widget()
-  local object = { scripts = {}, hooks = {}, shown = true }
+  local object = { scripts = {}, hooks = {}, points = {}, shown = true }
   --- Accept irrelevant frame setup.
   local function noop() end
-  setmetatable(object, { __index = function(_, key) if key ~= "blockedAction" then return noop end end })
+  setmetatable(object, { __index = function(_, key)
+    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" then return noop end
+  end })
   function object:SetScript(event, handler) self.scripts[event] = handler end
   function object:HookScript(event, handler) self.hooks[event] = handler end
   function object:GetFrameLevel() return 0 end
@@ -29,7 +31,16 @@ local function widget()
   function object:GetName() return self.name end
   function object:CreateTexture() return widget() end
   function object:CreateMaskTexture() return widget() end
-  function object:CreateFontString() return widget() end
+  function object:CreateFontString(_, _, font)
+    local result = widget()
+    result.font = font
+    return result
+  end
+  function object:ClearAllPoints() self.points = {} end
+  function object:SetPoint(point, ...) self.points[point] = { ... } end
+  function object:SetHeight(height) self.height = height end
+  function object:SetTextColor(...) self.textColor = { ... } end
+  function object:SetWordWrap(enabled) self.wordWrap = enabled end
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
   function object:SetRotation(rotation) self.rotation = rotation end
@@ -547,6 +558,10 @@ function CreateFrame(kind, name, parent, template)
   if name == "SlackHacksMailRecipientPicker" then
     assert(template == "DefaultPanelBaseTemplate")
     result.TitleContainer = { TitleText = widget() }
+    function result:Hide()
+      self.shown = false
+      if self.scripts.OnHide then self.scripts.OnHide(self) end
+    end
     picker = result
   elseif template == "InsetFrameTemplate" and parent == picker then
     result.Bg = widget()
@@ -618,6 +633,13 @@ function SlackHacks.CreateIconNamePopupFrame(parent, options)
     return recipientLabel
   end
   popup.extraControls = options.createExtraControls(extraRegion)
+  --- Open the mock popup with optional existing values.
+  ---@param name string|nil Existing nickname.
+  ---@param icon number|string|nil Existing icon.
+  function popup:Open(name, icon)
+    self.openName, self.openIcon = name, icon
+    self:Show()
+  end
   return popup
 end
 profile.mailRecipients = {}
@@ -659,6 +681,20 @@ local function pickerRow(element)
   return result
 end
 local recipientRow = pickerRow(scroll.elements[1])
+assert(recipientRow.text.text == "Alt" and recipientRow.characterText.text == "Example-Realm")
+assert(recipientRow.characterText.font == "GameFontHighlightSmall" and recipientRow.characterText.textColor[1] == 1
+  and recipientRow.characterText.textColor[2] == 1 and recipientRow.characterText.textColor[3] == 1)
+assert(recipientRow.characterText.points.TOPLEFT[1] == recipientRow.text
+  and recipientRow.characterText.points.TOPLEFT[2] == "BOTTOMLEFT" and not recipientRow.characterText.wordWrap)
+assert(recipientRow.DeleteButton.points.BOTTOMRIGHT[1] == recipientRow
+  and recipientRow.DeleteButton.points.BOTTOMRIGHT[2] == "BOTTOMRIGHT"
+  and recipientRow.DeleteButton.points.BOTTOMRIGHT[3] == 0
+  and recipientRow.DeleteButton.points.BOTTOMRIGHT[4] == 0)
+assert(recipientRow.EditButton.shown and recipientRow.EditButton.points.RIGHT[1] == recipientRow.DeleteButton
+  and recipientRow.EditButton.points.RIGHT[2] == "LEFT" and not recipientRow.EditButton.scripts.OnMouseDown)
+local characterText = recipientRow.characterText
+initializeRow(recipientRow, { id = 2, recipient = { nickname = "Second", character = "Other-Realm", icon = 456 } })
+assert(recipientRow.characterText == characterText and characterText.text == "Other-Realm")
 local otherProfile = { enabled = true }
 SlackHacks.db.profile.listviewBag = otherProfile
 recipientRow.scripts.OnClick()
@@ -670,15 +706,60 @@ recipientRow.scripts.OnClick()
 assert(profile.mailItems.pick and not profile.trashItems.pick and profile.mailAssignments.pick == 1)
 openPicker(button, "another", row.statusInfo)
 recipientRow = pickerRow(scroll.elements[1])
+recipientRow.EditButton.scripts.OnClick()
+assert(popup.shown and popup.openName == "Alt" and popup.openIcon == 123 and character:GetText() == "Example-Realm")
+local originalRecipient = profile.mailRecipients[1]
+assert(popupOptions.onConfirm("Alt", 123, popup.extraControls))
+assert(profile.mailRecipients[1] == originalRecipient and profile.mailAssignments.pick == 1)
+recipientRow.EditButton.scripts.OnClick()
+character:SetText(" ")
+assert(not popupOptions.onConfirm("Changed", 456, popup.extraControls))
+assert(originalRecipient.nickname == "Alt" and originalRecipient.character == "Example-Realm")
+character:SetText("Updated-Realm")
+assert(popupOptions.onConfirm("Changed", 456, popup.extraControls))
+assert(profile.mailRecipients[1] == originalRecipient and originalRecipient.nickname == "Changed"
+  and originalRecipient.character == "Updated-Realm" and originalRecipient.icon == 456
+  and profile.mailAssignments.pick == 1 and profile.mailItems.pick)
+recipientRow = pickerRow(scroll.elements[1])
+assert(recipientRow.text.text == "Changed" and recipientRow.characterText.text == "Updated-Realm"
+  and recipientRow.icon.texture == 456)
+recipientRow.EditButton.scripts.OnClick()
+SlackHacks.db.profile.listviewBag = otherProfile
+character:SetText("Wrong-Realm")
+assert(not popupOptions.onConfirm("Wrong", 999, popup.extraControls))
+assert(originalRecipient.nickname == "Changed" and originalRecipient.character == "Updated-Realm" and not popup.shown)
+SlackHacks.db.profile.listviewBag = profile
+openPicker(button, "another", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.EditButton.scripts.OnClick()
+character:SetText("Canceled")
+popup:Hide()
+assert(originalRecipient.character == "Updated-Realm", "Canceling an edit must not change the recipient")
+recipientRow.EditButton.scripts.OnClick()
+newRecipient.scripts.OnClick()
+assert(rawget(popup, "openName") == nil and rawget(popup, "openIcon") == nil and character:GetText() == "")
+character:SetText("New-Realm")
+assert(popupOptions.onConfirm("New", 789, popup.extraControls))
+assert(profile.mailRecipients[2].character == "New-Realm" and originalRecipient.character == "Updated-Realm")
+recipientRow.EditButton.scripts.OnClick()
+profile.mailRecipients[1] = { nickname = "Replacement", character = "Other", icon = 1 }
+character:SetText("Stale-Realm")
+assert(not popupOptions.onConfirm("Stale", 999, popup.extraControls))
+assert(profile.mailRecipients[1].nickname == "Replacement" and profile.mailAssignments.pick == 1)
+profile.mailRecipients[1] = originalRecipient
+recipientRow.EditButton.scripts.OnClick()
 recipientRow.DeleteButton.scripts.OnClick()
 StaticPopupDialogs.SLACKHACKS_DELETE_MAIL_RECIPIENT.OnAccept(nil, deleteDialog)
-assert(profile.mailItems.pick and not profile.mailAssignments.pick and not profile.mailRecipients[1])
+assert(profile.mailItems.pick and not profile.mailAssignments.pick and not profile.mailRecipients[1] and not popup.shown)
+profile.mailRecipients[2] = nil
 upvalue(openPicker, "recipientPicker", false)
 SlackHacks.isForever = function() return false end
 openPicker(button, "retail", row.statusInfo)
 assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0,
   "Retail must retain its native inset background")
 assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
+local retailRow = pickerRow({ id = 1, recipient = { nickname = "Retail", character = "Retail-Realm", icon = 123 } })
+assert(retailRow.characterText.text == "Retail-Realm" and retailRow.DeleteButton.points.BOTTOMRIGHT[1] == retailRow)
 popup:Hide()
 newRecipient.scripts.OnClick()
 assert(popup.shown, "Retail's new-recipient button must open the popup")
