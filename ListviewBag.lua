@@ -66,11 +66,11 @@ local ITEM_STATUSES = {
 local ITEM_CATEGORIES = {
   { id = "equipment", name = "Equipment" },
   { id = "consumables", name = "Consumables" },
-  { id = "special", name = "Special" },
-  { id = "reagents", name = "Reagents" },
   { id = "professionGoods", name = "Profession Goods" },
   { id = "junk", name = "Junk" },
   { id = "quest", name = "Quest Items" },
+  { id = "reagents", name = "Reagents" },
+  { id = "special", name = "Special" },
   { id = "other", name = "Other" },
 }
 local SPECIAL_ITEM_IDS = {

@@ -159,6 +159,12 @@ filtersButton.scripts.OnClick(filtersButton)
 assert(menuEntries[1].text == "Check All" and menuEntries[1].response == MenuResponse.Refresh)
 assert(entry("Reagent Bag").checked() and entry("Unflagged", "Flags").checked())
 assert(entry("Junk", "Flags").checked() and entry("Junk", "Categories").checked())
+local expectedCategories = "Equipment,Consumables,Profession Goods,Junk,Quest Items,Reagents,Special,Other"
+local categoryLabels = {}
+for _, value in ipairs(menuEntries) do
+  if value.section == "Categories" then categoryLabels[#categoryLabels + 1] = value.text end
+end
+assert(table.concat(categoryLabels, ",") == expectedCategories, "Modern menu must use the requested category order")
 entry("Reagent Bag").select()
 assert(profile.showReagentBagContents == false and refreshes == 1)
 entry("Reagent Bag").select()
@@ -206,13 +212,18 @@ local legacy
 function EasyMenu(menu) legacy = menu end
 filtersButton.scripts.OnClick(filtersButton)
 assert(legacy[1].text == "Check All")
+categoryLabels = {}
+local inCategories = false
 for _, value in ipairs(legacy) do
+  if inCategories then categoryLabels[#categoryLabels + 1] = value.text end
+  if value.isTitle and value.text == "Categories" then inCategories = true end
   if value.text == "Unflagged" then
     assert(value.checked())
     value.func()
     assert(not value.checked())
   end
 end
+assert(table.concat(categoryLabels, ",") == expectedCategories, "Legacy menu must use the requested category order")
 legacy[1].func()
 assert(profile.flagFilters.unflagged)
 
