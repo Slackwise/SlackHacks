@@ -111,15 +111,16 @@ assert(button.clicks[1] == "LeftButtonUp" and button.clicks[2] == "RightButtonUp
 updateStatusButton(button, getStatus("item"))
 assert(button.text.shown and button.text.text == "..." and not button.icon.shown)
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Item Status: None" and GameTooltip.lines[1]:find("Left%-click")
-  and GameTooltip.lines[1]:find("Right%-click") and GameTooltip.lines[2]:find("marks only"))
+assert(GameTooltip.text == "Flag item for: None" and #GameTooltip.lines == 1
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick mark for Vendor.")
 
 local entries = {}
+local menuTitle
 MenuUtil = {
   CreateContextMenu = function(_, build)
     entries = {}
     local root = {
-      CreateTitle = function() end,
+      CreateTitle = function(_, title) menuTitle = title end,
       CreateRadio = function(_, label, checked, selectStatus)
         entries[#entries + 1] = { label = label, checked = checked, selectStatus = selectStatus }
       end,
@@ -128,7 +129,7 @@ MenuUtil = {
   end,
 }
 button.scripts.OnClick(button, "LeftButton")
-assert(#entries == 6 and entries[1].checked())
+assert(menuTitle == "Flag item for:" and #entries == 6 and entries[1].checked())
 for index, expected in ipairs({
   { "Vendor", "|A:bags-junkcoin:" },
   { "Auction", "|TInterface\\Minimap\\Tracking\\Auctioneer:" },
@@ -165,7 +166,8 @@ local visitSlots = upvalue(upvalue(module.MERCHANT_SHOW, "sellMarkedTrashItems")
 local protected = upvalue(visitSlots, "isProtectedItem")
 assert(protected("item"), "Bank marks must use existing protection")
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Item Status: Bank" and GameTooltip.lines[3]:find("grey items"))
+assert(GameTooltip.text == "Flag item for: Bank" and #GameTooltip.lines == 1
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick mark for Vendor.")
 button.scripts.OnClick(button, "RightButton")
 assert(profile.trashItems.item and not profile.bankItems.item and not protected("item"))
 entries[6].selectStatus()
@@ -187,7 +189,7 @@ MenuUtil = nil
 local legacy
 function EasyMenu(menu) legacy = menu end
 button.scripts.OnClick(button, "LeftButton")
-assert(#legacy == 7 and legacy[3].text:find("Vendor", 1, true))
+assert(#legacy == 7 and legacy[1].text == "Flag item for:" and legacy[3].text:find("Vendor", 1, true))
 assert(legacy[4].text:find("Auction", 1, true) and legacy[5].text:find("Protect", 1, true))
 assert(legacy[3].text:find("|A:bags-junkcoin:", 1, true)
   and legacy[6].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))

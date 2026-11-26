@@ -55,7 +55,7 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Search:** Real-time text search filter.
 * **Item Protection:** Lock items to prevent them from being vendored or deleted.
 * **Junk Marking:** Mark specific items to be automatically sold at merchants or vendored with Blizzard's "Sell All Junk" button.
-* **Item Statuses:** Left-click an item's status button to choose Vendor, Protect, Auction, Bank, or Mail; right-click it to toggle Vendor. Bank uses the same safeguards as Protect, but Blizzard's junk sale and Auto-Sell Greys can still sell grey items. Auction, Bank, and Mail are marks only and do not move or list items.
+* **Item Flags:** Left-click an item's flag button to choose Vendor, Protect, Auction, Bank, or Mail; right-click it to toggle Vendor. Bank uses the same safeguards as Protect, but Blizzard's junk sale and Auto-Sell Greys can still sell grey items. Auction, Bank, and Mail are marks only and do not move or list items.
 
 ### Info Display
 One "Enable Info Display Module" switch turns all Info Display features on or off at once: Char Sheet, Weeklies, and the Guildie, Friends, and Players Online lists. Each feature also has its own on/off setting. The Guildie, Friends, and Players Online lists work in both Retail and WoW Forever.

@@ -473,7 +473,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
   GameTooltip:Hide()
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
-      root:CreateTitle("Item Status")
+      root:CreateTitle("Flag item for:")
       root:CreateRadio("None", function() return not getItemStatus(key) end,
         function() setItemStatus(key, statusInfo, nil) end)
       for _, entry in ipairs(ITEM_STATUSES) do
@@ -485,7 +485,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
     end)
   else
     local menu = {
-      { text = "Item Status", isTitle = true, notCheckable = true },
+      { text = "Flag item for:", isTitle = true, notCheckable = true },
       { text = "None", checked = function() return not getItemStatus(key) end,
         func = function() setItemStatus(key, statusInfo, nil) end },
     }
@@ -598,12 +598,8 @@ local function createRow(index)
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local status = getItemStatus(row.statusKey)
-    GameTooltip:SetText("Item Status: " .. (status and status.name or "None"))
-    GameTooltip:AddLine("Left-click: choose a status. Right-click: toggle Vendor.", 1, 1, 1, true)
-    GameTooltip:AddLine("Auction, Bank, and Mail are marks only.", 1, 1, 1, true)
-    if status and (status.id == "bank" or status.id == "protect") then
-      GameTooltip:AddLine("Blizzard's junk sale and Auto-Sell Greys can still sell grey items.", 1, 1, 1, true)
-    end
+    GameTooltip:SetText("Flag item for: " .. (status and status.name or "None"))
+    GameTooltip:AddLine("Left-click to choose flag.\nRight-click to quick mark for Vendor.", 1, 1, 1, true)
     GameTooltip:Show()
   end)
   row.statusBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
