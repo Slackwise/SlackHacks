@@ -1190,7 +1190,6 @@ BINDINGS = {
         { 
           "MOUSE4", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
-            /petattack [nomod, harm, @mouseover]
             /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
           ]])
         },
