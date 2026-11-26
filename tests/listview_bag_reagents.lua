@@ -159,7 +159,10 @@ filtersButton.scripts.OnClick(filtersButton)
 assert(menuEntries[1].text == "Check All" and menuEntries[1].response == MenuResponse.Refresh)
 assert(entry("Reagent Bag").checked() and entry("Unflagged", "Flags").checked())
 assert(entry("Junk", "Flags").checked() and entry("Junk", "Categories").checked())
-local expectedCategories = "Equipment,Consumables,Profession Goods,Junk,Quest Items,Reagents,Special,Other"
+profile.categoryFilters.special = false
+assert(not entry("Essentials", "Categories").checked(), "Renaming must retain the saved Special filter")
+profile.categoryFilters.special = true
+local expectedCategories = "Equipment,Consumables,Profession Goods,Junk,Quest Items,Reagents,Essentials,Other"
 local categoryLabels = {}
 for _, value in ipairs(menuEntries) do
   if value.section == "Categories" then categoryLabels[#categoryLabels + 1] = value.text end
@@ -254,6 +257,12 @@ local cases = {
   { "special", makeItem(6948, 15, "", 1) },
   { "special", makeItem(211527, 15, "", 1) },
   { "special", makeItem(280612, 15, "", 1) },
+  { "special", makeItem(2901, 2, "INVTYPE_WEAPONMAINHAND", 1) },
+  { "special", makeItem(7005, 2, "INVTYPE_WEAPON", 1) },
+  { "special", makeItem(5956, 2, "INVTYPE_WEAPONMAINHAND", 1) },
+  { "special", makeItem(4471, 7, "", 1) },
+  { "special", makeItem(6218, 15, "", 1) },
+  { "special", makeItem(16207, 15, "", 1) },
 }
 for _, case in ipairs(cases) do
   for _, name in ipairs({ "equipment", "consumables", "special", "reagents", "professionGoods", "junk", "quest", "other" }) do
@@ -263,6 +272,14 @@ for _, case in ipairs(cases) do
   profile.categoryFilters[case[1]] = false
   assert(not matchesFilters(case[2]), case[1] .. " item must be hidden when its categories are unchecked")
 end
+profile.categoryFilters.special = true
+assert(not matchesFilters(makeItem(99999, 2, "INVTYPE_WEAPON", 1)),
+  "Unlisted equipment must not become an essential item")
+profile.categoryFilters.special = false
+profile.categoryFilters.equipment = true
+assert(matchesFilters(makeItem(7005, 2, "INVTYPE_WEAPON", 1)),
+  "An essential tool must also match its equipment category")
+profile.categoryFilters.equipment = false
 local reagent = makeItem(20, 7, "", 1, true)
 profile.categoryFilters.reagents = true
 assert(matchesFilters(reagent), "Reagent and profession-goods categories may overlap")

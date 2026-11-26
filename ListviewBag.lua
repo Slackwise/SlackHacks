@@ -70,13 +70,31 @@ local ITEM_CATEGORIES = {
   { id = "junk", name = "Junk" },
   { id = "quest", name = "Quest Items" },
   { id = "reagents", name = "Reagents" },
-  { id = "special", name = "Special" },
+  -- Preserve the saved key when changing the displayed name.
+  { id = "special", name = "Essentials" },
   { id = "other", name = "Other" },
 }
-local SPECIAL_ITEM_IDS = {
+local ESSENTIAL_ITEM_IDS = {
   [6948] = true, -- Hearthstone
   [211527] = true, -- Cozy Sleeping Bag
   [280612] = true, -- Night Watchman's Torch
+  [2901] = true, -- Mining Pick
+  [7005] = true, -- Skinning Knife
+  [5956] = true, -- Blacksmith Hammer
+  [6219] = true, -- Arclight Spanner
+  [10498] = true, -- Gyromatic Micro-Adjustor
+  [4471] = true, -- Flint and Tinder
+  [6256] = true, -- Fishing Pole
+  [20815] = true, -- Jeweler's Toolset
+  [20824] = true, -- Simple Grinder
+  [40892] = true, -- Hammer Pick
+  [40893] = true, -- Bladed Pickaxe
+  [40772] = true, -- Gnomish Army Knife
+  [6218] = true, -- Runed Copper Rod
+  [6339] = true, -- Runed Silver Rod
+  [11130] = true, -- Runed Golden Rod
+  [11145] = true, -- Runed Truesilver Rod
+  [16207] = true, -- Runed Arcanite Rod
 }
 local EQUIPMENT_SLOTS = {
   INVTYPE_HEAD = true, INVTYPE_NECK = true, INVTYPE_SHOULDER = true, INVTYPE_BODY = true,
@@ -487,7 +505,7 @@ local function matchesFilters(group)
   local categories = {
     equipment = EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()),
     consumables = group.classID == 0,
-    special = SPECIAL_ITEM_IDS[group.itemID],
+    special = ESSENTIAL_ITEM_IDS[group.itemID],
     reagents = group.isCraftingReagent,
     professionGoods = group.classID == 7,
     junk = group.quality == 0 and group.sellPrice ~= nil,
