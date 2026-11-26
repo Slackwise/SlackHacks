@@ -2125,12 +2125,17 @@ local function openBagSettingsMenu(anchor)
   local function toggleAutoSell()
     if isModuleEnabled() then module:SetAutoSellJunk(not settings().autoSellMarkedItems) end
   end
+  --- Open the Listview Bag options.
+  local function openBagOptions()
+    if isModuleEnabled() then openOptions("inventory", "listviewBag") end
+  end
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateButton("Switch back to default bags", switchToDefault)
       local crests = root:CreateCheckbox("Track Crest Currencies", trackCrests, toggleCrests)
       if not isRetail() then crests:SetEnabled(false) end
       root:CreateCheckbox("Auto-Sell Junk", autoSell, toggleAutoSell)
+      root:CreateButton("Open Settings", openBagOptions)
     end)
   else
     local menu = {
@@ -2139,6 +2144,7 @@ local function openBagSettingsMenu(anchor)
         disabled = not isRetail(), checked = trackCrests, func = toggleCrests },
       { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
         checked = autoSell, func = toggleAutoSell },
+      { text = "Open Settings", notCheckable = true, func = openBagOptions },
     }
     if not module.bagSettingsMenu then
       module.bagSettingsMenu = CreateFrame("Frame", "SlackHacksListviewBagSettingsMenu", UIParent, "UIDropDownMenuTemplate")

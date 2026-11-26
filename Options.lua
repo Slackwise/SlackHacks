@@ -510,9 +510,18 @@ local function hideNonRetailOptions()
   end
 end
 
-function openOptions()
-  -- If Blizzard SettingsPanel is already open, toggle it closed:
-  if SettingsPanel and SettingsPanel:IsShown() then
+--- Toggle the options window, or open it at a specific group without closing it.
+---@param ... string Option-group keys to select.
+function openOptions(...)
+  local selectGroup = select("#", ...) > 0
+  local acd
+  if selectGroup then
+    acd = LibStub("AceConfigDialog-3.0")
+    acd:SelectGroup("SlackHacks", ...)
+  end
+
+  -- The untargeted options action toggles an already open panel.
+  if not selectGroup and SettingsPanel and SettingsPanel:IsShown() then
     HideUIPanel(SettingsPanel)
     return
   end
@@ -524,7 +533,7 @@ function openOptions()
   end
 
   if InterfaceOptionsFrame_OpenToCategory and Self.configDialog and not InCombatLockdown() then
-    if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then
+    if not selectGroup and InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then
       InterfaceOptionsFrame:Hide()
       return
     end
@@ -532,8 +541,8 @@ function openOptions()
     return
   end
 
-  local acd = LibStub("AceConfigDialog-3.0")
-  if acd.OpenFrames and acd.OpenFrames["SlackHacks"] and acd.OpenFrames["SlackHacks"]:IsShown() then
+  acd = acd or LibStub("AceConfigDialog-3.0")
+  if not selectGroup and acd.OpenFrames and acd.OpenFrames["SlackHacks"] and acd.OpenFrames["SlackHacks"]:IsShown() then
     acd:Close("SlackHacks")
   else
     acd:Open("SlackHacks")

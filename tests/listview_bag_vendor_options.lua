@@ -166,6 +166,9 @@ MenuUtil = {
 }
 local buildFrame = upvalue(module.OnEnable, "buildFrame")
 local openBagSettings = upvalue(buildFrame, "openBagSettingsMenu")
+local originalOpenOptions = SlackHacks.openOptions
+local openedGroup
+SlackHacks.openOptions = function(...) openedGroup = { ... } end
 local switched
 upvalue(openBagSettings, "setShowListviewBag", function(value) switched = value end)
 local footerRefreshes = 0
@@ -173,6 +176,8 @@ function module:RefreshFooter() footerRefreshes = footerRefreshes + 1 end
 openBagSettings({})
 assert(menuEntries["Switch back to default bags"] and menuEntries["Track Crest Currencies"].checked()
   and menuEntries["Auto-Sell Junk"].checked())
+menuEntries["Open Settings"].select()
+assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 menuEntries["Switch back to default bags"].select()
 assert(switched == false)
 menuEntries["Track Crest Currencies"].select()
@@ -202,7 +207,16 @@ MenuUtil = nil
 function EasyMenu(entries) legacy = entries end
 openBagSettings({})
 assert(legacy[1].text == "Switch back to default bags" and legacy[2].text == "Track Crest Currencies"
-  and legacy[3].text == "Auto-Sell Junk")
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Settings")
+openedGroup = nil
+legacy[4].func()
+assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
+profile.enabled = false
+openedGroup = nil
+legacy[4].func()
+assert(not openedGroup, "A disabled module must not open settings from a stale menu")
+profile.enabled = true
+SlackHacks.openOptions = originalOpenOptions
 legacy[2].func()
 assert(profile.trackCrestCurrencies and footerRefreshes == 2)
 SlackHacks.isRetail = function() return false end
@@ -229,4 +243,50 @@ for _, tag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }
   assert(not label, "Disabled modules must not add native bag menu actions")
   profile.enabled = true
 end
+
+-- Group navigation must open rather than toggle closed on every settings backend.
+local selected, openedCategory, hiddenPanel, openedDialog, closedDialog
+local dialog = {
+  OpenFrames = { SlackHacks = { IsShown = function() return true end } },
+  SelectGroup = function(_, ...) selected = { ... } end,
+  Open = function(_, name) openedDialog = name end,
+  Close = function(_, name) closedDialog = name end,
+}
+SlackHacks.LibStub = function(name)
+  assert(name == "AceConfigDialog-3.0")
+  return dialog
+end
+local inCombat = false
+--- Supply the combat state for settings-panel fallback.
+---@return boolean locked Whether the player is in combat.
+function InCombatLockdown() return inCombat end
+SettingsPanel = { IsShown = function() return true end }
+--- Record a request to hide the modern settings panel.
+---@param panel table Panel to hide.
+function HideUIPanel(panel) hiddenPanel = panel end
+Settings = { OpenToCategory = function(category) openedCategory = category end }
+SlackHacks.configCategoryID = 19
+SlackHacks.openOptions("inventory", "listviewBag")
+assert(selected[1] == "SlackHacks" and selected[2] == "inventory" and selected[3] == "listviewBag"
+  and openedCategory == 19 and not hiddenPanel)
+SlackHacks.openOptions()
+assert(hiddenPanel == SettingsPanel, "The existing settings toggle must still close an open panel")
+
+SettingsPanel, Settings = nil, nil
+SlackHacks.configDialog = {}
+InterfaceOptionsFrame = { IsShown = function() return true end, Hide = function() hiddenPanel = "legacy" end }
+--- Record the legacy settings category opened.
+---@param category table Category to open.
+function InterfaceOptionsFrame_OpenToCategory(category) openedCategory = category end
+openedCategory, hiddenPanel = nil, nil
+SlackHacks.openOptions("inventory", "listviewBag")
+assert(openedCategory == SlackHacks.configDialog and not hiddenPanel)
+SlackHacks.openOptions()
+assert(hiddenPanel == "legacy", "The legacy settings toggle must still close an open panel")
+
+inCombat = true
+SlackHacks.openOptions("inventory", "listviewBag")
+assert(openedDialog == "SlackHacks", "Group navigation in combat must open the standalone dialog")
+SlackHacks.openOptions()
+assert(closedDialog == "SlackHacks", "The standalone settings toggle must still close an open dialog")
 print("Listview bag vendor options tests passed")
