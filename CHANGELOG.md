@@ -1,9 +1,14 @@
 # SlackHacks Changelog
 
-## v33
+## v34
+
+### Mimimap
+- Fixed bug when switching off square mode
 
 ### Inventory
 - Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
+
+## v33
 
 ### Utilities
 - Auto-Open Loot Containers: Removed profession knowledge as it cannot be auto-opened without creating a manual button which isn't much better than just clicking it yourself.
