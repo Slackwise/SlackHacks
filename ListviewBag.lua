@@ -135,6 +135,8 @@ local function settings()
   end
   listviewSettings.flagFilters = listviewSettings.flagFilters or {}
   listviewSettings.categoryFilters = listviewSettings.categoryFilters or {}
+  listviewSettings.mailRecipients = listviewSettings.mailRecipients or {}
+  listviewSettings.mailAssignments = listviewSettings.mailAssignments or {}
   local columnOrder = listviewSettings and listviewSettings.columnOrder
   if columnOrder then
     for index = #columnOrder, 1, -1 do
@@ -560,6 +562,7 @@ local function setItemStatus(key, statusInfo, selected)
   for _, status in ipairs(ITEM_STATUSES) do
     listviewSettings[status.field][key] = nil
   end
+  listviewSettings.mailAssignments[key] = nil
   if selected then listviewSettings[selected.field][key] = statusInfo end
   renderRows()
   updateMerchantJunkButton()
@@ -641,6 +644,247 @@ local function statusMenuLabel(status)
   return icon .. " " .. status.name
 end
 
+local recipientPicker
+
+--- Remove a recipient and unassign its items without clearing their Mail flags.
+---@param bag table Profile bag settings.
+---@param id number Recipient identifier.
+local function deleteMailRecipient(bag, id)
+  bag.mailRecipients[id] = nil
+  for key, recipientID in pairs(bag.mailAssignments) do
+    if recipientID == id then bag.mailAssignments[key] = nil end
+  end
+end
+
+--- Open the recipient picker without changing the item's existing flag.
+---@param anchor table Flag button.
+---@param key string Item status key.
+---@param statusInfo table Item metadata.
+local function openMailRecipientPicker(anchor, key, statusInfo)
+  if not recipientPicker then
+    local picker = CreateFrame("Frame", "SlackHacksMailRecipientPicker", frame, "InsetFrameTemplate")
+    picker:Hide()
+    picker:SetSize(220, 564)
+    picker:SetFrameStrata("DIALOG")
+    picker:SetClampedToScreen(true)
+    if isForever() then
+      -- Forever's CharacterFrameRightPaneHost uses these atlases; Retail uses the inset itself.
+      picker.Bg:SetHorizTile(false)
+      picker.Bg:SetVertTile(false)
+      picker.Bg:SetAtlas("UI-Character-Info-Stat-BG")
+      local stone = picker:CreateTexture(nil, "BACKGROUND")
+      stone:SetAtlas("UI-Character-Info-Stat-StoneBG3")
+      stone:SetHeight(60)
+      stone:SetPoint("TOPLEFT")
+      stone:SetPoint("TOPRIGHT")
+    end
+    local title = picker:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    title:SetPoint("TOP", 0, -26)
+    title:SetText("Mail Recipients")
+    CreateFrame("Button", nil, picker, "UIPanelCloseButtonDefaultAnchors")
+
+    local scrollBox = CreateFrame("Frame", nil, picker, "WowScrollBoxList")
+    scrollBox:SetPoint("TOPLEFT", 12, -55)
+    scrollBox:SetPoint("BOTTOMRIGHT", -28, 64)
+    local scrollBar = CreateFrame("EventFrame", nil, picker, "MinimalScrollBar")
+    scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 3, 0)
+    scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 3, 0)
+    local view = CreateScrollBoxListLinearView()
+    view:SetElementExtent(44)
+
+    --- Refresh the list from the profile that opened the picker.
+    local function refreshRecipients()
+      local elements = {}
+      for id, recipient in pairs(picker.bag.mailRecipients) do
+        elements[#elements + 1] = { id = id, recipient = recipient }
+      end
+      table.sort(elements, function(a, b)
+        return a.recipient.nickname:lower() < b.recipient.nickname:lower()
+      end)
+      scrollBox:SetDataProvider(CreateDataProvider(elements), ScrollBoxConstants.RetainScrollPosition)
+    end
+
+    --- Create the mail autocomplete field inside the icon picker.
+    ---@param region table Space reserved by the reusable popup.
+    ---@return table controls Recipient controls.
+    local function createRecipientControls(region)
+      local label = region:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      label:SetPoint("TOPLEFT", 0, -5)
+      label:SetText("Send to Character Name:")
+      local box = CreateFrame("EditBox", nil, region, "InputBoxTemplate,AutoCompleteEditBoxTemplate")
+      box:SetSize(250, 20)
+      box:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 8, -5)
+      box:SetAutoFocus(false)
+      box:SetMaxLetters(77)
+      AutoCompleteEditBox_SetAutoCompleteSource(box, C_AutoComplete.GetAutoCompleteResults,
+        AUTOCOMPLETE_LIST.MAIL.include, AUTOCOMPLETE_LIST.MAIL.exclude)
+      box.addHighlightedText = true
+      box.autoCompleteContext = "mail"
+      box:SetScript("OnTextChanged", function(self, userInput) AutoCompleteEditBox_OnTextChanged(self, userInput) end)
+      box:SetScript("OnTabPressed", function(self)
+        if not AutoCompleteEditBox_OnTabPressed(self) then self:ClearFocus() end
+      end)
+      box:SetScript("OnEnterPressed", function(self)
+        if not AutoCompleteEditBox_OnEnterPressed(self) then self:ClearFocus() end
+      end)
+      box:SetScript("OnEscapePressed", function(self)
+        if not AutoCompleteEditBox_OnEscapePressed(self) then self:ClearFocus() end
+      end)
+      box:SetScript("OnEditFocusLost", function(self)
+        AutoCompleteEditBox_OnEditFocusLost(self)
+        EditBox_ClearHighlight(self)
+      end)
+      return { name = box }
+    end
+
+    picker.popup = CreateIconNamePopupFrame(picker, {
+      nameLabel = "Nickname:",
+      createExtraControls = createRecipientControls,
+      onConfirm = function(nickname, icon, controls)
+        if picker.bag ~= settings() then picker:Hide(); return false end
+        local character = controls.name:GetText():match("^%s*(.-)%s*$")
+        if character == "" then
+          prn("enter a character name for the mail recipient.")
+          controls.name:SetFocus()
+          return false
+        end
+        local id = 1
+        while picker.bag.mailRecipients[id] do id = id + 1 end
+        picker.bag.mailRecipients[id] = { nickname = nickname, character = character, icon = icon }
+        controls.name:SetText("")
+        refreshRecipients()
+        return true
+      end,
+    })
+    picker:SetScript("OnHide", function(self) self.popup:Hide() end)
+
+    local newRecipient
+    if isForever() then
+      newRecipient = CreateFrame("Button", nil, picker, "PaperDollTertiaryButtonTemplate")
+      newRecipient:SetSize(180, 34)
+      -- The native template's label has no parentKey or ButtonText, so update its font string directly.
+      local label
+      for _, region in ipairs({ newRecipient:GetRegions() }) do
+        if region:GetObjectType() == "FontString" then label = region; break end
+      end
+      assert(label, "PaperDollTertiaryButtonTemplate is missing its label")
+      label:ClearAllPoints()
+      label:SetPoint("LEFT", 35, 0)
+      label:SetPoint("RIGHT", -6, 0)
+      label:SetJustifyH("LEFT")
+      label:SetWordWrap(false)
+      label:SetText("New Mail Recipient")
+      local plus = newRecipient:CreateTexture(nil, "ARTWORK")
+      plus:SetAtlas("UI-Character-Info-Icon-Add", true)
+      plus:SetPoint("LEFT", 13, 0)
+      local divider = picker:CreateTexture(nil, "BORDER")
+      divider:SetAtlas("UI-Character-Info-ScrollLine", true)
+      divider:SetPoint("TOP", scrollBox, "BOTTOM")
+    else
+      -- Retail renders its new-set control as a gear-set row; keep it outside our scrolling list.
+      newRecipient = CreateFrame("Button", nil, picker, "GearSetButtonTemplate")
+      newRecipient:SetSize(180, 44)
+      newRecipient.text:SetText("New Mail Recipient")
+      newRecipient.text:SetTextColor(GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g, GREEN_FONT_COLOR.b)
+      newRecipient.icon:SetTexture("Interface\\PaperDollInfoFrame\\Character-Plus")
+      newRecipient.icon:SetSize(30, 30)
+      newRecipient.icon:ClearAllPoints()
+      newRecipient.icon:SetPoint("LEFT", 7, 0)
+      newRecipient.Check:Hide()
+      newRecipient.SpecRing:Hide()
+      newRecipient.SpecIcon:Hide()
+      newRecipient.SelectedBar:Hide()
+      newRecipient.HighlightBar:Hide()
+      newRecipient.DeleteButton:Hide()
+      newRecipient.EditButton:Hide()
+      newRecipient:SetScript("OnDoubleClick", nil)
+      newRecipient:SetScript("OnDragStart", nil)
+      newRecipient:SetScript("OnEnter", function(self) self.HighlightBar:Show() end)
+      newRecipient:SetScript("OnLeave", function(self) self.HighlightBar:Hide() end)
+    end
+    newRecipient:SetPoint("BOTTOM", picker, "BOTTOM", 0, 12)
+    newRecipient:SetScript("OnClick", function()
+      if picker.bag ~= settings() then picker:Hide(); return end
+      picker.popup.extraControls.name:SetText("")
+      picker.popup:Show()
+    end)
+
+    StaticPopupDialogs.SLACKHACKS_DELETE_MAIL_RECIPIENT = {
+      text = "Delete mail recipient %s?",
+      button1 = DELETE,
+      button2 = CANCEL,
+      timeout = 0,
+      whileDead = true,
+      hideOnEscape = true,
+      OnAccept = function(_, data)
+        if data.bag ~= settings() or data.bag.mailRecipients[data.id] ~= data.recipient then return end
+        deleteMailRecipient(data.bag, data.id)
+        if picker:IsShown() and picker.bag == data.bag then refreshRecipients() end
+        renderRows()
+      end,
+    }
+
+    view:SetElementInitializer("GearSetButtonTemplate", function(row, element)
+      row.text:SetText(element.recipient.nickname)
+      row.icon:SetTexture(element.recipient.icon)
+      row.SpecRing:Hide()
+      row.SpecIcon:Hide()
+      row.SelectedBar:Hide()
+      row.HighlightBar:Hide()
+      row.EditButton:Hide()
+      row.DeleteButton:Show()
+      -- The native template operates on equipment sets, so replace every equipment action.
+      row:SetScript("OnDoubleClick", nil)
+      row:SetScript("OnDragStart", nil)
+      row:SetScript("OnEnter", function(self) self.HighlightBar:Show() end)
+      row:SetScript("OnLeave", function(self) self.HighlightBar:Hide(); GameTooltip:Hide() end)
+      row:SetScript("OnClick", function()
+        if picker.bag ~= settings() then picker:Hide(); return end
+        if not picker.bag.mailRecipients[element.id] then
+          refreshRecipients()
+        else
+          setItemStatus(picker.key, picker.statusInfo, ITEM_STATUSES[5])
+          picker.bag.mailAssignments[picker.key] = element.id
+          picker:Hide()
+        end
+      end)
+      row.DeleteButton:SetScript("OnClick", function()
+        local dialog = StaticPopup_Show("SLACKHACKS_DELETE_MAIL_RECIPIENT", element.recipient.nickname, nil,
+          { bag = picker.bag, id = element.id, recipient = element.recipient })
+        if not dialog then prn("unable to show the mail recipient deletion confirmation.") end
+      end)
+    end)
+    ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
+    picker.refreshRecipients = refreshRecipients
+    recipientPicker = picker
+  end
+  recipientPicker:Hide()
+  recipientPicker.bag = settings()
+  recipientPicker.key = key
+  recipientPicker.statusInfo = statusInfo
+  recipientPicker:ClearAllPoints()
+  recipientPicker:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 4, 0)
+  recipientPicker.refreshRecipients()
+  recipientPicker:Show()
+end
+
+--- Select a flag, requesting a recipient before applying Mail.
+---@param anchor table Flag button.
+---@param key string Item status key.
+---@param statusInfo table Item metadata.
+---@param status table Selected flag.
+local function selectItemStatus(anchor, key, statusInfo, status)
+  if status.id == "mail" then
+    if statusInfo.quality == nil or statusInfo.quality == 0 then
+      setItemStatus(key, statusInfo, status)
+    else
+      openMailRecipientPicker(anchor, key, statusInfo)
+    end
+  else
+    setItemStatus(key, statusInfo, status)
+  end
+end
+
 --- Open a menu for selecting or clearing the item's single status.
 ---@param anchor table Status button.
 ---@param key string Item status key.
@@ -656,7 +900,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
         local status = entry
         local label = statusMenuLabel(status)
         root:CreateRadio(label, function() return getItemStatus(key) == status end,
-          function() setItemStatus(key, statusInfo, status) end)
+          function() selectItemStatus(anchor, key, statusInfo, status) end)
       end
     end)
   else
@@ -670,7 +914,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
       menu[#menu + 1] = {
         text = statusMenuLabel(status),
         checked = function() return getItemStatus(key) == status end,
-        func = function() setItemStatus(key, statusInfo, status) end,
+        func = function() selectItemStatus(anchor, key, statusInfo, status) end,
       }
     end
     if not module.statusMenu then
@@ -787,7 +1031,13 @@ local function createRow(index)
     elseif row.statusInfo.quality == nil then
       GameTooltip:SetText("Item quality is not yet available.")
     else
-      GameTooltip:SetText("Flag item for: " .. (status and status.name or "None"))
+      local label = status and status.name or "None"
+      if status and status.id == "mail" then
+        local bag = settings()
+        local recipient = bag.mailRecipients[bag.mailAssignments[row.statusKey]]
+        if recipient then label = label .. " (" .. recipient.nickname .. ")" end
+      end
+      GameTooltip:SetText("Flag item for: " .. label)
       local rightClick = status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
         or "Right-click to quick mark as Junk."
       GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick, 1, 1, 1, true)

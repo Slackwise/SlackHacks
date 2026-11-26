@@ -121,13 +121,28 @@ local renderRows = upvalue(module.MERCHANT_SHOW, "renderRows")
 local createRow = upvalue(upvalue(renderRows, "acquireRow"), "createRow")
 local openMenu = upvalue(createRow, "openItemStatusMenu")
 local setStatus = upvalue(openMenu, "setItemStatus")
+local selectStatus = upvalue(openMenu, "selectItemStatus")
+local openPicker = upvalue(selectStatus, "openMailRecipientPicker")
+local deleteRecipient = upvalue(openPicker, "deleteMailRecipient")
 local getStatus = upvalue(openMenu, "getItemStatus")
+local statuses = upvalue(getStatus, "ITEM_STATUSES")
 local updateStatusButton = upvalue(renderRows, "updateStatusButton")
 local updateInteractionBlocker = upvalue(renderRows, "updateInteractionBlocker")
 local blockedItemAction = upvalue(updateInteractionBlocker, "blockedItemAction")
 local merchantUpdates = 0
 upvalue(setStatus, "renderRows", function() end)
 upvalue(setStatus, "updateMerchantJunkButton", function() merchantUpdates = merchantUpdates + 1 end)
+
+local chooseRecipient = true
+local openedPicker = 0
+upvalue(selectStatus, "openMailRecipientPicker", function(_, key, info)
+  openedPicker = openedPicker + 1
+  if chooseRecipient then
+    setStatus(key, info, statuses[5])
+    profile.mailAssignments[key] = 1
+  end
+end)
+profile.mailRecipients = { [1] = { nickname = "Bank Alt", character = "Example" } }
 
 local row = createRow(1)
 row.statusKey = "item"
@@ -218,12 +233,24 @@ assert(GameTooltip.text == "Flag item for: Bank" and #GameTooltip.lines == 1
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
 button.scripts.OnClick(button, "RightButton")
 assert(not profile.trashItems.item and profile.bankItems.item and protected("item"))
+chooseRecipient = false
+entries[6].selectStatus()
+assert(profile.bankItems.item and not profile.mailItems.item, "Canceling recipient selection must preserve the flag")
+chooseRecipient = true
 entries[6].selectStatus()
 assert(profile.mailItems.item and not profile.trashItems.item)
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flag item for: Mail (Bank Alt)")
+deleteRecipient(profile, 1)
+assert(profile.mailItems.item and not profile.mailAssignments.item, "Deleting a recipient must leave Mail unassigned")
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flag item for: Mail")
+profile.mailRecipients[1] = { nickname = "Bank Alt", character = "Example" }
+entries[6].selectStatus()
 updateStatusButton(button, getStatus("item"))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Mailbox")
 entries[1].selectStatus()
-assert(not getStatus("item"))
+assert(not getStatus("item") and not profile.mailAssignments.item)
 assert(notifications == merchantUpdates and notifications > 0)
 
 -- Grey and uncached items cannot acquire flags, even from a previously opened menu.
@@ -373,6 +400,7 @@ assert(legacy[3].text:find("|A:bags-junkcoin:", 1, true)
   and legacy[6].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))
 legacy[7].func()
 assert(profile.mailItems.other and not profile.trashItems.other)
+assert(openedPicker > 0 and profile.mailAssignments.other == 1)
 legacy[2].func()
 assert(not getStatus("other"))
 
@@ -496,4 +524,158 @@ upvalue(module.OnEnable, "hookMerchantJunkButton", function() end)
 upvalue(module.OnEnable, "updateMerchantJunkButton", function() end)
 module:OnEnable()
 assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must register the supported cursor event")
+
+-- Exercise the real picker callbacks with native widgets replaced by lightweight frames.
+local originalCreateFrame = CreateFrame
+local picker, scroll, newRecipient, initializeRow, popupOptions, popup, extraRegion, recipientLabel
+--- Emulate Forever's character pane.
+---@return boolean forever Whether the Forever client is active.
+function SlackHacks.isForever() return true end
+--- Create mock picker frames.
+---@param kind string Frame type.
+---@param name string|nil Frame name.
+---@param parent table|nil Parent frame.
+---@param template string|nil Template name.
+---@return table result Mock frame.
+function CreateFrame(kind, name, parent, template)
+  local result = originalCreateFrame(kind, name, parent, template)
+  result.points = {}
+  function result:GetText() return self.text or "" end
+  function result:IsShown() return self.shown end
+  function result:SetSize(width, height) self.width, self.height = width, height end
+  function result:SetPoint(point, ...) self.points[point] = { ... } end
+  if name == "SlackHacksMailRecipientPicker" then
+    assert(template == "InsetFrameTemplate")
+    result.Bg = widget()
+    result.paneTextures = {}
+    function result:CreateTexture()
+      local texture = widget()
+      self.paneTextures[#self.paneTextures + 1] = texture
+      return texture
+    end
+    picker = result
+  elseif template == "WowScrollBoxList" then
+    scroll = result
+    function result:SetDataProvider(data) self.elements = data end
+  elseif template == "PaperDollTertiaryButtonTemplate" then
+    result.label = widget()
+    function result.label:GetObjectType() return "FontString" end
+    function result:GetRegions() return self.label end
+    newRecipient = result
+  elseif template == "GearSetButtonTemplate" then
+    result.text, result.icon, result.Check = widget(), widget(), widget()
+    result.SpecRing, result.SpecIcon = widget(), widget()
+    result.SelectedBar, result.HighlightBar = widget(), widget()
+    result.DeleteButton, result.EditButton = widget(), widget()
+    newRecipient = result
+  elseif template == "InputBoxTemplate,AutoCompleteEditBoxTemplate" then
+    assert(parent == extraRegion, "The recipient input must not be enclosed in a visible group box")
+  end
+  return result
+end
+--- Capture the list initializer.
+---@return table view Mock list view.
+function CreateScrollBoxListLinearView()
+  return {
+    SetElementExtent = function() end,
+    SetElementInitializer = function(_, _, initializer) initializeRow = initializer end,
+  }
+end
+ScrollUtil = { InitScrollBoxListWithScrollBar = function() end }
+ScrollBoxConstants = { RetainScrollPosition = 1 }
+GREEN_FONT_COLOR = { r = 0, g = 1, b = 0 }
+--- Supply a simple list data provider.
+---@param elements table List elements.
+---@return table elements List elements.
+function CreateDataProvider(elements) return elements end
+StaticPopupDialogs = {}
+DELETE, CANCEL = "Delete", "Cancel"
+local deleteDialog
+--- Capture the delete confirmation payload.
+---@return table dialog Mock confirmation.
+function StaticPopup_Show(_, _, _, data) deleteDialog = data; return {} end
+C_AutoComplete = { GetAutoCompleteResults = function() end }
+AUTOCOMPLETE_LIST = { MAIL = { include = 7, exclude = 9 } }
+local autoCompleteSource
+--- Capture the recipient autocomplete source.
+function AutoCompleteEditBox_SetAutoCompleteSource(_, source, include, exclude)
+  autoCompleteSource = { source, include, exclude }
+end
+--- Capture the popup callbacks and construct the injected controls.
+---@param parent table Picker frame.
+---@param options table Popup configuration.
+---@return table popup Mock popup.
+function SlackHacks.CreateIconNamePopupFrame(parent, options)
+  popupOptions = options
+  popup = widget()
+  extraRegion = widget()
+  function extraRegion:CreateFontString(_, _, font)
+    recipientLabel = widget()
+    recipientLabel.font = font
+    return recipientLabel
+  end
+  popup.extraControls = options.createExtraControls(extraRegion)
+  return popup
+end
+profile.mailRecipients = {}
+profile.mailAssignments = {}
+profile.trashItems.pick = row.statusInfo
+openPicker(button, "pick", row.statusInfo)
+assert(picker.shown and profile.trashItems.pick and not profile.mailItems.pick)
+assert(picker.Bg.atlas == "UI-Character-Info-Stat-BG"
+  and picker.paneTextures[1].atlas == "UI-Character-Info-Stat-StoneBG3")
+assert(#scroll.elements == 0 and newRecipient.label.text == "New Mail Recipient")
+assert(newRecipient.points.BOTTOM[1] == picker and newRecipient.points.BOTTOM[4] == 12)
+assert(picker.height - 55 - scroll.points.BOTTOMRIGHT[2] >= 10 * 44,
+  "The list must retain space for ten recipients")
+assert(autoCompleteSource[1] == C_AutoComplete.GetAutoCompleteResults
+  and autoCompleteSource[2] == 7 and autoCompleteSource[3] == 9)
+assert(recipientLabel.text == "Send to Character Name:" and recipientLabel.font == "GameFontHighlightSmall")
+local character = popup.extraControls.name
+popup:Hide()
+character:SetText("stale")
+newRecipient.scripts.OnClick()
+assert(popup.shown and character:GetText() == "", "The button must open a fresh recipient popup")
+character:SetText(" ")
+assert(not popupOptions.onConfirm("Alt", 123, popup.extraControls) and not next(profile.mailRecipients))
+character:SetText("Example-Realm")
+assert(popupOptions.onConfirm("Alt", 123, popup.extraControls))
+assert(profile.mailRecipients[1].character == "Example-Realm" and #scroll.elements == 1)
+
+--- Build a mock gear row and initialize it with the requested recipient.
+---@param element table List element.
+---@return table result Initialized row.
+local function pickerRow(element)
+  local result = widget()
+  result.text, result.icon = widget(), widget()
+  result.SpecRing, result.SpecIcon = widget(), widget()
+  result.SelectedBar, result.HighlightBar = widget(), widget()
+  result.EditButton, result.DeleteButton = widget(), widget()
+  initializeRow(result, element)
+  return result
+end
+local recipientRow = pickerRow(scroll.elements[1])
+local otherProfile = { enabled = true }
+SlackHacks.db.profile.listviewBag = otherProfile
+recipientRow.scripts.OnClick()
+assert(not otherProfile.mailItems.pick and not profile.mailItems.pick, "Profile changes must cancel the selection")
+SlackHacks.db.profile.listviewBag = profile
+openPicker(button, "pick", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+assert(profile.mailItems.pick and not profile.trashItems.pick and profile.mailAssignments.pick == 1)
+openPicker(button, "another", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.DeleteButton.scripts.OnClick()
+StaticPopupDialogs.SLACKHACKS_DELETE_MAIL_RECIPIENT.OnAccept(nil, deleteDialog)
+assert(profile.mailItems.pick and not profile.mailAssignments.pick and not profile.mailRecipients[1])
+upvalue(openPicker, "recipientPicker", false)
+SlackHacks.isForever = function() return false end
+openPicker(button, "retail", row.statusInfo)
+assert(picker.shown and rawget(picker.Bg, "atlas") == nil and #picker.paneTextures == 0,
+  "Retail must retain its native inset background")
+assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
+popup:Hide()
+newRecipient.scripts.OnClick()
+assert(popup.shown, "Retail's new-recipient button must open the popup")
 print("Listview bag status tests passed")

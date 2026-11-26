@@ -62,6 +62,8 @@ dbDefaults = {
       auctionItems = {},
       bankItems = {},
       mailItems = {},
+      mailRecipients = {},
+      mailAssignments = {},
       autoSellMarkedItems = false,
       point = nil
     },

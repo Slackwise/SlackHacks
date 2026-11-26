@@ -9,6 +9,7 @@
 - Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
 - The auto-vendor list now shows item links, icons, and tooltips, and can be cleared with confirmation.
 - Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.
+- Mail flags can be assigned to saved recipients with custom nicknames and searchable icons.
 - Item flags block conflicting Listview Bag actions; grey items can no longer be flagged.
 - The Listview Bag flag column can now be sorted.
 - Added Listview Bag filters for item flags, mutually exclusive categories, and reagent-bag contents, including an Essentials category for common reusable items. The dropdown shows how many filters are active.

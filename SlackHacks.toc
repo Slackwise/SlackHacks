@@ -24,6 +24,7 @@ Reminders.lua
 Reminders_Buffs.lua
 Reminders_Talents.lua
 Weeklies.lua
+IconNamePopup.lua
 ListviewBag.lua
 Minimap.lua
 Windows.lua
