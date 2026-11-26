@@ -54,9 +54,11 @@ local slots = {
   { itemID = 2, itemName = "Protected", hyperlink = "Protected", quality = 1 },
   { itemID = 3, itemName = "Worthless", hyperlink = "Worthless", quality = 1, hasNoValue = true },
   { itemID = 4, itemName = "Locked", hyperlink = "Locked", quality = 1, isLocked = true },
+  { itemID = 5, itemName = "Banked", hyperlink = "Banked", quality = 1 },
 }
 for _, item in ipairs(slots) do profile.trashItems[statusKey(item.itemName, 1, 10, nil)] = true end
 profile.protectedItems[statusKey("Protected", 1, 10, nil)] = true
+profile.bankItems = { [statusKey("Banked", 1, 10, nil)] = true }
 local actions = {}
 C_Container = {
   GetContainerNumSlots = function(bag) return bag == 0 and #slots or 0 end,
@@ -113,7 +115,7 @@ assert(#actions == 0, "Opening or cancelling confirmation must not sell anything
 confirmation()
 assert(table.concat(actions, ",") == "native,Marked", "Confirmation must sell native junk first, then eligible marked items")
 assert(not MerchantSellAllJunkButton.enabled and MerchantSellAllJunkButton.Icon.desaturated,
-  "Locked, protected, and worthless items must not keep the button enabled")
+  "Locked, protected, bank-marked, and worthless items must not keep the button enabled")
 
 slots[1].isLocked = false
 profile.autoSellMarkedItems = true

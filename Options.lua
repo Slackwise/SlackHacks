@@ -57,6 +57,9 @@ dbDefaults = {
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
+      auctionItems = {},
+      bankItems = {},
+      mailItems = {},
       autoSellMarkedItems = false,
       point = nil
     },

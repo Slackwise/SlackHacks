@@ -55,7 +55,13 @@ local function sortValueBefore(left, right)
 end
 
 local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
-local VENDOR_ICON_ATLAS = "bags-junkcoin"
+local ITEM_STATUSES = {
+  { id = "vendor", name = "Vendor", field = "trashItems", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
+  { id = "protect", name = "Protect", field = "protectedItems", icon = "Interface\\Icons\\INV_Shield_04" },
+  { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Icons\\INV_Hammer_04" },
+  { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
+  { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Icons\\INV_Letter_15" },
+}
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
 local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
@@ -78,10 +84,13 @@ local function bagIDs()
   return ids
 end
 
+--- Return bag settings, initializing optional status lists in older profiles.
+---@return table settings Current profile's bag settings.
 local function settings()
   local listviewSettings = db.profile.listviewBag
-  listviewSettings.protectedItems = listviewSettings.protectedItems or {}
-  listviewSettings.trashItems = listviewSettings.trashItems or {}
+  for _, status in ipairs(ITEM_STATUSES) do
+    listviewSettings[status.field] = listviewSettings[status.field] or {}
+  end
   local columnOrder = listviewSettings and listviewSettings.columnOrder
   if columnOrder then
     for index = #columnOrder, 1, -1 do
@@ -101,8 +110,12 @@ local function itemStatusKey(itemName, quality, itemLevel, upgradeTrack)
   return table.concat({ itemName or "", quality or 0, itemLevel or 0, upgradeTrack or "" }, "\031")
 end
 
+--- Check whether a Protect or Bank mark applies the existing vendor safeguards.
+---@param key string Item status key.
+---@return boolean protected Whether the item is protected.
 local function isProtectedItem(key)
-  return settings().protectedItems[key] ~= nil
+  local listviewSettings = settings()
+  return listviewSettings.protectedItems[key] ~= nil or listviewSettings.bankItems[key] ~= nil
 end
 
 local function isTrashItem(key)
@@ -415,24 +428,89 @@ end
 -- Row widgets
 --=====================================================================
 
---- Cycle an item's protected, vendor, and unmarked states.
+--- Return the item's selected status, preserving protection for older overlapping marks.
 ---@param key string Item status key.
----@param statusInfo table Item metadata to save with the status.
-local function cycleStatus(key, statusInfo)
-  if isProtectedItem(key) then
-    settings().protectedItems[key] = nil
-    settings().trashItems[key] = statusInfo
-  elseif isTrashItem(key) then
-    settings().trashItems[key] = nil
-  else
-    settings().protectedItems[key] = statusInfo
+---@return table|nil status Selected status definition.
+local function getItemStatus(key)
+  local listviewSettings = settings()
+  if listviewSettings.protectedItems[key] ~= nil then return ITEM_STATUSES[2] end
+  for _, status in ipairs(ITEM_STATUSES) do
+    if listviewSettings[status.field][key] ~= nil then return status end
   end
+end
+
+--- Replace an item's status while retaining the metadata used by vendor matching.
+---@param key string Item status key.
+---@param statusInfo table Item metadata to save.
+---@param selected table|nil Status definition, or nil to clear.
+local function setItemStatus(key, statusInfo, selected)
+  local listviewSettings = settings()
+  for _, status in ipairs(ITEM_STATUSES) do
+    listviewSettings[status.field][key] = nil
+  end
+  if selected then listviewSettings[selected.field][key] = statusInfo end
   renderRows()
   updateMerchantJunkButton()
   local registry = LibStub("AceConfigRegistry-3.0", true)
   if registry then registry:NotifyChange("SlackHacks") end
 end
 
+--- Open a menu for selecting or clearing the item's single status.
+---@param anchor table Status button.
+---@param key string Item status key.
+---@param statusInfo table Item metadata to save.
+local function openItemStatusMenu(anchor, key, statusInfo)
+  GameTooltip:Hide()
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    MenuUtil.CreateContextMenu(anchor, function(_, root)
+      root:CreateTitle("Item Status")
+      root:CreateRadio("None", function() return not getItemStatus(key) end,
+        function() setItemStatus(key, statusInfo, nil) end)
+      for _, entry in ipairs(ITEM_STATUSES) do
+        local status = entry
+        local label = "|T" .. status.icon .. ":16:16|t " .. status.name
+        root:CreateRadio(label, function() return getItemStatus(key) == status end,
+          function() setItemStatus(key, statusInfo, status) end)
+      end
+    end)
+  else
+    local menu = {
+      { text = "Item Status", isTitle = true, notCheckable = true },
+      { text = "None", checked = function() return not getItemStatus(key) end,
+        func = function() setItemStatus(key, statusInfo, nil) end },
+    }
+    for _, entry in ipairs(ITEM_STATUSES) do
+      local status = entry
+      menu[#menu + 1] = {
+        text = "|T" .. status.icon .. ":16:16|t " .. status.name,
+        checked = function() return getItemStatus(key) == status end,
+        func = function() setItemStatus(key, statusInfo, status) end,
+      }
+    end
+    if not module.statusMenu then
+      module.statusMenu = CreateFrame("Frame", "SlackHacksListviewBagStatusMenu", UIParent, "UIDropDownMenuTemplate")
+    end
+    EasyMenu(menu, module.statusMenu, "cursor", 0, 0, "MENU")
+  end
+end
+
+--- Show the selected status icon, or an ellipsis for an unmarked item.
+---@param button table Item status button.
+---@param status table|nil Selected status definition.
+local function updateStatusButton(button, status)
+  if status then
+    button.icon:SetTexture(status.icon)
+    button.icon:Show()
+    button.text:Hide()
+  else
+    button.icon:Hide()
+    button.text:Show()
+  end
+end
+
+--- Create a bag row and its status controls.
+---@param index number Row index.
+---@return table row Bag row.
 local function createRow(index)
   local holder = CreateFrame("Frame", nil, scrollChild)
   holder:SetHeight(ROW_HEIGHT)
@@ -478,22 +556,37 @@ local function createRow(index)
   end)
   row.collapseBtn:SetScript("OnLeave", GameTooltip_Hide)
 
-  -- Single icon button cycling None -> Locked -> Trash -> None (instead of two separate checkboxes).
   row.statusBtn = CreateFrame("Button", nil, row)
   row.statusBtn:SetSize(STATUS_WIDTH, STATUS_WIDTH)
   row.statusBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.statusBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   row.statusBtn.icon = row.statusBtn:CreateTexture(nil, "ARTWORK")
   row.statusBtn.icon:SetSize(14, 14)
   row.statusBtn.icon:SetPoint("CENTER")
-  row.statusBtn:SetScript("OnClick", function() cycleStatus(row.statusKey, row.statusInfo) end)
+  row.statusBtn.text = row.statusBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  row.statusBtn.text:SetAllPoints()
+  row.statusBtn.text:SetJustifyH("CENTER")
+  row.statusBtn.text:SetText("...")
+  row.statusBtn:SetScript("OnClick", function(self, button)
+    if button == "RightButton" then
+      local status = getItemStatus(row.statusKey)
+      if status == ITEM_STATUSES[1] then
+        setItemStatus(row.statusKey, row.statusInfo, nil)
+      else
+        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1])
+      end
+    elseif button == "LeftButton" then
+      openItemStatusMenu(self, row.statusKey, row.statusInfo)
+    end
+  end)
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    if isProtectedItem(row.statusKey) then
-      GameTooltip:SetText("Protected (click to mark for Vendor instead)")
-    elseif isTrashItem(row.statusKey) then
-      GameTooltip:SetText("Marked for Vendor (click to clear)")
-    else
-      GameTooltip:SetText("Click to Protect, click again to mark for Vendor")
+    local status = getItemStatus(row.statusKey)
+    GameTooltip:SetText("Item Status: " .. (status and status.name or "None"))
+    GameTooltip:AddLine("Left-click: choose a status. Right-click: toggle Vendor.", 1, 1, 1, true)
+    GameTooltip:AddLine("Auction, Bank, and Mail are marks only.", 1, 1, 1, true)
+    if status and (status.id == "bank" or status.id == "protect") then
+      GameTooltip:AddLine("Blizzard's junk sale and Auto-Sell Greys can still sell grey items.", 1, 1, 1, true)
     end
     GameTooltip:Show()
   end)
@@ -662,15 +755,7 @@ renderRows = function()
       row.collapseBtn:Hide()
     end
 
-    if isProtectedItem(data.statusKey) then
-      row.statusBtn.icon:SetAtlas(PROTECT_ICON_ATLAS)
-      row.statusBtn.icon:Show()
-    elseif isTrashItem(data.statusKey) then
-      row.statusBtn.icon:SetAtlas(VENDOR_ICON_ATLAS)
-      row.statusBtn.icon:Show()
-    else
-      row.statusBtn.icon:Hide()
-    end
+    updateStatusButton(row.statusBtn, getItemStatus(data.statusKey))
 
     row.icon:SetTexture(data.icon)
     local qualityColor = data.quality and (ITEM_QUALITY_COLORS[data.quality] or ITEM_QUALITY_COLORS[1])
@@ -1055,6 +1140,7 @@ end
 -- Frame construction
 --=====================================================================
 
+--- Build the list-view bag window and its controls.
 local function buildFrame()
   if frame then return end
 
