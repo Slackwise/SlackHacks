@@ -527,7 +527,7 @@ assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must regist
 
 -- Exercise the real picker callbacks with native widgets replaced by lightweight frames.
 local originalCreateFrame = CreateFrame
-local picker, scroll, newRecipient, initializeRow, popupOptions, popup, extraRegion, recipientLabel
+local picker, inset, scroll, newRecipient, initializeRow, popupOptions, popup, extraRegion, recipientLabel
 --- Emulate Forever's character pane.
 ---@return boolean forever Whether the Forever client is active.
 function SlackHacks.isForever() return true end
@@ -545,7 +545,10 @@ function CreateFrame(kind, name, parent, template)
   function result:SetSize(width, height) self.width, self.height = width, height end
   function result:SetPoint(point, ...) self.points[point] = { ... } end
   if name == "SlackHacksMailRecipientPicker" then
-    assert(template == "InsetFrameTemplate")
+    assert(template == "DefaultPanelBaseTemplate")
+    result.TitleContainer = { TitleText = widget() }
+    picker = result
+  elseif template == "InsetFrameTemplate" and parent == picker then
     result.Bg = widget()
     result.paneTextures = {}
     function result:CreateTexture()
@@ -553,7 +556,7 @@ function CreateFrame(kind, name, parent, template)
       self.paneTextures[#self.paneTextures + 1] = texture
       return texture
     end
-    picker = result
+    inset = result
   elseif template == "WowScrollBoxList" then
     scroll = result
     function result:SetDataProvider(data) self.elements = data end
@@ -622,11 +625,12 @@ profile.mailAssignments = {}
 profile.trashItems.pick = row.statusInfo
 openPicker(button, "pick", row.statusInfo)
 assert(picker.shown and profile.trashItems.pick and not profile.mailItems.pick)
-assert(picker.Bg.atlas == "UI-Character-Info-Stat-BG"
-  and picker.paneTextures[1].atlas == "UI-Character-Info-Stat-StoneBG3")
+assert(picker.TitleContainer.TitleText.text == "Mail Recipients")
+assert(inset.Bg.atlas == "UI-Character-Info-Stat-BG"
+  and inset.paneTextures[1].atlas == "UI-Character-Info-Stat-StoneBG3")
 assert(#scroll.elements == 0 and newRecipient.label.text == "New Mail Recipient")
 assert(newRecipient.points.BOTTOM[1] == picker and newRecipient.points.BOTTOM[4] == 12)
-assert(picker.height - 55 - scroll.points.BOTTOMRIGHT[2] >= 10 * 44,
+assert(picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2] >= 10 * 44,
   "The list must retain space for ten recipients")
 assert(autoCompleteSource[1] == C_AutoComplete.GetAutoCompleteResults
   and autoCompleteSource[2] == 7 and autoCompleteSource[3] == 9)
@@ -672,7 +676,7 @@ assert(profile.mailItems.pick and not profile.mailAssignments.pick and not profi
 upvalue(openPicker, "recipientPicker", false)
 SlackHacks.isForever = function() return false end
 openPicker(button, "retail", row.statusInfo)
-assert(picker.shown and rawget(picker.Bg, "atlas") == nil and #picker.paneTextures == 0,
+assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0,
   "Retail must retain its native inset background")
 assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
 popup:Hide()
