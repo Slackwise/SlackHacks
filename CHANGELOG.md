@@ -11,7 +11,7 @@
 - Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.
 - Item flags block conflicting Listview Bag actions; grey items can no longer be flagged.
 - The Listview Bag flag column can now be sorted.
-- Added Listview Bag filters for item flags, mutually exclusive categories, and reagent-bag contents, including an Essentials category for common reusable items.
+- Added Listview Bag filters for item flags, mutually exclusive categories, and reagent-bag contents, including an Essentials category for common reusable items. The dropdown shows how many filters are active.
 
 ## v33
 

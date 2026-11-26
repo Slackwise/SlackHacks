@@ -27,9 +27,11 @@ function SlackHacks.isRetailOrForever() return retail or forever end
 ---@param frameType string Widget type.
 ---@param name string|nil Widget name.
 ---@param parent table|nil Parent container.
+---@param template string|nil Frame template.
 ---@return table frame Mocked widget.
-function CreateFrame(frameType, name, parent)
-  local widget = { name = name, parent = parent, scripts = {}, shown = true, frameLevel = 0 }
+function CreateFrame(frameType, name, parent, template)
+  local widget = { name = name, parent = parent, template = template, frameType = frameType,
+    scripts = {}, shown = true, frameLevel = 0 }
   widget.Text = {}
   widget.text = widget.Text
   --- Record UI mutations and accept irrelevant template setup.
@@ -46,7 +48,7 @@ function CreateFrame(frameType, name, parent)
   ---@param self table Widget.
   ---@param ... any Method arguments.
   local function noop(self, ...) end
-  setmetatable(widget, { __index = function(_, key) return noop end })
+  setmetatable(widget, { __index = function(_, key) if key ~= "legacy" then return noop end end })
   --- Store an event handler.
   ---@param event string Script name.
   ---@param handler function Callback.
@@ -54,6 +56,12 @@ function CreateFrame(frameType, name, parent)
   --- Record button text.
   ---@param text string Button label.
   function widget:SetText(text) self.label = text end
+  --- Record a modern dropdown's fixed label.
+  ---@param text string Dropdown label.
+  function widget:OverrideText(text) self.label = text end
+  --- Store the native dropdown's menu generator.
+  ---@param generator function Menu generator.
+  function widget:SetupMenu(generator) self.menuGenerator = generator end
   --- Record visibility.
   ---@param shown boolean Whether the widget should be visible.
   function widget:SetShown(shown) self.shown = shown end
@@ -79,8 +87,20 @@ function CreateFrame(frameType, name, parent)
   ---@return table texture
   function widget:CreateTexture() return CreateFrame("Texture") end
   if name then frames[name] = widget end
+  if template == "UIDropDownMenuTemplate" and name then
+    _G[name .. "Button"] = CreateFrame("Button", nil, widget)
+  end
   return widget
 end
+
+--- Set the width of a legacy dropdown.
+---@param dropdown table Dropdown frame.
+---@param width number Dropdown width.
+function UIDropDownMenu_SetWidth(dropdown, width) dropdown.width = width end
+--- Set the label of a legacy dropdown.
+---@param dropdown table Dropdown frame.
+---@param text string Dropdown label.
+function UIDropDownMenu_SetText(dropdown, text) dropdown.label = text end
 
 --- Accept money-frame configuration.
 ---@param ... any Money-frame arguments.
@@ -116,36 +136,38 @@ local content = CreateFrame("Frame")
 content.openBagsButton = {}
 content:SetFrameLevel(600)
 upvalue(createFooter, "content", content)
+MenuUtil = { CreateContextMenu = function() end }
 
 assert(#bagIDs() == 6 and bagIDs()[6] == 5, "Retail must include reagent bag without a ReagentBag enum")
 createFooter()
 local filtersButton = frames.SlackHacksListviewBagFiltersButton
-assert(filtersButton.shown and filtersButton.label == "Filters")
+assert(filtersButton.shown and filtersButton.label == "Filters (None)")
+assert(filtersButton.frameType == "DropdownButton" and filtersButton.template == "WowStyle1DropdownTemplate")
 assert(filtersButton.parent == content and filtersButton.frameLevel > content.frameLevel)
 assert(filtersButton.anchor[2] == content.openBagsButton and filtersButton.anchor[3] == "LEFT")
 
 local menuEntries
 MenuResponse = { Refresh = "refresh" }
-MenuUtil = {
-  CreateContextMenu = function(_, build)
-    menuEntries = {}
-    local section = ""
-    local root = {
-      CreateButton = function(_, text, select)
-        local entry = { text = text, select = select, kind = "button" }
-        function entry:SetResponse(response) self.response = response end
-        menuEntries[#menuEntries + 1] = entry
-        return entry
-      end,
-      CreateDivider = function() end,
-      CreateTitle = function(_, title) section = title end,
-      CreateCheckbox = function(_, text, checked, select)
-        menuEntries[#menuEntries + 1] = { text = text, section = section, checked = checked, select = select }
-      end,
-    }
-    build(filtersButton, root)
-  end,
-}
+--- Generate a modern dropdown menu as Blizzard does when it opens.
+---@param dropdown table Filters dropdown.
+local function openModernFilters(dropdown)
+  menuEntries = {}
+  local section = ""
+  local root = {
+    CreateButton = function(_, text, select)
+      local entry = { text = text, select = select, kind = "button" }
+      function entry:SetResponse(response) self.response = response end
+      menuEntries[#menuEntries + 1] = entry
+      return entry
+    end,
+    CreateDivider = function() end,
+    CreateTitle = function(_, title) section = title end,
+    CreateCheckbox = function(_, text, checked, select)
+      menuEntries[#menuEntries + 1] = { text = text, section = section, checked = checked, select = select }
+    end,
+  }
+  dropdown.menuGenerator(dropdown, root)
+end
 --- Find a menu entry by label and optional section.
 ---@param text string Entry label.
 ---@param section string|nil Section label.
@@ -155,7 +177,7 @@ local function entry(text, section)
     if value.text == text and (not section or value.section == section) then return value end
   end
 end
-filtersButton.scripts.OnClick(filtersButton)
+openModernFilters(filtersButton)
 assert(menuEntries[1].text == "Check All" and menuEntries[1].response == MenuResponse.Refresh)
 assert(entry("Reagent Bag").checked() and entry("Unflagged", "Flags").checked())
 assert(entry("Junk", "Flags").checked() and entry("Junk", "Categories").checked())
@@ -169,16 +191,31 @@ for _, value in ipairs(menuEntries) do
 end
 assert(table.concat(categoryLabels, ",") == expectedCategories, "Modern menu must use the requested category order")
 entry("Reagent Bag").select()
-assert(profile.showReagentBagContents == false and refreshes == 1)
+assert(profile.showReagentBagContents == false and refreshes == 1 and filtersButton.label == "Filters (1)")
 entry("Reagent Bag").select()
-assert(profile.showReagentBagContents == true and refreshes == 2)
+assert(profile.showReagentBagContents == true and refreshes == 2 and filtersButton.label == "Filters (None)")
 entry("Auction", "Flags").select()
 entry("Equipment", "Categories").select()
-assert(profile.flagFilters.auction == false and profile.categoryFilters.equipment == false)
+assert(profile.flagFilters.auction == false and profile.categoryFilters.equipment == false and filtersButton.label == "Filters (2)")
 entry("Reagent Bag").select()
+assert(filtersButton.label == "Filters (3)")
 entry("Check All").select()
 assert(entry("Auction", "Flags").checked() and entry("Equipment", "Categories").checked()
-  and profile.showReagentBagContents and refreshes == 6)
+  and profile.showReagentBagContents and refreshes == 6 and filtersButton.label == "Filters (None)")
+for _, value in ipairs(menuEntries) do
+  if value.checked then value.select() end
+end
+assert(filtersButton.label == "Filters (15)", "Count every visible unchecked filter")
+entry("Check All").select()
+assert(filtersButton.label == "Filters (None)", "Check All must clear the filter count")
+local updateFiltersLabel = upvalue(createFooter, "updateFiltersLabel")
+local originalProfile = SlackHacks.db.profile.listviewBag
+SlackHacks.db.profile.listviewBag = { flagFilters = { mail = false }, categoryFilters = {}, showReagentBagContents = true }
+updateFiltersLabel()
+assert(filtersButton.label == "Filters (1)", "The label must reflect a changed profile")
+SlackHacks.db.profile.listviewBag = originalProfile
+updateFiltersLabel()
+assert(filtersButton.label == "Filters (None)")
 
 local visited = {}
 C_Container = {
@@ -197,14 +234,16 @@ forever = true
 assert(#bagIDs() == 6 and bagIDs()[6] == 5, "Forever must include the reagent bag")
 createFooter()
 filtersButton = frames.SlackHacksListviewBagFiltersButton
-filtersButton.scripts.OnClick(filtersButton)
+assert(filtersButton.label == "Filters (1)", "A saved reagent-bag filter must be counted")
+openModernFilters(filtersButton)
 assert(entry("Reagent Bag"), "Forever must offer the reagent-bag filter")
 
 forever = false
 assert(#bagIDs() == 5, "Classic must not include reagent bag")
 createFooter()
 filtersButton = frames.SlackHacksListviewBagFiltersButton
-filtersButton.scripts.OnClick(filtersButton)
+assert(filtersButton.label == "Filters (None)", "Unavailable reagent-bag filters must not be counted")
+openModernFilters(filtersButton)
 assert(not entry("Reagent Bag") and entry("Other", "Categories"), "Classic must show filters without a reagent-bag option")
 
 -- The legacy dropdown provides the same toggle behavior.
@@ -213,7 +252,11 @@ local legacy
 --- Capture the legacy dropdown entries.
 ---@param menu table Menu entries.
 function EasyMenu(menu) legacy = menu end
-filtersButton.scripts.OnClick(filtersButton)
+createFooter()
+filtersButton = frames.SlackHacksListviewBagFiltersButton
+assert(filtersButton.template == "UIDropDownMenuTemplate" and filtersButton.label == "Filters (None)")
+local legacyButton = _G[filtersButton:GetName() .. "Button"]
+legacyButton.scripts.OnClick(legacyButton)
 assert(legacy[1].text == "Check All")
 categoryLabels = {}
 local inCategories = false
@@ -223,12 +266,12 @@ for _, value in ipairs(legacy) do
   if value.text == "Unflagged" then
     assert(value.checked())
     value.func()
-    assert(not value.checked())
+    assert(not value.checked() and filtersButton.label == "Filters (1)")
   end
 end
 assert(table.concat(categoryLabels, ",") == expectedCategories, "Legacy menu must use the requested category order")
 legacy[1].func()
-assert(profile.flagFilters.unflagged)
+assert(profile.flagFilters.unflagged and filtersButton.label == "Filters (None)")
 
 -- Each item matches one checked category and its checked flag.
 local matchesFilters = upvalue(buildDisplayRows, "matchesFilters")

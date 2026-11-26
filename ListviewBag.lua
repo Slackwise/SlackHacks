@@ -1095,7 +1095,28 @@ local function sizeCurrencyFrame(currencyFrame)
   return shown and width or 0
 end
 
+--- Update the dropdown label to count filters that restrict the displayed items.
+local function updateFiltersLabel()
+  local bag = settings()
+  local count = isRetailOrForever() and not bag.showReagentBagContents and 1 or 0
+  if bag.flagFilters.unflagged == false then count = count + 1 end
+  for _, status in ipairs(ITEM_STATUSES) do
+    if bag.flagFilters[status.id] == false then count = count + 1 end
+  end
+  for _, category in ipairs(ITEM_CATEGORIES) do
+    if bag.categoryFilters[category.id] == false then count = count + 1 end
+  end
+  local label = ("Filters (%s)"):format(count == 0 and "None" or count)
+  if footer.filtersButton.legacy then
+    UIDropDownMenu_SetText(footer.filtersButton, label)
+  else
+    footer.filtersButton:OverrideText(label)
+  end
+end
+
+--- Refresh the footer balances and filter summary.
 local function updateFooter()
+  updateFiltersLabel()
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Update()
@@ -1116,9 +1137,10 @@ local function updateFooter()
   footer.balances:SetWidth(width)
 end
 
---- Open the list-view filters using the available native menu API.
----@param anchor table Filters button.
-local function openFiltersMenu(anchor)
+--- Populate the native filters dropdown or open its legacy menu.
+---@param anchor table Filters dropdown.
+---@param root table|nil Modern menu description, absent for the legacy menu.
+local function openFiltersMenu(anchor, root)
   local bag = settings()
   --- Enable every visible filter without changing other bag settings.
   local function checkAll()
@@ -1126,6 +1148,7 @@ local function openFiltersMenu(anchor)
     bag.flagFilters.unflagged = true
     for _, status in ipairs(ITEM_STATUSES) do bag.flagFilters[status.id] = true end
     for _, category in ipairs(ITEM_CATEGORIES) do bag.categoryFilters[category.id] = true end
+    updateFiltersLabel()
     renderRows()
   end
   --- Toggle a filter and refresh the displayed rows.
@@ -1133,37 +1156,37 @@ local function openFiltersMenu(anchor)
   ---@param key string Filter key.
   local function toggle(filters, key)
     filters[key] = filters[key] == false
+    updateFiltersLabel()
     renderRows()
   end
   --- Toggle whether reagent-bag slots are collected.
   local function toggleReagentBag()
     bag.showReagentBagContents = not bag.showReagentBagContents
+    updateFiltersLabel()
     renderRows()
   end
-  if MenuUtil and MenuUtil.CreateContextMenu then
-    MenuUtil.CreateContextMenu(anchor, function(_, root)
-      local checkAllButton = root:CreateButton("Check All", checkAll)
-      checkAllButton:SetResponse(MenuResponse.Refresh)
-      if isRetailOrForever() then
-        root:CreateCheckbox("Reagent Bag", function() return bag.showReagentBagContents end, toggleReagentBag)
-      end
-      root:CreateDivider()
-      root:CreateTitle("Flags")
-      root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
-        function() toggle(bag.flagFilters, "unflagged") end)
-      for _, entry in ipairs(ITEM_STATUSES) do
-        local status = entry
-        root:CreateCheckbox(status.name, function() return bag.flagFilters[status.id] ~= false end,
-          function() toggle(bag.flagFilters, status.id) end)
-      end
-      root:CreateDivider()
-      root:CreateTitle("Categories")
-      for _, entry in ipairs(ITEM_CATEGORIES) do
-        local category = entry
-        root:CreateCheckbox(category.name, function() return bag.categoryFilters[category.id] ~= false end,
-          function() toggle(bag.categoryFilters, category.id) end)
-      end
-    end)
+  if root then
+    local checkAllButton = root:CreateButton("Check All", checkAll)
+    checkAllButton:SetResponse(MenuResponse.Refresh)
+    if isRetailOrForever() then
+      root:CreateCheckbox("Reagent Bag", function() return bag.showReagentBagContents end, toggleReagentBag)
+    end
+    root:CreateDivider()
+    root:CreateTitle("Flags")
+    root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
+      function() toggle(bag.flagFilters, "unflagged") end)
+    for _, entry in ipairs(ITEM_STATUSES) do
+      local status = entry
+      root:CreateCheckbox(status.name, function() return bag.flagFilters[status.id] ~= false end,
+        function() toggle(bag.flagFilters, status.id) end)
+    end
+    root:CreateDivider()
+    root:CreateTitle("Categories")
+    for _, entry in ipairs(ITEM_CATEGORIES) do
+      local category = entry
+      root:CreateCheckbox(category.name, function() return bag.categoryFilters[category.id] ~= false end,
+        function() toggle(bag.categoryFilters, category.id) end)
+    end
   else
     local menu = {
       { text = "Check All", notCheckable = true, keepShownOnClick = true, func = checkAll },
@@ -1218,12 +1241,21 @@ local function createFooter()
   footer.moneyFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
-  footer.filtersButton = CreateFrame("Button", "SlackHacksListviewBagFiltersButton", content, "UIPanelButtonTemplate")
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    footer.filtersButton = CreateFrame("DropdownButton", "SlackHacksListviewBagFiltersButton", content, "WowStyle1DropdownTemplate")
+    footer.filtersButton:SetWidth(130)
+    footer.filtersButton:SetupMenu(openFiltersMenu)
+  else
+    footer.filtersButton = CreateFrame("Frame", "SlackHacksListviewBagFiltersButton", content, "UIDropDownMenuTemplate")
+    footer.filtersButton.legacy = true
+    UIDropDownMenu_SetWidth(footer.filtersButton, 130)
+    _G[footer.filtersButton:GetName() .. "Button"]:SetScript("OnClick", function()
+      openFiltersMenu(footer.filtersButton)
+    end)
+  end
   footer.filtersButton:SetFrameLevel(content:GetFrameLevel() + 1)
-  footer.filtersButton:SetSize(80, 20)
   footer.filtersButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
-  footer.filtersButton:SetText("Filters")
-  footer.filtersButton:SetScript("OnClick", openFiltersMenu)
+  updateFiltersLabel()
 
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.currencyButton:SetSize(20, 20)
