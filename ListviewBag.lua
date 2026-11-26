@@ -434,15 +434,17 @@ end
 -- Row widgets
 --=====================================================================
 
---- Return the item's selected status, preserving protection for older overlapping marks.
+--- Return the item's selected status, prioritizing non-junk flags for older overlapping marks.
 ---@param key string Item status key.
 ---@return table|nil status Selected status definition.
 local function getItemStatus(key)
   local listviewSettings = settings()
   if listviewSettings.protectedItems[key] ~= nil then return PROTECT_STATUS end
-  for _, status in ipairs(ITEM_STATUSES) do
+  for index = 2, #ITEM_STATUSES do
+    local status = ITEM_STATUSES[index]
     if listviewSettings[status.field][key] ~= nil then return status end
   end
+  if listviewSettings.trashItems[key] ~= nil then return ITEM_STATUSES[1] end
 end
 
 --- Replace an item's status while retaining the metadata used by vendor matching.
@@ -668,8 +670,10 @@ local function createRow(index)
       local status = getItemStatus(row.statusKey)
       if status == ITEM_STATUSES[1] then
         setItemStatus(row.statusKey, row.statusInfo, nil)
-      else
+      elseif not status then
         setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1])
+      else
+        prn("use the flag menu to change this item's " .. status.name .. " flag.")
       end
     elseif button == "LeftButton" then
       openItemStatusMenu(self, row.statusKey, row.statusInfo)
@@ -684,7 +688,9 @@ local function createRow(index)
       GameTooltip:SetText("Item quality is not yet available.")
     else
       GameTooltip:SetText("Flag item for: " .. (status and status.name or "None"))
-      GameTooltip:AddLine("Left-click to choose flag.\nRight-click to quick mark as Junk.", 1, 1, 1, true)
+      local rightClick = status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
+        or "Right-click to quick mark as Junk."
+      GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick, 1, 1, 1, true)
     end
     GameTooltip:Show()
   end)

@@ -174,6 +174,28 @@ assert(not getStatus("item"), "Right-click must clear a vendor mark")
 button.scripts.OnClick(button, "RightButton")
 assert(getStatus("item").id == "vendor", "Right-click must mark an unmarked item for vendor")
 
+for _, case in ipairs({
+  { index = 3, field = "auctionItems" },
+  { index = 4, field = "protectedItems" },
+  { index = 5, field = "bankItems" },
+  { index = 6, field = "mailItems" },
+}) do
+  entries[case.index].selectStatus()
+  local previousMessages, previousNotifications = #messages, notifications
+  button.scripts.OnClick(button, "RightButton")
+  assert(profile[case.field].item == row.statusInfo and not profile.trashItems.item,
+    "Right-click must preserve " .. case.field)
+  assert(#messages == previousMessages + 1 and notifications == previousNotifications)
+  button.scripts.OnEnter(button)
+  assert(GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
+  profile.trashItems.item = row.statusInfo
+  button.scripts.OnClick(button, "RightButton")
+  assert(profile[case.field].item == row.statusInfo and profile.trashItems.item == row.statusInfo,
+    "Right-click must preserve overlapping non-junk marks")
+end
+entries[2].selectStatus()
+assert(profile.trashItems.item and not profile.mailItems.item, "The menu must still allow changing a flag to Junk")
+
 entries[4].selectStatus()
 assert(profile.protectedItems.item and not profile.trashItems.item)
 updateStatusButton(button, getStatus("item"))
@@ -192,9 +214,9 @@ local protected = upvalue(visitSlots, "isProtectedItem")
 assert(protected("item"), "Bank marks must use existing protection")
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flag item for: Bank" and #GameTooltip.lines == 1
-  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick mark as Junk.")
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
 button.scripts.OnClick(button, "RightButton")
-assert(profile.trashItems.item and not profile.bankItems.item and not protected("item"))
+assert(not profile.trashItems.item and profile.bankItems.item and protected("item"))
 entries[6].selectStatus()
 assert(profile.mailItems.item and not profile.trashItems.item)
 updateStatusButton(button, getStatus("item"))
