@@ -30,7 +30,9 @@ local function widget()
   function object:CreateTexture() return widget() end
   function object:CreateMaskTexture() return widget() end
   function object:CreateFontString() return widget() end
-  function object:SetTexture(texture) self.texture = texture end
+  function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
+  function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
+  function object:SetTexCoord(...) self.texCoord = { ... } end
   function object:SetText(text) self.text = text end
   function object:Show() self.shown = true end
   function object:Hide() self.shown = false end
@@ -58,6 +60,14 @@ local notifications = 0
 --- Supply the options registry notification.
 ---@return table registry
 function LibStub() return { NotifyChange = function() notifications = notifications + 1 end } end
+--- Format atlas markup for status menu labels.
+---@param atlas string Atlas name.
+---@param width number Icon width.
+---@param height number Icon height.
+---@return string markup
+function CreateAtlasMarkup(atlas, width, height)
+  return ("|A:%s:%d:%d|a"):format(atlas, width, height)
+end
 GameTooltip = widget()
 function GameTooltip:SetOwner() end
 function GameTooltip:SetText(text) self.text = text; self.lines = {} end
@@ -119,24 +129,38 @@ MenuUtil = {
 }
 button.scripts.OnClick(button, "LeftButton")
 assert(#entries == 6 and entries[1].checked())
-for index, label in ipairs({ "Vendor", "Protect", "Auction", "Bank", "Mail" }) do
-  assert(entries[index + 1].label:find("|T", 1, true) and entries[index + 1].label:find(label, 1, true))
+for index, expected in ipairs({
+  { "Vendor", "|A:bags-junkcoin:" },
+  { "Auction", "|TInterface\\Minimap\\Tracking\\Auctioneer:" },
+  { "Protect", "|A:ui-castingbar-shield:" },
+  { "Bank", "|TInterface\\Minimap\\Tracking\\Banker:" },
+  { "Mail", "|TInterface\\Minimap\\Tracking\\Mailbox:" },
+}) do
+  local label = entries[index + 1].label
+  assert(label:find(expected[1], 1, true) and label:find(expected[2], 1, true))
 end
 entries[2].selectStatus()
 assert(profile.trashItems.item == row.statusInfo and entries[2].checked())
 updateStatusButton(button, getStatus("item"))
-assert(button.icon.shown and button.icon.texture and not button.text.shown)
+assert(button.icon.shown and button.icon.atlas == "bags-junkcoin" and not button.text.shown)
 button.scripts.OnClick(button, "RightButton")
 assert(not getStatus("item"), "Right-click must clear a vendor mark")
 button.scripts.OnClick(button, "RightButton")
 assert(getStatus("item").id == "vendor", "Right-click must mark an unmarked item for vendor")
 
-entries[3].selectStatus()
-assert(profile.protectedItems.item and not profile.trashItems.item)
 entries[4].selectStatus()
+assert(profile.protectedItems.item and not profile.trashItems.item)
+updateStatusButton(button, getStatus("item"))
+assert(button.icon.atlas == "ui-castingbar-shield")
+entries[3].selectStatus()
 assert(profile.auctionItems.item and not profile.protectedItems.item and not profile.trashItems.item)
+updateStatusButton(button, getStatus("item"))
+assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Auctioneer"
+  and table.concat(button.icon.texCoord, ",") == "0,1,0,1")
 entries[5].selectStatus()
 assert(profile.bankItems.item and not profile.auctionItems.item)
+updateStatusButton(button, getStatus("item"))
+assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Banker")
 local visitSlots = upvalue(upvalue(module.MERCHANT_SHOW, "sellMarkedTrashItems"), "forEachSellableTrashSlot")
 local protected = upvalue(visitSlots, "isProtectedItem")
 assert(protected("item"), "Bank marks must use existing protection")
@@ -146,6 +170,8 @@ button.scripts.OnClick(button, "RightButton")
 assert(profile.trashItems.item and not profile.bankItems.item and not protected("item"))
 entries[6].selectStatus()
 assert(profile.mailItems.item and not profile.trashItems.item)
+updateStatusButton(button, getStatus("item"))
+assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Mailbox")
 entries[1].selectStatus()
 assert(not getStatus("item"))
 assert(notifications == merchantUpdates and notifications > 0)
@@ -162,6 +188,9 @@ local legacy
 function EasyMenu(menu) legacy = menu end
 button.scripts.OnClick(button, "LeftButton")
 assert(#legacy == 7 and legacy[3].text:find("Vendor", 1, true))
+assert(legacy[4].text:find("Auction", 1, true) and legacy[5].text:find("Protect", 1, true))
+assert(legacy[3].text:find("|A:bags-junkcoin:", 1, true)
+  and legacy[6].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))
 legacy[7].func()
 assert(profile.mailItems.other and not profile.trashItems.other)
 legacy[2].func()

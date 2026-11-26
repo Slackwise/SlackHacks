@@ -55,12 +55,13 @@ local function sortValueBefore(left, right)
 end
 
 local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
+local PROTECT_STATUS = { id = "protect", name = "Protect", field = "protectedItems", atlas = PROTECT_ICON_ATLAS }
 local ITEM_STATUSES = {
-  { id = "vendor", name = "Vendor", field = "trashItems", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
-  { id = "protect", name = "Protect", field = "protectedItems", icon = "Interface\\Icons\\INV_Shield_04" },
-  { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Icons\\INV_Hammer_04" },
-  { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
-  { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Icons\\INV_Letter_15" },
+  { id = "vendor", name = "Vendor", field = "trashItems", atlas = "bags-junkcoin" },
+  { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Minimap\\Tracking\\Auctioneer" },
+  PROTECT_STATUS,
+  { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Minimap\\Tracking\\Banker" },
+  { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Minimap\\Tracking\\Mailbox" },
 }
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
@@ -433,7 +434,7 @@ end
 ---@return table|nil status Selected status definition.
 local function getItemStatus(key)
   local listviewSettings = settings()
-  if listviewSettings.protectedItems[key] ~= nil then return ITEM_STATUSES[2] end
+  if listviewSettings.protectedItems[key] ~= nil then return PROTECT_STATUS end
   for _, status in ipairs(ITEM_STATUSES) do
     if listviewSettings[status.field][key] ~= nil then return status end
   end
@@ -455,6 +456,15 @@ local function setItemStatus(key, statusInfo, selected)
   if registry then registry:NotifyChange("SlackHacks") end
 end
 
+--- Format a status icon and label for either context-menu implementation.
+---@param status table Item status definition.
+---@return string label Icon markup followed by the status name.
+local function statusMenuLabel(status)
+  local icon = status.atlas and CreateAtlasMarkup(status.atlas, 16, 16)
+    or "|T" .. status.icon .. ":16:16|t"
+  return icon .. " " .. status.name
+end
+
 --- Open a menu for selecting or clearing the item's single status.
 ---@param anchor table Status button.
 ---@param key string Item status key.
@@ -468,7 +478,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
         function() setItemStatus(key, statusInfo, nil) end)
       for _, entry in ipairs(ITEM_STATUSES) do
         local status = entry
-        local label = "|T" .. status.icon .. ":16:16|t " .. status.name
+        local label = statusMenuLabel(status)
         root:CreateRadio(label, function() return getItemStatus(key) == status end,
           function() setItemStatus(key, statusInfo, status) end)
       end
@@ -482,7 +492,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
     for _, entry in ipairs(ITEM_STATUSES) do
       local status = entry
       menu[#menu + 1] = {
-        text = "|T" .. status.icon .. ":16:16|t " .. status.name,
+        text = statusMenuLabel(status),
         checked = function() return getItemStatus(key) == status end,
         func = function() setItemStatus(key, statusInfo, status) end,
       }
@@ -499,7 +509,13 @@ end
 ---@param status table|nil Selected status definition.
 local function updateStatusButton(button, status)
   if status then
-    button.icon:SetTexture(status.icon)
+    if status.atlas then
+      button.icon:SetAtlas(status.atlas)
+    else
+      button.icon:SetTexture(status.icon)
+      -- A previous atlas may have left cropped texture coordinates on this reused row.
+      button.icon:SetTexCoord(0, 1, 0, 1)
+    end
     button.icon:Show()
     button.text:Hide()
   else
