@@ -115,12 +115,11 @@ upvalue(createFooter, "content", content)
 assert(#bagIDs() == 6 and bagIDs()[6] == 5, "Retail must include reagent bag without a ReagentBag enum")
 createFooter()
 local checkbox = frames.SlackHacksListviewBagReagentToggle
-local footer = upvalue(createFooter, "footer")
 assert(checkbox.shown and checkbox.checked, "Retail checkbox must be visible and initially checked")
 assert(checkbox.parent == content, "Checkbox must be a child of the bag container's content frame")
 assert(checkbox.frameLevel > content.frameLevel, "Checkbox must render above the container border")
 assert(checkbox.Text.label == "Reagent Bag", "Checkbox label must match")
-assert(checkbox.anchor[2] == footer.sellTrashButton and checkbox.anchor[3] == "LEFT", "Checkbox must be left of Sell Trash")
+assert(checkbox.anchor[2] == content.openBagsButton and checkbox.anchor[3] == "LEFT", "Checkbox must be left of Open Bags")
 checkbox.checked = false
 checkbox.scripts.OnClick(checkbox)
 assert(profile.showReagentBagContents == false and refreshes == 1, "Unchecking must persist and refresh rows")
@@ -164,7 +163,7 @@ function bagFrame:Show() self.shown = true end
 function bagFrame:Hide() self.shown = false end
 upvalue(module.OnNativeBagOpen, "frame", bagFrame)
 upvalue(module.OnNativeBagOpen, "hideDefaultBags", function() end)
-upvalue(module.MERCHANT_SHOW, "updateSellTrashButton", function() end)
+upvalue(module.MERCHANT_SHOW, "updateMerchantJunkButton", function() end)
 profile.enabled = true
 profile.showListviewBag = true
 local hooks = {}

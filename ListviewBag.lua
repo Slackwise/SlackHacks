@@ -292,7 +292,7 @@ local expandedGroups = {}
 local viewToggleButton
 local bagKeyBindingButton
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
-local sellMarkedTrashItems, updateSellTrashButton
+local sellMarkedTrashItems, updateMerchantJunkButton
 -- Tracked from MERCHANT_SHOW/MERCHANT_CLOSED rather than MerchantFrame:IsShown(), because Blizzard's
 -- frame may not have shown/hidden yet when our handler for the same event runs.
 local merchantOpen = false
@@ -417,7 +417,7 @@ local function cycleStatus(key, statusInfo)
     settings().protectedItems[key] = statusInfo
   end
   renderRows()
-  updateSellTrashButton()
+  updateMerchantJunkButton()
 end
 
 local function createRow(index)
@@ -803,18 +803,11 @@ local function createFooter()
   footer.moneyFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
-  footer.sellTrashButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
-  footer.sellTrashButton:SetSize(80, 20)
-  footer.sellTrashButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
-  footer.sellTrashButton:SetText("Sell Trash")
-  footer.sellTrashButton:SetEnabled(false)
-  footer.sellTrashButton:SetScript("OnClick", function() sellMarkedTrashItems() end)
-
   footer.reagentCheckbox = CreateFrame("CheckButton", "SlackHacksListviewBagReagentToggle", content, "UICheckButtonTemplate")
   -- Override the template's frame level so the checkbox renders above the container's NineSlice.
   footer.reagentCheckbox:SetFrameLevel(content:GetFrameLevel() + 1)
   footer.reagentCheckbox:SetSize(18, 18)
-  footer.reagentCheckbox:SetPoint("RIGHT", footer.sellTrashButton, "LEFT", -75, 0)
+  footer.reagentCheckbox:SetPoint("RIGHT", content.openBagsButton, "LEFT", -75, 0)
   local reagentCheckboxText = footer.reagentCheckbox.text or footer.reagentCheckbox.Text
     or _G[footer.reagentCheckbox:GetName() .. "Text"]
   if reagentCheckboxText then
@@ -1226,10 +1219,7 @@ end
 -- quality.
 
 --- Visit every bag slot holding a marked-trash item that a merchant would actually buy right now.
--- Shared by selling and the Sell Trash button state so the button is only enabled when clicking it
--- would sell something. Skips items with no vendor value (merchants refuse them, so they'd keep the
--- button lit forever) and locked items (already mid-sale or otherwise in use, so they'd be counted
--- again before the bag update that removes them arrives).
+-- Skip items without vendor value and locked items already being sold or otherwise in use.
 -- @param callback function|nil called as callback(bagID, slot) for each sellable slot.
 -- @return number count of sellable trash slots found.
 local function forEachSellableTrashSlot(callback)
@@ -1251,26 +1241,33 @@ local function forEachSellableTrashSlot(callback)
   return count
 end
 
---- Enable the Sell Trash button only while a merchant is open and there's sellable marked trash.
-updateSellTrashButton = function()
-  if not footer or not footer.sellTrashButton then return end
-  footer.sellTrashButton:SetEnabled(merchantOpen and forEachSellableTrashSlot() > 0)
+--- Extend the native junk button's enabled state to include sellable marked items.
+updateMerchantJunkButton = function()
+  if not merchantOpen or not isModuleEnabled() or not _G.MerchantSellAllJunkButton
+    or not C_MerchantFrame or not C_MerchantFrame.GetNumJunkItems then return end
+  local hasItems = C_MerchantFrame.GetNumJunkItems() > 0 or forEachSellableTrashSlot() > 0
+  MerchantSellAllJunkButton.Icon:SetDesaturated(not hasItems)
+  MerchantSellAllJunkButton:SetEnabled(hasItems)
 end
 
---- Sell every marked-trash item a merchant will buy, then refresh the Sell Trash button state.
+--- Sell every marked-trash item a merchant will buy, then refresh the native button state.
 sellMarkedTrashItems = function()
   forEachSellableTrashSlot(C_Container.UseContainerItem)
-  -- UseContainerItem locks each slot immediately, so the sold items are already excluded here even
-  -- though the bag update that removes them arrives later.
-  updateSellTrashButton()
+  updateMerchantJunkButton()
 end
 
 local merchantJunkHooked = false
+--- Hook Blizzard's merchant updates and its actual sale, including the stored confirmation callback.
 local function hookMerchantJunkButton()
-  if merchantJunkHooked or not _G.MerchantFrame_OnSellAllJunkButtonConfirmed then return end
+  if merchantJunkHooked or not _G.MerchantFrame_Update or not _G.MerchantSellAllJunkButton
+    or not C_MerchantFrame or not C_MerchantFrame.SellAllJunkItems
+    or not C_MerchantFrame.GetNumJunkItems then return end
   merchantJunkHooked = true
-  hooksecurefunc("MerchantFrame_OnSellAllJunkButtonConfirmed", function()
-    if isModuleEnabled() and not settings().autoSellMarkedItems then
+  hooksecurefunc("MerchantFrame_Update", updateMerchantJunkButton)
+  -- Blizzard stores the original confirmation function in popup data, so hooking its global name
+  -- misses confirmation. Hook the API it calls instead, after Blizzard has started its sale.
+  hooksecurefunc(C_MerchantFrame, "SellAllJunkItems", function()
+    if merchantOpen and isModuleEnabled() then
       sellMarkedTrashItems()
     end
   end)
@@ -1299,8 +1296,8 @@ function module:OnEnable()
   mailOpen = MailFrame and MailFrame:IsShown() or false
   auctionOpen = (AuctionHouseFrame and AuctionHouseFrame:IsShown())
     or (AuctionFrame and AuctionFrame:IsShown()) or false
-  updateSellTrashButton()
   hookMerchantJunkButton()
+  updateMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
@@ -1325,10 +1322,12 @@ function module:OnDisable()
   self:UpdateListViewBindings()
   showDefaultBags()
   EventRegistry:UnregisterCallback("TokenFrame.OnTokenWatchChanged", self)
+  if merchantOpen and merchantJunkHooked then MerchantFrame_Update() end
 end
 
 function module:MERCHANT_SHOW()
   merchantOpen = true
+  hookMerchantJunkButton()
   if settings().showListviewBag then
     hideDefaultBags()
     frame:Show()
@@ -1336,13 +1335,12 @@ function module:MERCHANT_SHOW()
   if settings().autoSellMarkedItems then
     sellMarkedTrashItems()
   end
-  updateSellTrashButton()
+  updateMerchantJunkButton()
   renderRows()
 end
 
 function module:MERCHANT_CLOSED()
   merchantOpen = false
-  updateSellTrashButton()
   renderRows()
 end
 
@@ -1381,7 +1379,7 @@ end
 function module:Refresh()
   if not frame then return end
   renderRows()
-  updateSellTrashButton()
+  updateMerchantJunkButton()
   if frame:IsShown() then
     updateFooter()
   end

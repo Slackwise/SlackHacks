@@ -1664,8 +1664,7 @@ options = {
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Items Marked for Vendoring",
-              desc = "Sell marked items automatically when opening a merchant. Otherwise, they sell when you " ..
-                "confirm Blizzard's Sell All Junk action.",
+              desc = "Sell marked items automatically when opening a vendor.",
               type = "toggle",
               get = function() return db.profile.listviewBag.autoSellMarkedItems end,
               set = function(_, value) db.profile.listviewBag.autoSellMarkedItems = value end,

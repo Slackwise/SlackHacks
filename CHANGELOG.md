@@ -2,6 +2,9 @@
 
 ## v33
 
+### Inventory
+- Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
+
 ### Utilities
 - Auto-Open Loot Containers: Removed profession knowledge as it cannot be auto-opened without creating a manual button which isn't much better than just clicking it yourself.
 
