@@ -16,6 +16,7 @@
 - Added Listview Bag filters for item flags and categories, including an Essentials category for common reusable items; the dropdown shows how many filters are active.
 - Forever arrows and edible raw fish now appear under Consumables; edible raw fish also remain under Reagents.
 - The bag portrait and settings cog open a menu for Listview Bag settings, switching views, crest tracking, and Auto-Sell Junk. Auto-Sell Junk sells unprotected greys and marked items; Blizzard's grey sale still sells all greys when used separately.
+- The Listview Bag footer shows used bag slots and warns when three or fewer remain.
 
 ## v33
 

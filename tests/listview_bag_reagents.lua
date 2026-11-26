@@ -90,6 +90,9 @@ function CreateFrame(frameType, name, parent, template)
   --- Create a mocked texture.
   ---@return table texture
   function widget:CreateTexture() return CreateFrame("Texture") end
+  --- Create a mocked font string.
+  ---@return table fontString
+  function widget:CreateFontString() return CreateFrame("FontString") end
   if name then frames[name] = widget end
   if template == "UIDropDownMenuTemplate" and name then
     _G[name .. "Button"] = CreateFrame("Button", nil, widget)

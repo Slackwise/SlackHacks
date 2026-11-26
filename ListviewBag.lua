@@ -1757,7 +1757,7 @@ renderRows = function()
 end
 
 --=====================================================================
--- Footer: gold + tracked currencies + a shortcut to open the Currency panel
+-- Footer: bag slots, gold, tracked currencies, and a Currency panel shortcut
 --=====================================================================
 
 local function crestTokenOnEnter(self)
@@ -1829,9 +1829,17 @@ local function updateFiltersLabel()
   end
 end
 
---- Refresh the footer balances and filter summary.
+--- Refresh the footer slots, balances, and filter summary.
 local function updateFooter()
   updateFiltersLabel()
+  local totalSlots, freeSlots = 0, 0
+  for _, bagID in ipairs(bagIDs()) do
+    totalSlots = totalSlots + C_Container.GetContainerNumSlots(bagID)
+    freeSlots = freeSlots + C_Container.GetContainerNumFreeSlots(bagID)
+  end
+  local count = ("%d / %d"):format(totalSlots - freeSlots, totalSlots)
+  if freeSlots <= 3 then count = "|cffff4040" .. count .. "|r" end
+  footer.slotCount:SetText(count .. " slots used")
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Update()
@@ -1850,6 +1858,17 @@ local function updateFooter()
   end
   if crestWidth > 0 then width = width + crestWidth + 4 end
   footer.balances:SetWidth(width)
+
+  -- Move currencies above the controls if all tracked currencies do not fit on one row.
+  local controlsWidth = 4 + footer.slotCount:GetStringWidth() + 6 + footer.freeSlotsButton:GetWidth() + 4
+  local wrap = controlsWidth + width + 24 > footer:GetWidth()
+  footer:SetHeight(wrap and 40 or 20)
+  footer.balances:ClearAllPoints()
+  footer.balances:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", -24, wrap and 20 or 0)
+  footer.currencyButton:ClearAllPoints()
+  footer.currencyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, wrap and 20 or 0)
+  content.listInset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -4, wrap and 50 or 30)
+  scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -30, wrap and 54 or 34)
 end
 
 --- Populate the native filters dropdown or open its legacy menu.
@@ -1932,9 +1951,17 @@ local function createFooter()
   footer.Bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Rock", true, true)
   footer.Bg:SetAllPoints()
 
+  footer.slotCount = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  footer.slotCount:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 4, 4)
+
+  footer.freeSlotsButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
+  footer.freeSlotsButton:SetSize(90, 20)
+  footer.freeSlotsButton:SetPoint("LEFT", footer.slotCount, "RIGHT", 6, 0)
+  footer.freeSlotsButton:SetText("Free-Up Slots")
+
   footer.balances = CreateFrame("Frame", nil, footer)
   footer.balances:SetSize(168, 20)
-  footer.balances:SetPoint("RIGHT", footer, "RIGHT", -24, 0)
+  footer.balances:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", -24, 0)
 
   footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer.balances, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetSize(168, 16)
@@ -1962,7 +1989,7 @@ local function createFooter()
   footer.currencyButton:SetNormalTexture(133784)
   footer.currencyButton:SetPushedTexture(133784)
   footer.currencyButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-  footer.currencyButton:SetPoint("RIGHT", footer, "RIGHT", 0, 0)
+  footer.currencyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, 0)
   footer.currencyButton:SetScript("OnClick", function() ToggleCharacter("TokenFrame") end)
   footer.currencyButton:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
@@ -2418,6 +2445,7 @@ local function buildFrame()
 
   -- Recessed marble list panel behind the rows, matching the guild roster's own InsetFrameTemplate look.
   local listInset = CreateFrame("Frame", nil, content, "InsetFrameTemplate")
+  content.listInset = listInset
   listInset:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", -4 - COLLAPSE_WIDTH, 0)
   listInset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -4, 30)
 

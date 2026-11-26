@@ -20,7 +20,7 @@ local function widget()
   --- Accept irrelevant frame setup.
   local function noop() end
   setmetatable(object, { __index = function(_, key)
-    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" and key ~= "mailMode" then
+    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" and key ~= "mailMode" and key ~= "legacy" then
       return noop
     end
   end })
@@ -41,6 +41,10 @@ local function widget()
   function object:ClearAllPoints() self.points = {} end
   function object:SetPoint(point, ...) self.points[point] = { ... } end
   function object:SetHeight(height) self.height = height end
+  function object:SetSize(width, height) self.width, self.height = width, height end
+  function object:SetWidth(width) self.width = width end
+  function object:GetWidth() return self.width or 0 end
+  function object:GetStringWidth() return #(self.text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) * 6 end
   function object:SetTextColor(...) self.textColor = { ... } end
   function object:SetWordWrap(enabled) self.wordWrap = enabled end
   function object:SetEnabled(enabled) self.enabled = enabled end
@@ -55,6 +59,7 @@ local function widget()
   function object:SetRotation(rotation) self.rotation = rotation end
   function object:SetTexCoord(...) self.texCoord = { ... } end
   function object:SetText(text) self.text = text end
+  function object:IsShown() return self.shown end
   function object:Show() self.shown = true end
   function object:Hide() self.shown = false end
   function object:SetShown(shown) self.shown = shown end
@@ -448,7 +453,7 @@ assert(not getStatus("other"))
 
 -- Build the actual window as on reload, including its status header atlas.
 local buildFrame = upvalue(module.OnEnable, "buildFrame")
-upvalue(buildFrame, "createFooter", function() end)
+local createFooter = upvalue(buildFrame, "createFooter", function() end)
 UISpecialFrames, ITEM_SEARCHBAR_LIST, tinsert = {}, {}, table.insert
 --- Supply the player name for the window title.
 ---@return string name
@@ -1061,7 +1066,6 @@ tinsert = table.insert
 function UnitName() return "Player" end
 GameTooltip_Hide = function() end
 upvalue(realBuildFrame, "frame", false)
-upvalue(realBuildFrame, "createFooter", function() end)
 realBuildFrame()
 local content = upvalue(realBuildFrame, "content")
 local openBags = content.openBagsButton
@@ -1096,6 +1100,79 @@ for _, frame in ipairs(constructed) do
 end
 assert(portraitButton and portraitButton.clicks[1] == "LeftButtonUp"
   and portraitButton.clicks[2] == "RightButtonUp", "The portrait must open its context menu on either click")
+
+-- Exercise the constructed footer with reagent bags, changing counts, and wide currency strips.
+MenuUtil = { CreateContextMenu = function() end }
+C_AddOns = { LoadAddOn = function() end }
+--- Accept the footer's maximum money-frame width.
+function MoneyFrame_SetMaxDisplayWidth() end
+--- Supply a balance for the footer.
+---@return number money Balance in copper.
+function GetMoney() return 0 end
+createFooter()
+local footer = upvalue(createFooter, "footer")
+footer:SetWidth(684)
+footer.filtersButton.legacy = false
+footer.tokenFrame.Update = function() end
+footer.crestFrame.Update = function() end
+footer.tokenFrame.Tokens, footer.crestFrame.Tokens = {}, {}
+footer.tokenFrame.ShouldShow = function() return false end
+footer.crestFrame.ShouldShow = function() return false end
+--- Emulate the native money-frame width reset.
+function MoneyFrame_Update() footer.moneyFrame:SetWidth(100) end
+local sizes = { [0] = 16, 16, 16, 16, 16, 20 }
+local free = { [0] = 10, 10, 10, 10, 10, 6 }
+C_Container.GetContainerNumSlots = function(bagID) return sizes[bagID] end
+C_Container.GetContainerNumFreeSlots = function(bagID) return free[bagID], 0 end
+local updateFooter = upvalue(module.Refresh, "updateFooter")
+updateFooter()
+assert(footer.slotCount.text == "44 / 100 slots used", "Slot counts must include reagent bags")
+assert(footer.slotCount.points.BOTTOMLEFT[1] == footer and footer.freeSlotsButton.points.LEFT[1] == footer.slotCount
+  and footer.freeSlotsButton.text == "Free-Up Slots" and not footer.freeSlotsButton.scripts.OnClick,
+  "The inactive free-slots button must sit to the right of the footer counter")
+assert(footer.height == 20 and footer.balances.points.BOTTOMRIGHT[4] == 0)
+
+free = { [0] = 3, 0, 0, 0, 0, 0 }
+upvalue(module.Refresh, "renderRows", function() end)
+upvalue(module.Refresh, "updateMerchantJunkButton", function() end)
+upvalue(realBuildFrame, "frame"):Show()
+module:Refresh()
+assert(footer.slotCount.text == "|cffff404097 / 100|r slots used",
+  "A bag refresh must highlight the count when three slots remain")
+free[0] = 4
+module:Refresh()
+assert(footer.slotCount.text == "96 / 100 slots used", "Four free slots must not be highlighted")
+free[0] = 0
+updateFooter()
+assert(footer.slotCount.text == "|cffff4040100 / 100|r slots used", "A full bag must remain highlighted")
+SlackHacks.isRetailOrForever = function() return false end
+updateFooter()
+assert(footer.slotCount.text == "|cffff404080 / 80|r slots used", "Clients without reagent bags must exclude them")
+SlackHacks.isRetailOrForever = function() return true end
+
+--- Create fixed-width currency tokens for the footer layout test.
+---@param count number Number of tokens.
+---@return table tokens Mock tokens.
+local function currencyTokens(count)
+  local tokens = {}
+  for index = 1, count do tokens[index] = { GetWidth = function() return 50 end } end
+  return tokens
+end
+footer.tokenFrame.Tokens, footer.crestFrame.Tokens = currencyTokens(3), currencyTokens(5)
+footer.tokenFrame.ShouldShow = function() return true end
+footer.crestFrame.ShouldShow = function() return true end
+updateFooter()
+local scrollFrame = upvalue(realBuildFrame, "scrollFrame")
+assert(footer.height == 40 and footer.balances.points.BOTTOMRIGHT[4] == 20
+  and footer.currencyButton.points.BOTTOMRIGHT[4] == 20
+  and content.listInset.points.BOTTOMRIGHT[4] == 50 and scrollFrame.points.BOTTOMRIGHT[4] == 54,
+  "Wide currency strips must move above the controls without overlapping the item list")
+footer.tokenFrame.ShouldShow = function() return false end
+footer.crestFrame.ShouldShow = function() return false end
+updateFooter()
+assert(footer.height == 20 and footer.balances.points.BOTTOMRIGHT[4] == 0
+  and content.listInset.points.BOTTOMRIGHT[4] == 30 and scrollFrame.points.BOTTOMRIGHT[4] == 34,
+  "The footer and item list must return to one row when currencies fit")
 
 upvalue(startMail, "mailJob", {})
 module.IsEnabled = function() return false end
