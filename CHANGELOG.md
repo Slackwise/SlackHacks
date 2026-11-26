@@ -10,6 +10,7 @@
 - The auto-vendor list now shows item links, icons, and tooltips, and can be cleared with confirmation.
 - Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.
 - Item flags block conflicting Listview Bag actions; grey items can no longer be flagged.
+- Added Listview Bag filters for item flags, categories, and reagent-bag contents.
 
 ## v33
 

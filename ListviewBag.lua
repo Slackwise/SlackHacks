@@ -63,6 +63,29 @@ local ITEM_STATUSES = {
   { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Minimap\\Tracking\\Banker" },
   { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Minimap\\Tracking\\Mailbox" },
 }
+local ITEM_CATEGORIES = {
+  { id = "equipment", name = "Equipment" },
+  { id = "consumables", name = "Consumables" },
+  { id = "special", name = "Special" },
+  { id = "reagents", name = "Reagents" },
+  { id = "professionGoods", name = "Profession Goods" },
+  { id = "junk", name = "Junk" },
+  { id = "quest", name = "Quest Items" },
+  { id = "other", name = "Other" },
+}
+local SPECIAL_ITEM_IDS = {
+  [6948] = true, -- Hearthstone
+  [211527] = true, -- Cozy Sleeping Bag
+  [280612] = true, -- Night Watchman's Torch
+}
+local EQUIPMENT_SLOTS = {
+  INVTYPE_HEAD = true, INVTYPE_NECK = true, INVTYPE_SHOULDER = true, INVTYPE_BODY = true,
+  INVTYPE_CHEST = true, INVTYPE_WAIST = true, INVTYPE_LEGS = true, INVTYPE_FEET = true,
+  INVTYPE_WRIST = true, INVTYPE_HAND = true, INVTYPE_FINGER = true, INVTYPE_TRINKET = true,
+  INVTYPE_WEAPON = true, INVTYPE_SHIELD = true, INVTYPE_RANGED = true, INVTYPE_CLOAK = true,
+  INVTYPE_2HWEAPON = true, INVTYPE_TABARD = true, INVTYPE_ROBE = true, INVTYPE_WEAPONMAINHAND = true,
+  INVTYPE_WEAPONOFFHAND = true, INVTYPE_HOLDABLE = true, INVTYPE_THROWN = true, INVTYPE_RANGEDRIGHT = true,
+}
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
 local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
@@ -92,6 +115,8 @@ local function settings()
   for _, status in ipairs(ITEM_STATUSES) do
     listviewSettings[status.field] = listviewSettings[status.field] or {}
   end
+  listviewSettings.flagFilters = listviewSettings.flagFilters or {}
+  listviewSettings.categoryFilters = listviewSettings.categoryFilters or {}
   local columnOrder = listviewSettings and listviewSettings.columnOrder
   if columnOrder then
     for index = #columnOrder, 1, -1 do
@@ -239,7 +264,8 @@ local function collectGroups()
   -- Decorate each group with the details that need a slower lookup (GetItemInfo/tooltip), using the
   -- group's first entry as the representative bag slot for bind/track text.
   for _, group in ipairs(order) do
-    local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = C_Item.GetItemInfo(group.hyperlink)
+    local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, sellPrice,
+      classID, _, _, _, _, isCraftingReagent = C_Item.GetItemInfo(group.hyperlink)
     group.itemName = itemName or group.itemName
     group.quality = group.quality or quality
     if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
@@ -255,6 +281,8 @@ local function collectGroups()
     group.itemLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink) or itemLevel
     group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
     group.isArmor = classID == ARMOR_CLASS_ID
+    group.classID, group.equipLoc, group.sellPrice, group.isCraftingReagent =
+      classID, itemEquipLoc, sellPrice, isCraftingReagent
     if group.isArmor then
       group.armorType = itemSubType
       group.armorSlot = itemEquipLoc and _G[itemEquipLoc]
@@ -445,6 +473,34 @@ local function getItemStatus(key)
     if listviewSettings[status.field][key] ~= nil then return status end
   end
   if listviewSettings.trashItems[key] ~= nil then return ITEM_STATUSES[1] end
+end
+
+--- Check an item against the selected flag and item-category filters.
+---@param group table Collected item and its metadata.
+---@return boolean matches Whether the item is visible.
+local function matchesFilters(group)
+  local bag = settings()
+  local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
+  if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
+
+  -- The game does not expose its bag-sorter classification; these follow ElvUI's item-property rules.
+  local categories = {
+    equipment = EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()),
+    consumables = group.classID == 0,
+    special = SPECIAL_ITEM_IDS[group.itemID],
+    reagents = group.isCraftingReagent,
+    professionGoods = group.classID == 7,
+    junk = group.quality == 0 and group.sellPrice ~= nil,
+    quest = group.classID == 12 or group.bindType == 4,
+  }
+  local classified = false
+  for _, category in ipairs(ITEM_CATEGORIES) do
+    if categories[category.id] then
+      classified = true
+      if bag.categoryFilters[category.id] ~= false then return true end
+    end
+  end
+  return not classified and bag.categoryFilters.other ~= false
 end
 
 --- Replace an item's status while retaining the metadata used by vendor matching.
@@ -813,38 +869,42 @@ end
 
 -- Flattens grouped items into the final display list: one row per group, plus (when expanded) one
 -- child row per underlying bag slot so a specific stack can be dragged/split/locked individually.
+--- Build display rows for groups that match the selected filters.
+---@return table rows Visible item rows.
 local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
   for _, group in ipairs(groups) do
-    group.isGroupHeader = #group.entries > 1
-    rows[#rows + 1] = group
-    if group.isGroupHeader and expandedGroups[group.key] then
-      for _, entry in ipairs(group.entries) do
-        rows[#rows + 1] = {
-          isChild = true,
-          groupKey = group.key,
-          itemID = group.itemID,
-          hyperlink = group.hyperlink,
-          itemName = group.itemName,
-          icon = group.icon,
-          quality = group.quality,
-          craftedQuality = group.craftedQuality,
-          qualityAtlas = group.qualityAtlas,
-          count = entry.count,
-          entries = { entry },
-          isArmor = group.isArmor,
-          itemLevel = group.itemLevel,
-          upgradeTrack = group.upgradeTrack,
-          armorType = group.armorType,
-          armorSlot = group.armorSlot,
-          bindLabel = group.bindLabel,
-          bindType = group.bindType,
-          accountBound = group.accountBound,
-          isBound = entry.isBound,
-          statusKey = group.statusKey,
-          statusInfo = group.statusInfo,
-        }
+    if matchesFilters(group) then
+      group.isGroupHeader = #group.entries > 1
+      rows[#rows + 1] = group
+      if group.isGroupHeader and expandedGroups[group.key] then
+        for _, entry in ipairs(group.entries) do
+          rows[#rows + 1] = {
+            isChild = true,
+            groupKey = group.key,
+            itemID = group.itemID,
+            hyperlink = group.hyperlink,
+            itemName = group.itemName,
+            icon = group.icon,
+            quality = group.quality,
+            craftedQuality = group.craftedQuality,
+            qualityAtlas = group.qualityAtlas,
+            count = entry.count,
+            entries = { entry },
+            isArmor = group.isArmor,
+            itemLevel = group.itemLevel,
+            upgradeTrack = group.upgradeTrack,
+            armorType = group.armorType,
+            armorSlot = group.armorSlot,
+            bindLabel = group.bindLabel,
+            bindType = group.bindType,
+            accountBound = group.accountBound,
+            isBound = entry.isBound,
+            statusKey = group.statusKey,
+            statusInfo = group.statusInfo,
+          }
+        end
       end
     end
   end
@@ -1012,6 +1072,87 @@ local function updateFooter()
   footer.balances:SetWidth(width)
 end
 
+--- Open the list-view filters using the available native menu API.
+---@param anchor table Filters button.
+local function openFiltersMenu(anchor)
+  local bag = settings()
+  --- Enable every visible filter without changing other bag settings.
+  local function checkAll()
+    if isRetailOrForever() then bag.showReagentBagContents = true end
+    bag.flagFilters.unflagged = true
+    for _, status in ipairs(ITEM_STATUSES) do bag.flagFilters[status.id] = true end
+    for _, category in ipairs(ITEM_CATEGORIES) do bag.categoryFilters[category.id] = true end
+    renderRows()
+  end
+  --- Toggle a filter and refresh the displayed rows.
+  ---@param filters table Saved filter values.
+  ---@param key string Filter key.
+  local function toggle(filters, key)
+    filters[key] = filters[key] == false
+    renderRows()
+  end
+  --- Toggle whether reagent-bag slots are collected.
+  local function toggleReagentBag()
+    bag.showReagentBagContents = not bag.showReagentBagContents
+    renderRows()
+  end
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    MenuUtil.CreateContextMenu(anchor, function(_, root)
+      local checkAllButton = root:CreateButton("Check All", checkAll)
+      checkAllButton:SetResponse(MenuResponse.Refresh)
+      if isRetailOrForever() then
+        root:CreateCheckbox("Reagent Bag", function() return bag.showReagentBagContents end, toggleReagentBag)
+      end
+      root:CreateDivider()
+      root:CreateTitle("Flags")
+      root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
+        function() toggle(bag.flagFilters, "unflagged") end)
+      for _, entry in ipairs(ITEM_STATUSES) do
+        local status = entry
+        root:CreateCheckbox(status.name, function() return bag.flagFilters[status.id] ~= false end,
+          function() toggle(bag.flagFilters, status.id) end)
+      end
+      root:CreateDivider()
+      root:CreateTitle("Categories")
+      for _, entry in ipairs(ITEM_CATEGORIES) do
+        local category = entry
+        root:CreateCheckbox(category.name, function() return bag.categoryFilters[category.id] ~= false end,
+          function() toggle(bag.categoryFilters, category.id) end)
+      end
+    end)
+  else
+    local menu = {
+      { text = "Check All", notCheckable = true, keepShownOnClick = true, func = checkAll },
+    }
+    if isRetailOrForever() then
+      menu[#menu + 1] = { text = "Reagent Bag", isNotRadio = true, keepShownOnClick = true,
+        checked = function() return bag.showReagentBagContents end, func = toggleReagentBag }
+    end
+    menu[#menu + 1] = { text = "Flags", isTitle = true, notCheckable = true }
+    menu[#menu + 1] = { text = "Unflagged", isNotRadio = true, keepShownOnClick = true,
+      checked = function() return bag.flagFilters.unflagged ~= false end,
+      func = function() toggle(bag.flagFilters, "unflagged") end }
+    for _, entry in ipairs(ITEM_STATUSES) do
+      local status = entry
+      menu[#menu + 1] = { text = status.name, isNotRadio = true, keepShownOnClick = true,
+        checked = function() return bag.flagFilters[status.id] ~= false end,
+        func = function() toggle(bag.flagFilters, status.id) end }
+    end
+    menu[#menu + 1] = { text = "Categories", isTitle = true, notCheckable = true }
+    for _, entry in ipairs(ITEM_CATEGORIES) do
+      local category = entry
+      menu[#menu + 1] = { text = category.name, isNotRadio = true, keepShownOnClick = true,
+        checked = function() return bag.categoryFilters[category.id] ~= false end,
+        func = function() toggle(bag.categoryFilters, category.id) end }
+    end
+    if not module.filtersMenu then
+      module.filtersMenu = CreateFrame("Frame", "SlackHacksListviewBagFiltersMenu", UIParent, "UIDropDownMenuTemplate")
+    end
+    EasyMenu(menu, module.filtersMenu, "cursor", 0, 0, "MENU")
+  end
+end
+
+--- Create the window footer and its filter controls.
 local function createFooter()
   footer = CreateFrame("Frame", nil, content)
   footer:SetHeight(20)
@@ -1033,32 +1174,12 @@ local function createFooter()
   footer.moneyFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
-  footer.reagentCheckbox = CreateFrame("CheckButton", "SlackHacksListviewBagReagentToggle", content, "UICheckButtonTemplate")
-  -- Override the template's frame level so the checkbox renders above the container's NineSlice.
-  footer.reagentCheckbox:SetFrameLevel(content:GetFrameLevel() + 1)
-  footer.reagentCheckbox:SetSize(18, 18)
-  footer.reagentCheckbox:SetPoint("RIGHT", content.openBagsButton, "LEFT", -75, 0)
-  local reagentCheckboxText = footer.reagentCheckbox.text or footer.reagentCheckbox.Text
-    or _G[footer.reagentCheckbox:GetName() .. "Text"]
-  if reagentCheckboxText then
-    reagentCheckboxText:SetText("Reagent Bag")
-    reagentCheckboxText:SetFontObject("GameFontHighlightSmall")
-    reagentCheckboxText:ClearAllPoints()
-    reagentCheckboxText:SetPoint("LEFT", footer.reagentCheckbox, "RIGHT", 4, 0)
-    footer.reagentCheckbox:SetHitRectInsets(0, -70, 0, 0)
-  end
-  footer.reagentCheckbox:SetChecked(settings().showReagentBagContents)
-  footer.reagentCheckbox:SetScript("OnClick", function(self)
-    settings().showReagentBagContents = self:GetChecked() and true or false
-    renderRows()
-  end)
-  footer.reagentCheckbox:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText("Show contents of Reagent Bag")
-    GameTooltip:Show()
-  end)
-  footer.reagentCheckbox:SetScript("OnLeave", GameTooltip_Hide)
-  footer.reagentCheckbox:SetShown(isRetailOrForever())
+  footer.filtersButton = CreateFrame("Button", "SlackHacksListviewBagFiltersButton", content, "UIPanelButtonTemplate")
+  footer.filtersButton:SetFrameLevel(content:GetFrameLevel() + 1)
+  footer.filtersButton:SetSize(80, 20)
+  footer.filtersButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
+  footer.filtersButton:SetText("Filters")
+  footer.filtersButton:SetScript("OnClick", openFiltersMenu)
 
   footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.currencyButton:SetSize(20, 20)
