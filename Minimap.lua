@@ -2142,6 +2142,23 @@ disableAllStacking = function()
   end
   wipe(hoverContainerButtons)
 
+  local diff = getInstanceDifficultyButton()
+  local zoneButton = getZoneTextButton()
+
+  -- Native anchors can point back to buttons that depend on them in the square layout.
+  -- Detach every managed button first so restoring one cannot create a temporary cycle.
+  for _, button in ipairs(registeredButtons) do
+    if button.slackHacksRealClearAllPoints then
+      button.slackHacksRealClearAllPoints(button)
+    end
+  end
+  if diff and not registeredButtonsByFrame[diff] and diff.slackHacksRealClearAllPoints then
+    diff.slackHacksRealClearAllPoints(diff)
+  end
+  if zoneButton and not registeredButtonsByFrame[zoneButton] and zoneButton.slackHacksRealClearAllPoints then
+    zoneButton.slackHacksRealClearAllPoints(zoneButton)
+  end
+
   for _, button in ipairs(registeredButtons) do
     enableButtonStacking(button, false)
   end
@@ -2150,13 +2167,11 @@ disableAllStacking = function()
   -- Deliberately NOT wiping addonButtons/addonButtonsByFrame here -- round mode still needs the
   -- discovered list for "Show Addon Icons on Hover"/"Move Addon Icons to Addon Compartment".
 
-  local diff = getInstanceDifficultyButton()
   if diff then enableButtonStacking(diff, false) end
 
   clearAddonCompartmentEntries()
   applyBlizzardIconBorders(false)
 
-  local zoneButton = getZoneTextButton()
   if zoneButton then
     enableButtonStacking(zoneButton, false)
   end
