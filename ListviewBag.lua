@@ -662,16 +662,18 @@ end
 ---@param statusInfo table Item metadata.
 local function openMailRecipientPicker(anchor, key, statusInfo)
   if not recipientPicker then
+    local forever = isForever()
     local picker = CreateFrame("Frame", "SlackHacksMailRecipientPicker", frame, "DefaultPanelBaseTemplate")
     picker:Hide()
-    picker:SetSize(220, 590)
+    -- Forever's outfit-card artwork extends to 194 pixels despite the 169-pixel row template.
+    picker:SetSize(forever and 245 or 220, 620)
     picker:SetFrameStrata("DIALOG")
     picker:SetClampedToScreen(true)
     picker.TitleContainer.TitleText:SetText("Mail Recipients")
     local inset = CreateFrame("Frame", nil, picker, "InsetFrameTemplate")
     inset:SetPoint("TOPLEFT", 6, -21)
     inset:SetPoint("BOTTOMRIGHT", -6, 4)
-    if isForever() then
+    if forever then
       -- Forever's CharacterFrameRightPaneHost uses these atlases; Retail uses the inset itself.
       inset.Bg:SetHorizTile(false)
       inset.Bg:SetVertTile(false)
@@ -681,17 +683,22 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
       stone:SetHeight(60)
       stone:SetPoint("TOPLEFT")
       stone:SetPoint("TOPRIGHT")
+      local border = inset:CreateTexture(nil, "BORDER")
+      border:SetAtlas("common-insideframe", true)
+      border:SetPoint("TOPLEFT", inset, "TOPLEFT", 1, -59)
+      border:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -4, 2)
     end
     CreateFrame("Button", nil, picker, "UIPanelCloseButtonDefaultAnchors")
 
     local scrollBox = CreateFrame("Frame", nil, picker, "WowScrollBoxList")
-    scrollBox:SetPoint("TOPLEFT", 12, -81)
-    scrollBox:SetPoint("BOTTOMRIGHT", -28, 64)
+    scrollBox:SetPoint("TOPLEFT", forever and 11 or 12, forever and -89 or -81)
+    scrollBox:SetPoint("BOTTOMRIGHT", forever and -26 or -36, 64)
     local scrollBar = CreateFrame("EventFrame", nil, picker, "MinimalScrollBar")
-    scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", 3, 0)
-    scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", 3, 0)
+    scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", forever and -5 or 8, forever and -12 or 17)
+    scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", forever and 0 or 8, forever and 0 or 30)
     local view = CreateScrollBoxListLinearView()
     view:SetElementExtent(44)
+    view:SetPadding(0, 0, 3, 0, 2)
 
     --- Refresh the list from the profile that opened the picker.
     local function refreshRecipients()
@@ -776,7 +783,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
     end)
 
     local newRecipient
-    if isForever() then
+    if forever then
       newRecipient = CreateFrame("Button", nil, picker, "PaperDollTertiaryButtonTemplate")
       newRecipient:SetSize(180, 34)
       -- The native template's label has no parentKey or ButtonText, so update its font string directly.
@@ -849,8 +856,8 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
 
     view:SetElementInitializer("GearSetButtonTemplate", function(row, element)
       row.text:ClearAllPoints()
-      row.text:SetPoint("TOPLEFT", row, "TOPLEFT", 44, -7)
-      row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -34, -7)
+      row.text:SetPoint("TOPLEFT", row, "TOPLEFT", forever and 55 or 44, -7)
+      row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", forever and -55 or -36, -7)
       row.text:SetHeight(14)
       row.text:SetWordWrap(false)
       row.text:SetText(element.recipient.nickname)
@@ -870,7 +877,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo)
       row.SelectedBar:Hide()
       row.HighlightBar:Hide()
       row.DeleteButton:ClearAllPoints()
-      row.DeleteButton:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+      row.DeleteButton:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", forever and -21 or -2, 2)
       row.DeleteButton:Show()
       row.EditButton:ClearAllPoints()
       row.EditButton:SetPoint("RIGHT", row.DeleteButton, "LEFT", -1, 0)

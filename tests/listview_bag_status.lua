@@ -538,7 +538,8 @@ assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must regist
 
 -- Exercise the real picker callbacks with native widgets replaced by lightweight frames.
 local originalCreateFrame = CreateFrame
-local picker, inset, scroll, newRecipient, initializeRow, popupOptions, popup, extraRegion, recipientLabel
+local picker, inset, scroll, scrollBar, newRecipient, initializeRow, popupOptions, popup, extraRegion, recipientLabel
+local viewPadding
 --- Emulate Forever's character pane.
 ---@return boolean forever Whether the Forever client is active.
 function SlackHacks.isForever() return true end
@@ -575,6 +576,8 @@ function CreateFrame(kind, name, parent, template)
   elseif template == "WowScrollBoxList" then
     scroll = result
     function result:SetDataProvider(data) self.elements = data end
+  elseif template == "MinimalScrollBar" then
+    scrollBar = result
   elseif template == "PaperDollTertiaryButtonTemplate" then
     result.label = widget()
     function result.label:GetObjectType() return "FontString" end
@@ -596,6 +599,7 @@ end
 function CreateScrollBoxListLinearView()
   return {
     SetElementExtent = function() end,
+    SetPadding = function(_, ...) viewPadding = { ... } end,
     SetElementInitializer = function(_, _, initializer) initializeRow = initializer end,
   }
 end
@@ -650,9 +654,19 @@ assert(picker.shown and profile.trashItems.pick and not profile.mailItems.pick)
 assert(picker.TitleContainer.TitleText.text == "Mail Recipients")
 assert(inset.Bg.atlas == "UI-Character-Info-Stat-BG"
   and inset.paneTextures[1].atlas == "UI-Character-Info-Stat-StoneBG3")
+local innerBorder = inset.paneTextures[2]
+assert(innerBorder.atlas == "common-insideframe"
+  and innerBorder.points.TOPLEFT[1] == inset and innerBorder.points.TOPLEFT[3] == 1
+  and innerBorder.points.TOPLEFT[4] == -59 and innerBorder.points.BOTTOMRIGHT[3] == -4)
+assert(picker.width == 245 and scroll.points.TOPLEFT[1] == 11 and scroll.points.BOTTOMRIGHT[1] == -26)
+assert(viewPadding[1] == 0 and viewPadding[2] == 0 and viewPadding[3] == 3
+  and viewPadding[4] == 0 and viewPadding[5] == 2)
+local scrollWidth = picker.width + scroll.points.BOTTOMRIGHT[1] - scroll.points.TOPLEFT[1]
+assert(scrollWidth - viewPadding[3] >= 42 + 152, "Forever outfit cards must fit within the scroll area")
+assert(scrollBar.points.TOPLEFT[3] == -5 and scrollBar.points.TOPLEFT[4] == -12)
 assert(#scroll.elements == 0 and newRecipient.label.text == "New Mail Recipient")
 assert(newRecipient.points.BOTTOM[1] == picker and newRecipient.points.BOTTOM[4] == 12)
-assert(picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2] >= 10 * 44,
+assert(picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2] >= 10 * 44 + 9 * viewPadding[5] + 5,
   "The list must retain space for ten recipients")
 assert(autoCompleteSource[1] == C_AutoComplete.GetAutoCompleteResults
   and autoCompleteSource[2] == 7 and autoCompleteSource[3] == 9)
@@ -682,14 +696,16 @@ local function pickerRow(element)
 end
 local recipientRow = pickerRow(scroll.elements[1])
 assert(recipientRow.text.text == "Alt" and recipientRow.characterText.text == "Example-Realm")
+assert(recipientRow.text.points.TOPLEFT[3] == 55 and recipientRow.text.points.TOPRIGHT[3] == -55,
+  "Forever recipient text must match the native icon margin and clear the edit button")
 assert(recipientRow.characterText.font == "GameFontHighlightSmall" and recipientRow.characterText.textColor[1] == 1
   and recipientRow.characterText.textColor[2] == 1 and recipientRow.characterText.textColor[3] == 1)
 assert(recipientRow.characterText.points.TOPLEFT[1] == recipientRow.text
   and recipientRow.characterText.points.TOPLEFT[2] == "BOTTOMLEFT" and not recipientRow.characterText.wordWrap)
 assert(recipientRow.DeleteButton.points.BOTTOMRIGHT[1] == recipientRow
   and recipientRow.DeleteButton.points.BOTTOMRIGHT[2] == "BOTTOMRIGHT"
-  and recipientRow.DeleteButton.points.BOTTOMRIGHT[3] == 0
-  and recipientRow.DeleteButton.points.BOTTOMRIGHT[4] == 0)
+  and recipientRow.DeleteButton.points.BOTTOMRIGHT[3] == -21
+  and recipientRow.DeleteButton.points.BOTTOMRIGHT[4] == 2)
 assert(recipientRow.EditButton.shown and recipientRow.EditButton.points.RIGHT[1] == recipientRow.DeleteButton
   and recipientRow.EditButton.points.RIGHT[2] == "LEFT" and not recipientRow.EditButton.scripts.OnMouseDown)
 local characterText = recipientRow.characterText
@@ -757,9 +773,13 @@ SlackHacks.isForever = function() return false end
 openPicker(button, "retail", row.statusInfo)
 assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0,
   "Retail must retain its native inset background")
+assert(picker.width == 220 and picker.width + scroll.points.BOTTOMRIGHT[1] - scroll.points.TOPLEFT[1] == 172
+  and scrollBar.points.TOPLEFT[3] == 8)
 assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
 local retailRow = pickerRow({ id = 1, recipient = { nickname = "Retail", character = "Retail-Realm", icon = 123 } })
-assert(retailRow.characterText.text == "Retail-Realm" and retailRow.DeleteButton.points.BOTTOMRIGHT[1] == retailRow)
+assert(retailRow.characterText.text == "Retail-Realm" and retailRow.text.points.TOPLEFT[3] == 44
+  and retailRow.DeleteButton.points.BOTTOMRIGHT[1] == retailRow
+  and retailRow.DeleteButton.points.BOTTOMRIGHT[3] == -2 and retailRow.DeleteButton.points.BOTTOMRIGHT[4] == 2)
 popup:Hide()
 newRecipient.scripts.OnClick()
 assert(popup.shown, "Retail's new-recipient button must open the popup")
