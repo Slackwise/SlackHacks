@@ -19,6 +19,10 @@ function SlackHacks:NewModule() return {} end
 ---@return boolean retailClient
 function SlackHacks.isRetail() return retail end
 
+--- Select the mocked Forever client.
+---@return boolean foreverClient
+function SlackHacks.isForever() return forever end
+
 --- Select clients with the modern bag container.
 ---@return boolean modernClient
 function SlackHacks.isRetailOrForever() return retail or forever end
@@ -402,6 +406,106 @@ assert(#rows == 1 and rows[1].itemName == "Material" and rows[1].count == 2,
 profile.flagFilters.unflagged = false
 assert(#buildDisplayRows() == 0, "Flag filters must also apply to reagent-bag items")
 profile.flagFilters.unflagged = true
+
+-- Exercise real item-info collection as well as overlapping categories and other clients.
+retail, forever = false, true
+profile.categoryFilters.consumables = true
+C_Container = {
+  --- Return a single backpack slot.
+  ---@param bagID number Bag identifier.
+  ---@return number count Slot count.
+  GetContainerNumSlots = function(bagID) return bagID == 0 and 1 or 0 end,
+  --- Return an arrow stack.
+  ---@return table info Item information.
+  GetContainerItemInfo = function()
+    return { itemID = 2512, itemName = "Rough Arrow", hyperlink = "arrow-link", quality = 1, stackCount = 200 }
+  end,
+}
+--- Return metadata for the arrow stack.
+---@param link string Item hyperlink.
+---@return string name Item name.
+---@return any ... Remaining item metadata.
+C_Item.GetItemInfo = function(link)
+  return "Rough Arrow", link, 1, 5, nil, nil, nil, nil, "INVTYPE_AMMO", nil, 0, 6, 2, 0, nil, nil, false
+end
+rows = buildDisplayRows()
+assert(#rows == 1 and rows[1].itemID == 2512, "Forever arrows must appear as Consumables")
+local arrowKey = rows[1].statusKey
+profile.mailRecipients = { [1] = { nickname = "Alt" } }
+profile.mailAssignments = { [arrowKey] = 1 }
+profile.mailItems[arrowKey] = {}
+local collectRecipientMailItems = upvalue(SlackHacks.ListviewBag.OnMailSendSuccess, "collectRecipientMailItems")
+upvalue(collectRecipientMailItems, "getUpgradeTrack", function() return nil end)
+local mailItems = collectRecipientMailItems(profile)
+assert(mailItems[1] and mailItems[1][1].category == "consumables",
+  "Mail summaries must classify Forever arrows as Consumables")
+profile.mailRecipients, profile.mailAssignments, profile.mailItems = {}, {}, {}
+profile.categoryFilters.consumables = false
+profile.categoryFilters.other = true
+assert(#buildDisplayRows() == 0, "Forever arrows must not appear under Other")
+local itemCategory = upvalue(matchesFilters, "itemCategory")
+local arrow = makeItem(2512, 6, "INVTYPE_AMMO", 0, true, 4)
+arrow.subclassID = 2
+assert(itemCategory(arrow) == "consumables", "All Forever arrows must be consumables even with overlapping properties")
+arrow.subclassID = 3
+assert(itemCategory(arrow) == "quest", "Other projectile subtypes must retain normal classification")
+arrow.quality, arrow.isCraftingReagent, arrow.bindType = 1, false, 0
+assert(itemCategory(arrow) == "other", "Bullets must remain in Other")
+arrow.subclassID = 2
+retail, forever = true, false
+assert(itemCategory(arrow) == "other", "Retail must retain its existing arrow classification")
+retail, forever = false, false
+assert(itemCategory(arrow) == "other", "Classic must retain its existing arrow classification")
+
+retail, forever = false, true
+for _, id in ipairs({ 6291, 21071, 13755, 6522, 13893 }) do
+  local fish = makeItem(id, 7, "", 1, true)
+  assert(itemCategory(fish) == "consumables", "Edible raw fish must take priority over Reagents")
+end
+local inedibleFish = makeItem(6358, 7, "", 1, true)
+assert(itemCategory(inedibleFish) == "reagents", "Inedible fish must remain Reagents")
+local fish = makeItem(6291, 7, "", 1, true)
+retail, forever = true, false
+assert(itemCategory(fish) == "reagents", "Retail fish classification must be unchanged")
+retail, forever = false, false
+assert(itemCategory(fish) == "reagents", "Classic fish classification must be unchanged")
+
+retail, forever = false, true
+--- Return an edible fish stack.
+---@return table info Item information.
+C_Container.GetContainerItemInfo = function()
+  return { itemID = 6291, itemName = "Raw Brilliant Smallfish", hyperlink = "fish-link", quality = 1, stackCount = 20 }
+end
+--- Return fish metadata, including its crafting-reagent status.
+---@param link string Item hyperlink.
+---@return string name Item name.
+---@return any ... Remaining item metadata.
+C_Item.GetItemInfo = function(link)
+  return "Raw Brilliant Smallfish", link, 1, 5, nil, nil, nil, nil, "", nil, 1, 7, 8, 0, nil, nil, true
+end
+profile.categoryFilters.consumables = true
+profile.categoryFilters.reagents = false
+rows = buildDisplayRows()
+assert(#rows == 1 and rows[1].itemID == 6291, "Edible fish must appear when Consumables is selected")
+local fishKey = rows[1].statusKey
+profile.mailRecipients = { [1] = { nickname = "Alt" } }
+profile.mailAssignments = { [fishKey] = 1 }
+profile.mailItems[fishKey] = {}
+mailItems = collectRecipientMailItems(profile)
+assert(mailItems[1] and mailItems[1][1].category == "consumables",
+  "Mail summaries must classify edible fish as Consumables")
+profile.mailRecipients, profile.mailAssignments, profile.mailItems = {}, {}, {}
+profile.categoryFilters.consumables = false
+profile.categoryFilters.reagents = true
+assert(#buildDisplayRows() == 1, "Edible fish must also appear when Reagents is selected")
+profile.categoryFilters.reagents = false
+assert(#buildDisplayRows() == 0, "Edible fish must be hidden when both of their categories are disabled")
+profile.categoryFilters.reagents = true
+profile.flagFilters.unflagged = false
+assert(#buildDisplayRows() == 0, "Flag filters must still apply to edible fish")
+profile.flagFilters.unflagged = true
+forever = false
+retail = true
 print("Listview bag filter tests passed")
 
 local module = SlackHacks.ListviewBag

@@ -45,6 +45,8 @@ local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSl
 local TRACK_NAMES = { Explorer = true, Adventurer = true, Veteran = true, Champion = true, Hero = true, Myth = true, Awakened = true }
 
 local ARMOR_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Armor) or 4
+local PROJECTILE_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Projectile) or 6
+local ARROW_SUBCLASS_ID = 2
 local sortColumn
 local sortAscending = true
 
@@ -73,6 +75,34 @@ local ITEM_CATEGORIES = {
   -- Preserve the saved key when changing the displayed name.
   { id = "special", name = "Essentials" },
   { id = "other", name = "Other" },
+}
+-- These edible Forever fish can also be crafting reagents; item class alone cannot distinguish them
+-- from inedible fish. Keep the IDs independent of localized item names.
+local FOREVER_EDIBLE_RAW_FISH_IDS = {
+  [4603] = true, -- Raw Spotted Yellowtail
+  [6289] = true, -- Raw Longjaw Mud Snapper
+  [6291] = true, -- Raw Brilliant Smallfish
+  [6299] = true, -- Sickly Looking Fish
+  [6303] = true, -- Raw Slitherskin Mackerel
+  [6308] = true, -- Raw Bristle Whisker Catfish
+  [6317] = true, -- Raw Loch Frenzy
+  [6361] = true, -- Raw Rainbow Fin Albacore
+  [6362] = true, -- Raw Rockscale Cod
+  [6458] = true, -- Oil Covered Fish
+  [6522] = true, -- Deviate Fish
+  [8365] = true, -- Raw Mithril Head Trout
+  [12238] = true, -- Darkshore Grouper
+  [13754] = true, -- Raw Glossy Mightfish
+  [13755] = true, -- Raw Winter Squid
+  [13756] = true, -- Raw Summer Bass
+  [13758] = true, -- Raw Redgill
+  [13759] = true, -- Raw Nightfin Snapper
+  [13760] = true, -- Raw Sunscale Salmon
+  [13888] = true, -- Darkclaw Lobster
+  [13889] = true, -- Raw Whitescale Salmon
+  [13893] = true, -- Large Raw Mightfish
+  [21071] = true, -- Raw Sagefish
+  [21153] = true, -- Raw Greater Sagefish
 }
 local ESSENTIAL_ITEM_IDS = {
   [6948] = true, -- Hearthstone
@@ -296,7 +326,7 @@ local function collectGroups()
   -- group's first entry as the representative bag slot for bind/track text.
   for _, group in ipairs(order) do
     local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, sellPrice,
-      classID, _, _, _, _, isCraftingReagent = C_Item.GetItemInfo(group.hyperlink)
+      classID, subclassID, _, _, _, isCraftingReagent = C_Item.GetItemInfo(group.hyperlink)
     group.itemName = itemName or group.itemName
     group.quality = group.quality or quality
     if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
@@ -312,8 +342,8 @@ local function collectGroups()
     group.itemLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink) or itemLevel
     group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
     group.isArmor = classID == ARMOR_CLASS_ID
-    group.classID, group.equipLoc, group.sellPrice, group.isCraftingReagent =
-      classID, itemEquipLoc, sellPrice, isCraftingReagent
+    group.classID, group.subclassID, group.equipLoc, group.sellPrice, group.isCraftingReagent =
+      classID, subclassID, itemEquipLoc, sellPrice, isCraftingReagent
     if group.isArmor then
       group.armorType = itemSubType
       group.armorSlot = itemEquipLoc and _G[itemEquipLoc]
@@ -516,13 +546,17 @@ end
 -- Row widgets
 --=====================================================================
 
---- Classify an item using the same exclusive categories as the bag filters.
+--- Classify an item for the bag filters and mail summaries.
 ---@param group table Collected item and its metadata.
 ---@return string category Item category identifier.
 local function itemCategory(group)
   -- The game does not expose its sorter classification. Resolve overlapping item properties
-  -- in priority order, independently of which filters are enabled.
-  if ESSENTIAL_ITEM_IDS[group.itemID] then
+  -- in priority order, independently of which filters are enabled. Forever arrows and edible raw fish
+  -- are consumables even when they have other properties such as being crafting reagents.
+  if (FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID]
+    or (group.classID == PROJECTILE_CLASS_ID and group.subclassID == ARROW_SUBCLASS_ID)) and isForever() then
+    return "consumables"
+  elseif ESSENTIAL_ITEM_IDS[group.itemID] then
     return "special"
   elseif group.classID == 12 or group.bindType == 4 then
     return "quest"
@@ -547,6 +581,9 @@ local function matchesFilters(group)
   local bag = settings()
   local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
+  if FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID] and isForever() then
+    return bag.categoryFilters.consumables ~= false or bag.categoryFilters.reagents ~= false
+  end
   return bag.categoryFilters[itemCategory(group)] ~= false
 end
 
@@ -659,7 +696,7 @@ local function collectRecipientMailItems(bag)
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID and info.hyperlink then
-        local name, _, quality, level, _, _, _, _, equipLoc, _, sellPrice, classID, _, bindType, _, _, reagent =
+        local name, _, quality, level, _, _, _, _, equipLoc, _, sellPrice, classID, subclassID, bindType, _, _, reagent =
           C_Item.GetItemInfo(info.hyperlink)
         name = name or info.itemName
         quality = info.quality or quality
@@ -674,7 +711,7 @@ local function collectRecipientMailItems(bag)
               bagID = bagID, slot = slot, itemID = info.itemID, link = info.hyperlink,
               name = name, count = info.stackCount or 1, locked = info.isLocked, statusKey = key,
               category = itemCategory({
-                itemID = info.itemID, quality = quality, classID = classID, bindType = bindType,
+                itemID = info.itemID, quality = quality, classID = classID, subclassID = subclassID, bindType = bindType,
                 equipLoc = equipLoc, sellPrice = sellPrice, isCraftingReagent = reagent,
               }),
             }
