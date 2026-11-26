@@ -309,7 +309,7 @@ BINDINGS = {
     {"CTRL-0",               "NONE", BT.COMMAND},
     {",",                    "NONE", BT.COMMAND},
     {"ALT-CTRL-W",           "FOLLOWTARGET", BT.COMMAND},
-    {"E",                    "INTERACTTARGET", BT.COMMAND},
+    {"E",                    "STARTATTACK", BT.COMMAND},
     {"SHIFT-E",              "INTERACTTARGET", BT.COMMAND},
     {"CTRL-E",               "Single-Button Assistant"},
     {"ALT-E",                "EXTRAACTIONBUTTON1", BT.COMMAND},
