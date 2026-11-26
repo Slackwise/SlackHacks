@@ -55,13 +55,13 @@ local function sortValueBefore(left, right)
 end
 
 local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
-local PROTECT_STATUS = { id = "protect", name = "Protect", field = "protectedItems", atlas = PROTECT_ICON_ATLAS }
+local PROTECT_STATUS = { id = "protect", name = "Protect", field = "protectedItems", atlas = PROTECT_ICON_ATLAS, sortOrder = 5 }
 local ITEM_STATUSES = {
-  { id = "vendor", name = "Junk", field = "trashItems", atlas = "bags-junkcoin" },
-  { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Minimap\\Tracking\\Auctioneer" },
+  { id = "vendor", name = "Junk", field = "trashItems", atlas = "bags-junkcoin", sortOrder = 1 },
+  { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Minimap\\Tracking\\Auctioneer", sortOrder = 2 },
   PROTECT_STATUS,
-  { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Minimap\\Tracking\\Banker" },
-  { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Minimap\\Tracking\\Mailbox" },
+  { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Minimap\\Tracking\\Banker", sortOrder = 4 },
+  { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Minimap\\Tracking\\Mailbox", sortOrder = 3 },
 }
 local ITEM_CATEGORIES = {
   { id = "equipment", name = "Equipment" },
@@ -144,6 +144,19 @@ local function settings()
     end
   end
   return listviewSettings
+end
+
+--- Return the item's selected status, prioritizing non-junk flags for older overlapping marks.
+---@param key string Item status key.
+---@return table|nil status Selected status definition.
+local function getItemStatus(key)
+  local listviewSettings = settings()
+  if listviewSettings.protectedItems[key] ~= nil then return PROTECT_STATUS end
+  for index = 2, #ITEM_STATUSES do
+    local status = ITEM_STATUSES[index]
+    if listviewSettings[status.field][key] ~= nil then return status end
+  end
+  if listviewSettings.trashItems[key] ~= nil then return ITEM_STATUSES[1] end
 end
 
 local function isModuleEnabled()
@@ -309,6 +322,10 @@ local function collectGroups()
       group.bindLabel, group.bindType, group.accountBound, group.isBound = getBindInfo(first.bagID, first.slot, group.hyperlink)
     end
     group.statusKey = itemStatusKey(group.itemName, group.quality, group.itemLevel, group.upgradeTrack)
+    if sortColumn == "flag" then
+      local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
+      group.flagSortOrder = status and status.sortOrder or 0
+    end
     group.statusInfo = {
       name = group.itemName,
       quality = group.quality,
@@ -340,6 +357,8 @@ local function collectGroups()
       result = sortValueBefore(a.armorSlot or "", b.armorSlot or "")
     elseif sortColumn == "bind" then
       result = sortValueBefore(a.bindLabel or "", b.bindLabel or "")
+    elseif sortColumn == "flag" then
+      result = sortValueBefore(a.flagSortOrder, b.flagSortOrder)
     else
       if a.quality ~= b.quality then return (a.quality or -1) > (b.quality or -1) end
     end
@@ -399,6 +418,18 @@ end
 -- simple "closest header wins" reorder (no drag ghost) rather than a fully animated reflow, per the
 -- "simplest implementation" guidance.
 local draggingColumn
+
+--- Select a sort column or reverse its current direction.
+---@param colID string Column identifier.
+local function selectSortColumn(colID)
+  if sortColumn == colID then
+    sortAscending = not sortAscending
+  else
+    sortColumn = colID
+    sortAscending = true
+  end
+  renderRows()
+end
 
 local function onHeaderDragStart(self)
   draggingColumn = self.columnID
@@ -474,24 +505,16 @@ layoutHeaders = function()
     header:SetScript("OnDragStop", onHeaderDragStop)
     headerButtons[colID] = header
   end
+  local flagSortIcon = content.statusHeaderButton.sortIcon
+  flagSortIcon:SetShown(sortColumn == "flag")
+  if sortColumn == "flag" then
+    flagSortIcon:SetRotation(sortAscending and math.pi / 2 or -math.pi / 2)
+  end
 end
 
 --=====================================================================
 -- Row widgets
 --=====================================================================
-
---- Return the item's selected status, prioritizing non-junk flags for older overlapping marks.
----@param key string Item status key.
----@return table|nil status Selected status definition.
-local function getItemStatus(key)
-  local listviewSettings = settings()
-  if listviewSettings.protectedItems[key] ~= nil then return PROTECT_STATUS end
-  for index = 2, #ITEM_STATUSES do
-    local status = ITEM_STATUSES[index]
-    if listviewSettings[status.field][key] ~= nil then return status end
-  end
-  if listviewSettings.trashItems[key] ~= nil then return ITEM_STATUSES[1] end
-end
 
 --- Check an item against the selected flag and item-category filters.
 ---@param group table Collected item and its metadata.
@@ -1538,19 +1561,18 @@ local function buildFrame()
   headerFrame.Background:Hide()
   headerFrame.TopTileStreaks:Hide()
   headerFrame.sortingFunction = function(_, columnIndex)
-    local colID = settings().columnOrder[columnIndex]
-    if sortColumn == colID then
-      sortAscending = not sortAscending
-    else
-      sortColumn = colID
-      sortAscending = true
-    end
-    renderRows()
+    selectSortColumn(settings().columnOrder[columnIndex])
   end
   content.statusHeaderButton = CreateFrame("Button", nil, headerFrame, "ColumnDisplayButtonNoScriptsTemplate")
   content.statusHeaderButton:SetSize(24, 24)
   content.statusHeaderButton:SetPoint("BOTTOM", headerFrame, "BOTTOMRIGHT", -30, 1)
   content.statusHeaderButton:SetText(CreateAtlasMarkup(PROTECT_ICON_ATLAS, 14, 14))
+  content.statusHeaderButton.sortIcon = content.statusHeaderButton:CreateTexture(nil, "OVERLAY")
+  content.statusHeaderButton.sortIcon:SetTexture(SORT_ARROW_TEXTURE)
+  content.statusHeaderButton.sortIcon:SetSize(8, 8)
+  content.statusHeaderButton.sortIcon:SetPoint("LEFT", content.statusHeaderButton, "RIGHT", 0, 0)
+  content.statusHeaderButton.sortIcon:Hide()
+  content.statusHeaderButton:SetScript("OnClick", function() selectSortColumn("flag") end)
 
   -- Recessed marble list panel behind the rows, matching the guild roster's own InsetFrameTemplate look.
   local listInset = CreateFrame("Frame", nil, content, "InsetFrameTemplate")

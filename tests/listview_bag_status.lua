@@ -32,6 +32,7 @@ local function widget()
   function object:CreateFontString() return widget() end
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
+  function object:SetRotation(rotation) self.rotation = rotation end
   function object:SetTexCoord(...) self.texCoord = { ... } end
   function object:SetText(text) self.text = text end
   function object:Show() self.shown = true end
@@ -393,6 +394,90 @@ function CreateAtlasMarkup(atlas)
 end
 buildFrame()
 assert(headerAtlas == "ui-castingbar-shield", "Reload must construct the status header")
+
+-- The pinned flag header sorts grouped items in both directions and reports its direction.
+local content = upvalue(buildFrame, "content")
+local statusHeader = content.statusHeaderButton
+local headerFrame = upvalue(buildFrame, "headerFrame")
+local layoutHeaders = upvalue(renderRows, "layoutHeaders")
+local scrollChild = upvalue(upvalue(layoutHeaders, "computeLayout"), "scrollChild")
+scrollChild.GetWidth = function() return 700 end
+headerFrame.LayoutColumns = function() end
+headerFrame.columnHeaders = { EnumerateActive = function() return function() end end }
+--- Clear a table as the client API does.
+---@param values table Table to clear.
+function wipe(values) for key in pairs(values) do values[key] = nil end end
+profile.columnOrder = { "name", "quantity" }
+local sortRefreshes = 0
+local selectSortColumn = upvalue(buildFrame, "selectSortColumn")
+upvalue(selectSortColumn, "renderRows", function() sortRefreshes = sortRefreshes + 1 end)
+local buildDisplayRows = upvalue(renderRows, "buildDisplayRows")
+local collectGroups = upvalue(buildDisplayRows, "collectGroups")
+local statusKey = upvalue(collectGroups, "itemStatusKey")
+upvalue(collectGroups, "getUpgradeTrack", function() return nil end)
+upvalue(collectGroups, "getBindInfo", function() return "", nil, false, false end)
+local items = {
+  { name = "Protect", field = "protectedItems" },
+  { name = "Bank", field = "bankItems" },
+  { name = "Mail", field = "mailItems" },
+  { name = "Auction", field = "auctionItems" },
+  { name = "Junk B", field = "trashItems" },
+  { name = "Unmarked" },
+  { name = "Junk A", field = "trashItems" },
+  { name = "Grey", quality = 0, field = "trashItems" },
+}
+local qualities = {}
+for _, item in ipairs(items) do
+  item.quality = item.quality or 1
+  qualities[item.name] = item.quality
+  if item.field then profile[item.field][statusKey(item.name, item.quality, 10, nil)] = {} end
+end
+-- Older overlapping marks must sort as the same flag displayed on the row.
+profile.trashItems[statusKey("Protect", 1, 10, nil)] = {}
+C_Container = {
+  GetContainerNumSlots = function(bagID) return bagID == 0 and #items or 0 end,
+  GetContainerItemInfo = function(_, slot)
+    local item = items[slot]
+    return { itemID = slot, itemName = item.name, hyperlink = item.name, quality = item.quality, stackCount = 1 }
+  end,
+}
+C_Item = {
+  GetItemInfo = function(link) return link, link, qualities[link], 10, nil, nil, nil, nil, "", nil, 1, 15 end,
+  GetDetailedItemLevelInfo = function() return 10 end,
+}
+-- Exercise the mocked callbacks and sort data after garbage collection.
+collectgarbage("collect")
+--- Return displayed item names in their current order.
+---@return string names Comma-separated row names.
+local function displayedNames()
+  local names = {}
+  for _, group in ipairs(buildDisplayRows()) do names[#names + 1] = group.itemName end
+  return table.concat(names, ",")
+end
+assert(not statusHeader.sortIcon.shown)
+statusHeader.scripts.OnClick(statusHeader)
+layoutHeaders()
+assert(sortRefreshes == 1 and statusHeader.sortIcon.shown and statusHeader.sortIcon.rotation == math.pi / 2)
+assert(displayedNames() == "Grey,Unmarked,Junk A,Junk B,Auction,Mail,Bank,Protect",
+  "Ascending flag sort must put unflagged and grey items first, then flags in the requested order")
+statusHeader.scripts.OnClick(statusHeader)
+layoutHeaders()
+assert(sortRefreshes == 2 and statusHeader.sortIcon.rotation == -math.pi / 2)
+assert(displayedNames() == "Protect,Bank,Mail,Auction,Junk A,Junk B,Grey,Unmarked",
+  "Descending flag sort must reverse the flag order while retaining name tie-breaks")
+headerFrame.sortingFunction(headerFrame, 1)
+layoutHeaders()
+assert(sortRefreshes == 3 and not statusHeader.sortIcon.shown)
+assert(displayedNames() == "Auction,Bank,Grey,Junk A,Junk B,Mail,Protect,Unmarked",
+  "Selecting an ordinary column must retain its existing sorting behavior")
+statusHeader.scripts.OnClick(statusHeader)
+layoutHeaders()
+assert(sortRefreshes == 4 and statusHeader.sortIcon.shown and statusHeader.sortIcon.rotation == math.pi / 2
+  and displayedNames() == "Grey,Unmarked,Junk A,Junk B,Auction,Mail,Bank,Protect",
+  "Returning to the flag column must start in ascending order")
+profile.mailItems[statusKey("Unmarked", 1, 10, nil)] = {}
+assert(displayedNames() == "Grey,Junk A,Junk B,Auction,Mail,Unmarked,Bank,Protect",
+  "Changing a flag must update its position in the active sort")
 
 -- Enable the module with a client-like event registry that rejects removed cursor events.
 local registeredEvents = {}

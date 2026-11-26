@@ -51,7 +51,7 @@ Directly applies and restores hidden client CVars not present in default interfa
 #### Listview Bag
 An alternate list-based view for player bags that can replace the default grid backpack or be toggled as needed.
 * **Columns:** Quantity, Item Name, Item Level, Armor/Weapon Type, Equipment Slot, and Binding Type (BoE, BoP, Warbound).
-* **Sorting:** Ascending and descending sort support on all columns.
+* **Sorting:** Ascending and descending sort support on all columns. Flag sorting puts unflagged items first in ascending order, followed by Junk, Auction, Mail, Bank, and Protect.
 * **Search:** Real-time text search filter.
 * **Filters:** Choose which item flags and categories to show, and whether to include the reagent bag. Items must match a checked flag and their one checked category; Essentials includes Hearthstone, Cozy Sleeping Bag, Night Watchman's Torch, and common reusable profession tools. Overlapping item properties are classified in priority order: Essentials, Quest Items, Junk, Reagents, Equipment, Consumables, Profession Goods, then Other. Classification may differ from Blizzard's bag sorting.
 * **Item Protection:** Protect items from conflicting vendor, auction, and mail interactions in Listview Bag.
