@@ -1829,17 +1829,42 @@ local function updateFiltersLabel()
   end
 end
 
+--- Choose a white-to-red color based on the proportion of remaining warning-range slots.
+---@param totalSlots number Counted bag capacity.
+---@param freeSlots number Available counted slots.
+---@return string color Color-code prefix for the slot count.
+local function slotCountColor(totalSlots, freeSlots)
+  -- Start warning at roughly 7.5% free, bounded from three slots for a backpack to six for large bags.
+  local warningSlots = math.min(6, math.max(3, math.ceil(totalSlots * 0.075)))
+  local pressure = math.max(0, math.min(1, (warningSlots + 1 - freeSlots) / (warningSlots + 1)))
+  local green, blue
+  if pressure <= 1 / 3 then
+    green, blue = 1, 1 - pressure * 3
+  elseif pressure <= 2 / 3 then
+    green, blue = 1 - (pressure * 3 - 1) / 2, 0
+  else
+    green, blue = (3 - pressure * 3) / 2, 0
+  end
+  return ("|cffff%02x%02x"):format(math.floor(green * 255 + 0.5), math.floor(blue * 255 + 0.5))
+end
+
 --- Refresh the footer slots, balances, and filter summary.
 local function updateFooter()
   updateFiltersLabel()
   local totalSlots, freeSlots = 0, 0
   for _, bagID in ipairs(bagIDs()) do
-    totalSlots = totalSlots + C_Container.GetContainerNumSlots(bagID)
-    freeSlots = freeSlots + C_Container.GetContainerNumFreeSlots(bagID)
+    local slots = C_Container.GetContainerNumSlots(bagID)
+    local free = C_Container.GetContainerNumFreeSlots(bagID)
+    if bagID == REAGENT_BAG_ID then
+      -- Reagent-only space counts as one slot at most, since it cannot hold general items.
+      free = slots > 0 and free > 0 and 1 or 0
+      slots = slots > 0 and 1 or 0
+    end
+    totalSlots = totalSlots + slots
+    freeSlots = freeSlots + free
   end
-  local count = ("%d / %d"):format(totalSlots - freeSlots, totalSlots)
-  if freeSlots <= 3 then count = "|cffff4040" .. count .. "|r" end
-  footer.slotCount:SetText(count .. " slots used")
+  footer.slotCount:SetText(("%s%d / %d|r slots used"):format(
+    slotCountColor(totalSlots, freeSlots), totalSlots - freeSlots, totalSlots))
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Update()

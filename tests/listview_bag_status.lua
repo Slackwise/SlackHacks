@@ -1126,28 +1126,87 @@ C_Container.GetContainerNumSlots = function(bagID) return sizes[bagID] end
 C_Container.GetContainerNumFreeSlots = function(bagID) return free[bagID], 0 end
 local updateFooter = upvalue(module.Refresh, "updateFooter")
 updateFooter()
-assert(footer.slotCount.text == "44 / 100 slots used", "Slot counts must include reagent bags")
+assert(footer.slotCount.text == "|cffffffff30 / 81|r slots used",
+  "An equipped reagent bag with free space must count as one free slot")
 assert(footer.slotCount.points.BOTTOMLEFT[1] == footer and footer.freeSlotsButton.points.LEFT[1] == footer.slotCount
   and footer.freeSlotsButton.text == "Free-Up Slots" and not footer.freeSlotsButton.scripts.OnClick,
   "The inactive free-slots button must sit to the right of the footer counter")
 assert(footer.height == 20 and footer.balances.points.BOTTOMRIGHT[4] == 0)
 
-free = { [0] = 3, 0, 0, 0, 0, 0 }
+free[5] = 1
+updateFooter()
+assert(footer.slotCount.text == "|cffffffff30 / 81|r slots used",
+  "One and many free reagent slots must count identically")
+free[5] = 0
+updateFooter()
+assert(footer.slotCount.text == "|cffffffff31 / 81|r slots used",
+  "A full reagent bag must count as one used slot")
+sizes[5] = 0
+updateFooter()
+assert(footer.slotCount.text == "|cffffffff30 / 80|r slots used",
+  "An unequipped reagent bag must not count as a slot")
+sizes[5] = 20
+
+--- Read the displayed RGB color of the slot count.
+---@return number red Red component.
+---@return number green Green component.
+---@return number blue Blue component.
+local function displayedSlotColor()
+  local red, green, blue = footer.slotCount.text:match("^|cff(%x%x)(%x%x)(%x%x)")
+  assert(red and green and blue, "The slot count must have a color")
+  return tonumber(red, 16), tonumber(green, 16), tonumber(blue, 16)
+end
+
+free = { [0] = 6, 0, 0, 0, 0, 0 }
 upvalue(module.Refresh, "renderRows", function() end)
 upvalue(module.Refresh, "updateMerchantJunkButton", function() end)
 upvalue(realBuildFrame, "frame"):Show()
 module:Refresh()
-assert(footer.slotCount.text == "|cffff404097 / 100|r slots used",
-  "A bag refresh must highlight the count when three slots remain")
-free[0] = 4
+local red, green, blue = displayedSlotColor()
+assert(red == 255 and green == 255 and blue < 255,
+  "With large bags, a bag refresh must start warning at six free slots")
+local previousGreen, previousBlue = green, blue
+for remaining = 5, 0, -1 do
+  free[0] = remaining
+  updateFooter()
+  red, green, blue = displayedSlotColor()
+  assert(red == 255 and (green < previousGreen or green == previousGreen and blue < previousBlue),
+    "Each lost slot within the warning range must advance the gradient toward red")
+  previousGreen, previousBlue = green, blue
+end
+free[5] = 15
+updateFooter()
+red, green, blue = displayedSlotColor()
+assert(footer.slotCount.text:find("80 / 81", 1, true) and green > 0 and blue == 0,
+  "Many free reagent slots must count as only one remaining slot")
+free[5] = 0
+free[0] = 7
 module:Refresh()
-assert(footer.slotCount.text == "96 / 100 slots used", "Four free slots must not be highlighted")
+red, green, blue = displayedSlotColor()
+assert(red == 255 and green == 255 and blue == 255, "Seven free slots must be white")
+sizes = { [0] = 16, 0, 0, 0, 0, 0 }
+free = { [0] = 4, 0, 0, 0, 0, 0 }
+updateFooter()
+red, green, blue = displayedSlotColor()
+assert(red == 255 and green == 255 and blue == 255, "A backpack with four free slots must be white")
+free[0] = 3
+updateFooter()
+red, green, blue = displayedSlotColor()
+assert(red == 255 and green == 255 and blue > 0 and blue < 255,
+  "A backpack with three free slots must start turning yellow")
+free[0] = 2
+updateFooter()
+red, green, blue = displayedSlotColor()
+assert(red == 255 and green > 128 and green < 255 and blue == 0,
+  "The warning must transition through orange as space falls")
 free[0] = 0
 updateFooter()
-assert(footer.slotCount.text == "|cffff4040100 / 100|r slots used", "A full bag must remain highlighted")
+assert(footer.slotCount.text == "|cffff000016 / 16|r slots used", "A full backpack must be red")
+sizes = { [0] = 16, 16, 16, 16, 16, 20 }
+free = { [0] = 10, 10, 10, 10, 10, 6 }
 SlackHacks.isRetailOrForever = function() return false end
 updateFooter()
-assert(footer.slotCount.text == "|cffff404080 / 80|r slots used", "Clients without reagent bags must exclude them")
+assert(footer.slotCount.text == "|cffffffff30 / 80|r slots used", "Clients without reagent bags must exclude them")
 SlackHacks.isRetailOrForever = function() return true end
 
 --- Create fixed-width currency tokens for the footer layout test.
