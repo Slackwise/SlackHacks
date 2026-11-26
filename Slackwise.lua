@@ -1010,7 +1010,8 @@ BINDINGS = {
       {"CTRL-E",  "@TANK", BT.MACRO},
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
-      {"6",       "Exorcism"},
+      {"6",             "RAIDTARGET8", BT.COMMAND}, -- Mark: Skull
+      {"SHIFT-6",       "RAIDTARGET7", BT.COMMAND}, -- Mark: X (Cross)
       {"C",       "Consecration"},
 
       -- Heals (Coming from left hand?)
@@ -1280,6 +1281,8 @@ BINDINGS = {
       {"4",             "Arcane Shot"},
       {"5",             "Hunter's Mark"},
       {"SHIFT-5",       "ENGAGE", BT.MACRO},
+      {"6",             "RAIDTARGET8", BT.COMMAND}, -- Mark: Skull
+      {"SHIFT-6",       "RAIDTARGET7", BT.COMMAND}, -- Mark: X (Cross)
       {"F5",            "CHAINEAGLE", BT.MACRO},
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},
