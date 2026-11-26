@@ -230,7 +230,7 @@ assert(table.concat(categoryLabels, ",") == expectedCategories, "Legacy menu mus
 legacy[1].func()
 assert(profile.flagFilters.unflagged)
 
--- Category filters match any checked category, then intersect with the selected flag.
+-- Each item matches one checked category and its checked flag.
 local matchesFilters = upvalue(buildDisplayRows, "matchesFilters")
 --- Build a collected item with the metadata relevant to the filters.
 ---@param id number Item ID and status key.
@@ -263,39 +263,44 @@ local cases = {
   { "special", makeItem(4471, 7, "", 1) },
   { "special", makeItem(6218, 15, "", 1) },
   { "special", makeItem(16207, 15, "", 1) },
+  { "special", makeItem(7005, 12, "INVTYPE_WEAPON", 0, true, 4) },
+  { "quest", makeItem(31, 7, "INVTYPE_HEAD", 0, true, 4) },
+  { "junk", makeItem(32, 7, "INVTYPE_HEAD", 0, true) },
+  { "reagents", makeItem(33, 0, "INVTYPE_HEAD", 1, true) },
+  { "equipment", makeItem(34, 0, "INVTYPE_HEAD", 1) },
 }
+local categoryNames = { "equipment", "consumables", "special", "reagents", "professionGoods", "junk", "quest", "other" }
 for _, case in ipairs(cases) do
-  for _, name in ipairs({ "equipment", "consumables", "special", "reagents", "professionGoods", "junk", "quest", "other" }) do
-    profile.categoryFilters[name] = name == case[1]
+  for _, selected in ipairs(categoryNames) do
+    for _, name in ipairs(categoryNames) do
+      profile.categoryFilters[name] = name == selected
+    end
+    assert(matchesFilters(case[2]) == (selected == case[1]),
+      case[1] .. " item must only match its own category, not " .. selected)
   end
-  assert(matchesFilters(case[2]), case[1] .. " item must match its category")
-  profile.categoryFilters[case[1]] = false
-  assert(not matchesFilters(case[2]), case[1] .. " item must be hidden when its categories are unchecked")
 end
-profile.categoryFilters.special = true
-assert(not matchesFilters(makeItem(99999, 2, "INVTYPE_WEAPON", 1)),
-  "Unlisted equipment must not become an essential item")
-profile.categoryFilters.special = false
-profile.categoryFilters.equipment = true
-assert(matchesFilters(makeItem(7005, 2, "INVTYPE_WEAPON", 1)),
-  "An essential tool must also match its equipment category")
-profile.categoryFilters.equipment = false
+for _, name in ipairs(categoryNames) do profile.categoryFilters[name] = false end
 local reagent = makeItem(20, 7, "", 1, true)
+assert(not matchesFilters(reagent), "No checked categories must hide every item")
 profile.categoryFilters.reagents = true
-assert(matchesFilters(reagent), "Reagent and profession-goods categories may overlap")
-profile.categoryFilters.reagents = false
-profile.categoryFilters.professionGoods = true
-assert(matchesFilters(reagent), "Any checked category must include an overlapping item")
-profile.categoryFilters.reagents = true
-profile.categoryFilters.professionGoods = false
+profile.categoryFilters.equipment = true
+assert(matchesFilters(reagent) and matchesFilters(makeItem(23, 4, "INVTYPE_HEAD", 1)),
+  "Multiple checked categories must each include matching items")
 profile.flagFilters.unflagged = false
 assert(not matchesFilters(reagent), "Flag and category groups must both match")
 profile.auctionItems = { ["20"] = true }
 assert(matchesFilters(reagent), "A checked flag and category must include the item")
+local vendorReagent = makeItem(21, 7, "", 1, true)
+profile.trashItems["21"] = {}
+assert(matchesFilters(vendorReagent), "Multiple checked flags must each include matching items")
+profile.flagFilters.vendor = false
+assert(not matchesFilters(vendorReagent) and matchesFilters(reagent), "Each flag must be filtered independently")
 profile.flagFilters.auction = false
-assert(not matchesFilters(reagent), "Unchecked flags must hide matching categories")
+assert(not matchesFilters(reagent) and not matchesFilters(vendorReagent),
+  "No matching checked flags must hide items even when their category is checked")
+profile.flagFilters.vendor = true
 profile.flagFilters.auction = true
-upvalue(buildDisplayRows, "collectGroups", function() return { reagent, makeItem(21, 15, "", 1) } end)
+upvalue(buildDisplayRows, "collectGroups", function() return { reagent, makeItem(22, 15, "", 1) } end)
 assert(#buildDisplayRows() == 1, "Display rows must apply category and flag filters")
 upvalue(buildDisplayRows, "collectGroups", collectGroups)
 

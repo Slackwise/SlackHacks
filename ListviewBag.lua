@@ -501,24 +501,27 @@ local function matchesFilters(group)
   local status = group.quality ~= 0 and getItemStatus(group.statusKey) or nil
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
 
-  -- The game does not expose its bag-sorter classification; these follow ElvUI's item-property rules.
-  local categories = {
-    equipment = EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()),
-    consumables = group.classID == 0,
-    special = ESSENTIAL_ITEM_IDS[group.itemID],
-    reagents = group.isCraftingReagent,
-    professionGoods = group.classID == 7,
-    junk = group.quality == 0 and group.sellPrice ~= nil,
-    quest = group.classID == 12 or group.bindType == 4,
-  }
-  local classified = false
-  for _, category in ipairs(ITEM_CATEGORIES) do
-    if categories[category.id] then
-      classified = true
-      if bag.categoryFilters[category.id] ~= false then return true end
-    end
+  -- The game does not expose its sorter classification. Resolve overlapping item properties
+  -- in priority order, independently of which filters are enabled.
+  local category
+  if ESSENTIAL_ITEM_IDS[group.itemID] then
+    category = "special"
+  elseif group.classID == 12 or group.bindType == 4 then
+    category = "quest"
+  elseif group.quality == 0 and group.sellPrice ~= nil then
+    category = "junk"
+  elseif group.isCraftingReagent then
+    category = "reagents"
+  elseif EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()) then
+    category = "equipment"
+  elseif group.classID == 0 then
+    category = "consumables"
+  elseif group.classID == 7 then
+    category = "professionGoods"
+  else
+    category = "other"
   end
-  return not classified and bag.categoryFilters.other ~= false
+  return bag.categoryFilters[category] ~= false
 end
 
 --- Replace an item's status while retaining the metadata used by vendor matching.
