@@ -252,7 +252,15 @@ local function collectGroups()
       quality = group.quality,
       itemLevel = group.itemLevel,
       upgradeTrack = group.upgradeTrack,
+      link = group.hyperlink,
+      icon = group.icon,
     }
+    -- Older saved entries lack links; recover the exact variant when it is seen in a bag.
+    local savedTrash = settings().trashItems[group.statusKey]
+    if type(savedTrash) == "table" and not savedTrash.link and group.hyperlink then
+      savedTrash.link = group.hyperlink
+      savedTrash.icon = group.icon
+    end
   end
 
   table.sort(order, function(a, b)
@@ -407,6 +415,9 @@ end
 -- Row widgets
 --=====================================================================
 
+--- Cycle an item's protected, vendor, and unmarked states.
+---@param key string Item status key.
+---@param statusInfo table Item metadata to save with the status.
 local function cycleStatus(key, statusInfo)
   if isProtectedItem(key) then
     settings().protectedItems[key] = nil
@@ -418,6 +429,8 @@ local function cycleStatus(key, statusInfo)
   end
   renderRows()
   updateMerchantJunkButton()
+  local registry = LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
 end
 
 local function createRow(index)

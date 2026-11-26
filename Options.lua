@@ -960,20 +960,74 @@ local selfVendorModeSorting = {
   Enum.SelfVendorMode.AUGMENTS,
 }
 
-local function listviewVendorItemValues()
-  local values = {}
+--- Build the marked-item controls from the current profile.
+---@return table args AceConfig controls for clearing or removing marked items.
+local function listviewVendorItemOptions()
+  local args = {
+    clear = {
+      type = "execute",
+      name = "Clear List",
+      desc = "Remove all items from the auto-vendor list.",
+      confirm = true,
+      confirmText = "Remove all items from the auto-vendor list?",
+      disabled = function() return not next(db.profile.listviewBag.trashItems or {}) end,
+      func = function()
+        wipe(db.profile.listviewBag.trashItems)
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = "full",
+      order = 0,
+    },
+  }
   for key, item in pairs(db.profile.listviewBag.trashItems or {}) do
-    if type(item) == "table" then
-      local suffix = "Quality " .. tostring(item.quality or 0) .. ", iLvl " .. tostring(item.itemLevel or 0)
-      if item.upgradeTrack and item.upgradeTrack ~= "" then
-        suffix = suffix .. ", " .. item.upgradeTrack
+    local entry = item
+    local itemKey = key
+    local link, itemIcon
+    if type(entry) == "table" then
+      link, itemIcon = entry.link, entry.icon
+      -- A legacy entry can only resolve to the base item until its exact variant is seen again.
+      if not link and entry.name then
+        args.legacyInfo = {
+          type = "description",
+          name = "Older entries show the base item until the exact item is seen in your bags.",
+          width = "full",
+          order = 0.5,
+        }
+        local _, baseLink, _, _, _, _, _, _, _, baseIcon = C_Item.GetItemInfo(entry.name)
+        link, itemIcon = baseLink, baseIcon
+      elseif link and not itemIcon then
+        itemIcon = select(10, C_Item.GetItemInfo(link))
       end
-      values[key] = (item.name or "Unknown item") .. " (" .. suffix .. ")"
-    else
-      values[key] = tostring(key)
     end
+    -- Status keys contain control characters, which AceConfig forbids in option keys.
+    local optionKey = "item:" .. tostring(itemKey):gsub(".", function(char) return ("%02x"):format(char:byte()) end)
+    args[optionKey] = {
+      type = "toggle",
+      name = link or (type(entry) == "table" and entry.name) or tostring(itemKey),
+      desc = type(entry) == "table" and not entry.link
+        and "Older entries show the base item until the exact item is seen in your bags."
+        or "Uncheck to remove this item from the auto-vendor list.",
+      tooltipHyperlink = link,
+      image = itemIcon,
+      get = function() return db.profile.listviewBag.trashItems[itemKey] ~= nil end,
+      set = function(_, value)
+        if not value then
+          db.profile.listviewBag.trashItems[itemKey] = nil
+          if Self.ListviewBag then Self.ListviewBag:Refresh() end
+        end
+      end,
+      width = "full",
+      order = 1,
+    }
   end
-  return values
+  return args
+end
+
+--- Refresh dynamic marked-item controls whenever AceConfig requests the options table.
+---@return table options The shared addon options table.
+local function getOptions()
+  options.args.inventory.args.listviewBag.args.autoVendorItems.args = listviewVendorItemOptions()
+  return options
 end
 
 local function selfVendorModeOptions()
@@ -1674,18 +1728,9 @@ options = {
             autoVendorItems = {
               name = "Auto-Vendor Items",
               desc = "Uncheck an item to remove it from the auto-vendor list.",
-              type = "multiselect",
-              values = listviewVendorItemValues,
-              get = function(_, key) return db.profile.listviewBag.trashItems[key] ~= nil end,
-              set = function(_, key, value)
-                if not value then
-                  db.profile.listviewBag.trashItems[key] = nil
-                  if Self.ListviewBag then
-                    Self.ListviewBag:Refresh()
-                  end
-                end
-              end,
-              width = "full",
+              type = "group",
+              inline = true,
+              args = {},
               order = 4
             }
           }
@@ -4475,7 +4520,7 @@ function registerOptions()
   if customConfig and customConfig.setOptions then
     customConfig.setOptions()
   end
-  config:RegisterOptionsTable("SlackHacks", options)
+  config:RegisterOptionsTable("SlackHacks", getOptions)
   Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
   updateMinimapIcon()
 end
