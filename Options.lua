@@ -52,7 +52,6 @@ dbDefaults = {
     listviewBag = {
       enabled = false,
       showListviewBag = false,
-      showReagentBagContents = true,
       flagFilters = { ["*"] = true },
       categoryFilters = { ["*"] = true },
       trackCrestCurrencies = true,

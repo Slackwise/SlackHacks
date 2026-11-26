@@ -257,7 +257,7 @@ end
 -- Row data collection
 --=====================================================================
 
---- Group items from visible bags, excluding the reagent bag when its checkbox is unchecked.
+--- Group items from all available bags, including the reagent bag.
 ---@return table groups Combined item rows and their underlying bag slots.
 -- Walks every tracked bag slot and groups identical items (same hyperlink) into one combined row, the
 -- same way the default UI's "combined bags" view merges stacks together. Each group remembers every
@@ -266,30 +266,28 @@ end
 local function collectGroups()
   local groups, order = {}, {}
   for _, bagID in ipairs(bagIDs()) do
-    if bagID ~= REAGENT_BAG_ID or settings().showReagentBagContents then
-      local numSlots = C_Container.GetContainerNumSlots(bagID)
-      for slot = 1, numSlots do
-        local info = C_Container.GetContainerItemInfo(bagID, slot)
-        if info and info.itemID and not info.isFiltered then
-          local key = info.hyperlink or info.itemID
-          local group = groups[key]
-          if not group then
-            group = {
-              key = key,
-              itemID = info.itemID,
-              hyperlink = info.hyperlink,
-              itemName = info.itemName,
-              icon = info.iconFileID,
-              quality = info.quality,
-              count = 0,
-              entries = {},
-            }
-            groups[key] = group
-            order[#order + 1] = group
-          end
-          group.count = group.count + (info.stackCount or 1)
-          group.entries[#group.entries + 1] = { bagID = bagID, slot = slot, count = info.stackCount or 1, isBound = info.isBound }
+    local numSlots = C_Container.GetContainerNumSlots(bagID)
+    for slot = 1, numSlots do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.itemID and not info.isFiltered then
+        local key = info.hyperlink or info.itemID
+        local group = groups[key]
+        if not group then
+          group = {
+            key = key,
+            itemID = info.itemID,
+            hyperlink = info.hyperlink,
+            itemName = info.itemName,
+            icon = info.iconFileID,
+            quality = info.quality,
+            count = 0,
+            entries = {},
+          }
+          groups[key] = group
+          order[#order + 1] = group
         end
+        group.count = group.count + (info.stackCount or 1)
+        group.entries[#group.entries + 1] = { bagID = bagID, slot = slot, count = info.stackCount or 1, isBound = info.isBound }
       end
     end
   end
@@ -1756,7 +1754,7 @@ end
 --- Update the dropdown label to count filters that restrict the displayed items.
 local function updateFiltersLabel()
   local bag = settings()
-  local count = isRetailOrForever() and not bag.showReagentBagContents and 1 or 0
+  local count = 0
   if bag.flagFilters.unflagged == false then count = count + 1 end
   for _, status in ipairs(ITEM_STATUSES) do
     if bag.flagFilters[status.id] == false then count = count + 1 end
@@ -1802,7 +1800,6 @@ local function openFiltersMenu(anchor, root)
   local bag = settings()
   --- Enable every visible filter without changing other bag settings.
   local function checkAll()
-    if isRetailOrForever() then bag.showReagentBagContents = true end
     bag.flagFilters.unflagged = true
     for _, status in ipairs(ITEM_STATUSES) do bag.flagFilters[status.id] = true end
     for _, category in ipairs(ITEM_CATEGORIES) do bag.categoryFilters[category.id] = true end
@@ -1817,19 +1814,9 @@ local function openFiltersMenu(anchor, root)
     updateFiltersLabel()
     renderRows()
   end
-  --- Toggle whether reagent-bag slots are collected.
-  local function toggleReagentBag()
-    bag.showReagentBagContents = not bag.showReagentBagContents
-    updateFiltersLabel()
-    renderRows()
-  end
   if root then
     local checkAllButton = root:CreateButton("Check All", checkAll)
     checkAllButton:SetResponse(MenuResponse.Refresh)
-    if isRetailOrForever() then
-      root:CreateCheckbox("Reagent Bag", function() return bag.showReagentBagContents end, toggleReagentBag)
-    end
-    root:CreateDivider()
     root:CreateTitle("Flags")
     root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
       function() toggle(bag.flagFilters, "unflagged") end)
@@ -1849,10 +1836,6 @@ local function openFiltersMenu(anchor, root)
     local menu = {
       { text = "Check All", notCheckable = true, keepShownOnClick = true, func = checkAll },
     }
-    if isRetailOrForever() then
-      menu[#menu + 1] = { text = "Reagent Bag", isNotRadio = true, keepShownOnClick = true,
-        checked = function() return bag.showReagentBagContents end, func = toggleReagentBag }
-    end
     menu[#menu + 1] = { text = "Flags", isTitle = true, notCheckable = true }
     menu[#menu + 1] = { text = "Unflagged", isNotRadio = true, keepShownOnClick = true,
       checked = function() return bag.flagFilters.unflagged ~= false end,

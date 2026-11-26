@@ -2,7 +2,7 @@
 
 local retail = true
 local forever = false
-local profile = { showReagentBagContents = true, protectedItems = {}, trashItems = {} }
+local profile = { showReagentBagContents = false, protectedItems = {}, trashItems = {} }
 local frames = {}
 local refreshes = 0
 SlackHacks = setmetatable({ db = { profile = { listviewBag = profile } } }, { __index = _G })
@@ -179,7 +179,7 @@ local function entry(text, section)
 end
 openModernFilters(filtersButton)
 assert(menuEntries[1].text == "Check All" and menuEntries[1].response == MenuResponse.Refresh)
-assert(entry("Reagent Bag").checked() and entry("Unflagged", "Flags").checked())
+assert(not entry("Reagent Bag") and entry("Unflagged", "Flags").checked())
 assert(entry("Junk", "Flags").checked() and entry("Junk", "Categories").checked())
 profile.categoryFilters.special = false
 assert(not entry("Essentials", "Categories").checked(), "Renaming must retain the saved Special filter")
@@ -190,27 +190,21 @@ for _, value in ipairs(menuEntries) do
   if value.section == "Categories" then categoryLabels[#categoryLabels + 1] = value.text end
 end
 assert(table.concat(categoryLabels, ",") == expectedCategories, "Modern menu must use the requested category order")
-entry("Reagent Bag").select()
-assert(profile.showReagentBagContents == false and refreshes == 1 and filtersButton.label == "Filters (1)")
-entry("Reagent Bag").select()
-assert(profile.showReagentBagContents == true and refreshes == 2 and filtersButton.label == "Filters (None)")
 entry("Auction", "Flags").select()
 entry("Equipment", "Categories").select()
 assert(profile.flagFilters.auction == false and profile.categoryFilters.equipment == false and filtersButton.label == "Filters (2)")
-entry("Reagent Bag").select()
-assert(filtersButton.label == "Filters (3)")
 entry("Check All").select()
 assert(entry("Auction", "Flags").checked() and entry("Equipment", "Categories").checked()
-  and profile.showReagentBagContents and refreshes == 6 and filtersButton.label == "Filters (None)")
+  and profile.showReagentBagContents == false and refreshes == 3 and filtersButton.label == "Filters (None)")
 for _, value in ipairs(menuEntries) do
   if value.checked then value.select() end
 end
-assert(filtersButton.label == "Filters (15)", "Count every visible unchecked filter")
+assert(filtersButton.label == "Filters (14)", "Count every visible unchecked filter")
 entry("Check All").select()
 assert(filtersButton.label == "Filters (None)", "Check All must clear the filter count")
 local updateFiltersLabel = upvalue(createFooter, "updateFiltersLabel")
 local originalProfile = SlackHacks.db.profile.listviewBag
-SlackHacks.db.profile.listviewBag = { flagFilters = { mail = false }, categoryFilters = {}, showReagentBagContents = true }
+SlackHacks.db.profile.listviewBag = { flagFilters = { mail = false }, categoryFilters = {}, showReagentBagContents = false }
 updateFiltersLabel()
 assert(filtersButton.label == "Filters (1)", "The label must reflect a changed profile")
 SlackHacks.db.profile.listviewBag = originalProfile
@@ -222,32 +216,39 @@ C_Container = {
   GetContainerNumSlots = function(bagID) visited[#visited + 1] = bagID; return 0 end,
 }
 collectGroups()
-assert(#visited == 6 and visited[6] == 5, "Checked collector must scan reagent bag")
+assert(#visited == 6 and visited[6] == 5, "A previously unchecked reagent-bag filter must be ignored")
 visited = {}
-profile.showReagentBagContents = false
+profile.showReagentBagContents = true
 collectGroups()
-assert(#visited == 5 and visited[5] == 4, "Unchecked collector must only scan ordinary bags")
-assert(#bagIDs() == 6, "Display filter must not change bag actions")
+assert(#visited == 6 and visited[6] == 5, "A previously checked reagent-bag filter must also be ignored")
 
 retail = false
 forever = true
+profile.showReagentBagContents = false
 assert(#bagIDs() == 6 and bagIDs()[6] == 5, "Forever must include the reagent bag")
+visited = {}
+collectGroups()
+assert(#visited == 6 and visited[6] == 5, "Forever must scan the reagent bag")
 createFooter()
 filtersButton = frames.SlackHacksListviewBagFiltersButton
-assert(filtersButton.label == "Filters (1)", "A saved reagent-bag filter must be counted")
+assert(filtersButton.label == "Filters (None)", "A saved reagent-bag filter must not be counted")
 openModernFilters(filtersButton)
-assert(entry("Reagent Bag"), "Forever must offer the reagent-bag filter")
+assert(not entry("Reagent Bag"), "Forever must not offer a reagent-bag filter")
 
 forever = false
 assert(#bagIDs() == 5, "Classic must not include reagent bag")
+visited = {}
+collectGroups()
+assert(#visited == 5 and visited[5] == 4, "Classic must scan only its available bags")
 createFooter()
 filtersButton = frames.SlackHacksListviewBagFiltersButton
 assert(filtersButton.label == "Filters (None)", "Unavailable reagent-bag filters must not be counted")
 openModernFilters(filtersButton)
 assert(not entry("Reagent Bag") and entry("Other", "Categories"), "Classic must show filters without a reagent-bag option")
 
--- The legacy dropdown provides the same toggle behavior.
+-- The legacy dropdown provides the same flag and category filters.
 MenuUtil = nil
+forever = true
 local legacy
 --- Capture the legacy dropdown entries.
 ---@param menu table Menu entries.
@@ -261,6 +262,7 @@ assert(legacy[1].text == "Check All")
 categoryLabels = {}
 local inCategories = false
 for _, value in ipairs(legacy) do
+  assert(value.text ~= "Reagent Bag", "Legacy menus must not offer a reagent-bag filter")
   if inCategories then categoryLabels[#categoryLabels + 1] = value.text end
   if value.isTitle and value.text == "Categories" then inCategories = true end
   if value.text == "Unflagged" then
@@ -272,6 +274,7 @@ end
 assert(table.concat(categoryLabels, ",") == expectedCategories, "Legacy menu must use the requested category order")
 legacy[1].func()
 assert(profile.flagFilters.unflagged and filtersButton.label == "Filters (None)")
+forever = false
 
 -- Each item matches one checked category and its checked flag.
 local matchesFilters = upvalue(buildDisplayRows, "matchesFilters")
@@ -347,29 +350,58 @@ upvalue(buildDisplayRows, "collectGroups", function() return { reagent, makeItem
 assert(#buildDisplayRows() == 1, "Display rows must apply category and flag filters")
 upvalue(buildDisplayRows, "collectGroups", collectGroups)
 
--- Real group collection must retain metadata and exclude reagent-bag stacks before grouping.
+-- Real group collection must merge stacks across bags and apply categories to reagent-bag items.
 retail = true
 profile.flagFilters.unflagged = true
-profile.showReagentBagContents = true
+profile.categoryFilters.professionGoods = true
 C_Container = {
-  GetContainerNumSlots = function(bagID) return (bagID == 0 or bagID == 5) and 1 or 0 end,
-  GetContainerItemInfo = function()
+  --- Return the number of mocked slots in each bag.
+  ---@param bagID number Bag identifier.
+  ---@return number count Slot count.
+  GetContainerNumSlots = function(bagID) return bagID == 5 and 2 or bagID == 0 and 1 or 0 end,
+  --- Return a shared reagent or reagent-bag-only profession good.
+  ---@param bagID number Bag identifier.
+  ---@param slot number Slot identifier.
+  ---@return table info Item information.
+  GetContainerItemInfo = function(bagID, slot)
+    if bagID == 5 and slot == 2 then
+      return { itemID = 35, itemName = "Goods", hyperlink = "goods-link", quality = 1, stackCount = 1 }
+    end
     return { itemID = 30, itemName = "Material", hyperlink = "material-link", quality = 1, stackCount = 1 }
   end,
 }
 C_Item = {
-  GetItemInfo = function(link) return "Material", link, 1, 10, nil, nil, nil, nil, "", nil, 1, 7, nil, 0, nil, nil, true end,
+  --- Return metadata used to classify the mocked items.
+  ---@param link string Item hyperlink.
+  ---@return string name Item name.
+  ---@return any ... Remaining item metadata.
+  GetItemInfo = function(link)
+    return link == "material-link" and "Material" or "Goods", link, 1, 10, nil, nil, nil, nil, "", nil,
+      1, 7, nil, 0, nil, nil, link == "material-link"
+  end,
   GetDetailedItemLevelInfo = function() return 10 end,
 }
 upvalue(collectGroups, "getBindInfo", function() return "", 0, false, false end)
 upvalue(collectGroups, "getUpgradeTrack", function() return nil end)
 local rows = buildDisplayRows()
-assert(#rows == 1 and rows[1].count == 2 and #rows[1].entries == 2)
-profile.showReagentBagContents = false
+assert(#rows == 2)
+local material = rows[1].itemName == "Material" and rows[1] or rows[2]
+assert(material.itemName == "Material" and material.count == 2 and #material.entries == 2)
+profile.showReagentBagContents = true
 rows = buildDisplayRows()
-assert(#rows == 1 and rows[1].count == 1 and rows[1].entries[1].bagID == 0)
+assert(#rows == 2, "Old reagent-bag settings must not affect displayed items")
 profile.categoryFilters.reagents = false
-assert(#buildDisplayRows() == 0, "Collected item metadata must drive category filtering")
+rows = buildDisplayRows()
+assert(#rows == 1 and rows[1].itemName == "Goods" and rows[1].entries[1].bagID == 5,
+  "Hiding Reagents must not hide Profession Goods from the reagent bag")
+profile.categoryFilters.reagents = true
+profile.categoryFilters.professionGoods = false
+rows = buildDisplayRows()
+assert(#rows == 1 and rows[1].itemName == "Material" and rows[1].count == 2,
+  "Hiding Profession Goods must not hide Reagents from the reagent bag")
+profile.flagFilters.unflagged = false
+assert(#buildDisplayRows() == 0, "Flag filters must also apply to reagent-bag items")
+profile.flagFilters.unflagged = true
 print("Listview bag filter tests passed")
 
 local module = SlackHacks.ListviewBag

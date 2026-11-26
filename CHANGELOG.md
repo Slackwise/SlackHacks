@@ -13,7 +13,7 @@
 - The Send Mail tab can prepare flagged items for a selected recipient and refill the next batch after sending.
 - Item flags block conflicting Listview Bag actions; grey items can no longer be flagged.
 - The Listview Bag flag column can now be sorted.
-- Added Listview Bag filters for item flags, mutually exclusive categories, and reagent-bag contents, including an Essentials category for common reusable items. The dropdown shows how many filters are active.
+- Added Listview Bag filters for item flags and mutually exclusive categories, including an Essentials category for common reusable items; the dropdown shows how many filters are active.
 
 ## v33
 
