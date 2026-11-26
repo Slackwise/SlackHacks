@@ -55,10 +55,15 @@ local slots = {
   { itemID = 3, itemName = "Worthless", hyperlink = "Worthless", quality = 1, hasNoValue = true },
   { itemID = 4, itemName = "Locked", hyperlink = "Locked", quality = 1, isLocked = true },
   { itemID = 5, itemName = "Banked", hyperlink = "Banked", quality = 1 },
+  { itemID = 6, itemName = "Auction", hyperlink = "Auction", quality = 1 },
+  { itemID = 7, itemName = "Mail", hyperlink = "Mail", quality = 1 },
+  { itemID = 8, itemName = "Grey", hyperlink = "Grey", quality = 0 },
 }
-for _, item in ipairs(slots) do profile.trashItems[statusKey(item.itemName, 1, 10, nil)] = true end
+for _, item in ipairs(slots) do profile.trashItems[statusKey(item.itemName, item.quality, 10, nil)] = true end
 profile.protectedItems[statusKey("Protected", 1, 10, nil)] = true
 profile.bankItems = { [statusKey("Banked", 1, 10, nil)] = true }
+profile.auctionItems = { [statusKey("Auction", 1, 10, nil)] = true }
+profile.mailItems = { [statusKey("Mail", 1, 10, nil)] = true }
 local actions = {}
 C_Container = {
   GetContainerNumSlots = function(bag) return bag == 0 and #slots or 0 end,

@@ -53,9 +53,9 @@ An alternate list-based view for player bags that can replace the default grid b
 * **Columns:** Quantity, Item Name, Item Level, Armor/Weapon Type, Equipment Slot, and Binding Type (BoE, BoP, Warbound).
 * **Sorting:** Ascending and descending sort support on all columns.
 * **Search:** Real-time text search filter.
-* **Item Protection:** Lock items to prevent them from being vendored or deleted.
+* **Item Protection:** Protect items from conflicting vendor, auction, and mail interactions in Listview Bag.
 * **Junk Marking:** Mark specific items to be automatically sold at merchants or vendored with Blizzard's "Sell All Junk" button.
-* **Item Flags:** Left-click an item's flag button to choose Vendor, Protect, Auction, Bank, or Mail; right-click it to toggle Vendor. Bank uses the same safeguards as Protect, but Blizzard's junk sale and Auto-Sell Greys can still sell grey items. Auction, Bank, and Mail are marks only and do not move or list items.
+* **Item Flags:** Left-click an item's flag button to choose Junk, Auction, Protect, Bank, or Mail; right-click it to toggle Junk. Flags block conflicting interactions in Listview Bag: Auction, Protect, Bank, and Mail prevent vendor sales; Protect and Bank also prevent auctioning and mailing; Mail also prevents auctioning and banking. A conflicting item picked up from Listview Bag is returned when the destination opens. Grey items cannot be flagged. Auction, Bank, and Mail flags do not automatically move or list items; normal bags and Blizzard's junk sale are unaffected.
 
 ### Info Display
 One "Enable Info Display Module" switch turns all Info Display features on or off at once: Char Sheet, Weeklies, and the Guildie, Friends, and Players Online lists. Each feature also has its own on/off setting. The Guildie, Friends, and Players Online lists work in both Retail and WoW Forever.

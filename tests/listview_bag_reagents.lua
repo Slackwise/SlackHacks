@@ -197,6 +197,8 @@ assert(not bagFrame.shown, "Ordinary native close must still close the bag")
 for _, interaction in ipairs({
   { open = "MAIL_SHOW", close = "MAIL_CLOSED" },
   { open = "AUCTION_HOUSE_SHOW", close = "AUCTION_HOUSE_CLOSED" },
+  { open = "BANKFRAME_OPENED", close = "BANKFRAME_CLOSED" },
+  { open = "GUILDBANKFRAME_OPENED", close = "GUILDBANKFRAME_CLOSED" },
   { open = "MERCHANT_SHOW", close = "MERCHANT_CLOSED" },
 }) do
   bagFrame.shown = true
@@ -217,7 +219,7 @@ for _, interaction in ipairs({
   hooks.CloseBackpack()
   assert(not bagFrame.shown, interaction.close .. " must release the close guard")
 end
-for _, name in ipairs({ "MailFrame", "MerchantFrame", "AuctionHouseFrame", "AuctionFrame" }) do
+for _, name in ipairs({ "MailFrame", "MerchantFrame", "AuctionHouseFrame", "AuctionFrame", "BankFrame", "GuildBankFrame" }) do
   _G[name] = { IsShown = function() return true end }
   bagFrame.shown = true
   hooks.ToggleBackpack()

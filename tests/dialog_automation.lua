@@ -14,7 +14,7 @@ function CreateFrame() return {} end
 Enum = {}
 StaticPopupDialogs = {}
 assert(loadfile("Init.lua"))()
-assert(addon.CONFIG_VERSION == 15 and addon.CONFIG_VERSION_RELEASES[13] == 27
+assert(addon.CONFIG_VERSION == 16 and addon.CONFIG_VERSION_RELEASES[13] == 27
   and addon.CONFIG_VERSION_RELEASES[14] == 28 and addon.CONFIG_VERSION_RELEASES[15] == 30)
 
 local legacy = { enabled = true, autoAccept = true, autoComplete = false,
@@ -74,7 +74,7 @@ for version = 0, 14 do
   addon.db = { global = { configVersion = version }, profile = profile,
     profiles = { Default = profile } }
   addon.migrateConfig()
-  assert(addon.db.global.configVersion == 15)
+  assert(addon.db.global.configVersion == 16)
   assert(type(profile.dialog) == "table" and rawget(profile, "quest") == nil)
   if version >= 13 then
     assert(profile.dialog.autoClickFirstOptionServicesOnly and rawget(profile.dialog, "autoClickFirstOptionVendorOnly") == nil)

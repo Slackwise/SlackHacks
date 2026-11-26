@@ -57,7 +57,7 @@ end
 local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
 local PROTECT_STATUS = { id = "protect", name = "Protect", field = "protectedItems", atlas = PROTECT_ICON_ATLAS }
 local ITEM_STATUSES = {
-  { id = "vendor", name = "Vendor", field = "trashItems", atlas = "bags-junkcoin" },
+  { id = "vendor", name = "Junk", field = "trashItems", atlas = "bags-junkcoin" },
   { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Minimap\\Tracking\\Auctioneer" },
   PROTECT_STATUS,
   { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Minimap\\Tracking\\Banker" },
@@ -111,12 +111,13 @@ local function itemStatusKey(itemName, quality, itemLevel, upgradeTrack)
   return table.concat({ itemName or "", quality or 0, itemLevel or 0, upgradeTrack or "" }, "\031")
 end
 
---- Check whether a Protect or Bank mark applies the existing vendor safeguards.
+--- Check whether a flag prevents vendor sales.
 ---@param key string Item status key.
 ---@return boolean protected Whether the item is protected.
 local function isProtectedItem(key)
   local listviewSettings = settings()
   return listviewSettings.protectedItems[key] ~= nil or listviewSettings.bankItems[key] ~= nil
+    or listviewSettings.auctionItems[key] ~= nil or listviewSettings.mailItems[key] ~= nil
 end
 
 local function isTrashItem(key)
@@ -221,7 +222,7 @@ local function collectGroups()
               hyperlink = info.hyperlink,
               itemName = info.itemName,
               icon = info.iconFileID,
-              quality = info.quality or Enum.ItemQuality.Common or 1,
+              quality = info.quality,
               count = 0,
               entries = {},
             }
@@ -240,6 +241,7 @@ local function collectGroups()
   for _, group in ipairs(order) do
     local itemName, itemLink, quality, itemLevel, _, itemType, itemSubType, _, itemEquipLoc, _, _, classID = C_Item.GetItemInfo(group.hyperlink)
     group.itemName = itemName or group.itemName
+    group.quality = group.quality or quality
     if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
       local ok, craftedQuality = pcall(C_TradeSkillUI.GetItemCraftedQualityByItemInfo, group.hyperlink)
       group.craftedQuality = ok and craftedQuality or nil
@@ -293,7 +295,7 @@ local function collectGroups()
     elseif sortColumn == "bind" then
       result = sortValueBefore(a.bindLabel or "", b.bindLabel or "")
     else
-      if a.quality ~= b.quality then return a.quality > b.quality end
+      if a.quality ~= b.quality then return (a.quality or -1) > (b.quality or -1) end
     end
     if result ~= nil then return result end
     return (a.itemName or "") < (b.itemName or "")
@@ -320,6 +322,9 @@ local sellMarkedTrashItems, updateMerchantJunkButton
 local merchantOpen = false
 local mailOpen = false
 local auctionOpen = false
+local bankOpen = false
+local guildBankOpen = false
+local trackedCursorItem
 
 -- Distributes the header/row widths for the currently reorderable columns, giving the "name" column
 -- whatever space is left over. Non-reorderable cells (collapse arrow, lock/trash status) are pinned.
@@ -445,6 +450,10 @@ end
 ---@param statusInfo table Item metadata to save.
 ---@param selected table|nil Status definition, or nil to clear.
 local function setItemStatus(key, statusInfo, selected)
+  if selected and (statusInfo.quality == nil or statusInfo.quality == 0) then
+    prn(statusInfo.quality == 0 and "grey items cannot be flagged." or "item quality is not yet available.")
+    return
+  end
   local listviewSettings = settings()
   for _, status in ipairs(ITEM_STATUSES) do
     listviewSettings[status.field][key] = nil
@@ -454,6 +463,71 @@ local function setItemStatus(key, statusInfo, selected)
   updateMerchantJunkButton()
   local registry = LibStub("AceConfigRegistry-3.0", true)
   if registry then registry:NotifyChange("SlackHacks") end
+end
+
+--- Return the blocked interaction for this flag and the currently open windows.
+---@param key string Item status key.
+---@param quality number|nil Item quality.
+---@return string|nil action Blocked action, or nil if interaction is allowed.
+local function blockedItemAction(key, quality)
+  if quality == 0 then return nil end
+  local bag = settings()
+  local protected = bag.protectedItems[key] ~= nil or bag.bankItems[key] ~= nil
+  local auction = bag.auctionItems[key] ~= nil
+  local mail = bag.mailItems[key] ~= nil
+  if merchantOpen and (protected or auction or mail) then
+    return "vendoring"
+  end
+  if auctionOpen and (protected or mail) then
+    return "auctioning"
+  end
+  if mailOpen and protected then
+    return "mailing"
+  end
+  if (bankOpen or guildBankOpen) and mail then
+    return "banking"
+  end
+end
+
+--- Remember an item picked up through a list-view row.
+---@param row table Item row at the time of pickup.
+local function rememberPickedUpItem(row)
+  local cursorType, _, link = GetCursorInfo()
+  if cursorType == "item" and link and link == row.hyperlink then
+    trackedCursorItem = { key = row.statusKey, quality = row.statusInfo.quality, link = link }
+  else
+    trackedCursorItem = nil
+  end
+end
+
+--- Return a tracked cursor item if the newly opened destination conflicts with its flag.
+local function returnBlockedCursorItem()
+  if not trackedCursorItem then return end
+  local cursorType, _, link = GetCursorInfo()
+  if cursorType ~= "item" or link ~= trackedCursorItem.link then
+    trackedCursorItem = nil
+    return
+  end
+  local action = blockedItemAction(trackedCursorItem.key, trackedCursorItem.quality)
+  if action then
+    ClearCursor()
+    local remainingType, _, remainingLink = GetCursorInfo()
+    if remainingType == "item" and remainingLink == link then
+      prn("this item's flag prevents " .. action .. "; please return it to your bags.")
+    else
+      trackedCursorItem = nil
+      prn("this item's flag prevents " .. action .. "; the item was returned to your bags.")
+    end
+  end
+end
+
+--- Update a row's interaction blocker for the currently open windows.
+---@param row table Item row.
+---@param key string Item status key.
+---@param quality number|nil Item quality.
+local function updateInteractionBlocker(row, key, quality)
+  row.actionBlocker.blockedAction = blockedItemAction(key, quality)
+  row.actionBlocker:SetShown(row.actionBlocker.blockedAction ~= nil)
 end
 
 --- Format a status icon and label for either context-menu implementation.
@@ -557,6 +631,7 @@ local function createRow(index)
   row.collapseBtn = CreateFrame("Button", nil, row)
   row.collapseBtn:SetSize(COLLAPSE_WIDTH, ROW_HEIGHT)
   row.collapseBtn:SetPoint("LEFT", row, "LEFT", 0, 0)
+  row.collapseBtn:SetFrameLevel(row:GetFrameLevel() + 2)
   row.collapseBtn.text = row.collapseBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   row.collapseBtn.text:SetAllPoints()
   row.collapseBtn.text:SetJustifyH("CENTER")
@@ -575,6 +650,7 @@ local function createRow(index)
   row.statusBtn = CreateFrame("Button", nil, row)
   row.statusBtn:SetSize(STATUS_WIDTH, STATUS_WIDTH)
   row.statusBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+  row.statusBtn:SetFrameLevel(row:GetFrameLevel() + 2)
   row.statusBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   row.statusBtn.icon = row.statusBtn:CreateTexture(nil, "ARTWORK")
   row.statusBtn.icon:SetSize(14, 14)
@@ -584,6 +660,10 @@ local function createRow(index)
   row.statusBtn.text:SetJustifyH("CENTER")
   row.statusBtn.text:SetText("...")
   row.statusBtn:SetScript("OnClick", function(self, button)
+    if row.statusInfo.quality == nil or row.statusInfo.quality == 0 then
+      prn(row.statusInfo.quality == 0 and "grey items cannot be flagged." or "item quality is not yet available.")
+      return
+    end
     if button == "RightButton" then
       local status = getItemStatus(row.statusKey)
       if status == ITEM_STATUSES[1] then
@@ -598,11 +678,39 @@ local function createRow(index)
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local status = getItemStatus(row.statusKey)
-    GameTooltip:SetText("Flag item for: " .. (status and status.name or "None"))
-    GameTooltip:AddLine("Left-click to choose flag.\nRight-click to quick mark for Vendor.", 1, 1, 1, true)
+    if row.statusInfo.quality == 0 then
+      GameTooltip:SetText("Grey items cannot be flagged.")
+    elseif row.statusInfo.quality == nil then
+      GameTooltip:SetText("Item quality is not yet available.")
+    else
+      GameTooltip:SetText("Flag item for: " .. (status and status.name or "None"))
+      GameTooltip:AddLine("Left-click to choose flag.\nRight-click to quick mark as Junk.", 1, 1, 1, true)
+    end
     GameTooltip:Show()
   end)
   row.statusBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+  -- Block pickup as well as right-click while a conflicting destination is open; the flag remains clickable.
+  row.actionBlocker = CreateFrame("Button", nil, row)
+  row.actionBlocker:SetPoint("TOPLEFT", row, "TOPLEFT", COLLAPSE_WIDTH, 0)
+  row.actionBlocker:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -STATUS_WIDTH, 0)
+  row.actionBlocker:SetFrameLevel(row:GetFrameLevel() + 1)
+  row.actionBlocker:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  row.actionBlocker:RegisterForDrag("LeftButton")
+  row.actionBlocker:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    if row.hyperlink then GameTooltip:SetHyperlink(row.hyperlink) else GameTooltip:SetText(row.itemName or "Item") end
+    GameTooltip:AddLine("This item's flag prevents " .. self.blockedAction .. ".", 1, 0.3, 0.3, true)
+    GameTooltip:Show()
+  end)
+  row.actionBlocker:SetScript("OnLeave", GameTooltip_Hide)
+  --- Explain why a click or drag is blocked.
+  ---@param self table Interaction-blocking button.
+  local function reportBlockedAction(self)
+    prn("this item's flag prevents " .. self.blockedAction .. ".")
+  end
+  row.actionBlocker:SetScript("OnClick", reportBlockedAction)
+  row.actionBlocker:SetScript("OnDragStart", reportBlockedAction)
 
   row.icon = row:CreateTexture(nil, "ARTWORK")
   row.icon:SetSize(ROW_HEIGHT - 4, ROW_HEIGHT - 4)
@@ -630,6 +738,12 @@ local function createRow(index)
     end
   end)
 
+  -- Keep the flag key while the item is on the cursor, even if its row is later recycled.
+  row:HookScript("OnClick", function(self, button)
+    if button == "LeftButton" then rememberPickedUpItem(self) end
+  end)
+  row:HookScript("OnDragStart", rememberPickedUpItem)
+
   -- Blizzard's own split dialog (opened by its inherited OnModifiedClick) leaves the split stack on
   -- the cursor, requiring the player to click a bag slot to place it. Hooking (not replacing)
   -- OnModifiedClick lets us wrap the SplitStack closure it just set -- after Blizzard's own split
@@ -637,8 +751,10 @@ local function createRow(index)
   hooksecurefunc(row, "OnModifiedClick", function(self)
     local splitStack = self.SplitStack
     if type(splitStack) == "function" and not autoPlaceSplitStacks[splitStack] then
+      local splitItem = { hyperlink = self.hyperlink, statusKey = self.statusKey, statusInfo = self.statusInfo }
       local wrapped = function(splitSelf, split)
         splitStack(splitSelf, split)
+        rememberPickedUpItem(splitItem)
         if GetCursorInfo() then
           local emptyBagID, emptySlot = findEmptyBagSlot()
           if emptyBagID then
@@ -745,6 +861,7 @@ renderRows = function()
     row:Show()
     row.stripe:SetShown(i % 2 == 0) -- alternating-row banding, same look as the guild roster list
     row.itemID = data.itemID
+    row.itemName = data.itemName
     row.hyperlink = data.hyperlink
     row.isChild = data.isChild
     row.groupKey = data.isGroupHeader and data.key or nil
@@ -754,11 +871,8 @@ renderRows = function()
     row.locked = isProtectedItem(data.statusKey)
     row.holder:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
     row:SetID(row.primaryEntry and row.primaryEntry.slot or 0)
-    if row.locked and MerchantFrame and MerchantFrame:IsShown() then
-      row:RegisterForClicks("LeftButtonUp")
-    else
-      row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    end
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    updateInteractionBlocker(row, data.statusKey, data.quality)
 
     if data.isGroupHeader then
       row.collapseBtn:Show()
@@ -767,10 +881,10 @@ renderRows = function()
       row.collapseBtn:Hide()
     end
 
-    updateStatusButton(row.statusBtn, getItemStatus(data.statusKey))
+    updateStatusButton(row.statusBtn, data.quality ~= 0 and getItemStatus(data.statusKey) or nil)
 
     row.icon:SetTexture(data.icon)
-    local qualityColor = data.quality and (ITEM_QUALITY_COLORS[data.quality] or ITEM_QUALITY_COLORS[1])
+    local qualityColor = ITEM_QUALITY_COLORS[data.quality or 1] or ITEM_QUALITY_COLORS[1]
     row.nameText:SetText(data.itemName or "?")
     if qualityColor then
       row.nameText:SetTextColor(qualityColor.color:GetRGB())
@@ -1066,13 +1180,15 @@ end
 
 local lastNativeBagToggle = 0
 --- Return whether an interaction window currently needs access to bag contents.
----@return boolean interacting Whether a merchant, mailbox, or auction house is open.
+---@return boolean interacting Whether an item-interaction window is open.
 local function isBagInteractionOpen()
-  return merchantOpen or mailOpen or auctionOpen
+  return merchantOpen or mailOpen or auctionOpen or bankOpen or guildBankOpen
     or (MerchantFrame and MerchantFrame:IsShown())
     or (MailFrame and MailFrame:IsShown())
     or (AuctionHouseFrame and AuctionHouseFrame:IsShown())
     or (AuctionFrame and AuctionFrame:IsShown())
+    or (BankFrame and BankFrame:IsShown())
+    or (GuildBankFrame and GuildBankFrame:IsShown())
     or false
 end
 
@@ -1339,10 +1455,11 @@ local function forEachSellableTrashSlot(callback)
     for slot = 1, C_Container.GetContainerNumSlots(bagID) do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID and not info.hasNoValue and not info.isLocked then
-        local itemName, itemLink, _, itemLevel = C_Item.GetItemInfo(info.hyperlink)
+        local itemName, itemLink, quality, itemLevel = C_Item.GetItemInfo(info.hyperlink)
+        local itemQuality = info.quality or quality
         local upgradeTrack = getUpgradeTrack(bagID, slot)
-        local key = itemStatusKey(itemName or info.itemName, info.quality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
-        if isTrashItem(key) and not isProtectedItem(key) then
+        local key = itemStatusKey(itemName or info.itemName, itemQuality, C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel, upgradeTrack)
+        if itemQuality ~= nil and itemQuality ~= 0 and isTrashItem(key) and not isProtectedItem(key) then
           count = count + 1
           if callback then callback(bagID, slot) end
         end
@@ -1407,6 +1524,8 @@ function module:OnEnable()
   mailOpen = MailFrame and MailFrame:IsShown() or false
   auctionOpen = (AuctionHouseFrame and AuctionHouseFrame:IsShown())
     or (AuctionFrame and AuctionFrame:IsShown()) or false
+  bankOpen = BankFrame and BankFrame:IsShown() or false
+  guildBankOpen = GuildBankFrame and GuildBankFrame:IsShown() or false
   hookMerchantJunkButton()
   updateMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
@@ -1416,12 +1535,17 @@ function module:OnEnable()
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
+  self:RegisterEvent("CURSOR_CHANGED", "OnCursorChanged")
   self:RegisterEvent("MERCHANT_SHOW")
   self:RegisterEvent("MERCHANT_CLOSED")
   self:RegisterEvent("MAIL_SHOW", "OnBagInteractionOpen")
   self:RegisterEvent("MAIL_CLOSED", "OnBagInteractionClosed")
   self:RegisterEvent("AUCTION_HOUSE_SHOW", "OnBagInteractionOpen")
   self:RegisterEvent("AUCTION_HOUSE_CLOSED", "OnBagInteractionClosed")
+  self:RegisterEvent("BANKFRAME_OPENED", "OnBagInteractionOpen")
+  self:RegisterEvent("BANKFRAME_CLOSED", "OnBagInteractionClosed")
+  self:RegisterEvent("GUILDBANKFRAME_OPENED", "OnBagInteractionOpen")
+  self:RegisterEvent("GUILDBANKFRAME_CLOSED", "OnBagInteractionClosed")
   EventRegistry:RegisterCallback("TokenFrame.OnTokenWatchChanged", self.RefreshFooter, self)
   if settings().showListviewBag then
     setShowListviewBag(true)
@@ -1429,6 +1553,7 @@ function module:OnEnable()
 end
 
 function module:OnDisable()
+  trackedCursorItem = nil
   if frame then frame:Hide() end
   self:UpdateListViewBindings()
   showDefaultBags()
@@ -1438,6 +1563,7 @@ end
 
 function module:MERCHANT_SHOW()
   merchantOpen = true
+  returnBlockedCursorItem()
   hookMerchantJunkButton()
   if settings().showListviewBag then
     hideDefaultBags()
@@ -1455,19 +1581,35 @@ function module:MERCHANT_CLOSED()
   renderRows()
 end
 
---- Keep the list view open when the mailbox or auction house opens, before its frame is visible.
+--- Keep the list view open and refresh guards when an item-interaction window opens.
 ---@param event string Interaction-open event.
 function module:OnBagInteractionOpen(event)
   if event == "MAIL_SHOW" then mailOpen = true end
   if event == "AUCTION_HOUSE_SHOW" then auctionOpen = true end
+  if event == "BANKFRAME_OPENED" then bankOpen = true end
+  if event == "GUILDBANKFRAME_OPENED" then guildBankOpen = true end
+  returnBlockedCursorItem()
   self:OnNativeBagOpen()
+  renderRows()
 end
 
---- Clear the mailbox or auction state when that interaction ends.
+--- Forget the list-view pickup when the cursor no longer holds that item.
+function module:OnCursorChanged()
+  if not trackedCursorItem then return end
+  local cursorType, _, link = GetCursorInfo()
+  if cursorType ~= "item" or link ~= trackedCursorItem.link then
+    trackedCursorItem = nil
+  end
+end
+
+--- Clear interaction state and refresh item guards when a window closes.
 ---@param event string Interaction-close event.
 function module:OnBagInteractionClosed(event)
   if event == "MAIL_CLOSED" then mailOpen = false end
   if event == "AUCTION_HOUSE_CLOSED" then auctionOpen = false end
+  if event == "BANKFRAME_CLOSED" then bankOpen = false end
+  if event == "GUILDBANKFRAME_CLOSED" then guildBankOpen = false end
+  renderRows()
 end
 
 --- Show the list view for a native open request without toggling an already-open window closed.
