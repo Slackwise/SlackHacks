@@ -2017,10 +2017,21 @@ local function createFooter()
   footer.slotCount = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   footer.slotCount:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 4, 4)
 
+  StaticPopupDialogs.SLACKHACKS_FREE_UP_SLOTS_WIP = {
+    text = "Work in progress, sorry!",
+    button1 = OKAY,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+  }
   footer.freeSlotsButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
   footer.freeSlotsButton:SetSize(90, 20)
   footer.freeSlotsButton:SetPoint("LEFT", footer.slotCount, "RIGHT", 6, 0)
   footer.freeSlotsButton:SetText("Free-Up Slots")
+  footer.freeSlotsButton:SetScript("OnClick", function()
+    if not isModuleEnabled() then return end
+    if not StaticPopup_Show("SLACKHACKS_FREE_UP_SLOTS_WIP") then prn("Work in progress, sorry!") end
+  end)
 
   footer.balances = CreateFrame("Frame", nil, footer)
   footer.balances:SetSize(168, 20)

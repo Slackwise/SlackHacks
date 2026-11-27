@@ -1109,6 +1109,15 @@ function MoneyFrame_SetMaxDisplayWidth() end
 --- Supply a balance for the footer.
 ---@return number money Balance in copper.
 function GetMoney() return 0 end
+OKAY = "Okay"
+local freeSlotsPopup, popupUnavailable
+--- Capture the free-slots messagebox.
+---@param kind string Popup identifier.
+---@return table|nil dialog Mock dialog when available.
+function StaticPopup_Show(kind)
+  freeSlotsPopup = kind
+  if not popupUnavailable then return {} end
+end
 createFooter()
 local footer = upvalue(createFooter, "footer")
 footer:SetWidth(684)
@@ -1129,9 +1138,30 @@ updateFooter()
 assert(footer.slotCount.text == "|cffffffff30 / 81|r slots used",
   "An equipped reagent bag with free space must count as one free slot")
 assert(footer.slotCount.points.BOTTOMLEFT[1] == footer and footer.freeSlotsButton.points.LEFT[1] == footer.slotCount
-  and footer.freeSlotsButton.text == "Free-Up Slots" and not footer.freeSlotsButton.scripts.OnClick,
-  "The inactive free-slots button must sit to the right of the footer counter")
+  and footer.freeSlotsButton.text == "Free-Up Slots" and footer.freeSlotsButton:IsShown(),
+  "The free-slots button must be visible to the right of the footer counter")
+footer.freeSlotsButton.scripts.OnClick()
+local freeSlotsDialog = StaticPopupDialogs[freeSlotsPopup]
+assert(freeSlotsDialog and freeSlotsDialog.text == "Work in progress, sorry!"
+  and freeSlotsDialog.button1 == OKAY and freeSlotsDialog.hideOnEscape,
+  "Clicking the button must show the work-in-progress message")
+freeSlotsPopup = nil
+profile.enabled = false
+footer.freeSlotsButton.scripts.OnClick()
+assert(not freeSlotsPopup, "The button must not act when the module is disabled")
+profile.enabled = true
+popupUnavailable = true
+footer.freeSlotsButton.scripts.OnClick()
+assert(messages[#messages] == "Work in progress, sorry!", "Popup failures must still report the message")
+popupUnavailable = false
 assert(footer.height == 20 and footer.balances.points.BOTTOMRIGHT[4] == 0)
+
+footer:SetWidth(300)
+updateFooter()
+assert(footer.height == 40, "The visible button must count toward footer width")
+footer:SetWidth(684)
+updateFooter()
+assert(footer.height == 20, "A wider footer must return to one row")
 
 free[5] = 1
 updateFooter()
