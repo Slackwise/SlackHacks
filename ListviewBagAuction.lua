@@ -155,31 +155,77 @@ end
 ---@return table window Progress window.
 local function progressWindow()
   if progress then return progress end
-  progress = CreateFrame("Frame", "SlackHacksAuctionScanProgress", UIParent, "BasicFrameTemplateWithInset")
-  progress:SetSize(300, 100)
+  progress = CreateFrame("Frame", "SlackHacksAuctionScanProgress", UIParent, "SimplePanelTemplate")
+  progress:SetSize(300, 160)
   progress:SetPoint("CENTER")
   progress:SetFrameStrata("DIALOG")
-  progress.TitleText:SetText("Checking Auction Prices")
-  progress.text = progress:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  progress.text:SetPoint("TOP", 0, -30)
-  progress.bar = CreateFrame("StatusBar", nil, progress)
-  progress.bar:SetPoint("TOPLEFT", 16, -48)
-  progress.bar:SetPoint("TOPRIGHT", -16, -48)
-  progress.bar:SetHeight(12)
-  progress.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-  progress.bar:SetStatusBarColor(0.2, 0.65, 0.25)
-  progress.cancel = CreateFrame("Button", nil, progress, "UIPanelButtonTemplate")
-  progress.cancel:SetSize(80, 20)
-  progress.cancel:SetPoint("BOTTOM", 0, 8)
+  progress:SetToplevel(true)
+  progress:SetClampedToScreen(true)
+  progress:SetMovable(true)
+  progress:SetDontSavePosition(true)
+  progress:EnableMouse(true)
+  progress:RegisterForDrag("LeftButton")
+  progress:SetScript("OnDragStart", progress.StartMoving)
+  progress:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+  progress:Hide()
+  progress.Inset:Hide()
+  progress.Bg:ClearAllPoints()
+  progress.Bg:SetPoint("TOPLEFT", 0, -6)
+  progress.Bg:SetPoint("BOTTOMRIGHT", -4, 3)
+
+  progress.headline = progress:CreateTexture(nil, "BACKGROUND")
+  progress.headline:SetTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
+  progress.headline:SetBlendMode("ADD")
+  progress.headline:SetVertexColor(0.1, 0.1, 0.1, 1)
+  progress.headline:SetHeight(26)
+  progress.headline:SetPoint("TOPLEFT", 40, -21)
+  progress.headline:SetPoint("TOPRIGHT", -40, -21)
+  progress.title = progress:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  progress.title:SetHeight(26)
+  progress.title:SetPoint("TOPLEFT", 12, -21)
+  progress.title:SetPoint("TOPRIGHT", -14, -21)
+  progress.title:SetJustifyH("CENTER")
+  progress.title:SetText("Checking Auction Prices")
+  progress.text = progress:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  progress.text:SetPoint("TOP", 0, -54)
+  progress.barFrame = CreateFrame("Frame", nil, progress, "ObjectiveTrackerProgressBarTemplate")
+  progress.bar = progress.barFrame.Bar
+  local barWidth, heightScale = progress:GetWidth() * 0.8, 1.5
+  progress.bar.BorderLeft:SetHeight(progress.bar.BorderLeft:GetHeight() * heightScale)
+  progress.bar.BorderRight:SetHeight(progress.bar.BorderRight:GetHeight() * heightScale)
+  progress.bar:SetSize(barWidth, progress.bar:GetHeight() * heightScale)
+  -- The tracker template is hidden and offsets its bar for the quest list.
+  progress.barFrame:ClearAllPoints()
+  progress.barFrame:SetSize(barWidth, progress.bar.BorderLeft:GetHeight())
+  progress.barFrame:SetPoint("TOP", 0, -70)
+  progress.bar:ClearAllPoints()
+  progress.bar:SetPoint("CENTER")
+  progress.bar:EnableMouse(false)
+  progress.barFrame:Show()
+  progress.cancel = CreateFrame("Button", nil, progress, "SharedButtonSmallTemplate")
+  progress.cancel:SetSize(140, 22)
+  progress.cancel:SetPoint("BOTTOM", 0, 16)
   progress.cancel:SetText("Cancel")
   progress.cancel:SetScript("OnClick", function() auction.Cancel("auction price scan cancelled.") end)
   progress:SetScript("OnHide", function()
     if scan then auction.Cancel("auction price scan cancelled.") end
   end)
-  if progress.CloseButton then
-    progress.CloseButton:SetScript("OnClick", function() auction.Cancel("auction price scan cancelled.") end)
-  end
+  progress.CloseButton = CreateFrame("Button", nil, progress, "UIPanelCloseButtonDefaultAnchors")
+  progress.CloseButton:SetScript("OnClick", function() auction.Cancel("auction price scan cancelled.") end)
+  progress.addonLabel = progress:CreateFontString(nil, "ARTWORK", "GameFontDarkGraySmall")
+  progress.addonLabel:SetPoint("BOTTOMRIGHT", -7, 5)
+  progress.addonLabel:SetTextColor(0.4, 0.4, 0.4)
+  progress.addonLabel:SetText(addonName)
   return progress
+end
+
+--- Update the scan count and native objective tracker progress bar.
+---@param completed number Number of completed items.
+---@param total number Total number of items.
+local function updateProgress(completed, total)
+  progress.bar:SetMinMaxValues(0, total)
+  progress.bar:SetValue(completed)
+  progress.text:SetText(("%d / %d items"):format(completed, total))
 end
 
 --- Publish progress and complete the scan once every requested item is processed.
@@ -190,8 +236,7 @@ local function advance()
   scan.pendingMore = false
   scan.waiting = false
   scan.deadline = nil
-  progress.bar:SetValue(scan.index - 1)
-  progress.text:SetText(("%d / %d items"):format(scan.index - 1, #scan.items))
+  updateProgress(scan.index - 1, #scan.items)
   if scan.index > #scan.items then
     local failed, refresh = scan.failed, scan.refresh
     auction.Cancel()
@@ -310,9 +355,7 @@ function auction.Start(items, refresh)
   end
   scan = { items = items, refresh = refresh, index = 1, failed = 0 }
   local window = progressWindow()
-  window.bar:SetMinMaxValues(0, #items)
-  window.bar:SetValue(0)
-  window.text:SetText(("0 / %d items"):format(#items))
+  updateProgress(0, #items)
   window:Show()
   scan.ticker = C_Timer.NewTicker(0.2, tick)
 end
