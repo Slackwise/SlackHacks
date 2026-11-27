@@ -24,6 +24,12 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Clean dist",
+			"type": "shell",
+			"command": "bash scripts/clean.sh",
+			"problemMatcher": []
+		},
+		{
 			"label": "Deploy",
 			"type": "shell",
 			"command": "bash scripts/deploy.sh",

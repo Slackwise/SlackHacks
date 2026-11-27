@@ -993,6 +993,38 @@ test 'copied shell updater handles invalid paths independently' => sub {
     like($result->{stderr}, qr/Repository path does not exist/, 'error is reported without a shared helper');
 };
 
+test 'clean.sh removes dist contents without following links' => sub {
+    my $repo = tempdir('slackhacks-clean-XXXXXX', TMPDIR => 1, CLEANUP => 1);
+    make_path("$repo/scripts", "$repo/dist/LibRPMedia", "$repo/dist/SlackHacks", "$repo/outside");
+    spew("$repo/scripts/$_", slurp("$scripts/$_")) for qw(clean.sh output-style.sh);
+    spew("$repo/dist/LibRPMedia/data.lua", "-- checkout\n");
+    spew("$repo/dist/SlackHacks/Core.lua", "-- build\n");
+    spew("$repo/dist/.hidden", "hidden\n");
+    spew("$repo/outside/keep.txt", "keep\n");
+    my $has_link = symlink("$repo/outside", "$repo/dist/link") && -l "$repo/dist/link";
+    my $result = run(['bash', 'scripts/clean.sh'], $repo, 0);
+    is($result->{status}, 0, 'clean succeeds') or diag $result->{stdout} . $result->{stderr};
+    ok(-d "$repo/dist", 'dist directory remains');
+    opendir my $dh, "$repo/dist" or die "Cannot open dist: $!";
+    my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+    closedir $dh or die "Cannot close dist: $!";
+    is_deeply(\@entries, [], 'all dist contents, including hidden files and checkout, are removed');
+    is(slurp("$repo/outside/keep.txt"), "keep\n", 'outside files are preserved');
+    SKIP: {
+        skip 'directory symlinks are unavailable', 2 unless $has_link;
+        rmdir "$repo/dist" or die "Cannot remove empty dist: $!";
+        symlink("$repo/outside", "$repo/dist") or die "Cannot create dist symlink: $!";
+        $result = run(['bash', 'scripts/clean.sh'], $repo, 0);
+        isnt($result->{status}, 0, 'clean refuses a linked dist directory');
+        is(slurp("$repo/outside/keep.txt"), "keep\n", 'linked dist target is preserved');
+        unlink "$repo/dist" or die "Cannot remove dist symlink: $!";
+    }
+    if (-d "$repo/dist") {
+        rmdir "$repo/dist" or die "Cannot remove empty dist: $!";
+    }
+    is(run(['bash', 'scripts/clean.sh'], $repo, 0)->{status}, 0, 'missing dist is already clean');
+};
+
 test 'build.sh does not package CHANGELOG.md' => sub {
     my $repo = tempdir('slackhacks-build-XXXXXX', TMPDIR => 1, CLEANUP => 1);
     run(['git', 'init', '-q', $repo], $repo);
