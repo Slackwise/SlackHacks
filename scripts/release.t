@@ -452,6 +452,55 @@ test 'release errors and EOF return to dev even when started on another branch' 
     is(branch($repo), 'release-work');
 };
 
+test 'release and retry synchronize different prod and dev submodule revisions' => sub {
+    local $ENV{GIT_ALLOW_PROTOCOL} = 'file';
+    my $repo = fixture();
+    prepare_scripts($repo);
+    spew("$repo/scripts/deploy.sh", "#!/usr/bin/env bash\nmkdir -p dist\n" .
+        "git -C Libs/Fixture rev-parse HEAD > dist/submodule-at-deploy\nexit 42\n");
+    my $child = "$repo/../child";
+    run(['git', 'init', '-q', $child], $repo);
+    spew("$child/data", 'one');
+    git($child, 'add', '.');
+    git($child, 'commit', '-m', 'one');
+    my $first = git($child, 'rev-parse', 'HEAD');
+    git($repo, 'submodule', 'add', $child, 'Libs/Fixture');
+    git($repo, 'add', '.');
+    git($repo, 'commit', '-m', 'add submodule');
+    git($repo, 'branch', '-f', 'prod', 'HEAD');
+    git($repo, 'push', 'origin', 'prod');
+
+    git($repo, 'checkout', 'prod');
+    spew("$child/data", 'two');
+    git($child, 'add', '.');
+    git($child, 'commit', '-m', 'two');
+    my $second = git($child, 'rev-parse', 'HEAD');
+    git($repo, 'submodule', 'update', '--remote', 'Libs/Fixture');
+    git($repo, 'add', 'Libs/Fixture');
+    git($repo, 'commit', '-m', 'update production submodule');
+    git($repo, 'push', 'origin', 'prod');
+    git($repo, 'checkout', 'dev');
+    git($repo, 'submodule', 'update', '--init', '--recursive');
+    spew("$repo/release.txt", 'dev change');
+    git($repo, 'add', 'release.txt');
+    git($repo, 'commit', '-m', 'dev change');
+
+    for my $description ('release', 'retry') {
+        my $result = script($repo, 'release.pl', ['--no-push'], 0);
+        is($result->{status}, 0, "$description succeeds") or diag $result->{stderr};
+        like($result->{stdout}, qr/\Q$second\E/, "$description checks out production's submodule");
+        is(branch($repo), 'dev', "$description returns to dev");
+        is(git("$repo/Libs/Fixture", 'rev-parse', 'HEAD'), $first, "$description restores dev's submodule");
+    }
+    my $failure = script($repo, 'release.pl', [], 0);
+    isnt($failure->{status}, 0, 'deployment failure is reported');
+    is(slurp("$repo/dist/submodule-at-deploy"), "$second\n",
+        'deployment sees production submodule revision');
+    is(branch($repo), 'dev', 'failed deployment returns to dev');
+    is(git("$repo/Libs/Fixture", 'rev-parse', 'HEAD'), $first,
+        'failed deployment restores dev submodule revision');
+};
+
 test 'release prefers source conflicts while retaining unrelated production changes' => sub {
     my $repo = fixture();
     prepare_scripts($repo);
@@ -997,14 +1046,34 @@ test 'build.sh does not package CHANGELOG.md' => sub {
     my $repo = tempdir('slackhacks-build-XXXXXX', TMPDIR => 1, CLEANUP => 1);
     run(['git', 'init', '-q', $repo], $repo);
     make_path("$repo/scripts");
-    spew("$repo/scripts/$_", slurp("$scripts/$_")) for qw(build.sh load-env.sh output-style.sh defaults.env);
+    spew("$repo/scripts/$_", slurp("$scripts/$_"))
+        for qw(build.sh load-env.sh output-style.sh defaults.env MediaMetadata.pm package-media-metadata.pl);
     spew("$repo/SlackHacks.toc", "## Version: 1\n## Interface: 120000\n");
     spew("$repo/Core.lua", "-- core\n");
     spew("$repo/CHANGELOG.md", "# SlackHacks Changelog\n\n## v1\n\nnotes\n");
+    make_path("$repo/Libs/LibRPMedia/Exporter");
+    spew("$repo/Libs/LibRPMedia/LibRPMedia.toc", "## Interface: 120000\n## Version: fixture\n");
+    spew("$repo/Libs/LibRPMedia/.pkgmeta", "ignore:\n  - Exporter\n");
+    spew("$repo/Libs/LibRPMedia/lib.xml", "<Ui/>\n");
+    spew("$repo/Libs/LibRPMedia/Exporter/data.lua", "-- excluded\n");
     my $result = run(['bash', 'scripts/build.sh'], $repo, 0);
     is($result->{status}, 0, 'build succeeds') or diag $result->{stdout} . $result->{stderr};
     ok(-f "$repo/dist/SlackHacks/Core.lua", 'addon files are staged');
     ok(!-e "$repo/dist/SlackHacks/CHANGELOG.md", 'CHANGELOG.md is not staged');
+    ok(-f "$repo/dist/SlackHacks_MediaMetadata/Libs/LibRPMedia/lib.xml", 'media library is staged separately');
+    ok(!-e "$repo/dist/SlackHacks/Libs/LibRPMedia", 'media library is not embedded in the main addon');
+    ok(!-e "$repo/dist/SlackHacks_MediaMetadata/Libs/LibRPMedia/Exporter", 'pkgmeta ignored directories are excluded');
+    SKIP: {
+        skip 'IO::Uncompress::Unzip is unavailable', 3 unless eval { require IO::Uncompress::Unzip; 1 };
+        my $zip = IO::Uncompress::Unzip->new("$repo/dist/SlackHacks.zip") or die "Cannot open build ZIP";
+        my %entries;
+        do {
+            $entries{$zip->getHeaderInfo->{Name}} = 1;
+        } while $zip->nextStream() > 0;
+        ok($entries{'SlackHacks/Core.lua'}, 'ZIP contains the main addon');
+        ok($entries{'SlackHacks_MediaMetadata/SlackHacks_MediaMetadata.toc'}, 'ZIP contains the generated companion TOC');
+        ok($entries{'SlackHacks_MediaMetadata/Libs/LibRPMedia/lib.xml'}, 'ZIP contains the companion addon');
+    }
 };
 
 done_testing();

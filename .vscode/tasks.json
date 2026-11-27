@@ -18,6 +18,18 @@
 			}
 		},
 		{
+			"label": "Build Media Metadata",
+			"type": "shell",
+			"command": "perl scripts/package-media-metadata.pl",
+			"problemMatcher": []
+		},
+		{
+			"label": "Update LibRPMedia",
+			"type": "shell",
+			"command": "perl scripts/update-media-metadata.pl",
+			"problemMatcher": []
+		},
+		{
 			"label": "Deploy",
 			"type": "shell",
 			"command": "bash scripts/deploy.sh",
@@ -69,6 +81,13 @@
 			"label": "Test release scripts",
 			"type": "shell",
 			"command": "perl scripts/release.t",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test media metadata scripts",
+			"type": "shell",
+			"command": "perl scripts/media-metadata.t",
 			"isBackground": false,
 			"problemMatcher": []
 		}

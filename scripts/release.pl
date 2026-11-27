@@ -26,6 +26,7 @@ chdir($repo_root) or die "Cannot change directory to $repo_root: $!\n";
 my $dry_run = 0;
 my $cleanup_pending = 1;
 my $release_merge_started = 0;
+my $release_checkout_started = 0;
 $| = 1; # Prompts must remain visible while waiting for input, including through task runners.
 
 # END covers early validation failures, EOF, explicit exits, and exceptions as well as the release phase.
@@ -45,6 +46,10 @@ sub return_to_dev {
     status_info("Returning to branch 'dev'...");
     if (system("git", "checkout", "dev") != 0) {
         warn "Error: Could not return to branch 'dev'. Resolve the Git state and run 'git checkout dev'.\n";
+        return 0;
+    }
+    if ($release_checkout_started && system("git", "submodule", "update", "--init", "--recursive") != 0) {
+        warn "Error: Could not restore dev's submodule revisions. Run 'git submodule update --init --recursive'.\n";
         return 0;
     }
     return 1;
@@ -208,11 +213,11 @@ sub latest_tagged_version {
 }
 
 sub release_requirements_met {
-    my ($version, $latest, $tag_prefix, $changelog_file) = @_;
+    my ($version, $latest, $tag_prefix, $changelog_file, $tag_exists) = @_;
     my @problems;
     if ($version !~ /^\d+$/) {
         push @problems, "TOC version '$version' is not a numeric release version.";
-    } elsif (defined $latest && $version <= $latest) {
+    } elsif (defined $latest && ($version < $latest || ($version == $latest && !$tag_exists))) {
         push @problems, "TOC version $version has not been bumped past the latest tagged version $latest.";
     }
 
@@ -241,8 +246,9 @@ if ($rerelease && length $remote_tag_oid && !length git_output('tag', '--list', 
     git_output('fetch', '--no-tags', 'origin', "refs/tags/$tag_name:refs/tags/$tag_name");
 }
 my $latest_tagged_version = latest_tagged_version($tag_prefix);
+my $tag_exists = length git_output('tag', '--list', $tag_name);
 my @requirement_problems = release_requirements_met(
-    $version, $latest_tagged_version, $tag_prefix, $changelog_file
+    $version, $latest_tagged_version, $tag_prefix, $changelog_file, $tag_exists
 );
 
 if (@requirement_problems) {
@@ -283,10 +289,6 @@ if (@requirement_problems) {
 # ------------------------------------------------------------------------------
 # Step 3: Check if Tag Already Exists
 # ------------------------------------------------------------------------------
-my $existing_tag = `git tag -l "$tag_name" 2>/dev/null`;
-$existing_tag =~ s/^\s+|\s+$//g if defined $existing_tag;
-
-my $tag_exists = defined $existing_tag && $existing_tag eq $tag_name;
 my $resuming = $tag_exists && !$rerelease;
 my $previous_commit = $tag_exists ? git_output('rev-parse', "refs/tags/$tag_name^{commit}") : undef;
 
@@ -400,6 +402,7 @@ sub resolve_source_conflicts {
 my $release_error;
 eval {
     status_info("\nSwitching to branch '$target_branch'...");
+    $release_checkout_started = !$dry_run;
     run_cmd("git", "checkout", $target_branch);
     run_cmd("git", "merge", "--ff-only", "refs/remotes/origin/$target_branch");
 
@@ -438,6 +441,7 @@ eval {
             die "Error: Refusing to move '$tag_name' away from unrelated release history.\n"
                 unless git_output('merge-base', $previous_commit, $head) eq $previous_commit;
         }
+        run_cmd('git', 'submodule', 'update', '--init', '--recursive');
         if (!$tag_exists || $dry_run || git_output('rev-parse', 'HEAD') ne $previous_commit) {
             print ($tag_exists ? "Moving tag '$tag_name'...\n" : "Creating tag '$tag_name'...\n");
             my @tag_cmd = ("git", "tag", "-a", $tag_name, "-m", "Release $tag_name");
@@ -446,7 +450,9 @@ eval {
         } else {
             print "Tag '$tag_name' already points to this release; leaving it unchanged.\n";
         }
+
     }
+    run_cmd('git', 'submodule', 'update', '--init', '--recursive') if $resuming;
 
     if ($push) {
         status_info("Pushing '$source_branch', '$target_branch', and tag '$tag_name' to origin...");

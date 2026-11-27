@@ -41,12 +41,25 @@ both files, so CI can inject its own configuration and secrets.
 
 ### Publishing and retrying releases
 
+The release ZIP contains both `SlackHacks` and the load-on-demand
+`SlackHacks_MediaMetadata` companion. The build and addon update scripts stage
+the companion in `dist/SlackHacks_MediaMetadata`; you can also run
+`perl scripts/package-media-metadata.pl` directly. On Windows,
+`scripts/Add-AddonFolderLinks.ps1` builds it and creates junctions for both
+addons in each installed WoW flavor, using Git for Windows' bundled Perl even
+when it is not on PATH. The source companion folder does not
+exist in the source tree: its TOC and library copy are generated during packaging
+using LibRPMedia's interface and version. Run `perl scripts/update-media-metadata.pl`
+to fast-forward the LibRPMedia submodule.
+Stage the updated submodule revision before building; the build refuses to
+replace a submodule checkout that differs from the index.
+
 Run `perl scripts/release.pl` from a clean development branch after committing
 the version bump and a non-empty `## v<VERSION>` section in `CHANGELOG.md`.
 The script merges into `prod`, preferring the source branch on conflicts while
 retaining non-conflicting `prod` changes. It creates an immutable version tag, atomically
 pushes `prod` and the tag, and deploys that production checkout before restoring
-your original branch (also on deployment failure). `--no-push` prepares only
+`dev` and its submodule revisions (also on deployment failure). `--no-push` prepares only
 the local release and never deploys. `--force` no longer bypasses dirty-worktree
 checks or overwrites tags.
 

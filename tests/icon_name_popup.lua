@@ -12,7 +12,11 @@ IconDataProviderMixin = {}
 local function widget()
   local frame = { scripts = {}, hooks = {}, text = "", height = 495 }
   local function noop() end
-  setmetatable(frame, { __index = function() return noop end })
+  setmetatable(frame, { __index = function(_, key)
+    if key ~= "slackHacksOwnIconPicker" and key ~= "iconDataProvider" and key ~= "reason" and key ~= "hidden" then
+      return noop
+    end
+  end })
   function frame:SetScript(name, callback) self.scripts[name] = callback end
   function frame:HookScript(name, callback) self.hooks[name] = callback end
   function frame:SetText(text) self.text = text; if self.hooks.OnTextChanged then self.hooks.OnTextChanged(self) end end
@@ -20,13 +24,34 @@ local function widget()
   function frame:GetHeight() return self.height end
   function frame:GetFrameLevel() return 50 end
   function frame:SetHeight(height) self.height = height end
-  function frame:Hide() self.hidden = true; if self.scripts.OnHide then self.scripts.OnHide(self) end end
+  function frame:SetShown(shown) self.hidden = not shown end
+  function frame:EnableMouse(enabled) self.mouseEnabled = enabled end
+  function frame:Hide()
+    self.hidden = true
+    if self.scripts.OnHide then self.scripts.OnHide(self) end
+    if self.hooks.OnHide then self.hooks.OnHide(self) end
+  end
   function frame:Show() self.hidden = false; if self.scripts.OnShow then self.scripts.OnShow(self) end end
   function frame:IsShown() return not self.hidden end
   return frame
 end
 
 IconSelectorPopupFrameTemplateMixin = {}
+--- Return a native icon by index.
+---@param index number Icon index.
+---@return number|string|nil icon Native texture.
+function IconSelectorPopupFrameTemplateMixin:GetIconByIndex(index) return self.iconDataProvider:GetIconByIndex(index) end
+--- Return the native index of a texture.
+---@param icon number|string Texture.
+---@return number|nil index Native index.
+function IconSelectorPopupFrameTemplateMixin:GetIndexOfIcon(icon)
+  for index = 1, self.iconDataProvider:GetNumIcons() do
+    if self.iconDataProvider:GetIconByIndex(index) == icon then return index end
+  end
+end
+--- Return the native provider's icon count.
+---@return number count Native icon count.
+function IconSelectorPopupFrameTemplateMixin:GetNumIcons() return self.iconDataProvider:GetNumIcons() end
 --- Initialize the mock native popup.
 ---@param self table Popup.
 function IconSelectorPopupFrameTemplateMixin.OnShow(self) self.nativeShown = true end
@@ -48,8 +73,10 @@ end
 ---@param parent table|nil Parent.
 ---@param template string|nil Template name.
 ---@return table frame Mock frame.
+local frames = {}
 function CreateFrame(_, name, parent, template)
   local frame = widget()
+  frames[#frames + 1] = { frame = frame, parent = parent, template = template }
   if template == "IconSelectorPopupFrameTemplate" then
     for key, value in pairs(IconSelectorPopupFrameTemplateMixin) do frame[key] = value end
     frame.BorderBox = widget()
@@ -90,6 +117,7 @@ local libraryIcons = {
 ---@return table library Icon name lookup.
 function LibStub()
   return {
+    db = {},
     GetIconNameByID = function(_, id) return names[id] end,
     GetIconInfoByName = function(_, name)
       for _, info in ipairs(libraryIcons) do
@@ -107,6 +135,43 @@ function LibStub()
       end
     end,
   }
+end
+local loadCount, loadFailure, onLoad = 0, nil, nil
+C_AddOns = {
+  LoadAddOn = function()
+    loadCount = loadCount + 1
+    if onLoad then onLoad() end
+    if loadFailure then return false, loadFailure end
+    return true
+  end,
+}
+local tooltip = {}
+GameTooltip = {
+  SetOwner = function() end,
+  SetText = function(_, text) tooltip.title = text end,
+  AddLine = function(_, text) tooltip[#tooltip + 1] = text end,
+  Show = function() tooltip.shown = true end,
+  Hide = function() tooltip.shown = false end,
+}
+local timers = {}
+C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
+--- Wrap a mock method with a post-hook.
+---@param target table Hooked object.
+---@param name string Method name.
+---@param callback function Hook.
+function hooksecurefunc(target, name, callback)
+  local original = target[name]
+  target[name] = function(...)
+    local result = original(...)
+    callback(...)
+    return result
+  end
+end
+--- Execute queued zero-delay callbacks.
+local function runTimers()
+  local pending = timers
+  timers = {}
+  for _, callback in ipairs(pending) do callback() end
 end
 --- Supply the native provider with file IDs and an older string icon.
 ---@return table provider Icon provider.
@@ -184,4 +249,78 @@ popup:Open()
 assert(popup.BorderBox.IconSelectorEditBox:GetText() == ""
   and popup.BorderBox.SelectedIconArea.SelectedIconButton:GetIconTexture() == 100)
 popup:Hide()
+assert(loadCount > 0)
+
+-- A failed companion load leaves Blizzard's icons usable and explains the disabled search.
+loadFailure = "DISABLED"
+popup:Show()
+assert(not popup.search.mouseEnabled and popup:GetNumIcons() == 3)
+local ownBlocker
+for _, entry in ipairs(frames) do
+  if entry.parent == popup.BorderBox and entry.frame.reason == "DISABLED" then ownBlocker = entry.frame end
+end
+assert(ownBlocker and not ownBlocker.hidden)
+ownBlocker.scripts.OnEnter(ownBlocker)
+assert(tooltip.shown and tooltip.title == "Icon Search Unavailable"
+  and tooltip[1]:find("Enable SlackHacks: Media Metadata", 1, true))
+popup:Hide()
+loadFailure = nil
+popup:Show()
+assert(popup.search.mouseEnabled and popup:GetNumIcons() == 4 and ownBlocker.hidden)
+popup:Hide()
+
+-- Native pickers are discovered through the shared mixin and follow the profile toggle.
+SlackHacks.db = { profile = { utilities = { addIconPickerSearch = false } } }
+SlackHacks.ApplyNativeIconPickerSearch()
+local native = CreateFrame("Frame", nil, UIParent, "IconSelectorPopupFrameTemplate")
+MacroPopupFrame = native
+local beforeNativeShow = loadCount
+IconSelectorPopupFrameTemplateMixin.OnShow(native)
+assert(loadCount == beforeNativeShow and #timers == 0)
+SlackHacks.db.profile.utilities.addIconPickerSearch = true
+native.iconDataProvider = CreateAndInitFromMixin()
+native.iconFilter = 1
+onLoad = function() SlackHacks.ApplyNativeIconPickerSearch() end
+SlackHacks.ApplyNativeIconPickerSearch()
+onLoad = nil
+runTimers()
+local nativeCount, nativeIndex = native:GetNumIcons(), native:GetIndexOfIcon(626003)
+assert(nativeCount == 4 and nativeIndex == 4,
+  "native count/index: " .. tostring(nativeCount) .. "/" .. tostring(nativeIndex))
+local nativeSearch
+for _, entry in ipairs(frames) do
+  if entry.parent == native.BorderBox and entry.template == "SearchBoxTemplate" then nativeSearch = entry.frame end
+end
+assert(nativeSearch and nativeSearch.mouseEnabled)
+nativeSearch:SetText("classicon_paladin")
+assert(native:GetNumIcons() == 1 and native:GetIconByIndex(1) == 626003)
+assert(native.IconSelector.count() == 1 and native.IconSelector.get(1) == 626003)
+local previousLoadCount = loadCount
+SlackHacks.ApplyNativeIconPickerSearch()
+assert(nativeSearch:GetText() == "classicon_paladin" and loadCount == previousLoadCount)
+native:SetIconFilterInternal(2)
+assert(native:GetNumIcons() == 0)
+native:SetIconFilterInternal(1)
+assert(native:GetNumIcons() == 1)
+SlackHacks.db.profile.utilities.addIconPickerSearch = false
+SlackHacks.ApplyNativeIconPickerSearch()
+assert(nativeSearch.hidden and native:GetNumIcons() == 3)
+SlackHacks.db.profile.utilities.addIconPickerSearch = true
+SlackHacks.ApplyNativeIconPickerSearch()
+runTimers()
+assert(not nativeSearch.hidden and native:GetNumIcons() == 4)
+native:Hide()
+loadFailure = "MISSING"
+IconSelectorPopupFrameTemplateMixin.OnShow(native)
+native.hidden = false
+native.iconDataProvider = CreateAndInitFromMixin()
+native.iconFilter = 1
+runTimers()
+assert(not nativeSearch.mouseEnabled and native:GetNumIcons() == 3)
+local nativeBlocker
+for _, entry in ipairs(frames) do
+  if entry.parent == native.BorderBox and entry.frame.reason == "MISSING" then nativeBlocker = entry.frame end
+end
+assert(nativeBlocker and not nativeBlocker.hidden)
+loadFailure = nil
 print("Icon name popup tests passed")

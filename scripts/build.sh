@@ -15,12 +15,19 @@ require_project_config TOC_FILE
 require_project_config DIST_DIR
 require_project_config ZIP_NAME
 TARGET_DIR="${DIST_DIR}/${FOLDER_NAME}"
+MEDIA_FOLDER="SlackHacks_MediaMetadata"
+MEDIA_TARGET="${DIST_DIR}/${MEDIA_FOLDER}"
 ZIP_PATH="${DIST_DIR}/${ZIP_NAME}"
 
 # 1. Git checkout the submodules
 status_info "Updating git submodules..."
 if ! command -v git >/dev/null 2>&1; then
   status_error "Error: git command not found."
+  exit 1
+fi
+submodule_status="$(git submodule status --recursive)"
+if grep -q '^+' <<< "$submodule_status"; then
+  status_error "Error: A submodule checkout differs from the index. Stage its intended revision before building."
   exit 1
 fi
 git submodule update --init --recursive
@@ -102,9 +109,15 @@ if [[ -d "Libs" ]]; then
     if is_ace3_test "$rel"; then
       continue
     fi
+    if [[ "$rel" =~ ^Libs/LibRPMedia/ ]]; then
+      continue
+    fi
     copy_file "$file" "$rel"
   done
 fi
+
+status_info "Packaging ${MEDIA_FOLDER}..."
+perl "$SCRIPT_DIR/package-media-metadata.pl" "$MEDIA_TARGET"
 
 # 4. Compress created folder into a zip named after the versioned addon inside dist
 status_info "Compressing ${TARGET_DIR} into ${ZIP_PATH}..."
@@ -112,21 +125,21 @@ status_info "Compressing ${TARGET_DIR} into ${ZIP_PATH}..."
 (
   cd "$DIST_DIR"
   if command -v zip >/dev/null 2>&1; then
-    zip -r -q "$ZIP_NAME" "$FOLDER_NAME"
+    zip -r -q "$ZIP_NAME" "$FOLDER_NAME" "$MEDIA_FOLDER"
   elif [[ -x "/c/Windows/System32/tar.exe" ]]; then
-    /c/Windows/System32/tar.exe -a -cf "$ZIP_NAME" "$FOLDER_NAME"
+    /c/Windows/System32/tar.exe -a -cf "$ZIP_NAME" "$FOLDER_NAME" "$MEDIA_FOLDER"
   elif command -v bsdtar >/dev/null 2>&1; then
-    bsdtar -a -cf "$ZIP_NAME" "$FOLDER_NAME"
+    bsdtar -a -cf "$ZIP_NAME" "$FOLDER_NAME" "$MEDIA_FOLDER"
   elif command -v powershell.exe >/dev/null 2>&1; then
-    powershell.exe -NoProfile -Command "Compress-Archive -Path '$FOLDER_NAME' -DestinationPath '$ZIP_NAME' -Force"
+    powershell.exe -NoProfile -Command "Compress-Archive -Path '$FOLDER_NAME','$MEDIA_FOLDER' -DestinationPath '$ZIP_NAME' -Force"
   elif [[ -x "/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ]]; then
-    /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command "Compress-Archive -Path '$FOLDER_NAME' -DestinationPath '$ZIP_NAME' -Force"
+    /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command "Compress-Archive -Path '$FOLDER_NAME','$MEDIA_FOLDER' -DestinationPath '$ZIP_NAME' -Force"
   elif command -v python3 >/dev/null 2>&1; then
-    python3 -m zipfile -c "$ZIP_NAME" "$FOLDER_NAME"
+    python3 -m zipfile -c "$ZIP_NAME" "$FOLDER_NAME" "$MEDIA_FOLDER"
   elif command -v python >/dev/null 2>&1; then
-    python -m zipfile -c "$ZIP_NAME" "$FOLDER_NAME"
+    python -m zipfile -c "$ZIP_NAME" "$FOLDER_NAME" "$MEDIA_FOLDER"
   elif command -v 7z >/dev/null 2>&1; then
-    7z a "$ZIP_NAME" "$FOLDER_NAME" >/dev/null
+    7z a "$ZIP_NAME" "$FOLDER_NAME" "$MEDIA_FOLDER" >/dev/null
   else
     status_error "Error: No suitable compression tool found (tried zip, bsdtar, powershell, python, 7z)."
     exit 1

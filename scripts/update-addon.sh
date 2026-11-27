@@ -140,7 +140,7 @@ invoke_git_wipe() {
     fail_and_pause "Failed to discard local changes for '$path'. Please resolve any git issues and try again."
   fi
 
-  git -C "$path" clean -fdx
+  git -C "$path" clean -fdx -e dist/SlackHacks_MediaMetadata/
   if [[ $? -ne 0 ]]; then
     fail_and_pause "Failed to remove untracked files for '$path'. Please resolve any git issues and try again."
   fi
@@ -242,6 +242,14 @@ if [[ "$rerun" != true && -f "$pulled_script" ]]; then
     "$temp_script" --repo-path "$repo_path" --rerun
     exit $? 
   fi
+fi
+
+status_info "Building SlackHacks: Media Metadata..."
+if ! command -v perl >/dev/null 2>&1; then
+  fail_and_pause "Perl is required to build SlackHacks: Media Metadata. Install Perl and retry."
+fi
+if ! perl "$repo_path/scripts/package-media-metadata.pl"; then
+  fail_and_pause "Failed to build SlackHacks: Media Metadata."
 fi
 
 status_success "SlackHacks update completed successfully."

@@ -6,17 +6,37 @@ rem Check if the icon already exists
 if exist "%USERPROFILE%\Desktop\SlackHacks Update.lnk" (
     rem If the icon exists, execute "git pull" in the repo root directory
     rem Check if Git is installed
-    if not exist "%PATH%\git.exe" (
+    where git >nul 2>nul
+    if errorlevel 1 (
         call :error "Git is not installed. Please install git first."
         pause
         popd
-        exit /b
+        exit /b 1
     )
 
     git pull
     if errorlevel 1 (
         call :error "Git pull failed."
         pause
+        popd
+        exit /b 1
+    )
+
+    git submodule update --init --recursive
+    if errorlevel 1 (
+        call :error "Git submodule update failed."
+        pause
+        popd
+        exit /b 1
+    )
+
+    set "SLACKHACKS_REPO_PATH=%~dp0.."
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ". (Join-Path $env:SLACKHACKS_REPO_PATH 'scripts\MediaMetadata.ps1'); Invoke-MediaMetadataBuild -RepoPath $env:SLACKHACKS_REPO_PATH"
+    if errorlevel 1 (
+        call :error "Media metadata build failed."
+        pause
+        popd
+        exit /b 1
     )
 ) else (
     rem If the icon doesn't exist, create it

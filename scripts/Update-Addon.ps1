@@ -44,7 +44,7 @@ function Invoke-GitWipe {
         exit 1
     }
 
-    git -C $Path clean -fdx
+    git -C $Path clean -fdx -e dist/SlackHacks_MediaMetadata/
     if ($LASTEXITCODE -ne 0) {
         Show-ErrorMessageBox -Title 'Git Clean Failed' -Message "Failed to remove untracked files for '$Path'. Please resolve any git issues and try again."
         exit 1
@@ -165,6 +165,8 @@ try {
             exit $LASTEXITCODE
         }
     }
+    . (Join-Path $RepoPath 'scripts\MediaMetadata.ps1')
+    Invoke-MediaMetadataBuild -RepoPath $RepoPath
     Write-ScriptStatus OK 'SlackHacks update completed successfully.'
 } catch {
     Show-ErrorMessageBox -Title 'Update Failed' -Message "$($_.Exception.Message)`n`n$($_.ScriptStackTrace)"
