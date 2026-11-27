@@ -108,9 +108,10 @@ assert(row.args.item.type == "description" and row.args.item.dialogControl == "I
   and row.args.item.name == "|T123:18:18|t " .. link and row.args.item.tooltipHyperlink == link)
 assert(row.args.remove.type == "execute" and row.args.remove.name == "Remove"
   and row.args.item.order < row.args.remove.order
-  and row.args.item.width == "relative" and row.args.remove.width == "relative"
-  and row.args.item.relWidth + row.args.remove.relWidth <= 1,
-  "Each item must have a remove button to its right")
+  and row.args.item.width == "relative" and type(row.args.remove.width) == "number"
+  and row.args.remove.width * 170 >= 85
+  and row.args.item.relWidth * 250 + row.args.remove.width * 170 <= 250,
+  "Each item must have a sufficiently wide remove button to its right")
 assert(args[optionKey("old")].args.item.name == "|T123:18:18|t " .. baseLink
   and args[optionKey("old")].args.item.tooltipHyperlink == baseLink and args.legacyInfo)
 assert(args[optionKey("uncached")].args.item.name == "Uncached"
@@ -305,9 +306,10 @@ assert(profile.customEssentialItems[100].link == "healing-link" and profile.cust
 customArgs = getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args
 assert(customArgs["item:100"].args.item.name == "|T1000:18:18|t healing-link"
   and customArgs["item:100"].args.item.tooltipHyperlink == "healing-link"
-  and customArgs["item:100"].order < customArgs.search.order
+  and customArgs["item:100"].order < customArgs.divider.order
+  and customArgs.divider.type == "header" and customArgs.divider.order < customArgs.searchHint.order
   and customArgs["item:100"].args.remove.name == "Remove" and customArgs.empty.hidden(),
-  "Saved custom items must appear as removable rows ahead of the search controls")
+  "Saved custom items must appear as removable rows separated from the search controls")
 customArgs.results.set(nil, 100)
 assert(customArgs.add.disabled(), "Already-added items must not be added twice")
 customArgs.search.set(nil, "herb")

@@ -999,7 +999,7 @@ local function removableItemRow(item, remove, description, order)
         desc = item.desc,
         tooltipHyperlink = item.link,
         width = "relative",
-        relWidth = 0.78,
+        relWidth = 0.75,
         order = 1,
       },
       remove = {
@@ -1007,8 +1007,7 @@ local function removableItemRow(item, remove, description, order)
         name = "Remove",
         desc = description,
         func = remove,
-        width = "relative",
-        relWidth = 0.2,
+        width = 0.48,
         order = 2,
       },
     },
@@ -1137,10 +1136,15 @@ local function customEssentialItemOptions()
   local args = {
     empty = {
       type = "description",
-      name = "No custom essential items added.",
+      name = "|cff808080No custom essential items added.|r",
       hidden = function() return next(db.profile.listviewBag.customEssentialItems) ~= nil end,
       width = "full",
       order = 0,
+    },
+    divider = {
+      type = "header",
+      name = "",
+      order = 0.5,
     },
     searchHint = {
       type = "description",
