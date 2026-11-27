@@ -599,17 +599,35 @@ local bankOpen = false
 local guildBankOpen = false
 local trackedCursorItem
 
--- Distributes the header/row widths for the currently reorderable columns, giving the "name" column
--- whatever space is left over. Non-reorderable cells (collapse arrow, lock/trash status) are pinned.
+--- Return the fixed width for a column in the selected client and view.
+---@param colID string Column identifier.
+---@param view string View identifier.
+---@param forever boolean Whether the Forever client is active.
+---@return number width Column width.
+local function fixedColumnWidth(colID, view, forever)
+  local width = COLUMN_DEFS[colID].width
+  if view == "gear" and (colID == "armorType" or colID == "armorSlot") then width = 52 end
+  if forever then
+    local reclaimed = COLUMN_DEFS.ilvl.width / 2
+    if colID == "ilvl" then return reclaimed end
+    if view == "gear" and colID == "upgrade" or view == "selling" and colID == "vendor" then
+      return width + reclaimed
+    end
+  end
+  return width
+end
+
+--- Distribute column widths, giving the name column the remaining space.
 local function computeLayout()
   local contentWidth = scrollChild:GetWidth()
   local fixedWidth = 0
   local columns = activeColumns()
   local view = selectedView()
+  local forever = isForever()
   for _, colID in ipairs(columns) do
     local def = COLUMN_DEFS[colID]
     if not def.flexible then
-      local width = view == "gear" and (colID == "armorType" or colID == "armorSlot") and 52 or def.width
+      local width = fixedColumnWidth(colID, view, forever)
       fixedWidth = fixedWidth + width + CELL_PAD
     end
   end
@@ -620,8 +638,7 @@ local function computeLayout()
   columnLayout = {}
   for _, colID in ipairs(columns) do
     local def = COLUMN_DEFS[colID]
-    local width = def.flexible and flexWidth
-      or view == "gear" and (colID == "armorType" or colID == "armorSlot") and 52 or def.width
+    local width = def.flexible and flexWidth or fixedColumnWidth(colID, view, forever)
     columnLayout[colID] = { x = x, width = width }
     x = x + width + CELL_PAD
   end
@@ -2020,6 +2037,8 @@ local function createRow(index)
   row.auctionText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.quantityText:SetJustifyH("RIGHT")
   row.ilvlText:SetJustifyH("LEFT")
+  row.vendorText:SetJustifyH("RIGHT")
+  row.auctionText:SetJustifyH("RIGHT")
   row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.armorSlotText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.bindIcon = row:CreateTexture(nil, "ARTWORK")

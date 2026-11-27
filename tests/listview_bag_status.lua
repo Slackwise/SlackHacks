@@ -12,6 +12,9 @@ function SlackHacks:NewModule() return { IsEnabled = function() return true end 
 --- Include the modern reagent bag.
 ---@return boolean modern
 function SlackHacks.isRetailOrForever() return true end
+--- Emulate Retail until client-specific tests override it.
+---@return boolean forever Whether the Forever client is active.
+function SlackHacks.isForever() return false end
 
 --- Construct a minimal UI object that records scripts, text, textures, and visibility.
 ---@return table widget
@@ -53,6 +56,7 @@ local function widget()
     return #(self.text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) * 6 * (self.fontSize or 10) / 10
   end
   function object:SetTextColor(...) self.textColor = { ... } end
+  function object:SetJustifyH(justify) self.justifyH = justify end
   function object:SetWordWrap(enabled) self.wordWrap = enabled end
   function object:SetEnabled(enabled) self.enabled = enabled end
   function object:SetAlpha(alpha) self.alpha = alpha end
@@ -185,6 +189,8 @@ profile.mailRecipients = { [1] = { nickname = "Bank Alt", character = "Example" 
 
 local row = createRow(1)
 assert(row.upgradeText.fontSize == 8, "Upgrade text must use a smaller font than the normal 10-point row text")
+assert(row.vendorText.justifyH == "RIGHT" and row.auctionText.justifyH == "RIGHT",
+  "Vendor and auction prices must be right aligned")
 row.statusKey = "item"
 row.statusInfo = { name = "Item", quality = 1 }
 local button = row.statusBtn
@@ -495,6 +501,34 @@ local scrollChild = upvalue(upvalue(layoutHeaders, "computeLayout"), "scrollChil
 scrollChild.GetWidth = function() return 700 end
 headerFrame.LayoutColumns = function() end
 headerFrame.columnHeaders = { EnumerateActive = function() return function() end end }
+do
+  local computeLayout = upvalue(layoutHeaders, "computeLayout")
+  local originalOrder, originalView = profile.columnOrder, profile.view
+  local originalForever = SlackHacks.isForever
+  profile.columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
+  for _, view in ipairs({ "default", "gear", "selling" }) do
+    profile.view = view
+    SlackHacks.isForever = function() return false end
+    computeLayout()
+    local retailLayout = upvalue(computeLayout, "columnLayout")
+    SlackHacks.isForever = function() return true end
+    computeLayout()
+    local foreverLayout = upvalue(computeLayout, "columnLayout")
+    if view == "default" then
+      assert(foreverLayout.ilvl.width == retailLayout.ilvl.width / 2
+        and foreverLayout.name.width == retailLayout.name.width + retailLayout.ilvl.width / 2)
+    elseif view == "gear" then
+      assert(foreverLayout.ilvl.width == retailLayout.ilvl.width / 2
+        and foreverLayout.upgrade.width == retailLayout.upgrade.width + retailLayout.ilvl.width / 2
+        and foreverLayout.name.width == retailLayout.name.width)
+    else
+      assert(foreverLayout.vendor.width == retailLayout.vendor.width + 30
+        and foreverLayout.name.width == retailLayout.name.width - 30
+        and foreverLayout.auction.width == retailLayout.auction.width)
+    end
+  end
+  profile.columnOrder, profile.view, SlackHacks.isForever = originalOrder, originalView, originalForever
+end
 --- Clear a table as the client API does.
 ---@param values table Table to clear.
 function wipe(values) for key in pairs(values) do values[key] = nil end end
