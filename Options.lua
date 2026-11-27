@@ -1091,7 +1091,43 @@ end
 ---@return boolean incomplete Whether some item names have not loaded.
 local function essentialSearchResults()
   syncEssentialSearch()
-  return Self.ListviewBag:SearchInventoryItems(essentialSearch.query)
+  return Self.ListviewBag:SearchInventoryItems(essentialSearch.query:match("^%s*(.-)%s*$"))
+end
+
+--- Register an AceGUI edit box that refreshes its AceConfig option as the user types.
+local function registerEssentialSearchControl()
+  local gui = LibStub("AceGUI-3.0")
+  local controlType = "SlackHacksEssentialSearch"
+  if gui:GetWidgetVersion(controlType) then return end
+  gui:RegisterWidgetType(controlType, function()
+    local widget = gui:Create("EditBox")
+    local acquire, setCallback = widget.OnAcquire, widget.SetCallback
+    widget.type = controlType
+    widget.OnAcquire = function(self)
+      acquire(self)
+      self:DisableButton(true)
+      essentialSearch.control = self
+    end
+    widget.SetCallback = function(self, event, callback)
+      setCallback(self, event, callback)
+      if event == "OnEnterPressed" then
+        setCallback(self, "OnTextChanged", function(control, _, value)
+          if not control.editbox:HasFocus() then return end
+          local cursor = control.editbox:GetCursorPosition()
+          local root = control:GetUserData("rootframe")
+          essentialSearch.control = nil
+          -- AceConfig rebuilds the panel on every commit, so restore the replacement edit box's focus.
+          control:Fire("OnEnterPressed", value)
+          local replacement = essentialSearch.control
+          if replacement and replacement:GetUserData("rootframe") == root then
+            replacement:SetFocus()
+            replacement.editbox:SetCursorPosition(cursor)
+          end
+        end)
+      end
+    end
+    return widget
+  end, 1)
 end
 
 --- Build the custom Essentials search and removable saved-item list.
@@ -1099,20 +1135,28 @@ end
 local function customEssentialItemOptions()
   syncEssentialSearch()
   local args = {
-    searchHint = {
+    empty = {
       type = "description",
-      name = "Enter part of an item name and press Enter, then select a match.",
+      name = "No custom essential items added.",
+      hidden = function() return next(db.profile.listviewBag.customEssentialItems) ~= nil end,
       width = "full",
       order = 0,
     },
+    searchHint = {
+      type = "description",
+      name = "Enter part of an item name, then select a match.",
+      width = "full",
+      order = 1,
+    },
     search = {
       type = "input",
+      dialogControl = "SlackHacksEssentialSearch",
       name = "Search Inventory",
-      desc = "Enter part of an item name and press Enter to search your bags.",
+      desc = "Enter part of an item name to search your bags.",
       get = function() syncEssentialSearch(); return essentialSearch.query end,
       set = function(_, value)
         syncEssentialSearch()
-        essentialSearch.query = value:match("^%s*(.-)%s*$")
+        essentialSearch.query = value
         essentialSearch.selected = nil
         local items = essentialSearchResults()
         local only
@@ -1123,10 +1167,11 @@ local function customEssentialItemOptions()
         essentialSearch.selected = only
       end,
       width = "full",
-      order = 1,
+      order = 2,
     },
     results = {
       type = "select",
+      style = "radio",
       name = "Matching Items",
       desc = "Choose an item currently in your bags.",
       values = function()
@@ -1154,9 +1199,12 @@ local function customEssentialItemOptions()
         local items = essentialSearchResults()
         return not next(items)
       end,
-      width = "relative",
-      relWidth = 0.7,
-      order = 2,
+      hidden = function()
+        local items = essentialSearchResults()
+        return not next(items)
+      end,
+      width = "full",
+      order = 3,
     },
     add = {
       type = "execute",
@@ -1187,18 +1235,18 @@ local function customEssentialItemOptions()
       end,
       width = "relative",
       relWidth = 0.28,
-      order = 3,
+      order = 4,
     },
     searchStatus = {
       type = "description",
       name = function()
         local items, incomplete = essentialSearchResults()
-        if incomplete then return "Some item names are still loading; search again shortly." end
-        if essentialSearch.query ~= "" and not next(items) then return "No matching items in your bags." end
+        if incomplete then return "Some item names are still loading; edit your search to try again." end
+        if essentialSearch.query:match("%S") and not next(items) then return "No matching items in your bags." end
         return ""
       end,
       width = "full",
-      order = 3.5,
+      order = 5,
     },
   }
   for id, item in pairs(db.profile.listviewBag.customEssentialItems or {}) do
@@ -1210,7 +1258,7 @@ local function customEssentialItemOptions()
     }, function()
       db.profile.listviewBag.customEssentialItems[itemID] = nil
       if Self.ListviewBag then Self.ListviewBag:Refresh() end
-    end, "Remove this item from custom Essentials.", 4)
+    end, "Remove this item from custom Essentials.", 0)
   end
   return args
 end
@@ -4759,6 +4807,7 @@ options = {
 -- Registers the AceConfig options table above and the Blizzard options panel entry.
 -- Called from OnInitialize, after all addon files/modules have loaded.
 function registerOptions()
+  registerEssentialSearchControl()
   options.args.utilities.args.autoOpenLootContainers.args = Self.Utilities:GetLootContainerOptions()
   options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
   options.args.profiles.order = 1

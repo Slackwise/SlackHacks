@@ -194,12 +194,100 @@ registry:RegisterOptionsTable("Essentials", function()
 end)
 registry:GetOptionsTable("Essentials", "dialog", "Test-1.0")
 local customArgs = custom.args
+assert(not customArgs.empty.hidden() and customArgs.results.style == "radio" and customArgs.results.hidden(),
+  "Custom Essentials must show an empty list and use a search-result list rather than a dropdown")
+assert(customArgs.search.dialogControl == "SlackHacksEssentialSearch")
+
+local registerSearchControl = upvalue(SlackHacks.registerOptions, "registerEssentialSearchControl")
+local constructors = {}
+local fakeGUI = {}
+--- Check whether a test widget was registered.
+---@param kind string Widget type.
+---@return number|nil version Registered version.
+function fakeGUI:GetWidgetVersion(kind) return constructors[kind] and 1 end
+--- Capture a widget constructor.
+---@param kind string Widget type.
+---@param constructor function Widget constructor.
+function fakeGUI:RegisterWidgetType(kind, constructor) constructors[kind] = constructor end
+--- Create a mock AceGUI edit box.
+---@return table widget Mock edit box.
+function fakeGUI:Create()
+  local editbox = { focused = false, cursor = 0 }
+  --- Return whether the edit box has focus.
+  ---@return boolean focused Focus state.
+  function editbox:HasFocus() return self.focused end
+  --- Return the cursor position.
+  ---@return number position Cursor position.
+  function editbox:GetCursorPosition() return self.cursor end
+  --- Update the cursor position.
+  ---@param value number Cursor position.
+  function editbox:SetCursorPosition(value) self.cursor = value end
+  local widget = { editbox = editbox, events = {}, userdata = {} }
+  --- Reset the mock widget for use.
+  function widget:OnAcquire() end
+  --- Record whether the confirmation button is disabled.
+  ---@param value boolean Disabled state.
+  function widget:DisableButton(value) self.buttonDisabled = value end
+  --- Register a widget event.
+  ---@param event string Event name.
+  ---@param callback function Event callback.
+  function widget:SetCallback(event, callback) self.events[event] = callback end
+  --- Read a widget userdata value.
+  ---@param key string Userdata key.
+  ---@return any value Stored value.
+  function widget:GetUserData(key) return self.userdata[key] end
+  --- Give the edit box focus.
+  function widget:SetFocus() self.editbox.focused = true end
+  --- Fire a registered widget event.
+  ---@param event string Event name.
+  ---@param ... any Event arguments.
+  ---@return any result Callback result.
+  function widget:Fire(event, ...) return self.events[event](self, event, ...) end
+  return widget
+end
+SlackHacks.LibStub = function(name)
+  assert(name == "AceGUI-3.0")
+  return fakeGUI
+end
+registerSearchControl()
+registerSearchControl()
+SlackHacks.LibStub = nil
+local root = {}
+local replacement
+local commit
+commit = function(widget, _, value)
+  customArgs.search.set(nil, value)
+  widget.editbox.focused = false
+  replacement = constructors.SlackHacksEssentialSearch()
+  replacement:OnAcquire()
+  replacement.userdata.rootframe = root
+  replacement:SetCallback("OnEnterPressed", commit)
+end
+local live = constructors.SlackHacksEssentialSearch()
+live:OnAcquire()
+live.userdata.rootframe = root
+live:SetCallback("OnEnterPressed", commit)
+live.editbox.focused, live.editbox.cursor = true, 3
+live:Fire("OnTextChanged", "her")
+assert(customArgs.search.get() == "her" and not customArgs.results.hidden()
+  and replacement.editbox.focused and replacement.editbox.cursor == 3 and replacement.buttonDisabled,
+  "Typing must update results immediately and restore focus and cursor after the panel rebuilds")
+replacement.editbox.cursor = 8
+replacement:Fire("OnTextChanged", "healing ")
+assert(customArgs.search.get() == "healing " and customArgs.results.get() == 100
+  and replacement.editbox.focused and replacement.editbox.cursor == 8,
+  "Typing must preserve spaces and continue working after a rebuild")
+replacement.editbox.focused = false
+replacement:Fire("OnTextChanged", "ignored")
+assert(customArgs.search.get() == "healing ", "Programmatic text changes must not start a search")
+
 customArgs.search.set(nil, "  HeRb  ")
 local values = customArgs.results.values()
 local sorting = customArgs.results.sorting()
 assert(values[100] and values[101] and values[102] and values[104] and not values[103]
   and #sorting == 4 and sorting[1] == 100 and sorting[2] == 104 and sorting[3] == 102 and sorting[4] == 101)
-assert(not customArgs.results.disabled() and customArgs.add.disabled() and not globalSearchChanged,
+assert(not customArgs.results.disabled() and not customArgs.results.hidden()
+  and customArgs.add.disabled() and not globalSearchChanged,
   "Search must include filtered and reagent-bag items without changing Blizzard's bag search")
 assert(customArgs.searchStatus.name():find("still loading", 1, true),
   "Uncached item names must be reported")
@@ -216,13 +304,24 @@ customArgs.add.func()
 assert(profile.customEssentialItems[100].link == "healing-link" and profile.customEssentialItems[100].icon == 1000)
 customArgs = getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args
 assert(customArgs["item:100"].args.item.name == "|T1000:18:18|t healing-link"
-  and customArgs["item:100"].args.item.tooltipHyperlink == "healing-link")
+  and customArgs["item:100"].args.item.tooltipHyperlink == "healing-link"
+  and customArgs["item:100"].order < customArgs.search.order
+  and customArgs["item:100"].args.remove.name == "Remove" and customArgs.empty.hidden(),
+  "Saved custom items must appear as removable rows ahead of the search controls")
 customArgs.results.set(nil, 100)
 assert(customArgs.add.disabled(), "Already-added items must not be added twice")
+customArgs.search.set(nil, "herb")
+customArgs.results.set(nil, 101)
+customArgs.add.func()
+customArgs = getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args
+assert(customArgs["item:100"] and customArgs["item:101"], "Each saved custom item must have its own row")
 customArgs["item:100"].args.remove.func()
-assert(not profile.customEssentialItems[100]
+assert(not profile.customEssentialItems[100] and profile.customEssentialItems[101]
   and not getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args["item:100"],
-  "Removing a custom Essential must remove its saved rule and options row")
+  "Removing a custom Essential must remove only its saved rule and options row")
+customArgs["item:101"].args.remove.func()
+assert(getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args.empty.hidden() == false,
+  "The empty-list message must return after removing the last item")
 customArgs.search.set(nil, "absent")
 assert(customArgs.results.disabled() and customArgs.add.disabled())
 SlackHacks.db.profile.listviewBag = otherProfile
