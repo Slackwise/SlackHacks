@@ -63,6 +63,7 @@ dbDefaults = {
       mailItems = {},
       mailRecipients = {},
       mailAssignments = {},
+      mailQueues = {},
       essentialItems = { arrows = false, soulShards = false },
       customEssentialItems = {},
       autoSellMarkedItems = false,

@@ -26,6 +26,8 @@ local function widget()
   end })
   function object:SetScript(event, handler) self.scripts[event] = handler end
   function object:HookScript(event, handler) self.hooks[event] = handler end
+  function object:RegisterEvent(event) self.events = rawget(self, "events") or {}; self.events[event] = true end
+  function object:UnregisterAllEvents() self.events = {} end
   function object:GetFrameLevel() return 0 end
   function object:GetNormalTexture() return nil end
   function object:GetHighlightTexture() return nil end
@@ -189,7 +191,7 @@ assert(button.clicks[1] == "LeftButtonUp" and button.clicks[2] == "RightButtonUp
 updateStatusButton(button, getStatus("item"))
 assert(button.text.shown and button.text.text == "..." and not button.icon.shown)
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flag item for: None" and #GameTooltip.lines == 1
+assert(GameTooltip.text == "Click to Flag:" and #GameTooltip.lines == 1
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick mark as Junk.")
 
 local entries = {}
@@ -240,7 +242,7 @@ for _, case in ipairs({
     "Right-click must preserve " .. case.field)
   assert(#messages == previousMessages + 1 and notifications == previousNotifications)
   button.scripts.OnEnter(button)
-  assert(GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
+  assert(GameTooltip.lines[#GameTooltip.lines] == "Left-click to choose flag.\nRight-click cannot change this flag.")
   profile.trashItems.item = row.statusInfo
   button.scripts.OnClick(button, "RightButton")
   assert(profile[case.field].item == row.statusInfo and profile.trashItems.item == row.statusInfo,
@@ -266,7 +268,7 @@ local visitSlots = upvalue(upvalue(module.MERCHANT_SHOW, "sellMarkedTrashItems")
 local protected = upvalue(visitSlots, "isProtectedItem")
 assert(protected("item"), "Bank marks must use existing protection")
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flag item for: Bank" and #GameTooltip.lines == 1
+assert(GameTooltip.text == "Flagged for: Bank" and #GameTooltip.lines == 1
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
 button.scripts.OnClick(button, "RightButton")
 assert(not profile.trashItems.item and profile.bankItems.item and protected("item"))
@@ -277,11 +279,12 @@ chooseRecipient = true
 entries[6].selectStatus()
 assert(profile.mailItems.item and not profile.trashItems.item)
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flag item for: Mail (Bank Alt)")
+assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
+  and GameTooltip.lines[2] == "None" and GameTooltip.lines[3] == "Default Recipient: Bank Alt (Example)")
 deleteRecipient(profile, 1)
 assert(profile.mailItems.item and not profile.mailAssignments.item, "Deleting a recipient must leave Mail unassigned")
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flag item for: Mail")
+assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[3] == "Default Recipient: None")
 profile.mailRecipients[1] = { nickname = "Bank Alt", character = "Example" }
 entries[6].selectStatus()
 updateStatusButton(button, getStatus("item"))
@@ -302,7 +305,7 @@ selectJunk()
 button.scripts.OnClick(button, "RightButton")
 assert(profile.protectedItems.item and not profile.trashItems.item)
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flag item for: Protect" and GameTooltip.lines[2]:find("ignore protection", 1, true))
+assert(GameTooltip.text == "Flagged for: Protect" and GameTooltip.lines[2]:find("ignore protection", 1, true))
 entries[1].selectStatus()
 assert(not getStatus("item", 0))
 
@@ -514,6 +517,7 @@ local items = {
   { name = "Grey", quality = 0, field = "trashItems" },
 }
 local qualities = {}
+local pickerStackSize = 1
 for _, item in ipairs(items) do
   item.quality = item.quality or 1
   qualities[item.name] = item.quality
@@ -529,7 +533,7 @@ C_Container = {
   end,
 }
 C_Item = {
-  GetItemInfo = function(link) return link, link, qualities[link], 10, nil, nil, nil, nil, "", nil, 1, 15 end,
+  GetItemInfo = function(link) return link, link, qualities[link], 10, nil, nil, nil, pickerStackSize, "", nil, 1, 15 end,
   GetDetailedItemLevelInfo = function() return 10 end,
 }
 -- Exercise the mocked callbacks and sort data after garbage collection.
@@ -587,6 +591,7 @@ assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must regist
 -- Exercise the real picker callbacks with native widgets replaced by lightweight frames.
 local originalCreateFrame = CreateFrame
 local picker, inset, scroll, scrollBar, newRecipient, initializeRow, popupOptions, popup, extraRegion, recipientLabel
+local amountPrompt, amountButtons, amountLabels
 local viewPadding
 --- Emulate Forever's character pane.
 ---@return boolean forever Whether the Forever client is active.
@@ -605,7 +610,17 @@ function CreateFrame(kind, name, parent, template)
   function result:SetSize(width, height) self.width, self.height = width, height end
   function result:SetPoint(point, ...) self.points[point] = { ... } end
   function result:SetParent(parent) self.parent = parent end
-  if name == "SlackHacksMailRecipientPicker" then
+  if name == "SlackHacksMailAmountPrompt" then
+    amountPrompt, amountButtons, amountLabels = result, {}, {}
+    result.Inset, result.Bg = widget(), widget()
+    function result:CreateFontString()
+      local label = widget()
+      amountLabels[#amountLabels + 1] = label
+      return label
+    end
+  elseif parent == amountPrompt and template == "SharedButtonSmallTemplate" then
+    amountButtons[#amountButtons + 1] = result
+  elseif name == "SlackHacksMailRecipientPicker" then
     assert(template == "DefaultPanelBaseTemplate")
     result.TitleContainer = { TitleText = widget() }
     function result:Hide()
@@ -697,6 +712,7 @@ function SlackHacks.CreateIconNamePopupFrame(parent, options)
 end
 profile.mailRecipients = {}
 profile.mailAssignments = {}
+row.statusInfo.link = "pick-link"
 profile.trashItems.pick = row.statusInfo
 openPicker(button, "pick", row.statusInfo)
 assert(picker.shown and profile.trashItems.pick and not profile.mailItems.pick)
@@ -768,7 +784,84 @@ SlackHacks.db.profile.listviewBag = profile
 openPicker(button, "pick", row.statusInfo)
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
-assert(profile.mailItems.pick and not profile.trashItems.pick and profile.mailAssignments.pick == 1)
+assert(amountPrompt.shown and not profile.mailItems.pick,
+  "Non-stackable items must also show the amount prompt")
+amountButtons[2].scripts.OnClick()
+assert(profile.mailItems.pick and not profile.trashItems.pick and profile.mailAssignments.pick == 1
+  and not profile.mailQueues.pick, "Remember must assign a default recipient")
+
+pickerStackSize = 20
+profile.trashItems.stack = row.statusInfo
+openPicker(button, "stack", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+assert(amountPrompt.shown and profile.trashItems.stack and not profile.mailItems.stack)
+assert(amountLabels[2].text == "Send only a specific amount one time?"
+  and amountLabels[3].text == "Or, send all and remember this recipient?"
+  and amountButtons[1].text == "Send Once" and amountButtons[2].text == "Remember")
+amountPrompt.amount:SetText("0")
+amountButtons[1].scripts.OnClick()
+assert(amountPrompt.shown and not profile.mailItems.stack, "Invalid amounts must not change the flag")
+amountPrompt:Hide()
+assert(profile.trashItems.stack and not profile.mailItems.stack, "Canceling must preserve the previous flag")
+recipientRow.scripts.OnClick()
+amountPrompt.amount:SetText("25")
+amountButtons[1].scripts.OnClick()
+assert(profile.mailItems.stack and not profile.mailAssignments.stack
+  and profile.mailQueues.stack[1].recipient == 1 and profile.mailQueues.stack[1].remaining == 25)
+row.statusKey = "stack"
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
+  and GameTooltip.lines[2] == "Alt (Example-Realm): 25 remaining"
+  and GameTooltip.lines[3] == "Default Recipient: None")
+row.statusKey = "item"
+profile.mailRecipients[2] = { nickname = "Other", character = "Other-Realm", icon = 1 }
+openPicker(button, "stack", row.statusInfo)
+recipientRow = pickerRow({ id = 2, recipient = profile.mailRecipients[2], enabled = true })
+recipientRow.scripts.OnClick()
+amountPrompt.amount:SetText("4")
+amountButtons[1].scripts.OnClick()
+openPicker(button, "stack", row.statusInfo)
+recipientRow = pickerRow({ id = 2, recipient = profile.mailRecipients[2], enabled = true })
+recipientRow.scripts.OnClick()
+amountButtons[2].scripts.OnClick()
+assert(profile.mailAssignments.stack == 2 and #profile.mailQueues.stack == 2
+  and profile.mailQueues.stack[1].recipient == 1 and profile.mailQueues.stack[2].recipient == 2,
+  "Remember must preserve the FIFO queue")
+row.statusKey = "stack"
+button.scripts.OnEnter(button)
+assert(GameTooltip.lines[2] == "Alt (Example-Realm): 25 remaining"
+  and GameTooltip.lines[3] == "Other (Other-Realm): 4 remaining"
+  and GameTooltip.lines[4] == "Default Recipient: Other (Other-Realm)")
+row.statusKey = "item"
+setStatus("stack", row.statusInfo, statuses[2])
+assert(not profile.mailQueues.stack and not profile.mailAssignments.stack,
+  "Changing the flag must discard the queue and default recipient")
+profile.mailRecipients[2] = nil
+openPicker(button, "stack", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+setStatus("stack", row.statusInfo, statuses[4])
+amountPrompt.amount:SetText("5")
+amountButtons[1].scripts.OnClick()
+assert(profile.bankItems.stack and not profile.mailItems.stack and not profile.mailQueues.stack,
+  "A stale quantity prompt must not overwrite a changed flag")
+openPicker(button, "stack", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+local previousRecipient = profile.mailRecipients[1]
+profile.mailRecipients[1] = { nickname = "Replacement", character = "Other" }
+amountButtons[2].scripts.OnClick()
+assert(profile.bankItems.stack and not profile.mailItems.stack, "A stale prompt must not use a replaced recipient")
+profile.mailRecipients[1] = previousRecipient
+pickerStackSize = nil
+openPicker(button, "stack", row.statusInfo)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+assert(amountPrompt.shown and profile.bankItems.stack,
+  "The amount prompt must not depend on stack metadata being cached")
+amountPrompt:Hide()
+pickerStackSize = 1
 openPicker(button, "another", row.statusInfo)
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.EditButton.scripts.OnClick()
@@ -814,8 +907,10 @@ assert(profile.mailRecipients[1].nickname == "Replacement" and profile.mailAssig
 profile.mailRecipients[1] = originalRecipient
 recipientRow.EditButton.scripts.OnClick()
 recipientRow.DeleteButton.scripts.OnClick()
+profile.mailQueues.pick = { { recipient = 1, remaining = 5 }, { recipient = 2, remaining = 7 } }
 StaticPopupDialogs.SLACKHACKS_DELETE_MAIL_RECIPIENT.OnAccept(nil, deleteDialog)
-assert(profile.mailItems.pick and not profile.mailAssignments.pick and not profile.mailRecipients[1] and not popup.shown)
+assert(profile.mailItems.pick and not profile.mailAssignments.pick and #profile.mailQueues.pick == 1
+  and profile.mailQueues.pick[1].recipient == 2 and not profile.mailRecipients[1] and not popup.shown)
 profile.mailRecipients[2] = nil
 upvalue(openPicker, "recipientPicker", false)
 SlackHacks.isForever = function() return false end
@@ -873,7 +968,10 @@ SendMailCODButton.checked = false
 function SendMailCODButton:GetChecked() return self.checked end
 function SendMailMailButton:Disable() self.enabled = false end
 function MoneyInputFrame_GetCopper(money) return money.copper end
-function SendMailFrame_CanSend() SendMailMailButton.enabled = true end
+function SendMailFrame_CanSend()
+  SendMailMailButton.enabled = true
+  if globalHooks.SendMailFrame_CanSend then globalHooks.SendMailFrame_CanSend() end
+end
 function SendMailFrame_Reset()
   SendMailNameEditBox:SetText("")
   SendMailSubjectEditBox:SetText("")
@@ -902,6 +1000,20 @@ function C_Container.PickupContainerItem(bagID, slot)
   local slots = bagID == 5 and reagentBagSlots or bagSlots
   moving = slots[slot]
   slots[slot] = nil
+  cursorType, cursorLink = "item", moving.hyperlink
+end
+--- Split the requested quantity onto the mocked cursor.
+---@param bagID number Container ID.
+---@param slot number Container slot.
+---@param count number Quantity to split.
+function C_Container.SplitContainerItem(bagID, slot, count)
+  local slots = bagID == 5 and reagentBagSlots or bagSlots
+  local source = slots[slot]
+  assert(count > 0 and count < source.stackCount)
+  moving = {}
+  for key, value in pairs(source) do moving[key] = value end
+  moving.stackCount = count
+  source.stackCount = source.stackCount - count
   cursorType, cursorLink = "item", moving.hyperlink
 end
 function C_Item.GetItemInfo(link)
@@ -1028,6 +1140,14 @@ assert(bagSlots[2] and bagSlots[2].itemID == 3, "Replacing a draft must return i
 
 local startMail = upvalue(module.OnMailSendSuccess, "startRecipientMail")
 local advanceMail = upvalue(startMail, "advanceMailJob")
+local unlockedMail = upvalue(startMail, "unlockedMailItems")
+local lockedAmount = { recipient = 1, remaining = 3 }
+local available = unlockedMail({
+  { statusKey = "locked", count = 10, locked = true, amount = lockedAmount },
+  { statusKey = "locked", count = 8, locked = false, amount = lockedAmount },
+})
+assert(#available == 1 and available[1].sendCount == 3,
+  "Locked stacks must not reserve the amount needed by available stacks")
 local formatSubject = upvalue(advanceMail, "mailSubject")
 assert(formatSubject({ { name = "Single item", count = 20, category = "reagents" } }) == "Single item")
 assert(formatSubject({
@@ -1051,11 +1171,314 @@ recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 profile.mailAssignments[swordKey] = nil
 drainMailTimers()
-assert(HasSendMailItem(1) and not HasSendMailItem(2) and bagSlots[3] and SendMailMailButton.enabled,
-  "Changing a flag during preparation must stop before attaching another stack")
+assert(HasSendMailItem(1) and not HasSendMailItem(2) and bagSlots[3] and not SendMailMailButton.enabled,
+  "Changing a flag during preparation must stop and prevent sending stale attachments")
 profile.mailAssignments[swordKey] = 1
+SendMailFrame_CanSend()
+assert(SendMailMailButton.enabled)
 SendMailFrame.hooks.OnHide()
 assert(not picker.shown, "Closing the send tab must hide the mail recipient window")
+
+-- A one-time quantity must split stacks, survive a failed send, and clear only after success.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems, profile.mailAssignments, profile.mailQueues = { [swordKey] = {} }, {},
+  { [swordKey] = { { recipient = 1, remaining = 12 } } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 8 }
+bagSlots[2] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 7 }
+bagSlots[3] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 8 and attachments[2].stackCount == 4 and not attachments[3]
+  and bagSlots[2].stackCount == 3 and bagSlots[3].stackCount == 10 and SendMailMailButton.enabled,
+  "One-time amounts must cap the total across stacks and split the final stack")
+globalHooks.SendMail("Alt-Realm")
+module:OnMailSendFailed()
+assert(profile.mailQueues[swordKey][1].remaining == 12, "Failed sends must not consume the quantity")
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(not profile.mailQueues[swordKey] and not profile.mailAssignments[swordKey] and profile.mailItems[swordKey]
+  and bagSlots[2].stackCount == 3 and bagSlots[3].stackCount == 10,
+  "A completed one-time send must keep the Mail flag without preparing excess items")
+
+-- A shortage remains pending until more matching items are obtained.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 20 } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 7 }
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+picker:Hide()
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailQueues[swordKey][1].remaining == 13 and profile.mailItems[swordKey],
+  "Unavailable quantities must remain pending even when the recipient picker was closed before sending")
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 20 }
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 13 and bagSlots[1].stackCount == 7)
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailItems[swordKey] and not profile.mailQueues[swordKey] and bagSlots[1].stackCount == 7)
+
+-- The remaining amount must carry across attachment-limited batches.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 13 } }
+for slot = 1, 13 do
+  bagSlots[slot] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+end
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[12] and bagSlots[13] and SendMailMailButton.enabled)
+globalHooks.SendMail("Alt-ReRealm")
+module:OnMailSendFailed()
+assert(profile.mailQueues[swordKey][1].remaining == 13)
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailQueues[swordKey][1].remaining == 1 and attachments[1] and not attachments[2])
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailItems[swordKey] and not profile.mailQueues[swordKey])
+
+-- A queue is strictly FIFO per item, with the remembered recipient used only after it is empty.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, 2
+profile.mailQueues[swordKey] = {
+  { recipient = 1, remaining = 3 }, { recipient = 2, remaining = 4 }, { recipient = 1, remaining = 2 },
+}
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 12 }
+module:OnMailInfoUpdate()
+assert(scroll.elements[1].enabled and not scroll.elements[2].enabled,
+  "A later queued recipient and the default must not bypass the first recipient")
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 3 and bagSlots[1].stackCount == 9)
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(#profile.mailQueues[swordKey] == 2 and profile.mailQueues[swordKey][1].recipient == 2
+  and not attachments[1] and not scroll.elements[1].enabled and scroll.elements[2].enabled,
+  "The next recipient must become eligible only after the first succeeds")
+recipientRow = pickerRow(scroll.elements[2])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 4 and bagSlots[1].stackCount == 5)
+globalHooks.SendMail("Empty-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(#profile.mailQueues[swordKey] == 1 and profile.mailQueues[swordKey][1].recipient == 1
+  and scroll.elements[1].enabled and not scroll.elements[2].enabled)
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 2 and bagSlots[1].stackCount == 3)
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(not profile.mailQueues[swordKey] and profile.mailAssignments[swordKey] == 2
+  and profile.mailItems[swordKey] and scroll.elements[2].enabled,
+  "The default must become eligible after the queue is exhausted")
+recipientRow = pickerRow(scroll.elements[2])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 3 and not bagSlots[1])
+globalHooks.SendMail("Empty-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailAssignments[swordKey] == 2 and profile.mailItems[swordKey],
+  "The default recipient must remain remembered after sending")
+
+-- Separate non-stackable items and consecutive entries for one recipient also respect the queue.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, 1
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 2 }, { recipient = 1, remaining = 2 } }
+for slot = 1, 5 do
+  bagSlots[slot] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+end
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1] and attachments[2] and not attachments[3] and SendMailMailButton.enabled)
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(#profile.mailQueues[swordKey] == 1 and attachments[1] and attachments[2] and not attachments[3],
+  "A consecutive queue entry for the same recipient must be prepared next")
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(not profile.mailQueues[swordKey] and attachments[1] and not attachments[2]
+  and profile.mailAssignments[swordKey] == 1,
+  "The default may prepare the remaining item only after both queue entries")
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+
+-- A newly queued recipient takes precedence over an already-prepared default draft.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey], profile.mailQueues[swordKey] = {}, 1, nil
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 10 and SendMailMailButton.enabled)
+openPicker(button, swordKey, { name = "Sword", quality = 1, itemLevel = 10, link = "sword-link" })
+recipientRow = pickerRow(scroll.elements[2])
+recipientRow.scripts.OnClick()
+amountPrompt.amount:SetText("2")
+amountButtons[1].scripts.OnClick()
+assert(not SendMailMailButton.enabled, "A stale default draft must not bypass the new queue")
+attachments = {}
+SendMailFrame_CanSend()
+assert(SendMailMailButton.enabled, "Removing stale attachments must restore normal sending")
+SendMailFrame.hooks.OnHide()
+SendMailFrame.hooks.OnShow()
+
+-- Manual attachment edits do not consume a quota or trigger an automatic refill.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 3 } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 3 }
+bagSlots[2] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+attachments[1].stackCount = 2
+SendMailFrame_CanSend()
+assert(not SendMailMailButton.enabled, "Editing a queued attachment must block an inaccurate send")
+local beforeUncertain = #messages
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailQueues[swordKey][1].remaining == 3 and bagSlots[2] and #messages == beforeUncertain + 1,
+  "Changed attachments must not be credited or automatically refilled")
+SendMailFrame.hooks.OnHide()
+
+-- A newer one-time assignment must not be consumed by an earlier in-flight send.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 3 } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 3 }
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+globalHooks.SendMail("Alt-Realm")
+local newerAmount = { recipient = 1, remaining = 8 }
+profile.mailQueues[swordKey] = { newerAmount }
+bagSlots[2] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 8 }
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailQueues[swordKey][1] == newerAmount and newerAmount.remaining == 8 and bagSlots[2]
+  and not attachments[1], "An older send must not consume or refill a replacement assignment")
+SendMailFrame.hooks.OnHide()
+
+-- A queue added after a default mail is sent must not trigger another default batch.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey], profile.mailQueues[swordKey] = {}, 1, nil
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+globalHooks.SendMail("Alt-Realm")
+profile.mailQueues[swordKey] = { { recipient = 2, remaining = 1 } }
+bagSlots[2] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailQueues[swordKey][1].remaining == 1 and bagSlots[2] and not attachments[1],
+  "An in-flight default mail must not refill past a newly queued recipient")
+SendMailFrame.hooks.OnHide()
+
+-- A send still settles its quota after the mail window closes and the module is disabled.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 5 } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 3 }
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+globalHooks.SendMail("Alt-Realm")
+local pendingEvents = upvalue(module.OnMailSendSuccess, "pendingMailEvents")
+assert(pendingEvents.events.MAIL_SEND_SUCCESS and pendingEvents.events.MAIL_FAILED)
+SendMailFrame.hooks.OnHide()
+module:OnBagInteractionClosed("MAIL_CLOSED")
+local originalFrame = upvalue(module.OnDisable, "frame", false)
+local originalShowBags = upvalue(module.OnDisable, "showDefaultBags", function() end)
+local originalMerchantOpen = upvalue(module.OnDisable, "merchantOpen", false)
+local originalBindings = module.UpdateListViewBindings
+module.UpdateListViewBindings = function() end
+EventRegistry.UnregisterCallback = function() end
+module.IsEnabled = function() return false end
+module:OnDisable()
+attachments = {}
+SendMailFrame_Reset()
+pendingEvents.scripts.OnEvent(pendingEvents, "MAIL_SEND_SUCCESS")
+assert(profile.mailQueues[swordKey][1].remaining == 2 and profile.mailItems[swordKey]
+  and not next(pendingEvents.events), "A late successful send must settle the pending amount")
+module.IsEnabled = function() return true end
+module.UpdateListViewBindings = originalBindings
+upvalue(module.OnDisable, "frame", originalFrame)
+upvalue(module.OnDisable, "showDefaultBags", originalShowBags)
+upvalue(module.OnDisable, "merchantOpen", originalMerchantOpen)
 
 -- A secure mail hook must not disable Blizzard's send button after the module is disabled.
 upvalue(startMail, "mailJob", {})
