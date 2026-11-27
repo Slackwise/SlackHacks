@@ -204,6 +204,7 @@ local EQUIPMENT_SLOTS = {
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
 local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
+local SUPPLY_MARGIN = 8
 
 --=====================================================================
 -- Small helpers
@@ -2337,26 +2338,17 @@ local function crestTokenOnClick(self)
   ToggleCharacter("TokenFrame")
 end
 
---- Size a pooled currency button to 13/15 of its original width.
----@param token table Currency token button.
-local function compactCurrencyToken(token)
-  -- Blizzard reuses pooled buttons, so always resize from the original width.
-  token.slackHacksOriginalWidth = token.slackHacksOriginalWidth or token:GetWidth()
-  token:SetWidth(token.slackHacksOriginalWidth * 13 / 15)
-end
-
---- Refresh current-season crest buttons according to the active footer display.
+--- Refresh current-season crest buttons on Retail.
 ---@param self table Crest currency frame.
 local function updateCrestFrame(self)
   self.tokenPool:ReleaseAll()
   self.Tokens = {}
   self.numWatchedTokens = 0
-  if not isRetail() or not (settings().trackCrestCurrencies or self.showBoth) then return end
+  if not isRetail() then return end
   for _, currencyID in ipairs(CREST_CURRENCY_IDS) do
     local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
     if info then
       local token = self.tokenPool:Acquire()
-      compactCurrencyToken(token)
       token.currencyID = currencyID
       token.Icon:SetTexture(info.iconFileID)
       local quantity = info.quantity or 0
@@ -2374,13 +2366,12 @@ local function updateCrestFrame(self)
   self.numWatchedTokens = #self.Tokens
 end
 
---- Size a token frame to its compacted currency buttons.
+--- Size a token frame to its native currency buttons.
 ---@param currencyFrame table Currency token frame.
 ---@return number width Total frame width.
 local function resizeCurrencyFrame(currencyFrame)
   local width = 26
   for _, token in ipairs(currencyFrame.Tokens or {}) do
-    compactCurrencyToken(token)
     width = width + token:GetWidth()
   end
   currencyFrame:SetWidth(width)
@@ -2525,6 +2516,22 @@ local function showSlotBreakdown(title, breakdown, showTotal)
   end
 end
 
+local slotItemLoads = {}
+
+--- Record an item whose tooltip data is incomplete.
+---@param missing table Items with incomplete data, keyed by item ID.
+---@param itemID number Item identifier.
+---@param label string Item link or fallback label.
+---@param required boolean Whether visible or classification data is missing.
+local function markSlotItemMissing(missing, itemID, label, required)
+  local entry = missing[itemID]
+  if not entry then
+    entry = { label = label }
+    missing[itemID] = entry
+  end
+  entry.required = entry.required or required
+end
+
 --- Show physical capacity and inventory statistics, independent of active bag filters.
 ---@param owner table Mouse-enabled slot-count frame.
 local function showSlotTooltip(owner)
@@ -2532,7 +2539,7 @@ local function showSlotTooltip(owner)
   local totalSlots, freeSlots, reagentSlots, reagentFree = 0, 0, 0, 0
   local categories, arrows, shots, bandages, health, mana = {}, {}, {}, {}, {}, {}
   local consumables = { bandages = bandages, health = health, mana = mana }
-  local shards, shardIcon, incomplete = 0, nil, false
+  local shards, shardIcon, missing = 0, nil, {}
   local bag = settings()
   local forever = isForever()
   local class = select(2, UnitClass("player"))
@@ -2548,11 +2555,16 @@ local function showSlotTooltip(owner)
       if info and info.itemID then
         local name, link, quality, itemLevel, _, _, _, _, equipLoc, itemIcon, sellPrice, classID, subclassID,
           bindType, _, _, isCraftingReagent = C_Item.GetItemInfo(info.hyperlink or info.itemID)
+        if not name and info.hyperlink then
+          name, link, quality, itemLevel, _, _, _, _, equipLoc, itemIcon, sellPrice, classID, subclassID,
+            bindType, _, _, isCraftingReagent = C_Item.GetItemInfo(info.itemID)
+          link = info.hyperlink
+        end
         name, link, quality = name or info.itemName, link or info.hyperlink, quality or info.quality
         itemIcon = info.iconFileID or itemIcon
         local count = info.stackCount or 1
         if classID == nil or quality == nil or sellPrice == nil then
-          incomplete = true
+          markSlotItemMissing(missing, info.itemID, link or name or ("Item #" .. info.itemID), true)
         else
           local group = { itemID = info.itemID, classID = classID, subclassID = subclassID,
             quality = quality, equipLoc = equipLoc, sellPrice = sellPrice, bindType = bindType,
@@ -2574,18 +2586,42 @@ local function showSlotTooltip(owner)
         end
         addConsumableBreakdowns(consumables, info, name, link, itemLevel, itemIcon, quality,
           classID, subclassID, showMana, bagID, slot)
-        if not name then incomplete = true end
+        if not name then
+          markSlotItemMissing(missing, info.itemID, link or ("Item #" .. info.itemID), true)
+        end
       end
     end
   end
 
-  if shards > 0 and not shardIcon then incomplete = true end
+  if shards > 0 and not shardIcon then
+    markSlotItemMissing(missing, SOUL_SHARD_ITEM_ID, "Soul Shards", true)
+  end
   for _, breakdown in ipairs({ arrows, shots, bandages, health, mana }) do
     for _, entry in pairs(breakdown) do
-      if entry.itemLevel == nil or not entry.icon then incomplete = true end
+      if entry.itemLevel == nil or not entry.icon then
+        markSlotItemMissing(missing, entry.itemID, entry.label, not entry.icon)
+      end
     end
   end
 
+  local loading, unavailable = {}, {}
+  for itemID, entry in pairs(missing) do
+    local cached = C_Item.IsItemDataCachedByID and C_Item.IsItemDataCachedByID(itemID)
+    if cached then
+      -- Non-equipment may lack an item level even after its data has loaded.
+      if entry.required then unavailable[#unavailable + 1] = entry.label end
+    elseif slotItemLoads[itemID] == "failed" then
+      unavailable[#unavailable + 1] = entry.label
+    else
+      if C_Item.RequestLoadItemDataByID and not slotItemLoads[itemID] then
+        slotItemLoads[itemID] = "pending"
+        C_Item.RequestLoadItemDataByID(itemID)
+      end
+      loading[#loading + 1] = entry.label
+    end
+  end
+  table.sort(loading)
+  table.sort(unavailable)
   GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT")
   GameTooltip:SetText("Inventory Summary")
   local used = totalSlots - freeSlots
@@ -2616,75 +2652,61 @@ local function showSlotTooltip(owner)
   if showMana then
     showSlotBreakdown("Mana Potions", mana, false)
   end
-  if incomplete then GameTooltip:AddLine("Some item information is still loading.", 1, 0.82, 0) end
+  if #loading > 0 then
+    GameTooltip:AddLine("Item information is still loading:", 1, 0.82, 0)
+    for index = 1, math.min(5, #loading) do GameTooltip:AddLine(loading[index], 1, 0.82, 0) end
+    if #loading > 5 then GameTooltip:AddLine(("%d more..."):format(#loading - 5), 1, 0.82, 0) end
+  end
+  if #unavailable > 0 then
+    GameTooltip:AddLine("Item information is unavailable:", 1, 0.82, 0)
+    for index = 1, math.min(5, #unavailable) do GameTooltip:AddLine(unavailable[index], 1, 0.82, 0) end
+    if #unavailable > 5 then GameTooltip:AddLine(("%d more..."):format(#unavailable - 5), 1, 0.82, 0) end
+  end
   GameTooltip:Show()
 end
 
---- Select the highest-level item, breaking ties by quality and name.
----@param breakdown table Item variants keyed by link or item ID.
----@return table|nil item Best available variant.
-local function bestSupply(breakdown)
-  local best
-  for _, item in pairs(breakdown) do
-    local level, quality = item.itemLevel or -1, item.quality or -1
-    if not best or level > (best.itemLevel or -1)
-      or (level == (best.itemLevel or -1) and quality > (best.quality or -1))
-      or (level == (best.itemLevel or -1) and quality == (best.quality or -1) and item.label < best.label) then
-      best = item
-    end
-  end
-  return best
-end
-
---- Collect the equipped ammunition or thrown weapon and the best consumables in bags.
+--- Collect equipped arrows or thrown durability and Warlock Soul Shards.
 ---@return table supplies Ordered available footer entries.
 local function collectFooterSupplies()
-  local result, lists = {}, { bandages = {}, health = {}, mana = {} }
+  local result = {}
   local class = select(2, UnitClass("player"))
-  local forever = isForever()
-  local showMana = MANA_CLASSES[class] or (forever and class == "HUNTER")
-  if forever then
-    local rangedSlot = GetInventorySlotInfo("RangedSlot")
-    local rangedItem = rangedSlot and (GetInventoryItemLink("player", rangedSlot) or GetInventoryItemID("player", rangedSlot))
-    local equipLoc = rangedItem and select(4, C_Item.GetItemInfoInstant(rangedItem))
-    if equipLoc == "INVTYPE_THROWN" then
-      local current, maximum = GetInventoryItemDurability(rangedSlot)
-      local available = current and maximum and maximum > 0
-      result[#result + 1] = { inventorySlot = rangedSlot, icon = GetInventoryItemTexture("player", rangedSlot),
-        text = available and (current .. "/" .. maximum) or "?",
-        unavailable = not available and "Durability unavailable." or nil }
-    else
-      local ammoSlot = GetInventorySlotInfo("AmmoSlot")
-      local ammoIcon = ammoSlot and GetInventoryItemTexture("player", ammoSlot)
-      if ammoIcon then
-        local count = GetInventoryItemCount("player", ammoSlot)
-        result[#result + 1] = { inventorySlot = ammoSlot, icon = ammoIcon,
-          text = count and tostring(count) or "?", unavailable = not count and "Ammunition count unavailable." or nil }
-      end
+  local rangedSlot = GetInventorySlotInfo("RangedSlot")
+  local rangedItem = rangedSlot and (GetInventoryItemLink("player", rangedSlot) or GetInventoryItemID("player", rangedSlot))
+  local equipLoc = rangedItem and select(4, C_Item.GetItemInfoInstant(rangedItem))
+  if equipLoc == "INVTYPE_THROWN" then
+    local current, maximum = GetInventoryItemDurability(rangedSlot)
+    local available = current and maximum and maximum > 0
+    result[#result + 1] = { inventorySlot = rangedSlot, icon = GetInventoryItemTexture("player", rangedSlot),
+      text = available and (current .. "/" .. maximum) or "?",
+      unavailable = not available and "Durability unavailable." or nil }
+  else
+    local ammoSlot = GetInventorySlotInfo("AmmoSlot")
+    local ammoID = ammoSlot and GetInventoryItemID("player", ammoSlot)
+    local ammoIcon, classID, subclassID
+    if ammoID then ammoIcon, classID, subclassID = select(5, C_Item.GetItemInfoInstant(ammoID)) end
+    if classID == PROJECTILE_CLASS_ID and subclassID == ARROW_SUBCLASS_ID then
+      local count = GetInventoryItemCount("player", ammoSlot)
+      result[#result + 1] = { inventorySlot = ammoSlot, icon = GetInventoryItemTexture("player", ammoSlot) or ammoIcon,
+        text = count and tostring(count) or "?", unavailable = not count and "Ammunition count unavailable." or nil }
     end
   end
   local shard
-  for _, bagID in ipairs(bagIDs()) do
-    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
-      local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID then
-        local name, link, quality, itemLevel, _, _, _, _, _, icon, _, classID, subclassID =
-          C_Item.GetItemInfo(info.hyperlink or info.itemID)
-        name, link, icon = name or info.itemName, link or info.hyperlink, info.iconFileID or icon
-        if class == "WARLOCK" and info.itemID == SOUL_SHARD_ITEM_ID then
+  if class == "WARLOCK" then
+    for _, bagID in ipairs(bagIDs()) do
+      for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+        local info = C_Container.GetContainerItemInfo(bagID, slot)
+        if info and info.itemID == SOUL_SHARD_ITEM_ID then
+          local icon = info.iconFileID or select(10, C_Item.GetItemInfo(info.hyperlink or info.itemID))
           if not shard then shard = { bagID = bagID, slot = slot, itemID = info.itemID, icon = icon, count = 0 } end
           shard.icon = shard.icon or icon
           shard.count = shard.count + (info.stackCount or 1)
         end
-        addConsumableBreakdowns(lists, info, name, link, itemLevel, icon, quality,
-          classID, subclassID, showMana, bagID, slot)
       end
     end
   end
-  if shard then shard.text = tostring(shard.count); result[#result + 1] = shard end
-  for _, list in ipairs({ lists.bandages, lists.health, lists.mana }) do
-    local item = bestSupply(list)
-    if item then item.text = tostring(item.count); result[#result + 1] = item end
+  if shard then
+    shard.text = tostring(shard.count)
+    result[#result + 1] = shard
   end
   return result
 end
@@ -2704,11 +2726,9 @@ end
 
 --- Update the compact item strip and return its measured width.
 ---@param supplyFrame table Frame containing the supply buttons.
----@param showBoth boolean Whether Retail should show supplies alongside crests.
 ---@return number width Strip width, or zero when not shown.
-local function updateSupplyFrame(supplyFrame, showBoth)
-  local show = isForever() or (isRetail() and (showBoth or not settings().trackCrestCurrencies))
-  local items = show and collectFooterSupplies() or {}
+local function updateSupplyFrame(supplyFrame)
+  local items = isForever() and collectFooterSupplies() or {}
   local width = 0
   for index, item in ipairs(items) do
     local button = supplyFrame.buttons[index]
@@ -2767,11 +2787,9 @@ local function updateFooter()
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Update()
   local tokenWidth = sizeCurrencyFrame(footer.tokenFrame)
-  local showBoth = isRetail() and #(footer.tokenFrame.Tokens or {}) == 0
-  footer.crestFrame.showBoth = showBoth
   footer.crestFrame:Update()
   local crestWidth = sizeCurrencyFrame(footer.crestFrame)
-  local supplyWidth = updateSupplyFrame(footer.supplyFrame, showBoth)
+  local supplyWidth = updateSupplyFrame(footer.supplyFrame)
   local width = footer.moneyFrame:GetWidth()
   footer.tokenFrame:ClearAllPoints()
   footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
@@ -2785,7 +2803,7 @@ local function updateFooter()
   if crestWidth > 0 then width = width + crestWidth + 4 end
 
   footer.slotCount:SetFont(footer.slotFont, footer.slotFontSize, footer.slotFontFlags)
-  local available = footer:GetWidth() - 12 - (supplyWidth > 0 and 4 or 0)
+  local available = footer:GetWidth() - 12 - (supplyWidth > 0 and SUPPLY_MARGIN or 0)
   local combinedWidth = width + supplyWidth
   local slotWidth = footer.slotCount:GetStringWidth()
   if combinedWidth + slotWidth > available and slotWidth > 0 then
@@ -3122,7 +3140,7 @@ local function createFooter()
   footer.tokenFrame:SetIsCombinedInventory(true)
   footer.tokenFrame.GetMaxTokensWatched = function() return 3 end
   local nativeAnchorTokens = footer.tokenFrame.UpdateTokenAnchoring
-  --- Compact tokens before Blizzard positions them, including its own event-driven updates.
+  --- Size the frame before Blizzard positions its native currency buttons.
   ---@param self table Watched currency frame.
   footer.tokenFrame.UpdateTokenAnchoring = function(self)
     resizeCurrencyFrame(self)
@@ -3138,7 +3156,7 @@ local function createFooter()
   footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
   footer.supplies = CreateFrame("Frame", nil, footer)
   footer.supplies:SetHeight(20)
-  footer.supplies:SetPoint("LEFT", footer.slotCount, "RIGHT", 4, 0)
+  footer.supplies:SetPoint("LEFT", footer.slotCount, "RIGHT", SUPPLY_MARGIN, 0)
   footer.supplyFrame = CreateFrame("Frame", nil, footer.supplies)
   footer.supplyFrame:SetPoint("LEFT", footer.supplies, "LEFT")
   footer.supplyFrame.buttons = {}
@@ -3265,17 +3283,6 @@ local function openBagSettingsMenu(anchor)
   local function switchToDefault()
     if isModuleEnabled() then setShowListviewBag(false) end
   end
-  --- Report whether the chosen Retail footer display is active.
-  ---@param crests boolean Whether to check for crests rather than supplies.
-  ---@return boolean selected Whether this display is selected.
-  local function footerSelected(crests) return settings().trackCrestCurrencies == crests end
-  --- Select the Retail footer display.
-  ---@param crests boolean Whether to show crests rather than supplies.
-  local function selectFooter(crests)
-    if not isModuleEnabled() or not isRetail() then return end
-    settings().trackCrestCurrencies = crests
-    module:RefreshFooter()
-  end
   --- Report whether automatic junk selling is enabled.
   ---@return boolean enabled Whether automatic junk selling is enabled.
   local function autoSell() return settings().autoSellMarkedItems end
@@ -3290,11 +3297,6 @@ local function openBagSettingsMenu(anchor)
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateButton("Switch back to default bags", switchToDefault)
-      if isRetail() then
-        local display = root:CreateButton("Footer Display")
-        display:CreateRadio("Crests", function() return footerSelected(true) end, function() selectFooter(true) end)
-        display:CreateRadio("Supplies", function() return footerSelected(false) end, function() selectFooter(false) end)
-      end
       root:CreateCheckbox("Auto-Sell Junk", autoSell, toggleAutoSell)
       root:CreateButton("Open Settings", openBagOptions)
     end)
@@ -3302,14 +3304,6 @@ local function openBagSettingsMenu(anchor)
     local menu = {
       { text = "Switch back to default bags", notCheckable = true, func = switchToDefault },
     }
-    if isRetail() then
-      menu[#menu + 1] = { text = "Footer Display", notCheckable = true, hasArrow = true, menuList = {
-        { text = "Crests", checked = function() return footerSelected(true) end,
-          func = function() selectFooter(true) end },
-        { text = "Supplies", checked = function() return footerSelected(false) end,
-          func = function() selectFooter(false) end },
-      } }
-    end
     menu[#menu + 1] = { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
       checked = autoSell, func = toggleAutoSell }
     menu[#menu + 1] = { text = "Open Settings", notCheckable = true, func = openBagOptions }
@@ -3519,6 +3513,12 @@ local function buildFrame()
   content.settingsButton:SetNormalAtlas("common-dropdown-a-button-settings-shadowless")
   content.settingsButton:SetPushedAtlas("common-dropdown-a-button-settings-pressed-shadowless")
   content.settingsButton:SetHighlightAtlas("common-dropdown-a-button-settings-hover-shadowless")
+  -- Atlas textures can retain their native dimensions rather than the button's 24-pixel size.
+  for _, texture in ipairs({ content.settingsButton:GetNormalTexture(), content.settingsButton:GetPushedTexture(),
+    content.settingsButton:GetHighlightTexture() }) do
+    texture:ClearAllPoints()
+    texture:SetAllPoints(content.settingsButton)
+  end
   content.settingsButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   content.settingsButton:SetScript("OnClick", openBagSettingsMenu)
   content.settingsButton:SetScript("OnEnter", function(self)
@@ -3749,6 +3749,7 @@ function module:OnEnable()
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:RegisterEvent("INVENTORY_SEARCH_UPDATE", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
+  self:RegisterEvent("ITEM_DATA_LOAD_RESULT", "OnSlotItemDataLoaded")
   self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
   self:RegisterEvent("UNIT_INVENTORY_CHANGED", "OnSupplyInventoryChanged")
   self:RegisterEvent("UPDATE_INVENTORY_DURABILITY", "RefreshFooter")
@@ -3776,6 +3777,7 @@ function module:OnEnable()
 end
 
 function module:OnDisable()
+  slotItemLoads = {}
   trackedCursorItem = nil
   if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
   if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
@@ -3972,6 +3974,16 @@ function module:UpdateListViewBindings()
 end
 
 function module:RefreshFooter()
+  refreshFooter()
+end
+
+--- Update an outstanding inventory-summary item request.
+---@param event string Event name.
+---@param itemID number Requested item identifier.
+---@param success boolean Whether item data loaded successfully.
+function module:OnSlotItemDataLoaded(event, itemID, success)
+  if not slotItemLoads[itemID] then return end
+  if success then slotItemLoads[itemID] = nil else slotItemLoads[itemID] = "failed" end
   refreshFooter()
 end
 

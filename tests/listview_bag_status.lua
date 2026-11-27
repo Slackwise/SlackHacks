@@ -35,8 +35,9 @@ local function widget()
   function object:RegisterEvent(event) self.events = rawget(self, "events") or {}; self.events[event] = true end
   function object:UnregisterAllEvents() self.events = {} end
   function object:GetFrameLevel() return 0 end
-  function object:GetNormalTexture() return nil end
-  function object:GetHighlightTexture() return nil end
+  function object:GetNormalTexture() return rawget(self, "normalAtlasTexture") end
+  function object:GetPushedTexture() return rawget(self, "pushedAtlasTexture") end
+  function object:GetHighlightTexture() return rawget(self, "highlightAtlasTexture") end
   function object:GetRegions() return end
   function object:GetName() return self.name end
   function object:CreateTexture() return widget() end
@@ -47,6 +48,7 @@ local function widget()
     return result
   end
   function object:ClearAllPoints() self.points = {} end
+  function object:SetAllPoints(relative) self.allPoints = relative end
   function object:SetPoint(point, ...) self.points[point] = { ... } end
   function object:SetHeight(height) self.height = height end
   function object:SetSize(width, height) self.width, self.height = width, height end
@@ -66,9 +68,9 @@ local function widget()
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetNormalTexture(texture) self.normalTexture = texture end
   function object:SetPushedTexture(texture) self.pushedTexture = texture end
-  function object:SetNormalAtlas(atlas) self.normalAtlas = atlas end
-  function object:SetPushedAtlas(atlas) self.pushedAtlas = atlas end
-  function object:SetHighlightAtlas(atlas) self.highlightAtlas = atlas end
+  function object:SetNormalAtlas(atlas) self.normalAtlas = atlas; self.normalAtlasTexture = widget() end
+  function object:SetPushedAtlas(atlas) self.pushedAtlas = atlas; self.pushedAtlasTexture = widget() end
+  function object:SetHighlightAtlas(atlas) self.highlightAtlas = atlas; self.highlightAtlasTexture = widget() end
   function object:SetAtlas(atlas) self.atlas = atlas; self.texture = nil end
   function object:SetRotation(rotation) self.rotation = rotation end
   function object:SetTexCoord(...) self.texCoord = { ... } end
@@ -1619,6 +1621,10 @@ local cog = content.settingsButton
 assert(cog.normalAtlas == "common-dropdown-a-button-settings-shadowless"
   and cog.pushedAtlas == "common-dropdown-a-button-settings-pressed-shadowless"
   and cog.highlightAtlas == "common-dropdown-a-button-settings-hover-shadowless")
+assert(cog.width == openBags.width and cog.height == openBags.height
+  and cog:GetNormalTexture().allPoints == cog and cog:GetPushedTexture().allPoints == cog
+  and cog:GetHighlightTexture().allPoints == cog,
+  "All cog states must fit the same-sized backpack button")
 assert(openBags.points.RIGHT[1] == cog and openBags.points.RIGHT[2] == "LEFT"
   and openBags.points.RIGHT[3] < 0, "The settings cog must sit to the right of the backpack button")
 assert(cog.scripts.OnClick == menuHandler and cog.clicks[1] == "LeftButtonUp"
@@ -1763,25 +1769,32 @@ footer.tokenFrame.Tokens, footer.crestFrame.Tokens = currencyTokens(3), currency
 footer.tokenFrame.ShouldShow = function() return true end
 footer.crestFrame.ShouldShow = function() return true end
 updateFooter()
-local compactTokenWidth = 50 * 2 / 3 * 1.3
+local tokenWidth = 50
 for _, frame in ipairs({ footer.tokenFrame, footer.crestFrame }) do
   for _, token in ipairs(frame.Tokens) do
-    assert(math.abs(token:GetWidth() - compactTokenWidth) < 0.001,
-      "Each watched currency and crest must be 30% wider than its previous compact width")
+    assert(token:GetWidth() == tokenWidth,
+      "Each watched currency and crest must retain its native width")
   end
 end
 footer.tokenFrame:UpdateTokenAnchoring()
 updateFooter()
-assert(math.abs(footer.tokenFrame.Tokens[1]:GetWidth() - compactTokenWidth) < 0.001,
-  "Repeated native and addon updates must not shrink pooled buttons again")
+assert(footer.tokenFrame.Tokens[1]:GetWidth() == tokenWidth,
+  "Repeated native and addon updates must preserve pooled button widths")
+footer.tokenFrame.Tokens[2]:SetWidth(64)
+updateFooter()
+assert(footer.tokenFrame.Tokens[2]:GetWidth() == 64
+  and footer.tokenFrame:GetWidth() == 26 + 2 * tokenWidth + 64,
+  "The footer must measure native token widths rather than replacing them")
+footer.tokenFrame.Tokens[2]:SetWidth(tokenWidth)
+updateFooter()
 do
   local anchor = footer.tokenFrame.UpdateTokenAnchoring
-  --- Verify that native anchoring receives compacted tokens.
+  --- Verify that native anchoring receives the correctly sized frame.
   ---@param frame table Mock watched-currency frame.
   local previousAnchor = upvalue(anchor, "nativeAnchorTokens", function(frame)
-    assert(math.abs(frame.Tokens[1]:GetWidth() - compactTokenWidth) < 0.001
-      and math.abs(frame:GetWidth() - (26 + 3 * compactTokenWidth)) < 0.001,
-      "Blizzard must anchor the resized tokens using the resized frame")
+    assert(frame.Tokens[1]:GetWidth() == tokenWidth
+      and frame:GetWidth() == 26 + 3 * tokenWidth,
+      "Blizzard must anchor its native tokens using the correctly sized frame")
     frame.anchored = true
   end)
   footer.tokenFrame:UpdateTokenAnchoring()
@@ -1829,9 +1842,9 @@ do
   local updateCrests = upvalue(createFooter, "updateCrestFrame")
   updateCrests(crest)
   updateCrests(crest)
-  assert(#crest.Tokens == 2 and math.abs(tokens[1]:GetWidth() - compactTokenWidth) < 0.001
-    and math.abs(tokens[2].x - (13 + compactTokenWidth)) < 0.001,
-    "Crest buttons must stay compact and correctly spaced after pool reuse")
+  assert(#crest.Tokens == 2 and tokens[1]:GetWidth() == tokenWidth
+    and tokens[2].x == 13 + tokenWidth,
+    "Crest buttons must keep their native width and spacing after pool reuse")
   SlackHacks.isRetail, C_CurrencyInfo = originalRetail, originalCurrencies
   BreakUpLargeNumbers, strlenutf8, profile.trackCrestCurrencies = originalBreakUp, originalUtf8, previousPreference
 end
@@ -1839,12 +1852,12 @@ local scrollFrame = upvalue(realBuildFrame, "scrollFrame")
 assert(footer.height == 20 and footer.balanceContents.scale == 1
   and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
   "All tracked currencies and the slot count must fit in the original footer")
-footer:SetWidth(567)
+footer:SetWidth(620)
 updateFooter()
 assert(footer.slotCount.fontSize == 8 and footer.balanceContents.scale == 1
   and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
   "The slot font must shrink before the currency strip when that is enough to fit")
-footer:SetWidth(550)
+footer:SetWidth(603)
 updateFooter()
 assert(footer.height == 20 and footer.balanceContents.scale < 1 and footer.slotCount.fontSize == 7
   and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth() + 0.001,
@@ -1892,6 +1905,14 @@ local tooltipMetadata = {
   mana = { "Lightfused Mana Potion", 0, 1, false, 30 }, herb = { "Herb", 7, 0, true },
   shot = { "Light Shot", 6, 3, false, 5 }, heavy = { "Heavy Shot", 6, 3, false, 20 },
 }
+local itemRequests = {}
+--- Report whether the test item's data has loaded.
+---@param itemID number Item identifier.
+---@return boolean cached Whether item data is cached.
+function C_Item.IsItemDataCachedByID(itemID) return itemID ~= 9999 or tooltipMetadata[9999] ~= nil end
+--- Record asynchronous item-data requests.
+---@param itemID number Item identifier.
+function C_Item.RequestLoadItemDataByID(itemID) itemRequests[itemID] = (itemRequests[itemID] or 0) + 1 end
 --- Supply all inventory items, including those hidden by search.
 ---@param bagID number Container ID.
 ---@param slot number Slot index.
@@ -1928,7 +1949,7 @@ local playerClass = "WARLOCK"
 ---@return string name Localized class name.
 ---@return string token Class token.
 function UnitClass() return playerClass, playerClass end
-local equippedThrown, ammoEquipped, rangedLinkCached = false, true, true
+local equippedThrown, ammoEquipped, rangedLinkCached, ammoIsShot = false, true, true, false
 --- Supply the equipment slot identifiers.
 ---@param name string Slot name.
 ---@return number slot Slot identifier.
@@ -1942,14 +1963,29 @@ function GetInventoryItemLink(unit, slot)
     and "ranged" or nil
 end
 --- Supply the equipped ranged item's ID while its link is uncached.
+---@param unit string Unit token.
+---@param slot number Equipment slot.
 ---@return number|nil id Equipped item ID.
-function GetInventoryItemID() return not rangedLinkCached and 123 or nil end
+function GetInventoryItemID(unit, slot)
+  if slot == 0 then
+    return ammoEquipped and (playerClass == "HUNTER" or playerClass == "ROGUE" or playerClass == "WARRIOR")
+      and (ammoIsShot and 2516 or 2512) or nil
+  end
+  return not rangedLinkCached and 123 or nil
+end
 --- Identify the mocked ranged weapon.
+---@param item string|number Item link or ID.
 ---@return number id Item ID.
 ---@return nil itemType Unused.
 ---@return nil subtype Unused.
 ---@return string equipLoc Equipment type.
-function C_Item.GetItemInfoInstant() return 1, nil, nil, equippedThrown and "INVTYPE_THROWN" or "INVTYPE_RANGED" end
+---@return number|nil icon Icon.
+---@return number|nil class Item class.
+---@return number|nil subclass Item subclass.
+function C_Item.GetItemInfoInstant(item)
+  if item == 2512 or item == 2516 then return item, nil, nil, "", 1001, 6, item == 2512 and 2 or 3 end
+  return 1, nil, nil, equippedThrown and "INVTYPE_THROWN" or "INVTYPE_RANGED"
+end
 --- Supply icons for the ammunition and ranged weapon.
 ---@param unit string Unit token.
 ---@param slot number Equipment slot.
@@ -1985,34 +2021,26 @@ function GameTooltip:SetInventoryItem(unit, slot) self.inventoryItem = { unit, s
 GameTooltip_Hide = function() GameTooltip.owner = nil; GameTooltip:Hide() end
 footer.slotHover:SetScript("OnLeave", GameTooltip_Hide)
 updateFooter()
-assert(#footer.supplyFrame.buttons == 4 and footer.supplyFrame.buttons[1].supply.itemID == 6265
-  and footer.supplyFrame.buttons[1].Count.text == "3"
-  and footer.supplyFrame.buttons[2].supply.itemID == 1251
-  and footer.supplyFrame.buttons[3].supply.itemID == 2456
-  and footer.supplyFrame.buttons[4].supply.itemID == 241300,
-  "Forever Warlocks must see shards and the highest-level bandage, health, and mana potions in order")
+assert(#footer.supplyFrame.buttons == 1 and footer.supplyFrame.buttons[1].supply.itemID == 6265
+  and footer.supplyFrame.buttons[1].Count.text == "3",
+  "Forever Warlocks must see only Soul Shards, not bandages or potions")
 assert(footer.supplies.points.LEFT[1] == footer.slotCount and footer.supplies.points.LEFT[2] == "RIGHT"
-  and footer.supplies.points.LEFT[3] == 4 and footer.supplyFrame.points.LEFT[1] == footer.supplies,
-  "The supply strip must be anchored immediately to the right of the bag slot count")
+  and footer.supplies.points.LEFT[3] == 8 and footer.supplyFrame.points.LEFT[1] == footer.supplies,
+  "The supply strip must have a margin to the right of the bag slot count")
 for _, button in ipairs(footer.supplyFrame.buttons) do
   assert(button.Count.points.LEFT[1] == button and button.Count.points.LEFT[2] == "LEFT"
     and button.Icon.points.LEFT[1] == button.Count and button.Icon.points.LEFT[2] == "RIGHT"
     and button.Icon.points.LEFT[3] == 2,
     "Each supply icon must appear to the right of its count")
 end
-footer.supplyFrame.buttons[2].scripts.OnEnter(footer.supplyFrame.buttons[2])
-assert(GameTooltip.bagItem[1] == 0 and GameTooltip.bagItem[2] == 7,
+footer.supplyFrame.buttons[1].scripts.OnEnter(footer.supplyFrame.buttons[1])
+assert(GameTooltip.bagItem[1] == 0 and GameTooltip.bagItem[2] == 4,
   "Hovering a supply must show the selected bag item's native tooltip")
-footer.supplyFrame.buttons[2].scripts.OnLeave()
-tooltipItems[0][12] = { itemID = 1251, itemName = "Linen Bandage", hyperlink = "bandage", stackCount = 7 }
+footer.supplyFrame.buttons[1].scripts.OnLeave()
+tooltipItems[0][12] = { itemID = 6265, itemName = "Soul Shard", hyperlink = "shard", stackCount = 7 }
 updateFooter()
-assert(footer.supplyFrame.buttons[2].Count.text == "11", "The chosen item's stacks must be combined")
-tooltipMetadata.fine = { "Fine Bandage", 0, 7, false, 5, 8000, 3 }
-tooltipItems[0][12] = { itemID = 9000, itemName = "Fine Bandage", hyperlink = "fine", stackCount = 2 }
-updateFooter()
-assert(footer.supplyFrame.buttons[2].supply.itemID == 9000 and footer.supplyFrame.buttons[2].Count.text == "2",
-  "Quality must break ties between equally leveled supplies")
-tooltipItems[0][12], tooltipMetadata.fine = nil, nil
+assert(footer.supplyFrame.buttons[1].Count.text == "10", "Soul Shard stacks must be combined")
+tooltipItems[0][12] = nil
 updateFooter()
 assert(footer.slotHover:GetWidth() == footer.slotCount:GetStringWidth()
   and footer.slotHover.points.LEFT[1] == footer.slotCount)
@@ -2066,6 +2094,16 @@ assert(tooltipValue("Bandages") == "4" and tooltipValue("bandage") == "4"
   and tooltipValue("heal") == "2" and tooltipValue("both") == "3" and rejuvenationLines == 2
   and tooltipValue("mana") == "8"
   and tooltipText:find("still loading", 1, true))
+assert(itemRequests[9999] == 1 and tooltipText:find("Item #9999", 1, true),
+  "Uncached item data must be requested and identified in the loading message")
+updateFooter()
+assert(itemRequests[9999] == 1, "Refreshing the tooltip must not repeat a pending item request")
+module:OnSlotItemDataLoaded("ITEM_DATA_LOAD_RESULT", 9999, false)
+assert(table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true)
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "A failed item request must be identified as unavailable, not loading indefinitely")
+updateFooter()
+assert(itemRequests[9999] == 1, "A failed item request must not be retried on every tooltip refresh")
 assert(tooltipIndex("Soul Shards") < tooltipIndex("Health Potions")
   and tooltipIndex("Health Potions") < tooltipIndex("Bandages")
   and tooltipIndex("Bandages") < tooltipIndex("Mana Potions")
@@ -2077,10 +2115,20 @@ tooltipItems[0][4].stackCount = 4
 updateFooter()
 assert(tooltipValue("Soul Shards") == "4", "An open tooltip must refresh when bag contents change")
 tooltipMetadata[9999] = { "Loaded item", 15, 0 }
-updateFooter()
+module:OnSlotItemDataLoaded("ITEM_DATA_LOAD_RESULT", 9999, true)
 assert(not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true)
+  and not table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true)
   and tooltipValue("  Other") == "91",
   "An item-info refresh must replace incomplete category totals")
+tooltipMetadata[1234] = tooltipMetadata.herb
+tooltipItems[0][12] = { itemID = 1234, hyperlink = "uncached-variant", stackCount = 1 }
+updateFooter()
+assert(tooltipValue("  Reagents") == "10"
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true)
+  and not table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true),
+  "A missing variant link must fall back to cached item-ID data without losing its category")
+tooltipItems[0][12], tooltipMetadata[1234] = nil, nil
+updateFooter()
 tooltipMetadata[9999] = { "Loaded bandage", 0, 7, false, 20 }
 updateFooter()
 assert(tooltipValue("Bandages") == "5" and tooltipIndex("Loaded bandage") < tooltipIndex("bandage"),
@@ -2095,14 +2143,25 @@ updateFooter()
 assert(footer.supplyFrame.buttons[1].supply.inventorySlot == 0
   and footer.supplyFrame.buttons[1].Icon.texture == 1001 and footer.supplyFrame.buttons[1].Count.text == "120",
   "The footer must show equipped ammunition, not the highest-level arrow stack")
+footer:SetWidth(160)
+updateFooter()
+assert(footer.supplyFrame.scale == footer.balanceContents.scale and footer.balanceContents.scale < 1
+  and footer.slotCount:GetStringWidth() + 8 + footer.supplies:GetWidth() + 4 + footer.balances:GetWidth()
+    <= footer:GetWidth() - 8 + 0.001,
+  "The supply margin must be included when scaling the footer to prevent overlap")
+footer:SetWidth(684)
+updateFooter()
 footer.supplyFrame.buttons[1].scripts.OnEnter(footer.supplyFrame.buttons[1])
 assert(GameTooltip.inventoryItem[2] == 0, "Hovering ammunition must show its equipment tooltip")
 footer.supplyFrame.buttons[1].scripts.OnLeave()
 ammoEquipped = false
 updateFooter()
-assert(footer.supplyFrame.buttons[1].supply.itemID == 9999,
-  "Missing ammunition must not be replaced by an unequipped arrow stack")
+assert(not footer.supplyFrame.shown, "Missing ammunition must not be replaced by an unequipped arrow stack")
 ammoEquipped = true
+ammoIsShot = true
+updateFooter()
+assert(not footer.supplyFrame.shown, "Equipped bullets must not be displayed as arrows")
+ammoIsShot = false
 equippedThrown = true
 updateFooter()
 assert(footer.supplyFrame.buttons[1].supply.inventorySlot == 18
@@ -2144,8 +2203,9 @@ tooltipItems[0][1].iconFileID, tooltipItems[0][2].iconFileID = 1001, nil
 tooltipMetadata.arrow[6] = nil
 tooltipMetadata.heal[6] = false
 updateFooter()
-assert(tooltipRawLabel("heal") == "heal" and table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
-  "Missing icons must leave the item visible and report incomplete information")
+assert(tooltipRawLabel("heal") == "heal" and table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true)
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "A missing cached icon must be reported as unavailable rather than indefinitely loading")
 tooltipMetadata.heal[6] = nil
 updateFooter()
 assert(tooltipRawLabel("heal") == "|T7000:18:18|t heal"
@@ -2154,8 +2214,9 @@ assert(tooltipRawLabel("heal") == "|T7000:18:18|t heal"
 tooltipMetadata.sharp[5] = false
 updateFooter()
 assert(tooltipIndex("arrow") < tooltipIndex("sharp")
-  and table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
-  "Missing item levels must sort last and report incomplete information")
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true)
+  and not table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true),
+  "Missing levels for cached items must sort last without implying that they are still loading")
 tooltipMetadata.sharp[5] = 20
 updateFooter()
 assert(tooltipIndex("sharp") < tooltipIndex("arrow")
@@ -2167,7 +2228,8 @@ for _, class in ipairs({ "ROGUE", "WARRIOR" }) do
   assert(tooltipValue("Arrows") == "180" and tooltipValue("Shots") == "90"
     and not tooltipIndex("Mana Potions"),
     class .. " must see both ammunition types")
-  assert(not footer.supplyFrame.buttons[4].shown, class .. " must not see mana potions in the footer")
+  assert(footer.supplyFrame.buttons[1].shown and not footer.supplyFrame.buttons[2],
+    class .. " must see only equipped arrows in the footer")
 end
 playerClass = "MAGE"
 updateFooter()
@@ -2182,12 +2244,7 @@ profile.trackCrestCurrencies = false
 playerClass = "HUNTER"
 footer.slotHover.scripts.OnEnter(footer.slotHover)
 updateFooter()
-assert(footer.supplyFrame.buttons[1].supply.itemID ~= 6265
-  and not footer.supplyFrame.buttons[3].shown, "Retail Hunters must not see shards, ammunition, or mana potions")
-profile.trackCrestCurrencies = true
-updateFooter()
-assert(not footer.supplyFrame.shown, "Retail crest mode must hide the supply strip")
-profile.trackCrestCurrencies = false
+assert(not footer.supplyFrame.shown, "Retail must not show the supply strip")
 do
   local originalCurrencies, originalBreakUp, originalUtf8 = C_CurrencyInfo, BreakUpLargeNumbers, strlenutf8
   local oldTokens, oldTokenShouldShow = footer.tokenFrame.Tokens, footer.tokenFrame.ShouldShow
@@ -2230,32 +2287,22 @@ do
   ---@return string text Mock formatted quantity.
   BreakUpLargeNumbers = function(value) return tostring(value) end
   strlenutf8 = string.len
-  for _, preferCrests in ipairs({ true, false }) do
-    profile.trackCrestCurrencies = preferCrests
-    footer.tokenFrame.Tokens = {}
-    updateFooter()
-    assert(footer.supplyFrame.shown and footer.crestFrame.shown and #footer.crestFrame.Tokens == 2
-      and profile.trackCrestCurrencies == preferCrests,
-      "Retail must show both strips without tracked currencies without changing the saved preference")
-    footer.tokenFrame.Tokens = currencyTokens(1)
-    updateFooter()
-    assert(footer.crestFrame.shown == preferCrests and footer.supplyFrame.shown == not preferCrests,
-      "Tracking a currency must restore the selected Retail footer mode")
+  for _, oldPreference in ipairs({ true, false }) do
+    profile.trackCrestCurrencies = oldPreference
+    for _, tracked in ipairs({ 0, 1 }) do
+      footer.tokenFrame.Tokens = currencyTokens(tracked)
+      updateFooter()
+      assert(not footer.supplyFrame.shown and footer.crestFrame.shown and #footer.crestFrame.Tokens == 2
+        and profile.trackCrestCurrencies == oldPreference,
+        "Retail must show crests and no supplies regardless of tracked currencies or the old preference")
+    end
   end
-  footer.tokenFrame.Tokens = {}
-  footer:SetWidth(300)
-  updateFooter()
-  assert(footer.supplyFrame.shown and footer.crestFrame.shown and footer.balanceContents.scale < 1
-    and footer.supplyFrame.scale == footer.balanceContents.scale
-    and footer.slotCount:GetStringWidth() + 4 + footer.supplies:GetWidth() + 4 + footer.balances:GetWidth()
-      <= footer:GetWidth() - 8 + 0.001,
-    "The left supply strip and right balances must scale together without overlapping")
-  footer:SetWidth(684)
   footer.tokenFrame.Tokens, footer.tokenFrame.ShouldShow = oldTokens, oldTokenShouldShow
   footer.crestFrame.Update, footer.crestFrame.ShouldShow, footer.crestFrame.tokenPool =
     oldCrestUpdate, oldCrestShouldShow, oldPool
   C_CurrencyInfo, BreakUpLargeNumbers, strlenutf8 = originalCurrencies, originalBreakUp, originalUtf8
   profile.trackCrestCurrencies = false
+  footer.slotHover.scripts.OnEnter(footer.slotHover)
   updateFooter()
 end
 assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards"))

@@ -54,6 +54,7 @@ dbDefaults = {
       showListviewBag = false,
       flagFilters = { ["*"] = true },
       categoryFilters = { ["*"] = true },
+      -- Retain the retired preference so existing profiles remain unchanged.
       trackCrestCurrencies = true,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
@@ -1999,24 +2000,6 @@ options = {
               end,
               disabled = function() return not db.profile.listviewBag.enabled end,
               order = 2
-            },
-            footerDisplay = {
-              name = "Footer Display",
-              desc = "Choose crests or supplies when tracking currencies. Both are shown when no currencies are tracked.",
-              type = "select",
-              style = "radio",
-              values = { crests = "Crests", supplies = "Supplies" },
-              descStyle = "inline",
-              width = "full",
-              -- Reuse the existing preference so older profiles keep their crest selection.
-              get = function() return db.profile.listviewBag.trackCrestCurrencies and "crests" or "supplies" end,
-              set = function(_, value)
-                db.profile.listviewBag.trackCrestCurrencies = value == "crests"
-                if Self.ListviewBag then Self.ListviewBag:RefreshFooter() end
-              end,
-              hidden = function() return not isRetail() end,
-              disabled = function() return not db.profile.listviewBag.enabled end,
-              order = 2.5
             },
             essentials = {
               type = "group",

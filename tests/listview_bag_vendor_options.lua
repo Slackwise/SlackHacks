@@ -335,7 +335,7 @@ C_Container, C_Item = previousContainer, previousItem
 SlackHacks.db.profile.inventory = { autoSellGreyItems = true }
 profile.autoSellMarkedItems = true
 profile.trackCrestCurrencies = true
---- Select the Retail client for the footer display choices.
+--- Select the Retail client for the settings menu.
 ---@return boolean retailClient
 function SlackHacks.isRetail() return true end
 GameTooltip = { Hide = function() end }
@@ -378,21 +378,15 @@ local openedGroup
 SlackHacks.openOptions = function(...) openedGroup = { ... } end
 local switched
 upvalue(openBagSettings, "setShowListviewBag", function(value) switched = value end)
-local footerRefreshes = 0
-function module:RefreshFooter() footerRefreshes = footerRefreshes + 1 end
 openBagSettings({})
-assert(menuEntries["Switch back to default bags"] and menuEntries.Crests.checked()
-  and not menuEntries.Supplies.checked()
-  and menuEntries["Auto-Sell Junk"].checked())
+assert(menuEntries["Switch back to default bags"] and menuEntries["Auto-Sell Junk"].checked()
+  and not menuEntries["Footer Display"] and not menuEntries.Crests and not menuEntries.Supplies)
 menuEntries["Open Settings"].select()
 assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 menuEntries["Switch back to default bags"].select()
 assert(switched == false)
-menuEntries.Supplies.select()
-assert(not profile.trackCrestCurrencies and footerRefreshes == 1)
-local footerOption = getOptions().args.inventory.args.listviewBag.args.footerDisplay
-assert(footerOption.type == "select" and footerOption.style == "radio" and footerOption.get() == "supplies"
-  and not footerOption.hidden(), "Ace options must expose the same mutually exclusive selection")
+assert(not getOptions().args.inventory.args.listviewBag.args.footerDisplay,
+  "Ace options must not expose the removed footer preference")
 menuEntries["Auto-Sell Junk"].select()
 assert(not profile.autoSellMarkedItems and SlackHacks.db.profile.inventory.autoSellGreyItems)
 assert(popup.kind == "SLACKHACKS_DISABLE_AUTO_SELL_GREYS", "Disabling must ask about the separate grey option")
@@ -417,28 +411,22 @@ MenuUtil = nil
 ---@param entries table Menu entries.
 function EasyMenu(entries) legacy = entries end
 openBagSettings({})
-assert(legacy[1].text == "Switch back to default bags" and legacy[2].text == "Footer Display"
-  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Settings")
+assert(legacy[1].text == "Switch back to default bags"
+  and legacy[2].text == "Auto-Sell Junk" and legacy[3].text == "Open Settings" and not legacy[4])
 openedGroup = nil
-legacy[4].func()
+legacy[3].func()
 assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 profile.enabled = false
 openedGroup = nil
-legacy[4].func()
+legacy[3].func()
 assert(not openedGroup, "A disabled module must not open settings from a stale menu")
 profile.enabled = true
 SlackHacks.openOptions = originalOpenOptions
-legacy[2].menuList[1].func()
-assert(profile.trackCrestCurrencies and footerRefreshes == 2)
-footerOption.set(nil, "supplies")
-assert(footerOption.get() == "supplies" and not profile.trackCrestCurrencies and footerRefreshes == 3)
-footerOption.set(nil, "crests")
-assert(footerOption.get() == "crests" and profile.trackCrestCurrencies and footerRefreshes == 4)
 SlackHacks.isRetail = function() return false end
 openBagSettings({})
-assert(legacy[2].text == "Auto-Sell Junk" and footerOption.hidden(),
-  "Other clients must not offer the Retail footer choice")
-assert(profile.trackCrestCurrencies and footerRefreshes == 4)
+assert(legacy[2].text == "Auto-Sell Junk" and legacy[3].text == "Open Settings",
+  "Other clients must not offer the removed footer choice")
+assert(profile.trackCrestCurrencies, "Removing the footer choice must not alter saved preferences")
 
 local nativeMenus = {}
 Menu = { ModifyMenu = function(tag, builder) nativeMenus[tag] = builder end }
