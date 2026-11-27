@@ -154,6 +154,15 @@ function gear.CompareItem(link, equipLoc)
   return results, itemStats
 end
 
+--- Format a stat change to the precision shown in Gear view.
+---@param value number Stat change.
+---@return string|nil text Signed value, or nil when it rounds to zero.
+local function formatStatDelta(value)
+  local text = ("%+.2f"):format(value)
+  if tonumber(text) == 0 then return nil end
+  return (text:gsub("0+$", ""):gsub("%.$", ""))
+end
+
 --- Format a comparison with colored stat changes.
 ---@param comparison table Compared slot and stat changes.
 ---@param includeSlot boolean Whether to prefix the slot number.
@@ -161,9 +170,8 @@ end
 function gear.FormatComparison(comparison, includeSlot)
   local parts = {}
   for _, change in ipairs(comparison.changes) do
-    local value = ("%+.2f"):format(change.value)
-    if tonumber(value) ~= 0 then
-      value = value:gsub("0+$", ""):gsub("%.$", "")
+    local value = formatStatDelta(change.value)
+    if value then
       local color = change.value > 0 and "ff40ff40" or "ffff4040"
       parts[#parts + 1] = ("|c%s%s %s|r"):format(color, value, gear.StatLabel(change.key))
     end
@@ -173,12 +181,18 @@ function gear.FormatComparison(comparison, includeSlot)
   return (includeSlot or comparison.label) and (label .. ": " .. text) or text
 end
 
---- Decide whether at least one equipped slot is strictly better in the displayed stats.
+--- Decide whether the item has visible losses and no gains across its equipment comparisons.
 ---@param comparisons table|nil Equipment-slot comparisons.
----@return boolean downgrade Whether a comparison has losses and no gains.
+---@return boolean downgrade Whether a loss is displayed and no stats are gained.
 function gear.IsDowngrade(comparisons)
+  local hasLoss = false
   for _, comparison in ipairs(comparisons or {}) do
-    if comparison.hasLoss and not comparison.hasGain then return true end
+    if comparison.hasGain then return false end
+    if comparison.hasLoss then
+      for _, change in ipairs(comparison.changes) do
+        if change.value < 0 and formatStatDelta(change.value) then hasLoss = true; break end
+      end
+    end
   end
-  return false
+  return hasLoss
 end

@@ -606,8 +606,9 @@ local trackedCursorItem
 ---@param colID string Column identifier.
 ---@param view string View identifier.
 ---@param forever boolean Whether the Forever client is active.
+---@param retail boolean Whether the Retail client is active.
 ---@return number width Column width.
-local function fixedColumnWidth(colID, view, forever)
+local function fixedColumnWidth(colID, view, forever, retail)
   local width = COLUMN_DEFS[colID].width
   if view == "gear" and (colID == "armorType" or colID == "armorSlot") then width = 52 end
   if forever then
@@ -616,6 +617,10 @@ local function fixedColumnWidth(colID, view, forever)
     if view == "gear" and colID == "upgrade" or view == "selling" and colID == "vendor" then
       return width + reclaimed
     end
+  elseif retail and view == "gear" then
+    local reclaimed = COLUMN_DEFS.ilvl.width * 0.3
+    if colID == "ilvl" then return width - reclaimed end
+    if colID == "upgrade" then return width + reclaimed end
   end
   return width
 end
@@ -627,10 +632,11 @@ local function computeLayout()
   local columns = activeColumns()
   local view = selectedView()
   local forever = isForever()
+  local retail = isRetail()
   for _, colID in ipairs(columns) do
     local def = COLUMN_DEFS[colID]
     if not def.flexible then
-      local width = fixedColumnWidth(colID, view, forever)
+      local width = fixedColumnWidth(colID, view, forever, retail)
       fixedWidth = fixedWidth + width + CELL_PAD
     end
   end
@@ -641,7 +647,7 @@ local function computeLayout()
   columnLayout = {}
   for _, colID in ipairs(columns) do
     local def = COLUMN_DEFS[colID]
-    local width = def.flexible and flexWidth or fixedColumnWidth(colID, view, forever)
+    local width = def.flexible and flexWidth or fixedColumnWidth(colID, view, forever, retail)
     columnLayout[colID] = { x = x, width = width }
     x = x + width + CELL_PAD
   end
@@ -3040,9 +3046,20 @@ end
 ---@param root table|nil Modern menu description.
 local function openGearFiltersMenu(anchor, root)
   local filters = gearFilters()
+  local groups = gearFilterChoices()
   --- Restore all gear filters.
   local function showAll()
     filters.types, filters.slots, filters.stats = {}, {}, {}
+    filters.downgradeOnly = false
+    renderRows()
+  end
+  --- Uncheck all available gear filters.
+  local function uncheckAll()
+    for _, group in ipairs(groups) do
+      for _, choice in ipairs(group.entries) do
+        filters[group.key][choice.key] = false
+      end
+    end
     filters.downgradeOnly = false
     renderRows()
   end
@@ -3059,9 +3076,9 @@ local function openGearFiltersMenu(anchor, root)
     filters.downgradeOnly = not filters.downgradeOnly
     renderRows()
   end
-  local groups = gearFilterChoices()
   if root then
     root:CreateButton("Show All", showAll):SetResponse(MenuResponse.Refresh)
+    root:CreateButton("Uncheck All", uncheckAll):SetResponse(MenuResponse.Refresh)
     root:CreateCheckbox("Downgrade Only", function() return filters.downgradeOnly end, toggleDowngrade)
     for _, entry in ipairs(groups) do
       local group = entry
@@ -3076,6 +3093,7 @@ local function openGearFiltersMenu(anchor, root)
   else
     local menu = {
       { text = "Show All", notCheckable = true, keepShownOnClick = true, func = showAll },
+      { text = "Uncheck All", notCheckable = true, keepShownOnClick = true, func = uncheckAll },
       { text = "Downgrade Only", isNotRadio = true, keepShownOnClick = true,
         checked = function() return filters.downgradeOnly end, func = toggleDowngrade },
     }
@@ -3604,7 +3622,7 @@ local function buildFrame()
   content.openBagsButton:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText("Open Bags (Temporarily)")
-    GameTooltip:AddLine("Show the Blizzard default bag temporarily. You can toggle it permanently in the top-left icon context menu.", 1, 1, 1, true)
+    GameTooltip:AddLine("Show the Blizzard default bag temporarily. You can toggle it permanently in the cog menu.", 1, 1, 1, true)
     GameTooltip:Show()
   end)
   content.openBagsButton:SetScript("OnLeave", GameTooltip_Hide)

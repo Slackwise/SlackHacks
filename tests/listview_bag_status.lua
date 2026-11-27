@@ -526,30 +526,40 @@ headerFrame.columnHeaders = { EnumerateActive = function() return function() end
 do
   local computeLayout = upvalue(layoutHeaders, "computeLayout")
   local originalOrder, originalView = profile.columnOrder, profile.view
-  local originalForever = SlackHacks.isForever
+  local originalForever, originalRetail = SlackHacks.isForever, SlackHacks.isRetail
   profile.columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
   for _, view in ipairs({ "default", "gear", "selling" }) do
     profile.view = view
     SlackHacks.isForever = function() return false end
+    SlackHacks.isRetail = function() return false end
+    computeLayout()
+    local otherLayout = upvalue(computeLayout, "columnLayout")
+    SlackHacks.isRetail = function() return true end
     computeLayout()
     local retailLayout = upvalue(computeLayout, "columnLayout")
+    SlackHacks.isRetail = function() return false end
     SlackHacks.isForever = function() return true end
     computeLayout()
     local foreverLayout = upvalue(computeLayout, "columnLayout")
     if view == "default" then
-      assert(foreverLayout.ilvl.width == retailLayout.ilvl.width / 2
-        and foreverLayout.name.width == retailLayout.name.width + retailLayout.ilvl.width / 2)
+      assert(retailLayout.ilvl.width == otherLayout.ilvl.width and retailLayout.name.width == otherLayout.name.width
+        and foreverLayout.ilvl.width == otherLayout.ilvl.width / 2
+        and foreverLayout.name.width == otherLayout.name.width + otherLayout.ilvl.width / 2)
     elseif view == "gear" then
-      assert(foreverLayout.ilvl.width == retailLayout.ilvl.width / 2
-        and foreverLayout.upgrade.width == retailLayout.upgrade.width + retailLayout.ilvl.width / 2
-        and foreverLayout.name.width == retailLayout.name.width)
+      assert(retailLayout.ilvl.width == 42 and retailLayout.upgrade.width == otherLayout.upgrade.width + 18
+        and retailLayout.name.width == otherLayout.name.width
+        and foreverLayout.ilvl.width == otherLayout.ilvl.width / 2
+        and foreverLayout.upgrade.width == otherLayout.upgrade.width + otherLayout.ilvl.width / 2
+        and foreverLayout.name.width == otherLayout.name.width)
     else
-      assert(foreverLayout.vendor.width == retailLayout.vendor.width + 30
-        and foreverLayout.name.width == retailLayout.name.width - 30
-        and foreverLayout.auction.width == retailLayout.auction.width)
+      assert(retailLayout.vendor.width == otherLayout.vendor.width and retailLayout.name.width == otherLayout.name.width
+        and foreverLayout.vendor.width == otherLayout.vendor.width + 30
+        and foreverLayout.name.width == otherLayout.name.width - 30
+        and foreverLayout.auction.width == otherLayout.auction.width)
     end
   end
-  profile.columnOrder, profile.view, SlackHacks.isForever = originalOrder, originalView, originalForever
+  profile.columnOrder, profile.view, SlackHacks.isForever, SlackHacks.isRetail =
+    originalOrder, originalView, originalForever, originalRetail
 end
 --- Clear a table as the client API does.
 ---@param values table Table to clear.

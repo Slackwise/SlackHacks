@@ -15,7 +15,9 @@ GetInventoryItemLink = function(_, slot) return slot == 11 and "left" or slot ==
 local comparisons = gear.CompareItem("candidate", "INVTYPE_FINGER")
 assert(#comparisons == 2, "both ring slots must be compared")
 assert(comparisons[1].primary == 2 and comparisons[1].hasGain and comparisons[1].hasLoss)
-assert(comparisons[2].primary == -2 and gear.IsDowngrade(comparisons))
+assert(comparisons[2].primary == -2 and gear.IsDowngrade({ comparisons[2] }))
+assert(not gear.IsDowngrade(comparisons),
+  "A loss against one ring must not hide a gain against the other")
 assert(gear.FormatComparison(comparisons[1], true):find("+3 Agi", 1, true))
 assert(gear.FormatComparison(comparisons[1], true):find("-1 Stam", 1, true))
 local weaponComparison = gear.CompareStats({ ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 20 },
@@ -34,7 +36,18 @@ assert(roundedText:find("+1.23 dps", 1, true) and roundedText:find("-1.24 Stam",
   "Upgrade differences must be rounded to at most two decimal places")
 local tiny = gear.CompareStats({ ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.004 }, {}, 16)
 assert(gear.FormatComparison(tiny, false) == "No change", "Rounded zero must not show a signed zero")
+local tinyLoss = gear.CompareStats({}, { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 0.004 }, 16)
+assert(gear.FormatComparison(tinyLoss, false) == "No change" and not gear.IsDowngrade({ tinyLoss }),
+  "A loss rounded out of the display must not be shown by Downgrade Only")
 assert(not gear.IsDowngrade({ comparisons[1] }), "mixed gains and losses are not strictly worse")
+local loss = gear.CompareStats({ ITEM_MOD_AGILITY_SHORT = 2 }, { ITEM_MOD_AGILITY_SHORT = 3 }, 11)
+local neutral = gear.CompareStats({}, {}, 12)
+local gain = gear.CompareStats({ ITEM_MOD_AGILITY_SHORT = 4 }, { ITEM_MOD_AGILITY_SHORT = 3 }, 12)
+assert(gear.IsDowngrade({ loss, neutral }) and gear.IsDowngrade({ loss, loss }),
+  "Losses without gains across all slots are downgrades")
+assert(not gear.IsDowngrade({ loss, gain }) and not gear.IsDowngrade({ gain, loss })
+  and not gear.IsDowngrade({ neutral }) and not gear.IsDowngrade(nil),
+  "Any gain, or no loss, must disqualify an item from Downgrade Only")
 stats.right = nil
 assert(gear.CompareItem("candidate", "INVTYPE_FINGER") == nil, "uncached equipped stats must not look like zero")
 stats.right = { ITEM_MOD_AGILITY_SHORT = 2 }

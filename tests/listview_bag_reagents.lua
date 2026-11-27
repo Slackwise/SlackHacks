@@ -254,7 +254,9 @@ end }
 ITEM_MOD_AGILITY_SHORT = "Agility"
 INVTYPE_HEAD = "Head"
 openModernFilters(gearButton)
-assert(entry("Show All") and entry("Downgrade Only") and entry("Cloth", "Armor and Weapons")
+assert(menuEntries[1].text == "Show All" and menuEntries[2].text == "Uncheck All"
+  and menuEntries[2].response == MenuResponse.Refresh
+  and entry("Downgrade Only") and entry("Cloth", "Armor and Weapons")
   and entry("Head", "Equipment Slots") and entry("Agi", "Stats"))
 local matchesGearFilters = upvalue(buildDisplayRows, "matchesGearFilters")
 local gearItem = { classID = 4, subclassID = 1, equipLoc = "INVTYPE_HEAD",
@@ -274,6 +276,39 @@ assert(profile.gearFilters.types["4:1"] == false and profile.gearFilters.stats.I
 entry("Show All").select()
 assert(not next(profile.gearFilters.types) and not next(profile.gearFilters.stats)
   and not profile.gearFilters.downgradeOnly)
+entry("Downgrade Only").select()
+local loss = gearItem.comparisons[1]
+gearItem.comparisons[2] = SlackHacks.ListviewBagGear.CompareStats({ ITEM_MOD_AGILITY_SHORT = 2 },
+  { ITEM_MOD_AGILITY_SHORT = 1 }, 2)
+assert(not matchesGearFilters(gearItem), "A gain in any comparison must exclude an item from Downgrade Only")
+gearItem.comparisons[2] = nil
+assert(matchesGearFilters(gearItem) and loss.hasLoss, "Pure stat losses must remain visible")
+entry("Uncheck All").select()
+assert(not entry("Downgrade Only").checked() and not entry("Cloth", "Armor and Weapons").checked()
+  and not entry("Head", "Equipment Slots").checked() and not entry("Agi", "Stats").checked()
+  and not matchesGearFilters(gearItem), "Uncheck All must disable every gear filter")
+entry("Cloth", "Armor and Weapons").select()
+entry("Head", "Equipment Slots").select()
+entry("Agi", "Stats").select()
+assert(matchesGearFilters(gearItem), "Individual filters must be selectable after Uncheck All")
+entry("Show All").select()
+assert(entry("Cloth", "Armor and Weapons").checked() and entry("Head", "Equipment Slots").checked()
+  and entry("Agi", "Stats").checked(), "Show All must restore the unchecked filters")
+do
+  local legacyGear
+  EasyMenu = function(menu) legacyGear = menu end
+  local openGearFiltersMenu = upvalue(createFooter, "openGearFiltersMenu")
+  openGearFiltersMenu(gearButton)
+  assert(legacyGear[1].text == "Show All" and legacyGear[2].text == "Uncheck All"
+    and legacyGear[2].keepShownOnClick)
+  legacyGear[2].func()
+  assert(not legacyGear[3].checked() and not legacyGear[4].menuList[1].checked()
+    and not legacyGear[5].menuList[1].checked() and not legacyGear[6].menuList[1].checked(),
+    "The legacy menu must uncheck the same gear filters")
+  legacyGear[1].func()
+  assert(legacyGear[4].menuList[1].checked() and legacyGear[5].menuList[1].checked()
+    and legacyGear[6].menuList[1].checked())
+end
 openModernFilters(viewsButton)
 entry("Default View").select()
 assert(not gearButton.shown and viewsButton.label == "Default View")
