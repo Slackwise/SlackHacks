@@ -205,6 +205,8 @@ local EQUIPMENT_SLOTS = {
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
 local CREST_CURRENCY_IDS = { 3446, 3445, 3444, 3443, 3442 }
 local SUPPLY_MARGIN = 8
+local FOOTER_ICON_SIZE = 16
+local FOOTER_ICON_GAP = 2
 
 --=====================================================================
 -- Small helpers
@@ -2518,6 +2520,31 @@ local function showSlotBreakdown(title, breakdown, showTotal, hideHeading)
 end
 
 local slotItemLoads = {}
+local categoryFonts = {}
+local categoryFontHooked = false
+
+--- Restore the shared tooltip's category line fonts before it is reused.
+local function restoreCategoryFonts()
+  for _, saved in ipairs(categoryFonts) do
+    saved.text:SetFont(saved.path, saved.size, saved.flags)
+  end
+  wipe(categoryFonts)
+end
+
+--- Shrink both columns of the current category line.
+local function shrinkCategoryLine()
+  local line = GameTooltip:NumLines()
+  for _, side in ipairs({ "Left", "Right" }) do
+    local text = _G["GameTooltipText" .. side .. line]
+    if text then
+      local path, size, flags = text:GetFont()
+      if path and size then
+        categoryFonts[#categoryFonts + 1] = { text = text, path = path, size = size, flags = flags }
+        text:SetFont(path, math.max(6, size - 2), flags)
+      end
+    end
+  end
+end
 
 --- Record an item whose tooltip data is incomplete.
 ---@param missing table Items with incomplete data, keyed by item ID.
@@ -2538,7 +2565,8 @@ end
 local function showSlotTooltip(owner)
   if not isModuleEnabled() then return end
   local totalSlots, freeSlots, reagentSlots, reagentFree = 0, 0, 0, 0
-  local categories, arrows, shots, bandages, health, mana = {}, {}, {}, {}, {}, {}
+  local ammoSlots, ammoFree, ammoBagName = 0, 0, nil
+  local categories, ammo, bandages, health, mana = {}, {}, {}, {}, {}
   local consumables = { bandages = bandages, health = health, mana = mana }
   local shards, shardIcon, missing = 0, nil, {}
   local bag = settings()
@@ -2548,9 +2576,14 @@ local function showSlotTooltip(owner)
   local showMana = MANA_CLASSES[class] or (forever and class == "HUNTER")
   for _, bagID in ipairs(bagIDs()) do
     local slots = C_Container.GetContainerNumSlots(bagID)
-    local free = C_Container.GetContainerNumFreeSlots(bagID)
+    local free, family = C_Container.GetContainerNumFreeSlots(bagID)
     if bagID == REAGENT_BAG_ID then
       reagentSlots, reagentFree = slots, free
+    elseif forever and family and family % 4 ~= 0 and slots > 0 then
+      -- Bag family bits 1 and 2 identify quivers and ammunition pouches.
+      local name = family % 4 == 1 and "Quiver" or family % 4 == 2 and "Shot bag" or "Ammo bag"
+      ammoBagName = ammoBagName and ammoBagName ~= name and "Ammo bag" or ammoBagName or name
+      ammoSlots, ammoFree = ammoSlots + slots, ammoFree + free
     else
       totalSlots, freeSlots = totalSlots + slots, freeSlots + free
     end
@@ -2580,10 +2613,9 @@ local function showSlotTooltip(owner)
             categories.reagents = (categories.reagents or 0) + count
           end
         end
-        if showAmmo and classID == PROJECTILE_CLASS_ID and subclassID == ARROW_SUBCLASS_ID then
-          addSlotBreakdown(arrows, info, name, link, itemLevel, itemIcon)
-        elseif showAmmo and classID == PROJECTILE_CLASS_ID and subclassID == SHOT_SUBCLASS_ID then
-          addSlotBreakdown(shots, info, name, link, itemLevel, itemIcon)
+        if showAmmo and classID == PROJECTILE_CLASS_ID
+          and (subclassID == ARROW_SUBCLASS_ID or subclassID == SHOT_SUBCLASS_ID) then
+          addSlotBreakdown(ammo, info, name, link, itemLevel, itemIcon)
         end
         if forever and class == "WARLOCK" and info.itemID == SOUL_SHARD_ITEM_ID then
           shards, shardIcon = shards + count, shardIcon or itemIcon
@@ -2600,7 +2632,7 @@ local function showSlotTooltip(owner)
   if shards > 0 and not shardIcon then
     markSlotItemMissing(missing, SOUL_SHARD_ITEM_ID, "Soul Shards", true)
   end
-  for _, breakdown in ipairs({ arrows, shots, bandages, health, mana }) do
+  for _, breakdown in ipairs({ ammo, bandages, health, mana }) do
     for _, entry in pairs(breakdown) do
       if entry.itemLevel == nil or not entry.icon then
         markSlotItemMissing(missing, entry.itemID, entry.label, not entry.icon)
@@ -2626,6 +2658,12 @@ local function showSlotTooltip(owner)
   end
   table.sort(loading)
   table.sort(unavailable)
+  -- GameTooltip reuses its font strings for unrelated tooltips, so restore them on clear.
+  if not categoryFontHooked then
+    GameTooltip:HookScript("OnTooltipCleared", restoreCategoryFonts)
+    categoryFontHooked = true
+  end
+  restoreCategoryFonts()
   GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT")
   GameTooltip:SetText("Inventory Summary")
   GameTooltip:AddDoubleLine("Normal bags", ("%d / %d (%d free)"):format(totalSlots - freeSlots, totalSlots, freeSlots),
@@ -2634,9 +2672,22 @@ local function showSlotTooltip(owner)
     GameTooltip:AddDoubleLine("Reagent bag", ("%d / %d (%d free)"):format(
       reagentSlots - reagentFree, reagentSlots, reagentFree), 1, 1, 1, 1, 1, 1)
   end
+  if ammoBagName then
+    GameTooltip:AddDoubleLine(ammoBagName, ("%d / %d (%d free)"):format(
+      ammoSlots - ammoFree, ammoSlots, ammoFree), 1, 1, 1, 1, 1, 1)
+  end
   GameTooltip:AddLine("Categories", 1, 0.82, 0)
   for _, category in ipairs(ITEM_CATEGORIES) do
     GameTooltip:AddDoubleLine(category.name, tostring(categories[category.id] or 0), 1, 1, 1, 1, 1, 1)
+    shrinkCategoryLine()
+  end
+  if showAmmo then
+    GameTooltip:AddLine("Ammo", 1, 0.82, 0)
+    if next(ammo) then
+      showSlotBreakdown("Ammo", ammo, false, true)
+    else
+      GameTooltip:AddLine("(None)", 1, 1, 1)
+    end
   end
   GameTooltip:AddLine("Consumables", 1, 0.82, 0)
   if forever and class == "WARLOCK" then
@@ -2647,11 +2698,6 @@ local function showSlotTooltip(owner)
   showSlotBreakdown("Bandages", bandages, true)
   if showMana then
     showSlotBreakdown("Mana Potions", mana, false, true)
-  end
-  if showAmmo then
-    GameTooltip:AddLine("Ammo", 1, 0.82, 0)
-    showSlotBreakdown("Arrows", arrows, true)
-    showSlotBreakdown("Shots", shots, true)
   end
   if #loading > 0 then
     GameTooltip:AddLine("Item information is still loading:", 1, 0.82, 0)
@@ -2738,10 +2784,10 @@ local function updateSupplyFrame(supplyFrame)
       button:SetHeight(20)
       button:EnableMouse(true)
       button.Icon = button:CreateTexture(nil, "ARTWORK")
-      button.Icon:SetSize(16, 16)
+      button.Icon:SetSize(FOOTER_ICON_SIZE, FOOTER_ICON_SIZE)
       button.Count = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
       button.Count:SetPoint("LEFT", button, "LEFT")
-      button.Icon:SetPoint("LEFT", button.Count, "RIGHT", 2, 0)
+      button.Icon:SetPoint("LEFT", button.Count, "RIGHT", FOOTER_ICON_GAP, 0)
       button:SetScript("OnEnter", supplyOnEnter)
       button:SetScript("OnLeave", GameTooltip_Hide)
       supplyFrame.buttons[index] = button
@@ -2751,7 +2797,7 @@ local function updateSupplyFrame(supplyFrame)
     button.Count:SetText(item.text)
     button:ClearAllPoints()
     button:SetPoint("LEFT", supplyFrame, "LEFT", width, 0)
-    button:SetWidth(18 + button.Count:GetStringWidth())
+    button:SetWidth(FOOTER_ICON_SIZE + FOOTER_ICON_GAP + button.Count:GetStringWidth())
     button:Show()
     width = width + button:GetWidth() + 4
     if GameTooltip:IsOwned(button) then supplyOnEnter(button) end
@@ -2806,15 +2852,29 @@ local function updateFooter()
   footer.slotCount:SetFont(footer.slotFont, footer.slotFontSize, footer.slotFontFlags)
   local available = footer:GetWidth() - 12 - (supplyWidth > 0 and SUPPLY_MARGIN or 0)
   local combinedWidth = width + supplyWidth
-  local slotWidth = footer.slotCount:GetStringWidth()
-  if combinedWidth + slotWidth > available and slotWidth > 0 then
-    local fontSize = math.max(math.min(7, footer.slotFontSize),
-      math.floor(footer.slotFontSize * (available - combinedWidth) / slotWidth))
-    footer.slotCount:SetFont(footer.slotFont, fontSize, footer.slotFontFlags)
-    slotWidth = footer.slotCount:GetStringWidth()
+  local textWidth = footer.slotCount:GetStringWidth()
+  local iconWidth = FOOTER_ICON_SIZE + FOOTER_ICON_GAP
+  local slotWidth = textWidth + iconWidth
+  local scale
+  local iconScale = 1
+  if supplyWidth > 0 then
+    -- Keep the slot text and the supply text at the same effective size when the footer is crowded.
+    scale = math.min(1, math.max(0.01, available / (combinedWidth + slotWidth)))
+    footer.slotCount:SetFont(footer.slotFont, footer.slotFontSize * scale, footer.slotFontFlags)
+    iconScale = scale
+  else
+    if combinedWidth + slotWidth > available and textWidth > 0 then
+      local fontSize = math.max(math.min(7, footer.slotFontSize),
+        math.floor(footer.slotFontSize * (available - combinedWidth - iconWidth) / textWidth))
+      footer.slotCount:SetFont(footer.slotFont, fontSize, footer.slotFontFlags)
+    end
+    slotWidth = footer.slotCount:GetStringWidth() + iconWidth
+    scale = math.min(1, math.max(0.01, (available - slotWidth) / combinedWidth))
   end
-  -- Scale both strips together if they cannot fit even at the smallest slot font.
-  local scale = math.min(1, math.max(0.01, (available - slotWidth) / combinedWidth))
+  footer.slotIcon:SetSize(FOOTER_ICON_SIZE * iconScale, FOOTER_ICON_SIZE * iconScale)
+  footer.slotIcon:ClearAllPoints()
+  footer.slotIcon:SetPoint("LEFT", footer.slotCount, "RIGHT", FOOTER_ICON_GAP * iconScale, 0)
+  slotWidth = footer.slotCount:GetStringWidth() + iconWidth * iconScale
   footer.balanceContents:SetWidth(width)
   footer.balanceContents:SetScale(scale)
   footer.balances:SetWidth(width * scale)
@@ -3069,7 +3129,8 @@ local function createFooter()
   footer.slotCount = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   footer.slotCount:SetPoint("LEFT", footer, "LEFT", 4, 0)
   footer.slotFont, footer.slotFontSize, footer.slotFontFlags = footer.slotCount:GetFont()
-  footer.slotFontSize = math.min(footer.slotFontSize, 9)
+  footer.slotIcon = footer:CreateTexture(nil, "ARTWORK")
+  footer.slotIcon:SetTexture("Interface\\Buttons\\Button-Backpack-Up")
 
   footer.slotHover = CreateFrame("Frame", nil, footer)
   footer.slotHover:SetPoint("LEFT", footer.slotCount, "LEFT")
@@ -3157,7 +3218,7 @@ local function createFooter()
   footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
   footer.supplies = CreateFrame("Frame", nil, footer)
   footer.supplies:SetHeight(20)
-  footer.supplies:SetPoint("LEFT", footer.slotCount, "RIGHT", SUPPLY_MARGIN, 0)
+  footer.supplies:SetPoint("LEFT", footer.slotIcon, "RIGHT", SUPPLY_MARGIN, 0)
   footer.supplyFrame = CreateFrame("Frame", nil, footer.supplies)
   footer.supplyFrame:SetPoint("LEFT", footer.supplies, "LEFT")
   footer.supplyFrame.buttons = {}

@@ -135,14 +135,31 @@ function CreateAtlasMarkup(atlas, width, height)
 end
 GameTooltip = widget()
 function GameTooltip:SetOwner() end
-function GameTooltip:SetText(text) self.text = text; self.lines = {}; self.doubleLines = {}; self.lineOrder = {} end
-function GameTooltip:AddLine(text) self.lines[#self.lines + 1] = text; self.lineOrder[#self.lineOrder + 1] = text end
+--- Emulate the shared tooltip's reusable font strings.
+local function ensureTooltipFonts()
+  local line = GameTooltip:NumLines()
+  for _, side in ipairs({ "Left", "Right" }) do
+    local name = "GameTooltipText" .. side .. line
+    _G[name] = _G[name] or widget()
+  end
+end
+function GameTooltip:NumLines() return 1 + #self.lineOrder end
+function GameTooltip:SetText(text)
+  if self.hooks.OnTooltipCleared then self.hooks.OnTooltipCleared(self) end
+  self.text = text; self.lines = {}; self.doubleLines = {}; self.lineOrder = {}
+  ensureTooltipFonts()
+end
+function GameTooltip:AddLine(text)
+  self.lines[#self.lines + 1] = text; self.lineOrder[#self.lineOrder + 1] = text
+  ensureTooltipFonts()
+end
 --- Record left and right columns of a tooltip line.
 ---@param left string Left-column text.
 ---@param right string Right-column text.
 function GameTooltip:AddDoubleLine(left, right)
   self.doubleLines[#self.doubleLines + 1] = { left, right }
   self.lineOrder[#self.lineOrder + 1] = left
+  ensureTooltipFonts()
 end
 
 assert(loadfile("ListviewBag.lua"))()
@@ -1662,17 +1679,22 @@ footer.crestFrame.ShouldShow = function() return false end
 function MoneyFrame_Update() footer.moneyFrame:SetWidth(100) end
 local sizes = { [0] = 16, 16, 16, 16, 16, 20 }
 local free = { [0] = 10, 10, 10, 10, 10, 6 }
+local families = {}
 C_Container.GetContainerNumSlots = function(bagID) return sizes[bagID] end
-C_Container.GetContainerNumFreeSlots = function(bagID) return free[bagID], 0 end
+C_Container.GetContainerNumFreeSlots = function(bagID) return free[bagID], families[bagID] or 0 end
 local updateFooter = upvalue(module.Refresh, "updateFooter")
 updateFooter()
 assert(footer.slotCount.text == "|cffffffff30 / 81|r",
   "An equipped reagent bag with free space must count as one free slot")
 assert(footer.slotCount.points.LEFT[1] == footer and footer.slotCount.points.LEFT[2] == "LEFT"
   and footer.slotCount.points.LEFT[3] == 4 and footer.slotCount.points.LEFT[4] == 0
+  and footer.slotIcon.texture == "Interface\\Buttons\\Button-Backpack-Up"
+  and footer.slotIcon.width == 16 and footer.slotIcon.height == 16
+  and footer.slotIcon.points.LEFT[1] == footer.slotCount and footer.slotIcon.points.LEFT[2] == "RIGHT"
+  and footer.slotIcon.points.LEFT[3] == 2
   and not rawget(footer, "freeSlotsButton")
   and not rawget(footer, "currencyButton") and footer.balances.points.BOTTOMRIGHT[3] == -4
-  and footer.slotCount.fontSize == 9 and footer.height == 20 and footer.balanceContents.scale == 1,
+  and footer.slotCount.fontSize == 10 and footer.height == 20 and footer.balanceContents.scale == 1,
   "The compact footer must show slots and currencies without the removed buttons")
 
 free[5] = 1
@@ -1853,23 +1875,23 @@ do
 end
 local scrollFrame = upvalue(realBuildFrame, "scrollFrame")
 assert(footer.height == 20 and footer.balanceContents.scale == 1
-  and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
+  and footer.slotHover:GetWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
   "All tracked currencies and the slot count must fit in the original footer")
-footer:SetWidth(620)
+footer:SetWidth(638)
 updateFooter()
 assert(footer.slotCount.fontSize == 8 and footer.balanceContents.scale == 1
-  and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
+  and footer.slotHover:GetWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
   "The slot font must shrink before the currency strip when that is enough to fit")
-footer:SetWidth(603)
+footer:SetWidth(621)
 updateFooter()
 assert(footer.height == 20 and footer.balanceContents.scale < 1 and footer.slotCount.fontSize == 7
-  and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth() + 0.001,
+  and footer.slotHover:GetWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth() + 0.001,
   "An oversized currency strip must scale down instead of overlapping or increasing the footer height")
 footer:SetWidth(684)
 footer.tokenFrame.ShouldShow = function() return false end
 footer.crestFrame.ShouldShow = function() return false end
 updateFooter()
-assert(footer.height == 20 and footer.balanceContents.scale == 1 and footer.slotCount.fontSize == 9
+assert(footer.height == 20 and footer.balanceContents.scale == 1 and footer.slotCount.fontSize == 10
   and footer.balances.points.BOTTOMRIGHT[4] == 0
   and content.listInset.points.BOTTOMRIGHT[4] == 30 and scrollFrame.points.BOTTOMRIGHT[4] == 34,
   "The footer must restore normal sizes when currencies fit")
@@ -2025,9 +2047,10 @@ GameTooltip_Hide = function() GameTooltip.owner = nil; GameTooltip:Hide() end
 footer.slotHover:SetScript("OnLeave", GameTooltip_Hide)
 updateFooter()
 assert(#footer.supplyFrame.buttons == 1 and footer.supplyFrame.buttons[1].supply.itemID == 6265
-  and footer.supplyFrame.buttons[1].Count.text == "3",
+  and footer.supplyFrame.buttons[1].Count.text == "3"
+  and footer.slotCount.fontSize == footer.supplyFrame.buttons[1].Count.fontSize,
   "Forever Warlocks must see only Soul Shards, not bandages or potions")
-assert(footer.supplies.points.LEFT[1] == footer.slotCount and footer.supplies.points.LEFT[2] == "RIGHT"
+assert(footer.supplies.points.LEFT[1] == footer.slotIcon and footer.supplies.points.LEFT[2] == "RIGHT"
   and footer.supplies.points.LEFT[3] == 8 and footer.supplyFrame.points.LEFT[1] == footer.supplies,
   "The supply strip must have a margin to the right of the bag slot count")
 for _, button in ipairs(footer.supplyFrame.buttons) do
@@ -2045,7 +2068,7 @@ updateFooter()
 assert(footer.supplyFrame.buttons[1].Count.text == "10", "Soul Shard stacks must be combined")
 tooltipItems[0][12] = nil
 updateFooter()
-assert(footer.slotHover:GetWidth() == footer.slotCount:GetStringWidth()
+assert(footer.slotHover:GetWidth() == footer.slotCount:GetStringWidth() + 18
   and footer.slotHover.points.LEFT[1] == footer.slotCount)
 footer.slotHover.scripts.OnEnter(footer.slotHover)
 --- Return the right-column value and number of occurrences for a left-column label.
@@ -2086,6 +2109,11 @@ assert(tooltipIndex("Categories") and tooltipIndex("Consumables")
 assert(tooltipValue("Consumables") == "209" and tooltipValue("Reagents") == "9"
   and not tooltipValue("  Consumables"),
   "Categories must match filters and include hidden stacks")
+local categoryLine = tooltipIndex("Equipment") + 1
+assert(_G["GameTooltipTextLeft" .. categoryLine].fontSize == 8
+  and _G["GameTooltipTextRight" .. categoryLine].fontSize == 8
+  and _G.GameTooltipTextLeft2.fontSize == 10,
+  "Only the category rows should use smaller text")
 assert(not tooltipIndex("Ammo") and not tooltipValue("Arrows") and not tooltipValue("Shots")
   and tooltipValue("Soul Shards") == "3",
   "Warlocks must see shards but not ranged ammunition")
@@ -2117,6 +2145,24 @@ assert(tooltipIndex("Soul Shards") < tooltipIndex("Health Potions")
   and tooltipIndex("both") < tooltipIndex("heal")
   and tooltipIndex("mana") < tooltipIndex("both", tooltipIndex("Bandages")),
   "Sections and item variants must follow the requested order")
+sizes[1], free[1], families[1] = 8, 3, 1
+updateFooter()
+assert(tooltipValue("Normal bags") == "11 / 12 (1 free)" and tooltipValue("Quiver") == "5 / 8 (3 free)"
+  and tooltipIndex("Reagent bag") < tooltipIndex("Quiver") and tooltipIndex("Quiver") < tooltipIndex("Categories"),
+  "Quiver capacity must be separate from normal bags and follow the reagent bag")
+families[1], free[1] = 2, 0
+updateFooter()
+assert(tooltipValue("Shot bag") == "8 / 8 (0 free)" and not tooltipValue("Quiver"),
+  "A full ammunition pouch must be labeled and counted correctly")
+sizes[2], free[2], families[2] = 6, 2, 1
+updateFooter()
+assert(tooltipValue("Ammo bag") == "12 / 14 (2 free)" and not tooltipValue("Shot bag"),
+  "Multiple ammo bags must have their capacities combined")
+sizes[1], free[1], families[1] = 0, 0, nil
+sizes[2], free[2], families[2] = 0, 0, nil
+updateFooter()
+assert(not tooltipValue("Quiver") and not tooltipValue("Shot bag") and not tooltipValue("Ammo bag"),
+  "An unequipped ammo bag must not be listed")
 tooltipItems[0][1].stackCount = 90
 tooltipItems[0][4].stackCount = 4
 updateFooter()
@@ -2153,11 +2199,18 @@ assert(footer.supplyFrame.buttons[1].supply.inventorySlot == 0
 footer:SetWidth(160)
 updateFooter()
 assert(footer.supplyFrame.scale == footer.balanceContents.scale and footer.balanceContents.scale < 1
-  and footer.slotCount:GetStringWidth() + 8 + footer.supplies:GetWidth() + 4 + footer.balances:GetWidth()
+  and math.abs(footer.slotCount.fontSize - footer.supplyFrame.buttons[1].Count.fontSize * footer.supplyFrame.scale) < 0.001
+  and math.abs(footer.slotIcon.width - 16 * footer.supplyFrame.scale) < 0.001
+  and math.abs(footer.slotHover:GetWidth()
+    - footer.slotCount:GetStringWidth() - 18 * footer.supplyFrame.scale) < 0.001
+  and footer.slotHover:GetWidth() + 8 + footer.supplies:GetWidth() + 4 + footer.balances:GetWidth()
     <= footer:GetWidth() - 8 + 0.001,
   "The supply margin must be included when scaling the footer to prevent overlap")
 footer:SetWidth(684)
 updateFooter()
+assert(footer.slotIcon.width == 16 and footer.slotIcon.height == 16
+  and footer.slotIcon.points.LEFT[3] == 2 and footer.slotCount.fontSize == footer.supplyFrame.buttons[1].Count.fontSize,
+  "The slot icon and text must return to their normal size when space is available")
 footer.supplyFrame.buttons[1].scripts.OnEnter(footer.supplyFrame.buttons[1])
 assert(GameTooltip.inventoryItem[2] == 0, "Hovering ammunition must show its equipment tooltip")
 footer.supplyFrame.buttons[1].scripts.OnLeave()
@@ -2190,14 +2243,37 @@ GetInventoryItemDurability = originalDurability
 equippedThrown = false
 updateFooter()
 footer.slotHover.scripts.OnEnter(footer.slotHover)
-assert(tooltipValue("Arrows") == "180" and tooltipValue("arrow") == "110" and tooltipValue("sharp") == "70"
-  and tooltipValue("Shots") == "90" and tooltipValue("shot") == "40"
+assert(not tooltipIndex("Arrows") and not tooltipIndex("Shots")
+  and tooltipValue("arrow") == "110" and tooltipValue("sharp") == "70" and tooltipValue("shot") == "40"
   and tooltipValue("heavy") == "50" and not tooltipValue("Soul Shards")
   and tooltipIndex("sharp") < tooltipIndex("arrow") and tooltipIndex("heavy") < tooltipIndex("shot")
+  and tooltipIndex("Categories") < tooltipIndex("Ammo") and tooltipIndex("Ammo") < tooltipIndex("sharp")
+  and tooltipIndex("shot") < tooltipIndex("Consumables", tooltipIndex("Ammo"))
   and tooltipIndex("Health Potions") < tooltipIndex("Bandages") and tooltipIndex("Bandages") < tooltipIndex("mana")
-  and tooltipIndex("mana") < tooltipIndex("Ammo") and tooltipIndex("Ammo") < tooltipIndex("Arrows")
-  and tooltipIndex("Arrows") < tooltipIndex("Shots"),
-  "Hunters must see ammunition totals and variants, including hidden stacks, but not Soul Shards")
+  and not tooltipIndex("(None)", tooltipIndex("Ammo")),
+  "Hunters must see all ammunition variants between categories and consumables")
+local shot, heavy = tooltipItems[0][9], tooltipItems[0][10]
+tooltipItems[0][9], tooltipItems[0][10] = nil, nil
+updateFooter()
+assert(tooltipValue("arrow") == "110" and not tooltipIndex("Shots") and not tooltipIndex("shot")
+  and not tooltipIndex("(None)", tooltipIndex("Ammo")),
+  "An absent ammunition type must not produce an empty row")
+tooltipItems[0][9], tooltipItems[0][10] = shot, heavy
+updateFooter()
+local arrow, arrowStack, sharp = tooltipItems[0][1], tooltipItems[0][2], tooltipItems[0][11]
+tooltipItems[0][1], tooltipItems[0][2], tooltipItems[0][11] = nil, nil, nil
+updateFooter()
+assert(tooltipValue("shot") == "40" and not tooltipIndex("Arrows") and not tooltipIndex("arrow")
+  and not tooltipIndex("(None)", tooltipIndex("Ammo")),
+  "Shot-only inventories must show their ammo without an empty arrow row")
+tooltipItems[0][1], tooltipItems[0][2], tooltipItems[0][11] = arrow, arrowStack, sharp
+sizes[1], free[1], families[1] = 8, 7, 1
+tooltipItems[1] = { { itemID = 2512, itemName = "Rough Arrow", hyperlink = "arrow", stackCount = 25 } }
+updateFooter()
+assert(tooltipValue("arrow") == "135" and tooltipValue("Quiver") == "1 / 8 (7 free)",
+  "Ammo counts must include stacks in equipped quivers")
+tooltipItems[1], sizes[1], free[1], families[1] = nil, 0, 0, nil
+updateFooter()
 assert(tooltipRawLabel("arrow") == "|T1001:18:18|t arrow"
   and tooltipRawLabel("shot") == "|T7000:18:18|t shot",
   "Ammunition variants must include their item icons")
@@ -2233,7 +2309,7 @@ assert(tooltipIndex("sharp") < tooltipIndex("arrow")
 for _, class in ipairs({ "ROGUE", "WARRIOR" }) do
   playerClass = class
   updateFooter()
-  assert(tooltipValue("Arrows") == "180" and tooltipValue("Shots") == "90"
+  assert(tooltipIndex("Ammo") and tooltipValue("arrow") == "110" and tooltipValue("shot") == "40"
     and not tooltipValue("mana") and not tooltipIndex("Mana Potions"),
     class .. " must see both ammunition types")
   assert(footer.supplyFrame.buttons[1].shown and not footer.supplyFrame.buttons[2],
@@ -2241,11 +2317,16 @@ for _, class in ipairs({ "ROGUE", "WARRIOR" }) do
 end
 playerClass = "MAGE"
 updateFooter()
-assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards")
+assert(not tooltipIndex("Ammo") and not tooltipValue("arrow") and not tooltipValue("shot")
+  and not tooltipValue("Soul Shards")
   and tooltipValue("mana") == "8" and not tooltipIndex("Mana Potions"),
   "Classes unable to use ranged ammunition must not see its breakdown")
 footer.slotHover.scripts.OnLeave()
 assert(not rawget(GameTooltip, "owner") and not GameTooltip.shown)
+GameTooltip:SetText("Another tooltip")
+assert(_G["GameTooltipTextLeft" .. categoryLine].fontSize == 10
+  and _G["GameTooltipTextRight" .. categoryLine].fontSize == 10,
+  "Clearing the summary must restore shared tooltip fonts")
 SlackHacks.isForever = function() return false end
 SlackHacks.isRetail = function() return true end
 profile.trackCrestCurrencies = false
@@ -2313,7 +2394,7 @@ do
   footer.slotHover.scripts.OnEnter(footer.slotHover)
   updateFooter()
 end
-assert(not tooltipIndex("Ammo") and not tooltipValue("Arrows") and not tooltipValue("Shots")
+assert(not tooltipIndex("Ammo") and not tooltipValue("arrow") and not tooltipValue("shot")
   and not tooltipValue("Soul Shards"))
 assert(not tooltipValue("mana") and not tooltipIndex("Mana Potions"), "Retail Hunters must not see mana potions")
 for _, class in ipairs({ "DEATHKNIGHT", "DEMONHUNTER" }) do
@@ -2337,8 +2418,9 @@ assert(tooltipValue("Bandages") == "(None)" and tooltipValue("Health Potions") =
   and not tooltipIndex("Mana Potions"))
 SlackHacks.isForever = function() return true end
 footer.slotHover.scripts.OnEnter(footer.slotHover)
-assert(tooltipIndex("Mana Potions") < tooltipIndex("Ammo")
-  and tooltipValue("Arrows") == "(None)" and tooltipValue("Shots") == "(None)"
+assert(tooltipIndex("Ammo") < tooltipIndex("(None)", tooltipIndex("Ammo"))
+  and tooltipIndex("(None)", tooltipIndex("Ammo")) < tooltipIndex("Consumables", tooltipIndex("Ammo"))
+  and not tooltipIndex("Arrows") and not tooltipIndex("Shots")
   and tooltipValue("Mana Potions") == "(None)")
 playerClass = "WARLOCK"
 footer.slotHover.scripts.OnEnter(footer.slotHover)
