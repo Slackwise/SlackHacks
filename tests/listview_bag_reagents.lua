@@ -79,6 +79,10 @@ function CreateFrame(frameType, name, parent, template)
   --- Record whether a control can be clicked.
   ---@param enabled boolean Whether the control is enabled.
   function widget:SetEnabled(enabled) self.enabled = enabled end
+  --- Record widget dimensions.
+  ---@param width number Width.
+  ---@param height number Height.
+  function widget:SetSize(width, height) self.width, self.height = width, height end
   --- Return a mock disabled texture for icon buttons.
   ---@return table texture Disabled texture.
   function widget:GetDisabledTexture()
@@ -345,6 +349,8 @@ INVTYPE_HEAD = nil
 -- Auction interactions select Selling temporarily and only query after an explicit refresh.
 local auctionRefresh = frames.SlackHacksListviewBagAuctionRefresh
 local ahCheckbox = frames.SlackHacksListviewBagAHMode
+assert(auctionRefresh.width == 14 and auctionRefresh.height == 14,
+  "The auction refresh button must use the reduced icon size")
 local selectView = upvalue(upvalue(createFooter, "openViewsMenu"), "selectView")
 local startAuction = upvalue(createFooter, "updateAuctionView")
 local bagWindow = CreateFrame("Frame")
