@@ -5,12 +5,13 @@ SlackHacks.addonName = "SlackHacks"
 local forever = false
 function SlackHacks.isForever() return forever end
 local warnings, frames, ticker = {}, {}, nil
-local now = 100
+local now, profileTime, resultCost, resultReads = 100, 0, 0, 0
 function SlackHacks.prn(text) warnings[#warnings + 1] = text end
 function GetNormalizedRealmName() return "TestRealm" end
 function UnitFactionGroup() return "Alliance" end
 function GetCurrentRegion() return 1 end
 function GetTime() return now end
+function debugprofilestop() return profileTime end
 function time() return 123456 end
 UIParent = {}
 --- Create a mock UI object that records progress and layout settings.
@@ -96,7 +97,10 @@ C_AuctionHouse = {
   HasFullCommoditySearchResults = function() return full end,
   HasFullItemSearchResults = function() return full end,
   GetNumCommoditySearchResults = function() return #results end,
-  GetCommoditySearchResultInfo = function(_, index) return results[index] end,
+  GetCommoditySearchResultInfo = function(_, index)
+    profileTime, resultReads = profileTime + resultCost, resultReads + 1
+    return results[index]
+  end,
   GetNumItemSearchResults = function() return #results end,
   GetItemSearchResultInfo = function(_, index) return results[index] end,
 }
@@ -155,6 +159,110 @@ assert(ticker.cancelled and not window.shown, "Closing the window must cancel th
 auction.Start(items, function() end)
 window:Hide()
 assert(ticker.cancelled, "Hiding the window must cancel the scan")
+
+local batchedRefreshes = 0
+local threeItems = { items[1], items[1], items[1] }
+auction.Start(threeItems, function() batchedRefreshes = batchedRefreshes + 1 end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(batchedRefreshes == 0, "Individual quotes must not rebuild the bag immediately")
+now = now + 1
+ticker.callback()
+assert(batchedRefreshes == 1, "Pending quotes must refresh periodically")
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(batchedRefreshes == 2 and ticker.cancelled, "Completion must flush pending quotes only once")
+
+batchedRefreshes = 0
+auction.Start(twoItems, function() batchedRefreshes = batchedRefreshes + 1 end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+window.cancel.scripts.OnClick()
+assert(batchedRefreshes == 1 and ticker.cancelled, "Cancellation must display previously completed quotes")
+
+results = {}
+for index = 1, 250 do results[index] = { unitPrice = index, quantity = 1 } end
+resultReads = 0
+auction.Start(items, function() end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(resultReads == 100 and listener.scripts.OnUpdate and window.bar.value == 0,
+  "Large summaries must yield after a bounded number of results")
+local searchesDuringSummary = searches
+now = now + 31
+ticker.callback()
+assert(searches == searchesDuringSummary and not ticker.cancelled,
+  "A pending summary must not send another query or time out while processing")
+listener.scripts.OnUpdate()
+assert(resultReads == 200 and not ticker.cancelled, "A summary must resume on the next frame")
+listener.scripts.OnUpdate()
+quote = auction.GetQuote("item:42")
+assert(resultReads == 250 and quote.minimum == 1 and quote.average == 126 and ticker.cancelled
+  and not listener.scripts.OnUpdate, "The completed summary must publish the exact weighted prices")
+
+resultReads, resultCost, profileTime = 0, 0.21, 0
+auction.Start(items, function() end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(resultReads == 10 and listener.scripts.OnUpdate, "Slow result reads must yield at the time budget")
+window.cancel.scripts.OnClick()
+assert(ticker.cancelled and not listener.scripts.OnUpdate and auction.GetQuote("item:42") == quote,
+  "Cancellation must discard unfinished summaries and stop frame updates")
+
+resultReads, resultCost = 0, 0
+auction.Start(items, function() end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+results = {}
+for index = 1, 150 do results[index] = { unitPrice = 20, quantity = 1 } end
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(resultReads == 200 and listener.scripts.OnUpdate, "New results must restart a pending summary")
+listener.scripts.OnUpdate()
+quote = auction.GetQuote("item:42")
+assert(quote.minimum == 20 and quote.average == 20 and ticker.cancelled,
+  "A restarted summary must not mix old and new results")
+
+results = {}
+for index = 1, 150 do results[index] = { unitPrice = 30, quantity = 1 } end
+auction.Start(items, function() end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+full = false
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(not listener.scripts.OnUpdate, "Incomplete replacement results must discard the pending summary")
+local moreBeforeReplacement = more
+ticker.callback()
+assert(more == moreBeforeReplacement + 1, "Incomplete replacement results must request another page")
+full = true
+listener.scripts.OnEvent(listener, "COMMODITY_SEARCH_RESULTS_ADDED", 42)
+listener.scripts.OnUpdate()
+quote = auction.GetQuote("item:42")
+assert(quote.minimum == 30 and quote.average == 30 and ticker.cancelled,
+  "The completed replacement page must produce the new quote")
+
+results = {}
+for index = 1, 120 do results[index] = { buyoutAmount = index * 2, quantity = 2 } end
+auction.Start(items, function() end)
+ticker.callback()
+listener.scripts.OnEvent(listener, "ITEM_SEARCH_RESULTS_UPDATED", key)
+assert(listener.scripts.OnUpdate, "Item listings must also be processed incrementally")
+listener.scripts.OnUpdate()
+quote = auction.GetQuote("item:42")
+assert(quote.minimum == 1 and quote.average == 61 and ticker.cancelled,
+  "Incremental item listings must retain per-item weighted prices")
+
+local getResult = C_AuctionHouse.GetCommoditySearchResultInfo
+C_AuctionHouse.GetCommoditySearchResultInfo = function() error("result read failed") end
+auction.Start(items, function() end)
+ticker.callback()
+local ok, failure = pcall(listener.scripts.OnEvent, listener, "COMMODITY_SEARCH_RESULTS_UPDATED", 42)
+assert(not ok and failure:find("result read failed", 1, true) and ticker.cancelled
+  and not listener.scripts.OnUpdate and warnings[#warnings]:find("result processing failed", 1, true),
+  "Summary errors must stop the scan and remain visible")
+C_AuctionHouse.GetCommoditySearchResultInfo = getResult
+
+results = { { unitPrice = 10, quantity = 2 }, { unitPrice = 20, quantity = 8 } }
 Auctionator = { API = { v1 = {
   GetAuctionPriceByItemLink = function() return 77 end,
   GetAuctionAgeByItemLink = function() return 2 end,

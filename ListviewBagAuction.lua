@@ -10,6 +10,9 @@ local sending = false
 local hooksInstalled = false
 local databaseKeys = {}
 local pendingKeys = {}
+local SUMMARY_SLICE_MS = 2
+local SUMMARY_SLICE_RESULTS = 100
+local REFRESH_INTERVAL = 1
 
 --- Find the trend information displayed by the installed Auctionator companion.
 ---@param link string Item hyperlink.
@@ -113,16 +116,18 @@ local function sameKey(left, right)
     and left.battlePetSpeciesID == right.battlePetSpeciesID
 end
 
---- Calculate the lowest and quantity-weighted average buyout across loaded results.
+--- Calculate prices, optionally yielding between bounded batches of results.
 ---@param itemKey table Blizzard auction item key.
 ---@param commodity boolean Whether results are commodity listings.
+---@param incremental boolean Whether to yield between batches.
 ---@return number|nil minimum Lowest per-item buyout.
 ---@return number|nil average Quantity-weighted per-item buyout.
-function auction.Summarize(itemKey, commodity)
+local function summarize(itemKey, commodity, incremental)
   local api = C_AuctionHouse
   local count = commodity and api.GetNumCommoditySearchResults(itemKey.itemID)
     or api.GetNumItemSearchResults(itemKey)
   local minimum, totalPrice, totalQuantity = nil, 0, 0
+  local sliceStart = incremental and debugprofilestop()
   for index = 1, count do
     local result
     if commodity then result = api.GetCommoditySearchResultInfo(itemKey.itemID, index)
@@ -135,20 +140,40 @@ function auction.Summarize(itemKey, commodity)
       totalPrice = totalPrice + unitPrice * quantity
       totalQuantity = totalQuantity + quantity
     end
+    -- Check periodically to limit profiling overhead, with a hard cap even on fast machines.
+    if incremental and index < count and index % 10 == 0
+      and (index % SUMMARY_SLICE_RESULTS == 0 or debugprofilestop() - sliceStart >= SUMMARY_SLICE_MS) then
+      coroutine.yield()
+      sliceStart = debugprofilestop()
+    end
   end
   if not minimum then return nil, nil end
   return math.floor(minimum + 0.5), math.floor(totalPrice / totalQuantity + 0.5)
+end
+
+--- Calculate the lowest and quantity-weighted average buyout across loaded results.
+---@param itemKey table Blizzard auction item key.
+---@param commodity boolean Whether results are commodity listings.
+---@return number|nil minimum Lowest per-item buyout.
+---@return number|nil average Quantity-weighted per-item buyout.
+function auction.Summarize(itemKey, commodity)
+  return summarize(itemKey, commodity, false)
 end
 
 --- Hide the progress UI and stop the active scan.
 ---@param reason string|nil Reason to report to the user.
 function auction.Cancel(reason)
   if not scan then return end
+  local refresh = scan.dirty and scan.refresh
   if scan.ticker then scan.ticker:Cancel() end
   scan = nil
-  if scannerFrame then scannerFrame:UnregisterAllEvents() end
+  if scannerFrame then
+    scannerFrame:UnregisterAllEvents()
+    scannerFrame:SetScript("OnUpdate", nil)
+  end
   if progress then progress:Hide() end
   if reason then prn(reason) end
+  if refresh then refresh() end
 end
 
 --- Construct the native-style progress window on first use.
@@ -238,39 +263,73 @@ local function advance()
   scan.deadline = nil
   updateProgress(scan.index - 1, #scan.items)
   if scan.index > #scan.items then
-    local failed, refresh = scan.failed, scan.refresh
+    local failed, refresh, dirty = scan.failed, scan.refresh, scan.dirty
     auction.Cancel()
     if failed > 0 then prn(("%d auction price queries could not be completed."):format(failed)) end
-    refresh()
+    if not dirty then refresh() end
   end
+end
+
+--- Resume one bounded result-processing slice and publish a completed quote.
+local function resumeSummary()
+  local active = scan
+  if not active or not active.worker then return end
+  local ok, minimum, average = coroutine.resume(active.worker)
+  if not ok then
+    auction.Cancel("auction price scan stopped because result processing failed.")
+    error(minimum)
+  end
+  if scan ~= active or coroutine.status(active.worker) ~= "dead" then return end
+  scannerFrame:SetScript("OnUpdate", nil)
+  active.worker = nil
+  marketCache()[active.current.link] = {
+    minimum = minimum, average = average, timestamp = time(), source = "Auction House",
+  }
+  active.dirty = true
+  advance()
 end
 
 --- Complete a result only when Blizzard reports that every page has arrived.
 ---@param event string Auction result event.
 ---@param item table|number Result item key or commodity ID.
 local function onResult(event, item)
-  if not scan or not scan.current or not scan.waiting then return end
+  if not scan or not scan.current or not (scan.waiting or scan.worker) then return end
   local current = scan.current
   local commodity = event:match("^COMMODITY") ~= nil
   if commodity then
     if item ~= current.key.itemID then return end
   elseif not sameKey(item, current.key) then return end
+  -- A new result event can replace the result set while a summary is yielding.
+  if scan.worker then
+    scan.worker = nil
+    scannerFrame:SetScript("OnUpdate", nil)
+  end
   local full = commodity and C_AuctionHouse.HasFullCommoditySearchResults(current.key.itemID)
     or not commodity and C_AuctionHouse.HasFullItemSearchResults(current.key)
   if not full then
     scan.pendingMore = commodity and "commodity" or "item"
     scan.waiting = false
+    scan.deadline = GetTime() + 30
     return
   end
-  local minimum, average = auction.Summarize(current.key, commodity)
-  marketCache()[current.link] = { minimum = minimum, average = average, timestamp = time(), source = "Auction House" }
-  scan.refresh()
-  advance()
+  scan.waiting = false
+  scan.deadline = nil
+  scan.worker = coroutine.create(function() return summarize(current.key, commodity, true) end)
+  resumeSummary()
+  if scan and scan.worker then scannerFrame:SetScript("OnUpdate", resumeSummary) end
 end
 
 --- Send queued searches and pages only while Blizzard's auction throttle permits it.
 local function tick()
   if not scan then return end
+  if scan.dirty and GetTime() >= scan.nextRefresh then
+    local active = scan
+    active.dirty = false
+    active.nextRefresh = GetTime() + REFRESH_INTERVAL
+    active.refresh()
+    if scan ~= active then return end
+  end
+  if scan.worker then return end
   if scan.deadline and GetTime() > scan.deadline then
     scan.failed = scan.failed + 1
     advance()
@@ -353,7 +412,7 @@ function auction.Start(items, refresh)
       scannerFrame:RegisterEvent(event)
     end
   end
-  scan = { items = items, refresh = refresh, index = 1, failed = 0 }
+  scan = { items = items, refresh = refresh, index = 1, failed = 0, nextRefresh = GetTime() + REFRESH_INTERVAL }
   local window = progressWindow()
   updateProgress(0, #items)
   window:Show()
