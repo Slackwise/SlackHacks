@@ -6,30 +6,15 @@
 - Optionally add icon-name search to the Macro and Equipment Set icon pickers.
 
 ### Mimimap
-- Fixed bug when switching off square mode
+- Fixed bug when switching off square mode.
 
 ### Inventory
-- Fixed the inventory summary's misleading item-loading status and identify items whose data is unavailable.
-- The Listview Bag footer shows equipped arrows or thrown durability and Soul Shards on Forever, and always shows crests on Retail.
-- Added Selling and Gear views to the Listview Bag, with manually refreshed auction pricing, an AH Mode filter, equipment stat comparisons, and gear filters. Selling View shows items with a vendor price; opening the Auction House temporarily selects it with AH Mode enabled.
-- Gear filters now show client-appropriate combat stats and equipment types, with duplicate choices grouped. Forever relics also appear in Gear View.
-- Reduced icon-search memory use by loading only icon names and file IDs, compressed until first use.
-- Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
-- The auto-vendor list now shows item links, icons, tooltips, and individual Remove buttons, and can be cleared with confirmation.
-- Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.
-- Auction flags require auction-eligible items; soulbound items cannot be marked for Auction or Mail, and unsellable items cannot be marked Junk.
-- Mail flags can be assigned to saved recipients with custom nicknames and searchable icons, including icons outside Blizzard's default list. Recipient rows show both nickname and character name and can be edited.
-- Mail flags support a queue of one-time quantities followed by an optional default recipient; flags clear once the queue finishes without a default.
-- Mail preparation confirms split-stack quantities before attaching them and blocks mismatched attachments.
-- Automatic mail preparation skips soulbound copies of flagged items.
-- The Send Mail tab opens the recipient list when assigned items are in your bags, prepares flagged items, and refills the next batch after sending.
-- Item flags block conflicting Listview Bag actions; grey items can be protected.
-- The Listview Bag flag column can now be sorted.
-- Added Listview Bag filters for item flags, binding, and categories, including an Essentials category for common reusable items; the dropdown shows how many filters are active.
-- Configure which built-in items are Essentials, optionally include arrows or Soul Shards, and add custom items from your bags.
-- Forever arrows and edible raw fish now appear under Consumables; edible raw fish also remain under Reagents.
-- The bag portrait and settings cog open a menu for Listview Bag settings, switching views, and Auto-Sell Junk. Auto-Sell Junk sells unprotected greys and marked items; Blizzard's grey sale still sells all greys when used separately.
-- The compact Listview Bag footer shows used bag slots alongside currencies, with a color warning that scales with capacity. Hover over the count for physical capacity and inventory breakdowns; the footer itself counts an equipped reagent bag as one available-or-full slot.
+- Added Selling and Gear views with auction prices, equipment comparisons, and client-specific filters.
+- Expanded item flags to include Auction, Bank, and Mail, with safeguards against conflicting actions.
+- Added saved mail recipients and queued quantities, with automatic preparation of mail batches.
+- Added item, binding, and category filters, including configurable Essentials.
+- Improved junk-selling controls and the marked-item list.
+- Redesigned the bag footer and inventory summary with capacity, currencies, and client-specific supplies.
 
 ## v33
 
