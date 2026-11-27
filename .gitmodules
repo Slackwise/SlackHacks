@@ -12,5 +12,5 @@
 	path = Libs/LibDBIcon-1.0
 	url = https://github.com/WoWAddonMirrors/LibDBIcon-1.0.git
 [submodule "Libs/LibRPMedia"]
-	path = Libs/LibRPMedia
+	path = dist/LibRPMedia
 	url = https://github.com/wow-rp-addons/LibRPMedia

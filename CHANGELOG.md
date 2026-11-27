@@ -6,6 +6,7 @@
 - Fixed bug when switching off square mode
 
 ### Inventory
+- Reduced memory used by the mail recipient icon search by loading only icon names and file IDs.
 - Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
 - The auto-vendor list now shows item links, icons, tooltips, and individual Remove buttons, and can be cleared with confirmation.
 - Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.

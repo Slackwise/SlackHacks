@@ -18,6 +18,12 @@
 			}
 		},
 		{
+			"label": "Update Icon Names",
+			"type": "shell",
+			"command": "perl scripts/update-icon-names.pl",
+			"problemMatcher": []
+		},
+		{
 			"label": "Deploy",
 			"type": "shell",
 			"command": "bash scripts/deploy.sh",

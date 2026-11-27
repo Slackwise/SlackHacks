@@ -75,39 +75,24 @@ function CreateFrame(_, name, parent, template)
   return frame
 end
 
-local names = {
-  [100] = "inv_sword_01", [200] = "ability_fire", [300] = "inv_axe",
-  [626003] = "classicon_paladin",
-}
-local libraryIcons = {
-  { file = 100, name = names[100] },
-  { file = 200, name = names[200] },
-  { file = 300, name = names[300] },
-  { file = 626003, name = names[626003] },
-  { name = "classicon_paladin_atlas" },
-}
---- Supply the icon filename library.
----@return table library Icon name lookup.
-function LibStub()
-  return {
-    GetIconNameByID = function(_, id) return names[id] end,
-    GetIconInfoByName = function(_, name)
-      for _, info in ipairs(libraryIcons) do
-        if info.name == name then return info end
-      end
-    end,
-    FindIcons = function(_, query)
-      local index = 0
-      return function()
-        repeat
-          index = index + 1
-          local info = libraryIcons[index]
-          if not info or info.name:find(query, 1, true) then return info end
-        until false
-      end
-    end,
-  }
-end
+WOW_PROJECT_MAINLINE, WOW_PROJECT_CAMELOT, WOW_PROJECT_ID = 1, 2, 1
+C_UIFileAsset = {}
+--- Check whether the mock client can display an icon file.
+---@param id number File ID.
+---@return boolean known Whether the file is available.
+function C_UIFileAsset.IsKnownFile(id) return id ~= 700 end
+SlackHacks.IconNames = { data = [[
+100|3|inv_sword_01
+200|3|ability_fire
+300|3|inv_axe
+400|2|forever_only
+500|1|retail_only
+600|4|mists_only
+601|8|tbc_only
+602|16|vanilla_only
+700|3|unavailable_icon
+626003|3|classicon_paladin
+]] }
 --- Supply the native provider with file IDs and an older string icon.
 ---@return table provider Icon provider.
 function CreateAndInitFromMixin()
@@ -139,7 +124,7 @@ local popup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
 })
 assert(popup.BorderBox.EditBoxHeaderText:GetText() == "Nickname:" and popup:GetHeight() == 560)
 popup:Show()
-assert(popup:GetNumIcons() == 4 and popup:GetIconByIndex(4) == 626003)
+assert(popup:GetNumIcons() == 5 and popup:GetIconByIndex(5) == 626003)
 popup.search:SetText("SWorD")
 assert(popup:GetNumIcons() == 1 and popup:GetIconByIndex(1) == 100)
 popup.search:SetText("axe")
@@ -160,6 +145,10 @@ assert(popup:GetNumIcons() == 0)
 popup:SetIconFilterInternal(1)
 assert(popup:GetNumIcons() == 1 and popup:GetIndexOfIcon(626003) == 1)
 popup.search:SetText("not found")
+assert(popup:GetNumIcons() == 0)
+popup.search:SetText("forever_only")
+assert(popup:GetNumIcons() == 0)
+popup.search:SetText("unavailable")
 assert(popup:GetNumIcons() == 0)
 popup.search:SetText("")
 popup:SetIconFilterInternal(2)
@@ -184,4 +173,47 @@ popup:Open()
 assert(popup.BorderBox.IconSelectorEditBox:GetText() == ""
   and popup.BorderBox.SelectedIconArea.SelectedIconButton:GetIconTexture() == 100)
 popup:Hide()
+WOW_PROJECT_ID = WOW_PROJECT_CAMELOT
+local foreverPopup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
+  nameLabel = "Name:",
+  --- Accept the mock selection.
+  ---@return boolean accepted Whether the popup should close.
+  onConfirm = function() return true end,
+})
+foreverPopup:Show()
+foreverPopup.search:SetText("forever_only")
+assert(foreverPopup:GetNumIcons() == 1 and foreverPopup:GetIconByIndex(1) == 400)
+foreverPopup.search:SetText("retail_only")
+assert(foreverPopup:GetNumIcons() == 0)
+foreverPopup:Hide()
+WOW_PROJECT_ID = 3
+local interface = 50504
+--- Supply a mock client build.
+---@return string, string, string, number version, build, date, interface Client build details.
+function GetBuildInfo() return "", "", "", interface end
+for _, client in ipairs({ { 50504, "mists_only", 600 }, { 20506, "tbc_only", 601 }, { 11509, "vanilla_only", 602 } }) do
+  interface = client[1]
+  local classicPopup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
+    nameLabel = "Name:",
+    --- Accept the mock selection.
+    ---@return boolean accepted Whether the popup should close.
+    onConfirm = function() return true end,
+  })
+  classicPopup:Show()
+  classicPopup.search:SetText(client[2])
+  assert(classicPopup:GetNumIcons() == 1 and classicPopup:GetIconByIndex(1) == client[3])
+  classicPopup:Hide()
+end
+assert(loadfile("IconNames.lua"))()
+WOW_PROJECT_ID = WOW_PROJECT_MAINLINE
+local extractedPopup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
+  nameLabel = "Name:",
+  --- Accept the mock selection.
+  ---@return boolean accepted Whether the popup should close.
+  onConfirm = function() return true end,
+})
+extractedPopup:Show()
+extractedPopup.search:SetText("classicon_paladin")
+assert(extractedPopup:GetIndexOfIcon(626003))
+extractedPopup:Hide()
 print("Icon name popup tests passed")

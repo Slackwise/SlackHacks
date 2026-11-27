@@ -1,5 +1,16 @@
 setfenv(1, _G.SlackHacks)
 
+--- Identify the upstream icon dataset for the current client.
+---@return number|nil flag Dataset bit, or nil for an unsupported client.
+local function getIconDatasetFlag()
+  if WOW_PROJECT_MAINLINE and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then return 1 end
+  if WOW_PROJECT_CAMELOT and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT then return 2 end
+  local interface = select(4, GetBuildInfo())
+  if interface >= 50000 and interface < 60000 then return 4 end
+  if interface >= 20000 and interface < 30000 then return 8 end
+  if interface >= 10000 and interface < 20000 then return 16 end
+end
+
 --- Create a reusable native icon selector with a name field and optional extra controls.
 ---@param parent table Hidden parent frame.
 ---@param options table Labels, optional extra-control factory, and confirmation callback.
@@ -37,39 +48,57 @@ function CreateIconNamePopupFrame(parent, options)
   search:SetSize(150, 20)
   search:SetPoint("LEFT", popup.BorderBox.IconSelectionText, "RIGHT", 12, 0)
   popup.search = search
-  local library = LibStub("LibRPMedia-1.2")
   local icons = {}
+  local datasetFlag = getIconDatasetFlag()
 
-  --- Rebuild the displayed icons from the native provider and matching library file icons.
+  --- Rebuild the displayed icons from the native provider and matching extracted file icons.
   local function refreshIcons()
     if not popup.iconDataProvider then return end
     local query = search:GetText():lower()
     icons = {}
-    local includeLibrary = popup.iconFilter == IconSelectorPopupFrameIconFilterTypes.All
-    local seen = {}
-    for index = 1, popup.iconDataProvider:GetNumIcons() do
-      local icon = popup.iconDataProvider:GetIconByIndex(index)
-      local name
-      if query ~= "" then name = type(icon) == "number" and library:GetIconNameByID(icon) or icon end
-      if query == "" or (type(name) == "string" and name:lower():find(query, 1, true)) then
-        icons[#icons + 1] = icon
-        if includeLibrary then
-          if type(icon) == "number" then
-            seen[icon] = true
-          elseif type(icon) == "string" then
-            local basename = icon:match("([^\\/:]+)$")
-            local info = basename and library:GetIconInfoByName(basename:lower():gsub("%.blp$", ""))
-            if info and info.file then seen[info.file] = true end
+    local includeExtracted = popup.iconFilter == IconSelectorPopupFrameIconFilterTypes.All
+    local matchingIDs, matchingNames, extraIcons = {}, {}, {}
+    if datasetFlag and (query ~= "" or includeExtracted) then
+      -- Keep the compact data as one string; only matching records need temporary lookup tables.
+      for idText, flagsText, name in IconNames.data:gmatch("(%d+)|(%d+)|([^\n]+)\n") do
+        local flags = tonumber(flagsText)
+        if math.floor(flags / datasetFlag) % 2 == 1 and (query == "" or name:find(query, 1, true)) then
+          local id = tonumber(idText)
+          if C_UIFileAsset.IsKnownFile(id) then
+            matchingIDs[id] = true
+            if includeExtracted then
+              matchingNames[name] = matchingNames[name] or id
+              extraIcons[#extraIcons + 1] = id
+            end
           end
         end
       end
     end
-    -- Library icons have no native Spell/Item classification, so add them only to All.
-    if includeLibrary then
-      for info in library:FindIcons(query, { reuseTable = {} }) do
-        if info.file and not seen[info.file] then
-          icons[#icons + 1] = info.file
-          seen[info.file] = true
+    local seen = {}
+    for index = 1, popup.iconDataProvider:GetNumIcons() do
+      local icon = popup.iconDataProvider:GetIconByIndex(index)
+      local matches = query == "" or
+        (type(icon) == "number" and matchingIDs[icon]) or
+        (type(icon) == "string" and icon:lower():find(query, 1, true))
+      if matches then
+        icons[#icons + 1] = icon
+        if includeExtracted then
+          if type(icon) == "number" then
+            seen[icon] = true
+          elseif type(icon) == "string" then
+            local basename = icon:match("([^\\/:]+)$")
+            local id = basename and matchingNames[basename:lower():gsub("%.blp$", "")]
+            if id then seen[id] = true end
+          end
+        end
+      end
+    end
+    -- Extracted icons have no native Spell/Item classification, so add them only to All.
+    if includeExtracted then
+      for _, id in ipairs(extraIcons) do
+        if not seen[id] then
+          icons[#icons + 1] = id
+          seen[id] = true
         end
       end
     end
