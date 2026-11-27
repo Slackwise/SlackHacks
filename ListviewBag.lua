@@ -439,6 +439,17 @@ local function getBindInfo(bagID, slot, itemLink)
   return "", bindType, false, itemInfo and itemInfo.isBound
 end
 
+--- Check whether a bag item is bound to this character rather than the account.
+---@param bagID number Bag identifier.
+---@param slot number Bag slot.
+---@param info table Current container item information.
+---@return boolean soulbound Whether the item is character-bound.
+local function isSoulboundBagItem(bagID, slot, info)
+  if not info.isBound then return false end
+  local _, _, accountBound = getBindInfo(bagID, slot, info.hyperlink)
+  return not accountBound
+end
+
 -- Extracts the upgrade track (e.g. "Champion 5/6") from the tooltip. There's no direct API for
 -- this -- every addon that shows it does the same tooltip-line scan.
 local function getUpgradeTrack(bagID, slot)
@@ -464,11 +475,12 @@ end
 -- item(s) once expanded.
 local function collectGroups()
   local groups, order = {}, {}
+  local selling = selectedView() == "selling"
   for _, bagID in ipairs(bagIDs()) do
     local numSlots = C_Container.GetContainerNumSlots(bagID)
     for slot = 1, numSlots do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID and not info.isFiltered then
+      if info and info.itemID and not info.isFiltered and (not selling or not info.hasNoValue) then
         local bindLabel, bindType, accountBound, isBound = getBindInfo(bagID, slot, info.hyperlink)
         local binding = accountBound and isRetail() and "warbound"
           or (isBound or accountBound) and "soulbound" or "unbound"
@@ -1076,7 +1088,8 @@ local function collectRecipientMailItems(bag)
           local key = itemStatusKey(name, quality,
             C_Item.GetDetailedItemLevelInfo(info.hyperlink) or level, track)
           local id, amount = activeMailRecipient(bag, key)
-          if id and bag.mailRecipients[id] and getItemStatus(key) == ITEM_STATUSES[5] then
+          if id and bag.mailRecipients[id] and getItemStatus(key) == ITEM_STATUSES[5]
+            and not isSoulboundBagItem(bagID, slot, info) then
             items[id] = items[id] or {}
             items[id][#items[id] + 1] = {
               bagID = bagID, slot = slot, itemID = info.itemID, link = info.hyperlink,
@@ -1300,7 +1313,8 @@ local function advanceMailJob(job)
     local recipient, amount = activeMailRecipient(job.bag, item.statusKey)
     if not current or current.isLocked or current.itemID ~= item.itemID or current.hyperlink ~= item.link
       or (current.stackCount or 1) ~= item.count or recipient ~= job.id or amount ~= item.amount
-      or getItemStatus(item.statusKey) ~= ITEM_STATUSES[5] or GetCursorInfo() then
+      or getItemStatus(item.statusKey) ~= ITEM_STATUSES[5] or GetCursorInfo()
+      or isSoulboundBagItem(item.bagID, item.slot, current) then
       stopMailJob("a bag item or the cursor changed; select the recipient again.")
       return
     end
@@ -1983,6 +1997,36 @@ local function updateStatusButton(button, status)
   end
 end
 
+local tooltipFonts = {}
+local tooltipFontHooked = false
+
+--- Restore the shared tooltip's modified line fonts before it is reused.
+local function restoreTooltipFonts()
+  for _, saved in ipairs(tooltipFonts) do
+    saved.text:SetFont(saved.path, saved.size, saved.flags)
+  end
+  wipe(tooltipFonts)
+end
+
+--- Shrink both columns of the current tooltip line.
+local function shrinkTooltipLine()
+  if not tooltipFontHooked then
+    GameTooltip:HookScript("OnTooltipCleared", restoreTooltipFonts)
+    tooltipFontHooked = true
+  end
+  local line = GameTooltip:NumLines()
+  for _, side in ipairs({ "Left", "Right" }) do
+    local text = _G["GameTooltipText" .. side .. line]
+    if text then
+      local path, size, flags = text:GetFont()
+      if path and size then
+        tooltipFonts[#tooltipFonts + 1] = { text = text, path = path, size = size, flags = flags }
+        text:SetFont(path, math.max(6, size - 2), flags)
+      end
+    end
+  end
+end
+
 --- Create a bag row and its status controls.
 ---@param index number Row index.
 ---@return table row Bag row.
@@ -2078,24 +2122,32 @@ local function createRow(index)
       if status and status.id == "mail" then
         local bag = settings()
         local queue = bag.mailQueues[row.statusKey]
+        local defaultID = bag.mailAssignments[row.statusKey]
         GameTooltip:AddLine("Mail Queue:", 1, 1, 1)
         if queue and #queue > 0 then
           for _, entry in ipairs(queue) do
             local recipient = bag.mailRecipients[entry.recipient]
-            local name = recipient and (recipient.nickname .. " (" .. recipient.character .. ")") or "Unavailable"
-            GameTooltip:AddLine(name .. ": " .. entry.remaining .. " remaining", 1, 1, 1)
+            local name = recipient and recipient.nickname or "Unavailable"
+            GameTooltip:AddLine("  - " .. name .. " (" .. entry.remaining .. " pending)", 1, 1, 1)
+            shrinkTooltipLine()
           end
-        else
-          GameTooltip:AddLine("None", 1, 1, 1)
         end
-        local recipient = bag.mailRecipients[bag.mailAssignments[row.statusKey]]
-        local name = recipient and (recipient.nickname .. " (" .. recipient.character .. ")") or "None"
-        GameTooltip:AddLine("Default Recipient: " .. name, 1, 1, 1)
+        if defaultID then
+          local recipient = bag.mailRecipients[defaultID]
+          local name = recipient and recipient.nickname or "Unavailable"
+          GameTooltip:AddLine("  - " .. name .. " (default)", 1, 1, 1)
+          shrinkTooltipLine()
+        elseif not queue or #queue == 0 then
+          GameTooltip:AddLine("  None", 1, 1, 1)
+          shrinkTooltipLine()
+        end
       end
       local rightClick = row.statusInfo.quality == 0 and "Grey items can only be protected."
         or status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
         or "Right-click to quick mark as Junk."
-      GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick, 1, 1, 1, true)
+      local instructionColor = status and status.id == "mail" and 0.6 or 1
+      GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick,
+        instructionColor, instructionColor, instructionColor, true)
       if row.statusInfo.quality == 0 then
         GameTooltip:AddLine("Blizzard's Sell All Junk and Auto-Sell ALL Grey Items ignore protection.", 1, 0.8, 0, true)
       end
@@ -2259,9 +2311,11 @@ end
 local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
-  local filterAuction = selectedView() == "selling" and ahMode and auctionEligibilityAvailable()
+  local view = selectedView()
+  local filterAuction = view == "selling" and ahMode and auctionEligibilityAvailable()
   for _, group in ipairs(groups) do
-    if matchesFilters(group) and (selectedView() ~= "gear" or matchesGearFilters(group))
+    if (view ~= "selling" or type(group.sellPrice) == "number" and group.sellPrice > 0)
+      and matchesFilters(group) and (view ~= "gear" or matchesGearFilters(group))
       and (not filterAuction or filterAuctionEntries(group)) then
       group.isGroupHeader = #group.entries > 1
       rows[#rows + 1] = group
@@ -2602,31 +2656,6 @@ local function slotItemLabel(label, icon)
 end
 
 local slotItemLoads = {}
-local tooltipFonts = {}
-local tooltipFontHooked = false
-
---- Restore the shared tooltip's modified line fonts before it is reused.
-local function restoreTooltipFonts()
-  for _, saved in ipairs(tooltipFonts) do
-    saved.text:SetFont(saved.path, saved.size, saved.flags)
-  end
-  wipe(tooltipFonts)
-end
-
---- Shrink both columns of the current tooltip line.
-local function shrinkTooltipLine()
-  local line = GameTooltip:NumLines()
-  for _, side in ipairs({ "Left", "Right" }) do
-    local text = _G["GameTooltipText" .. side .. line]
-    if text then
-      local path, size, flags = text:GetFont()
-      if path and size then
-        tooltipFonts[#tooltipFonts + 1] = { text = text, path = path, size = size, flags = flags }
-        text:SetFont(path, math.max(6, size - 2), flags)
-      end
-    end
-  end
-end
 
 --- Display individual item variants and, optionally, their total in the inventory tooltip.
 ---@param title string Breakdown heading.
@@ -2769,11 +2798,6 @@ local function showSlotTooltip(owner)
   end
   table.sort(loading)
   table.sort(unavailable)
-  -- GameTooltip reuses its font strings for unrelated tooltips, so restore them on clear.
-  if not tooltipFontHooked then
-    GameTooltip:HookScript("OnTooltipCleared", restoreTooltipFonts)
-    tooltipFontHooked = true
-  end
   restoreTooltipFonts()
   GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT")
   GameTooltip:SetText("Inventory Summary")

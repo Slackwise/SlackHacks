@@ -487,6 +487,10 @@ local auctionGroups = {
 }
 profile.protectedItems["307"] = {}
 upvalue(startAuction, "collectGroups", function() return auctionGroups end)
+local vendorRows = buildDisplayRows()
+assert(#vendorRows == 5 and vendorRows[2].isBound and vendorRows[3].accountBound
+  and vendorRows[4].itemID == 305 and vendorRows[5].itemID == 307,
+  "Selling View without AH Mode must retain vendor-sellable bound, auction-ineligible, and protected items")
 ahCheckbox:SetChecked(true)
 ahCheckbox.scripts.OnClick(ahCheckbox)
 local eligibleRows = buildDisplayRows()
@@ -695,7 +699,8 @@ C_Container = {
     if bagID == 5 and slot == 2 then
       return { itemID = 35, itemName = "Goods", hyperlink = "goods-link", quality = 1, stackCount = 1 }
     end
-    return { itemID = 30, itemName = "Material", hyperlink = "material-link", quality = 1, stackCount = 1 }
+    return { itemID = 30, itemName = "Material", hyperlink = "material-link", quality = 1, stackCount = 1,
+      hasNoValue = bagID == 5 }
   end,
 }
 C_Item = {
@@ -724,6 +729,47 @@ local rows = buildDisplayRows()
 assert(#rows == 2)
 local material = rows[1].itemName == "Material" and rows[1] or rows[2]
 assert(material.itemName == "Material" and material.count == 2 and #material.entries == 2)
+selectView("selling")
+rows = buildDisplayRows()
+material = rows[1].itemName == "Material" and rows[1] or rows[2]
+assert(#rows == 2 and material.count == 1 and #material.entries == 1 and material.entries[1].bagID == 0,
+  "Selling View must exclude unsellable stacks even when another copy of the item can be sold")
+local originalContainerInfo = C_Container.GetContainerItemInfo
+C_Container.GetContainerItemInfo = function(bagID, slot)
+  local info = originalContainerInfo(bagID, slot)
+  info.stackCount = info.itemID == 35 and 2 or bagID == 5 and 10 or 1
+  return info
+end
+upvalue(collectGroups, "sortColumn", "quantity")
+rows = buildDisplayRows()
+assert(rows[1].itemName == "Material" and rows[1].count == 1 and rows[2].itemName == "Goods",
+  "Quantity sorting must use sellable stack counts")
+selectView("selling")
+C_Container.GetContainerItemInfo = function(bagID, slot)
+  local info = originalContainerInfo(bagID, slot)
+  if info.itemID == 30 then info.hasNoValue = true end
+  return info
+end
+rows = buildDisplayRows()
+assert(#rows == 1 and rows[1].itemName == "Goods",
+  "Selling View must hide a group when no stack is sellable despite a vendor price")
+C_Container.GetContainerItemInfo = originalContainerInfo
+local originalItemInfo = C_Item.GetItemInfo
+for _, price in ipairs({ 0, -1 }) do
+  C_Item.GetItemInfo = function(link)
+    return "Material", link, 1, 10, nil, nil, nil, nil, "", nil, price, 7, nil, 0, nil, nil, true
+  end
+  assert(#buildDisplayRows() == 0, "Selling View must exclude zero or negative vendor prices")
+end
+C_Item.GetItemInfo = function(link)
+  return "Material", link, 1, 10, nil, nil, nil, nil, "", nil, nil, 7, nil, 0, nil, nil, true
+end
+assert(#buildDisplayRows() == 0, "Selling View must exclude items while vendor prices are unavailable")
+C_Item.GetItemInfo = originalItemInfo
+selectView("default")
+rows = buildDisplayRows()
+material = rows[1].itemName == "Material" and rows[1] or rows[2]
+assert(#rows == 2 and material.count == 2, "Other views must continue showing unsellable stacks")
 do
   local originalContainer = C_Container
   local originalBind = upvalue(collectGroups, "getBindInfo", function(_, slot)

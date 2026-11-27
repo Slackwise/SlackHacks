@@ -158,6 +158,9 @@ function CreateAtlasMarkup(atlas, width, height)
 end
 GameTooltip = widget()
 function GameTooltip:SetOwner() end
+--- Clear a tooltip font restoration table.
+---@param values table Table to clear.
+function wipe(values) for key in pairs(values) do values[key] = nil end end
 --- Emulate the shared tooltip's reusable font strings.
 local function ensureTooltipFonts()
   local line = GameTooltip:NumLines()
@@ -169,11 +172,12 @@ end
 function GameTooltip:NumLines() return 1 + #self.lineOrder end
 function GameTooltip:SetText(text)
   if self.hooks.OnTooltipCleared then self.hooks.OnTooltipCleared(self) end
-  self.text = text; self.lines = {}; self.doubleLines = {}; self.lineOrder = {}
+  self.text = text; self.lines = {}; self.lineColors = {}; self.doubleLines = {}; self.lineOrder = {}
   ensureTooltipFonts()
 end
-function GameTooltip:AddLine(text)
+function GameTooltip:AddLine(text, r, g, b)
   self.lines[#self.lines + 1] = text; self.lineOrder[#self.lineOrder + 1] = text
+  self.lineColors[#self.lineColors + 1] = { r, g, b }
   ensureTooltipFonts()
 end
 --- Record left and right columns of a tooltip line.
@@ -322,6 +326,8 @@ assert(protected("item"), "Bank marks must use existing protection")
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Bank" and #GameTooltip.lines == 1
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
+assert(GameTooltip.lineColors[1][1] == 1 and GameTooltip.lineColors[1][2] == 1
+  and GameTooltip.lineColors[1][3] == 1, "Other flag instructions should remain white")
 button.scripts.OnClick(button, "RightButton")
 assert(not profile.trashItems.item and profile.bankItems.item and protected("item"))
 chooseRecipient = false
@@ -332,11 +338,17 @@ entries[6].selectStatus()
 assert(profile.mailItems.item and not profile.trashItems.item)
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
-  and GameTooltip.lines[2] == "None" and GameTooltip.lines[3] == "Default Recipient: Bank Alt (Example)")
+  and GameTooltip.lines[2] == "  - Bank Alt (default)")
+assert(_G.GameTooltipTextLeft3.fontSize == 8
+  and GameTooltip.lineColors[3][1] == 0.6 and GameTooltip.lineColors[3][2] == 0.6
+  and GameTooltip.lineColors[3][3] == 0.6)
+GameTooltip:SetText("Unrelated tooltip")
+assert(_G.GameTooltipTextLeft3.fontSize == 10,
+  "Mail tooltip fonts must be restored before another tooltip uses them")
 deleteRecipient(profile, 1)
 assert(profile.mailItems.item and not profile.mailAssignments.item, "Deleting a recipient must leave Mail unassigned")
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[3] == "Default Recipient: None")
+assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[2] == "  None")
 profile.mailRecipients[1] = { nickname = "Bank Alt", character = "Example" }
 entries[6].selectStatus()
 updateStatusButton(button, getStatus("item"))
@@ -584,9 +596,6 @@ do
   profile.columnOrder, profile.view, SlackHacks.isForever, SlackHacks.isRetail =
     originalOrder, originalView, originalForever, originalRetail
 end
---- Clear a table as the client API does.
----@param values table Table to clear.
-function wipe(values) for key in pairs(values) do values[key] = nil end end
 profile.columnOrder = { "name", "quantity" }
 local sortRefreshes = 0
 local selectSortColumn = upvalue(buildFrame, "selectSortColumn")
@@ -991,8 +1000,13 @@ assert(profile.mailItems.stack and not profile.mailAssignments.stack
 row.statusKey = "stack"
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
-  and GameTooltip.lines[2] == "Alt (Example-Realm): 25 remaining"
-  and GameTooltip.lines[3] == "Default Recipient: None")
+  and GameTooltip.lines[2] == "  - Alt (25 pending)"
+  and GameTooltip.lines[3] == "Left-click to choose flag.\nRight-click cannot change this flag.")
+profile.mailQueues.stack[1].remaining = 1
+profile.mailAssignments.stack = 999
+button.scripts.OnEnter(button)
+assert(GameTooltip.lines[2] == "  - Alt (1 pending)" and GameTooltip.lines[3] == "  - Unavailable (default)")
+profile.mailQueues.stack[1].remaining, profile.mailAssignments.stack = 25, nil
 row.statusKey = "item"
 profile.mailRecipients[2] = { nickname = "Other", character = "Other-Realm", icon = 1 }
 openPicker(button, "stack", row.statusInfo)
@@ -1009,9 +1023,9 @@ assert(profile.mailAssignments.stack == 2 and #profile.mailQueues.stack == 2
   "Remember must preserve the FIFO queue")
 row.statusKey = "stack"
 button.scripts.OnEnter(button)
-assert(GameTooltip.lines[2] == "Alt (Example-Realm): 25 remaining"
-  and GameTooltip.lines[3] == "Other (Other-Realm): 4 remaining"
-  and GameTooltip.lines[4] == "Default Recipient: Other (Other-Realm)")
+assert(GameTooltip.lines[2] == "  - Alt (25 pending)"
+  and GameTooltip.lines[3] == "  - Other (4 pending)"
+  and GameTooltip.lines[4] == "  - Other (default)")
 row.statusKey = "item"
 setStatus("stack", row.statusInfo, statuses[2])
 assert(not profile.mailQueues.stack and not profile.mailAssignments.stack,
@@ -1280,6 +1294,21 @@ reagentBagSlots[1] = {
   itemID = 2, itemName = "Herb", hyperlink = "reagent-link", quality = 1, stackCount = 1, isFiltered = true,
 }
 assert(#collectMail(profile)[1] == 14, "Mail preparation must include filtered reagent-bag items")
+local isSoulboundBagItem = upvalue(collectMail, "isSoulboundBagItem")
+local originalBindInfo = upvalue(isSoulboundBagItem, "getBindInfo", function(_, slot)
+  return nil, nil, slot == 2, true
+end)
+bagSlots[1].isBound, bagSlots[2].isBound = true, true
+local mixedMail = collectMail(profile)[1]
+assert(#mixedMail == 13, "Soulbound copies must not be collected for automatic mailing")
+local sawAccountBound = false
+for _, item in ipairs(mixedMail) do
+  assert(item.slot ~= 1 or item.bagID ~= 0, "A soulbound copy must not be prepared for mail")
+  if item.slot == 2 and item.bagID == 0 then sawAccountBound = true end
+end
+assert(sawAccountBound, "Account-bound copies must remain available for mailing")
+bagSlots[1].isBound, bagSlots[2].isBound = nil, nil
+upvalue(isSoulboundBagItem, "getBindInfo", originalBindInfo)
 profile.bankItems[swordKey] = {}
 assert(#collectMail(profile)[1] == 3, "Conflicting protected flags must prevent automatic mailing")
 profile.bankItems[swordKey] = nil
