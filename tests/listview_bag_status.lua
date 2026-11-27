@@ -12,6 +12,9 @@ function SlackHacks:NewModule() return { IsEnabled = function() return true end 
 --- Include the modern reagent bag.
 ---@return boolean modern
 function SlackHacks.isRetailOrForever() return true end
+--- Emulate Retail availability for client-specific footer behavior.
+---@return boolean retail Whether the Retail client is active.
+function SlackHacks.isRetail() return false end
 --- Emulate Retail until client-specific tests override it.
 ---@return boolean forever Whether the Forever client is active.
 function SlackHacks.isForever() return false end
@@ -666,6 +669,17 @@ upvalue(module.OnEnable, "hookMerchantJunkButton", function() end)
 upvalue(module.OnEnable, "updateMerchantJunkButton", function() end)
 module:OnEnable()
 assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must register the supported cursor event")
+assert(registeredEvents.UNIT_INVENTORY_CHANGED == "OnSupplyInventoryChanged"
+  and registeredEvents.UPDATE_INVENTORY_DURABILITY == "RefreshFooter",
+  "Equipped ammunition and thrown durability must refresh")
+do
+  local refreshes = 0
+  local original = upvalue(module.OnSupplyInventoryChanged, "refreshFooter", function() refreshes = refreshes + 1 end)
+  module:OnSupplyInventoryChanged("UNIT_INVENTORY_CHANGED", "target")
+  module:OnSupplyInventoryChanged("UNIT_INVENTORY_CHANGED", "player")
+  assert(refreshes == 1, "Only the player's inventory changes should refresh supplies")
+  upvalue(module.OnSupplyInventoryChanged, "refreshFooter", original)
+end
 
 -- Exercise the real picker callbacks with native widgets replaced by lightweight frames.
 local originalCreateFrame = CreateFrame
@@ -1814,7 +1828,7 @@ C_Item.GetItemInfo = function(key)
   if level == nil then level = 1 elseif level == false then level = nil end
   local icon = item[6]
   if icon == nil then icon = 7000 elseif icon == false then icon = nil end
-  return item[1], type(key) == "string" and key or nil, 1, level, nil, nil, nil, nil, "", icon, 1,
+  return item[1], type(key) == "string" and key or nil, item[7] or 1, level, nil, nil, nil, nil, "", icon, 1,
     item[2], item[3], 0, nil, nil, item[4]
 end
 --- Supply the variant-specific item level.
@@ -1833,6 +1847,44 @@ local playerClass = "WARLOCK"
 ---@return string name Localized class name.
 ---@return string token Class token.
 function UnitClass() return playerClass, playerClass end
+local equippedThrown, ammoEquipped, rangedLinkCached = false, true, true
+--- Supply the equipment slot identifiers.
+---@param name string Slot name.
+---@return number slot Slot identifier.
+function GetInventorySlotInfo(name) return name == "RangedSlot" and 18 or 0 end
+--- Supply the ranged weapon hyperlink.
+---@param unit string Unit token.
+---@param slot number Equipment slot.
+---@return string|nil link Equipped weapon.
+function GetInventoryItemLink(unit, slot)
+  return rangedLinkCached and slot == 18 and (playerClass == "HUNTER" or playerClass == "ROGUE" or playerClass == "WARRIOR")
+    and "ranged" or nil
+end
+--- Supply the equipped ranged item's ID while its link is uncached.
+---@return number|nil id Equipped item ID.
+function GetInventoryItemID() return not rangedLinkCached and 123 or nil end
+--- Identify the mocked ranged weapon.
+---@return number id Item ID.
+---@return nil itemType Unused.
+---@return nil subtype Unused.
+---@return string equipLoc Equipment type.
+function C_Item.GetItemInfoInstant() return 1, nil, nil, equippedThrown and "INVTYPE_THROWN" or "INVTYPE_RANGED" end
+--- Supply icons for the ammunition and ranged weapon.
+---@param unit string Unit token.
+---@param slot number Equipment slot.
+---@return number icon Texture ID.
+function GetInventoryItemTexture(unit, slot)
+  if playerClass ~= "HUNTER" and playerClass ~= "ROGUE" and playerClass ~= "WARRIOR" then return nil end
+  if slot == 0 and not ammoEquipped then return nil end
+  return slot == 0 and 1001 or 1004
+end
+--- Supply the amount of equipped ammunition.
+---@return number count Ammunition count.
+function GetInventoryItemCount() return 120 end
+--- Supply thrown weapon durability.
+---@return number current Current durability.
+---@return number maximum Maximum durability.
+function GetInventoryItemDurability() return 80, 200 end
 --- Record the tooltip owner.
 ---@param owner table Tooltip anchor.
 function GameTooltip:SetOwner(owner) self.owner = owner end
@@ -1840,9 +1892,37 @@ function GameTooltip:SetOwner(owner) self.owner = owner end
 ---@param owner table Tooltip anchor.
 ---@return boolean owned Whether the tooltip belongs to the anchor.
 function GameTooltip:IsOwned(owner) return self.owner == owner end
+--- Record a bag-item tooltip.
+---@param bag number Bag ID.
+---@param slot number Bag slot.
+function GameTooltip:SetBagItem(bag, slot) self.bagItem = { bag, slot }; self:SetText("Bag item") end
+--- Record an equipped-item tooltip.
+---@param unit string Unit token.
+---@param slot number Equipment slot.
+function GameTooltip:SetInventoryItem(unit, slot) self.inventoryItem = { unit, slot }; self:SetText("Equipped item") end
 --- Hide the tooltip and release its owner.
 GameTooltip_Hide = function() GameTooltip.owner = nil; GameTooltip:Hide() end
 footer.slotHover:SetScript("OnLeave", GameTooltip_Hide)
+updateFooter()
+assert(#footer.supplyFrame.buttons == 4 and footer.supplyFrame.buttons[1].supply.itemID == 6265
+  and footer.supplyFrame.buttons[1].Count.text == "3"
+  and footer.supplyFrame.buttons[2].supply.itemID == 1251
+  and footer.supplyFrame.buttons[3].supply.itemID == 2456
+  and footer.supplyFrame.buttons[4].supply.itemID == 241300,
+  "Forever Warlocks must see shards and the highest-level bandage, health, and mana potions in order")
+footer.supplyFrame.buttons[2].scripts.OnEnter(footer.supplyFrame.buttons[2])
+assert(GameTooltip.bagItem[1] == 0 and GameTooltip.bagItem[2] == 7,
+  "Hovering a supply must show the selected bag item's native tooltip")
+footer.supplyFrame.buttons[2].scripts.OnLeave()
+tooltipItems[0][12] = { itemID = 1251, itemName = "Linen Bandage", hyperlink = "bandage", stackCount = 7 }
+updateFooter()
+assert(footer.supplyFrame.buttons[2].Count.text == "11", "The chosen item's stacks must be combined")
+tooltipMetadata.fine = { "Fine Bandage", 0, 7, false, 5, 8000, 3 }
+tooltipItems[0][12] = { itemID = 9000, itemName = "Fine Bandage", hyperlink = "fine", stackCount = 2 }
+updateFooter()
+assert(footer.supplyFrame.buttons[2].supply.itemID == 9000 and footer.supplyFrame.buttons[2].Count.text == "2",
+  "Quality must break ties between equally leveled supplies")
+tooltipItems[0][12], tooltipMetadata.fine = nil, nil
 updateFooter()
 assert(footer.slotHover:GetWidth() == footer.slotCount:GetStringWidth()
   and footer.slotHover.points.LEFT[1] == footer.slotCount)
@@ -1922,6 +2002,38 @@ assert(tooltipValue("  Essentials") == "2" and tooltipValue("  Reagents") == "7"
 profile.customEssentialItems[6289] = nil
 playerClass = "HUNTER"
 updateFooter()
+assert(footer.supplyFrame.buttons[1].supply.inventorySlot == 0
+  and footer.supplyFrame.buttons[1].Icon.texture == 1001 and footer.supplyFrame.buttons[1].Count.text == "120",
+  "The footer must show equipped ammunition, not the highest-level arrow stack")
+footer.supplyFrame.buttons[1].scripts.OnEnter(footer.supplyFrame.buttons[1])
+assert(GameTooltip.inventoryItem[2] == 0, "Hovering ammunition must show its equipment tooltip")
+footer.supplyFrame.buttons[1].scripts.OnLeave()
+ammoEquipped = false
+updateFooter()
+assert(footer.supplyFrame.buttons[1].supply.itemID == 9999,
+  "Missing ammunition must not be replaced by an unequipped arrow stack")
+ammoEquipped = true
+equippedThrown = true
+updateFooter()
+assert(footer.supplyFrame.buttons[1].supply.inventorySlot == 18
+  and footer.supplyFrame.buttons[1].Icon.texture == 1004 and footer.supplyFrame.buttons[1].Count.text == "80/200",
+  "A thrown weapon must replace ammunition with its durability")
+rangedLinkCached = false
+updateFooter()
+assert(footer.supplyFrame.buttons[1].supply.inventorySlot == 18,
+  "An uncached thrown weapon link must still be identified by item ID")
+rangedLinkCached = true
+local originalDurability = GetInventoryItemDurability
+GetInventoryItemDurability = function() return nil, nil end
+updateFooter()
+assert(footer.supplyFrame.buttons[1].Count.text == "?", "Unavailable thrown durability must not hide the weapon")
+footer.supplyFrame.buttons[1].scripts.OnEnter(footer.supplyFrame.buttons[1])
+assert(GameTooltip.lines[1] == "Durability unavailable.")
+footer.supplyFrame.buttons[1].scripts.OnLeave()
+GetInventoryItemDurability = originalDurability
+equippedThrown = false
+updateFooter()
+footer.slotHover.scripts.OnEnter(footer.slotHover)
 assert(tooltipValue("Arrows") == "180" and tooltipValue("arrow") == "110" and tooltipValue("sharp") == "70"
   and tooltipValue("Shots") == "90" and tooltipValue("shot") == "40"
   and tooltipValue("heavy") == "50" and not tooltipValue("Soul Shards")
@@ -1965,6 +2077,7 @@ for _, class in ipairs({ "ROGUE", "WARRIOR" }) do
   assert(tooltipValue("Arrows") == "180" and tooltipValue("Shots") == "90"
     and not tooltipIndex("Mana Potions"),
     class .. " must see both ammunition types")
+  assert(not footer.supplyFrame.buttons[4].shown, class .. " must not see mana potions in the footer")
 end
 playerClass = "MAGE"
 updateFooter()
@@ -1974,8 +2087,17 @@ assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipV
 footer.slotHover.scripts.OnLeave()
 assert(not rawget(GameTooltip, "owner") and not GameTooltip.shown)
 SlackHacks.isForever = function() return false end
+SlackHacks.isRetail = function() return true end
+profile.trackCrestCurrencies = false
 playerClass = "HUNTER"
 footer.slotHover.scripts.OnEnter(footer.slotHover)
+updateFooter()
+assert(footer.supplyFrame.buttons[1].supply.itemID ~= 6265
+  and not footer.supplyFrame.buttons[3].shown, "Retail Hunters must not see shards, ammunition, or mana potions")
+profile.trackCrestCurrencies = true
+updateFooter()
+assert(not footer.supplyFrame.shown, "Retail crest mode must hide the supply strip")
+profile.trackCrestCurrencies = false
 assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards"))
 assert(not tooltipIndex("Mana Potions"), "Retail Hunters must not see mana potions")
 for _, class in ipairs({ "DEATHKNIGHT", "DEMONHUNTER" }) do

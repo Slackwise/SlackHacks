@@ -31,6 +31,7 @@ local fields = { "trashItems", "protectedItems", "auctionItems", "bankItems", "m
 ---@return table profile
 local function makeProfile()
   local bag = { enabled = true }
+  bag.trackCrestCurrencies = false
   for _, field in ipairs(fields) do
     bag[field] = {
       [grey] = true,
@@ -48,6 +49,8 @@ end
 ---@param profile table Profile to check.
 local function checkProfile(profile)
   assert(profile.listviewBag.enabled)
+  assert(profile.listviewBag.trackCrestCurrencies == false,
+    "An existing disabled crest preference must remain available as the supplies selection")
   assert(profile.listviewBag.mailAssignments[common] == 3
     and profile.listviewBag.mailRecipients[3].character == "Alt-Realm"
     and profile.listviewBag.mailAmounts == nil

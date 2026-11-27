@@ -9,6 +9,7 @@
 - Fixed bug when switching off square mode
 
 ### Inventory
+- The Listview Bag footer shows equipped ammunition or thrown durability and the best available supplies on Forever. Retail can choose supplies or crests.
 - Added Selling and Gear views to the Listview Bag, with cached auction pricing, equipment stat comparisons, and gear filters.
 - Reduced icon-search memory use by loading only icon names and file IDs, compressed until first use.
 - Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
@@ -22,7 +23,7 @@
 - Added Listview Bag filters for item flags and categories, including an Essentials category for common reusable items; the dropdown shows how many filters are active.
 - Configure which built-in items are Essentials, optionally include arrows or Soul Shards, and add custom items from your bags.
 - Forever arrows and edible raw fish now appear under Consumables; edible raw fish also remain under Reagents.
-- The bag portrait and settings cog open a menu for Listview Bag settings, switching views, crest tracking, and Auto-Sell Junk. Auto-Sell Junk sells unprotected greys and marked items; Blizzard's grey sale still sells all greys when used separately.
+- The bag portrait and settings cog open a menu for Listview Bag settings, switching views, footer display, and Auto-Sell Junk. Auto-Sell Junk sells unprotected greys and marked items; Blizzard's grey sale still sells all greys when used separately.
 - The compact Listview Bag footer shows used bag slots alongside currencies, with a color warning that scales with capacity. Hover over the count for physical capacity and inventory breakdowns; the footer itself counts an equipped reagent bag as one available-or-full slot.
 
 ## v33

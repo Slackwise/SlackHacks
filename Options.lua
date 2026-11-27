@@ -2000,18 +2000,22 @@ options = {
               disabled = function() return not db.profile.listviewBag.enabled end,
               order = 2
             },
-            trackCrestCurrencies = {
-              name = "Track Crest Currencies",
-              desc = "Display a strip of your current season crest currencies in the bottom status bar of the Listview Bag.",
-              type = "toggle",
+            footerDisplay = {
+              name = "Footer Display",
+              desc = "Show either current season crests or your best available supplies in the Listview Bag footer.",
+              type = "select",
+              style = "radio",
+              values = { crests = "Crests", supplies = "Supplies" },
               descStyle = "inline",
               width = "full",
-              get = function() return db.profile.listviewBag.trackCrestCurrencies end,
+              -- Reuse the existing preference so older profiles keep their crest selection.
+              get = function() return db.profile.listviewBag.trackCrestCurrencies and "crests" or "supplies" end,
               set = function(_, value)
-                db.profile.listviewBag.trackCrestCurrencies = value
+                db.profile.listviewBag.trackCrestCurrencies = value == "crests"
                 if Self.ListviewBag then Self.ListviewBag:RefreshFooter() end
               end,
-              disabled = function() return not db.profile.listviewBag.enabled or not isRetail() end,
+              hidden = function() return not isRetail() end,
+              disabled = function() return not db.profile.listviewBag.enabled end,
               order = 2.5
             },
             essentials = {

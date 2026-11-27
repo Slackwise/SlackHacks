@@ -2419,18 +2419,52 @@ end
 ---@param link string|nil Item link.
 ---@param itemLevel number|nil Base item level.
 ---@param icon number|string|nil Item icon.
-local function addSlotBreakdown(breakdown, info, name, link, itemLevel, icon)
+---@param quality number|nil Item quality.
+---@param bagID number|nil Bag containing the item.
+---@param slot number|nil Slot containing the item.
+local function addSlotBreakdown(breakdown, info, name, link, itemLevel, icon, quality, bagID, slot)
   local key = link or info.itemID
   local entry = breakdown[key]
   if not entry then
     entry = { label = link or name or ("Item #" .. info.itemID), name = name or "", count = 0, icon = icon,
+      itemID = info.itemID, link = link, quality = quality or info.quality, bagID = bagID, slot = slot,
       itemLevel = C_Item.GetDetailedItemLevelInfo(link or info.itemID) or itemLevel }
     breakdown[key] = entry
   else
     entry.icon = entry.icon or icon
     entry.itemLevel = entry.itemLevel or itemLevel
+    entry.quality = entry.quality or quality or info.quality
   end
   entry.count = entry.count + (info.stackCount or 1)
+end
+
+--- Add a bag item to the consumable categories it belongs to.
+---@param lists table Bandage, health, and mana breakdowns.
+---@param info table Container item information.
+---@param name string|nil Item name.
+---@param link string|nil Item hyperlink.
+---@param itemLevel number|nil Item level.
+---@param icon number|string|nil Item icon.
+---@param quality number|nil Item quality.
+---@param classID number|nil Item class.
+---@param subclassID number|nil Item subclass.
+---@param showMana boolean Whether the player's class can use mana.
+---@param bagID number Bag identifier.
+---@param slot number Bag slot.
+local function addConsumableBreakdowns(lists, info, name, link, itemLevel, icon, quality, classID, subclassID, showMana, bagID, slot)
+  local id = info.itemID
+  if (BEST_ITEMS and BEST_ITEMS.BEST_BANDAGES[id]) or ADDITIONAL_BANDAGES[id]
+    or (classID == 0 and subclassID == ((Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.Bandage) or 7)) then
+    addSlotBreakdown(lists.bandages, info, name, link, itemLevel, icon, quality, bagID, slot)
+  end
+  if (BEST_ITEMS and BEST_ITEMS.BEST_HEALING_POTIONS[id])
+    or ADDITIONAL_HEALTH_POTIONS[id] or REJUVENATION_POTIONS[id] then
+    addSlotBreakdown(lists.health, info, name, link, itemLevel, icon, quality, bagID, slot)
+  end
+  if showMana and ((BEST_ITEMS and BEST_ITEMS.BEST_MANA_POTIONS[id])
+    or ADDITIONAL_MANA_POTIONS[id] or REJUVENATION_POTIONS[id]) then
+    addSlotBreakdown(lists.mana, info, name, link, itemLevel, icon, quality, bagID, slot)
+  end
 end
 
 --- Add an inline item icon when its texture is available.
@@ -2474,6 +2508,7 @@ local function showSlotTooltip(owner)
   if not isModuleEnabled() then return end
   local totalSlots, freeSlots, reagentSlots, reagentFree = 0, 0, 0, 0
   local categories, arrows, shots, bandages, health, mana = {}, {}, {}, {}, {}, {}
+  local consumables = { bandages = bandages, health = health, mana = mana }
   local shards, shardIcon, incomplete = 0, nil, false
   local bag = settings()
   local forever = isForever()
@@ -2514,18 +2549,8 @@ local function showSlotTooltip(owner)
         if forever and class == "WARLOCK" and info.itemID == SOUL_SHARD_ITEM_ID then
           shards, shardIcon = shards + count, shardIcon or itemIcon
         end
-        if (BEST_ITEMS and BEST_ITEMS.BEST_BANDAGES[info.itemID]) or ADDITIONAL_BANDAGES[info.itemID]
-          or (classID == 0 and subclassID == ((Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.Bandage) or 7)) then
-          addSlotBreakdown(bandages, info, name, link, itemLevel, itemIcon)
-        end
-        if (BEST_ITEMS and BEST_ITEMS.BEST_HEALING_POTIONS[info.itemID])
-          or ADDITIONAL_HEALTH_POTIONS[info.itemID] or REJUVENATION_POTIONS[info.itemID] then
-          addSlotBreakdown(health, info, name, link, itemLevel, itemIcon)
-        end
-        if showMana and ((BEST_ITEMS and BEST_ITEMS.BEST_MANA_POTIONS[info.itemID])
-          or ADDITIONAL_MANA_POTIONS[info.itemID] or REJUVENATION_POTIONS[info.itemID]) then
-          addSlotBreakdown(mana, info, name, link, itemLevel, itemIcon)
-        end
+        addConsumableBreakdowns(consumables, info, name, link, itemLevel, itemIcon, quality,
+          classID, subclassID, showMana, bagID, slot)
         if not name then incomplete = true end
       end
     end
@@ -2572,6 +2597,131 @@ local function showSlotTooltip(owner)
   GameTooltip:Show()
 end
 
+--- Select the highest-level item, breaking ties by quality and name.
+---@param breakdown table Item variants keyed by link or item ID.
+---@return table|nil item Best available variant.
+local function bestSupply(breakdown)
+  local best
+  for _, item in pairs(breakdown) do
+    local level, quality = item.itemLevel or -1, item.quality or -1
+    if not best or level > (best.itemLevel or -1)
+      or (level == (best.itemLevel or -1) and quality > (best.quality or -1))
+      or (level == (best.itemLevel or -1) and quality == (best.quality or -1) and item.label < best.label) then
+      best = item
+    end
+  end
+  return best
+end
+
+--- Collect the equipped ammunition or thrown weapon and the best consumables in bags.
+---@return table supplies Ordered available footer entries.
+local function collectFooterSupplies()
+  local result, lists = {}, { bandages = {}, health = {}, mana = {} }
+  local class = select(2, UnitClass("player"))
+  local forever = isForever()
+  local showMana = MANA_CLASSES[class] or (forever and class == "HUNTER")
+  if forever then
+    local rangedSlot = GetInventorySlotInfo("RangedSlot")
+    local rangedItem = rangedSlot and (GetInventoryItemLink("player", rangedSlot) or GetInventoryItemID("player", rangedSlot))
+    local equipLoc = rangedItem and select(4, C_Item.GetItemInfoInstant(rangedItem))
+    if equipLoc == "INVTYPE_THROWN" then
+      local current, maximum = GetInventoryItemDurability(rangedSlot)
+      local available = current and maximum and maximum > 0
+      result[#result + 1] = { inventorySlot = rangedSlot, icon = GetInventoryItemTexture("player", rangedSlot),
+        text = available and (current .. "/" .. maximum) or "?",
+        unavailable = not available and "Durability unavailable." or nil }
+    else
+      local ammoSlot = GetInventorySlotInfo("AmmoSlot")
+      local ammoIcon = ammoSlot and GetInventoryItemTexture("player", ammoSlot)
+      if ammoIcon then
+        local count = GetInventoryItemCount("player", ammoSlot)
+        result[#result + 1] = { inventorySlot = ammoSlot, icon = ammoIcon,
+          text = count and tostring(count) or "?", unavailable = not count and "Ammunition count unavailable." or nil }
+      end
+    end
+  end
+  local shard
+  for _, bagID in ipairs(bagIDs()) do
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.itemID then
+        local name, link, quality, itemLevel, _, _, _, _, _, icon, _, classID, subclassID =
+          C_Item.GetItemInfo(info.hyperlink or info.itemID)
+        name, link, icon = name or info.itemName, link or info.hyperlink, info.iconFileID or icon
+        if class == "WARLOCK" and info.itemID == SOUL_SHARD_ITEM_ID then
+          if not shard then shard = { bagID = bagID, slot = slot, itemID = info.itemID, icon = icon, count = 0 } end
+          shard.icon = shard.icon or icon
+          shard.count = shard.count + (info.stackCount or 1)
+        end
+        addConsumableBreakdowns(lists, info, name, link, itemLevel, icon, quality,
+          classID, subclassID, showMana, bagID, slot)
+      end
+    end
+  end
+  if shard then shard.text = tostring(shard.count); result[#result + 1] = shard end
+  for _, list in ipairs({ lists.bandages, lists.health, lists.mana }) do
+    local item = bestSupply(list)
+    if item then item.text = tostring(item.count); result[#result + 1] = item end
+  end
+  return result
+end
+
+--- Show the native tooltip for a footer item.
+---@param button table Supply button.
+local function supplyOnEnter(button)
+  GameTooltip:SetOwner(button, "ANCHOR_TOPLEFT")
+  if button.supply.inventorySlot then
+    GameTooltip:SetInventoryItem("player", button.supply.inventorySlot)
+  else
+    GameTooltip:SetBagItem(button.supply.bagID, button.supply.slot)
+  end
+  if button.supply.unavailable then GameTooltip:AddLine(button.supply.unavailable, 1, 0.82, 0) end
+  GameTooltip:Show()
+end
+
+--- Update the compact item strip and return its measured width.
+---@param supplyFrame table Frame containing the supply buttons.
+---@return number width Strip width, or zero when not shown.
+local function updateSupplyFrame(supplyFrame)
+  local show = isForever() or (isRetail() and not settings().trackCrestCurrencies)
+  local items = show and collectFooterSupplies() or {}
+  local width = 0
+  for index, item in ipairs(items) do
+    local button = supplyFrame.buttons[index]
+    if not button then
+      button = CreateFrame("Frame", nil, supplyFrame)
+      button:SetHeight(20)
+      button:EnableMouse(true)
+      button.Icon = button:CreateTexture(nil, "ARTWORK")
+      button.Icon:SetSize(16, 16)
+      button.Icon:SetPoint("LEFT")
+      button.Count = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      button.Count:SetPoint("LEFT", button.Icon, "RIGHT", 2, 0)
+      button:SetScript("OnEnter", supplyOnEnter)
+      button:SetScript("OnLeave", GameTooltip_Hide)
+      supplyFrame.buttons[index] = button
+    end
+    button.supply = item
+    button.Icon:SetTexture(item.icon or 134400)
+    button.Count:SetText(item.text)
+    button:ClearAllPoints()
+    button:SetPoint("LEFT", supplyFrame, "LEFT", width, 0)
+    button:SetWidth(18 + button.Count:GetStringWidth())
+    button:Show()
+    width = width + button:GetWidth() + 4
+    if GameTooltip:IsOwned(button) then supplyOnEnter(button) end
+  end
+  for index = #items + 1, #supplyFrame.buttons do
+    local button = supplyFrame.buttons[index]
+    if GameTooltip:IsOwned(button) then GameTooltip:Hide() end
+    button:Hide()
+  end
+  if width > 0 then width = width - 4 end
+  supplyFrame:SetWidth(math.max(1, width))
+  supplyFrame:SetShown(width > 0)
+  return width
+end
+
 --- Refresh the footer slots, balances, and filter summary.
 local function updateFooter()
   updateFiltersLabel()
@@ -2595,6 +2745,7 @@ local function updateFooter()
   local tokenWidth = sizeCurrencyFrame(footer.tokenFrame)
   footer.crestFrame:Update()
   local crestWidth = sizeCurrencyFrame(footer.crestFrame)
+  local supplyWidth = updateSupplyFrame(footer.supplyFrame)
   local width = footer.moneyFrame:GetWidth()
   footer.tokenFrame:ClearAllPoints()
   footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
@@ -2606,6 +2757,15 @@ local function updateFooter()
     footer.crestFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
   end
   if crestWidth > 0 then width = width + crestWidth + 4 end
+  footer.supplyFrame:ClearAllPoints()
+  if crestWidth > 0 then
+    footer.supplyFrame:SetPoint("RIGHT", footer.crestFrame, "LEFT", -4, 0)
+  elseif tokenWidth > 0 then
+    footer.supplyFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
+  else
+    footer.supplyFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
+  end
+  if supplyWidth > 0 then width = width + supplyWidth + 4 end
 
   footer.slotCount:SetFont(footer.slotFont, footer.slotFontSize, footer.slotFontFlags)
   local available = footer:GetWidth() - 12
@@ -2949,6 +3109,9 @@ local function createFooter()
   footer.crestFrame.Update = updateCrestFrame
   footer.crestFrame:SetWidth(276)
   footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
+  footer.supplyFrame = CreateFrame("Frame", nil, footer.balanceContents)
+  footer.supplyFrame.buttons = {}
+  footer.supplyFrame:SetHeight(20)
 end
 
 --=====================================================================
@@ -3071,13 +3234,15 @@ local function openBagSettingsMenu(anchor)
   local function switchToDefault()
     if isModuleEnabled() then setShowListviewBag(false) end
   end
-  --- Report whether crest currencies are tracked.
-  ---@return boolean tracked Whether crest tracking is enabled.
-  local function trackCrests() return settings().trackCrestCurrencies end
-  --- Toggle crest tracking and update the footer.
-  local function toggleCrests()
+  --- Report whether the chosen Retail footer display is active.
+  ---@param crests boolean Whether to check for crests rather than supplies.
+  ---@return boolean selected Whether this display is selected.
+  local function footerSelected(crests) return settings().trackCrestCurrencies == crests end
+  --- Select the Retail footer display.
+  ---@param crests boolean Whether to show crests rather than supplies.
+  local function selectFooter(crests)
     if not isModuleEnabled() or not isRetail() then return end
-    settings().trackCrestCurrencies = not settings().trackCrestCurrencies
+    settings().trackCrestCurrencies = crests
     module:RefreshFooter()
   end
   --- Report whether automatic junk selling is enabled.
@@ -3094,20 +3259,29 @@ local function openBagSettingsMenu(anchor)
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateButton("Switch back to default bags", switchToDefault)
-      local crests = root:CreateCheckbox("Track Crest Currencies", trackCrests, toggleCrests)
-      if not isRetail() then crests:SetEnabled(false) end
+      if isRetail() then
+        local display = root:CreateButton("Footer Display")
+        display:CreateRadio("Crests", function() return footerSelected(true) end, function() selectFooter(true) end)
+        display:CreateRadio("Supplies", function() return footerSelected(false) end, function() selectFooter(false) end)
+      end
       root:CreateCheckbox("Auto-Sell Junk", autoSell, toggleAutoSell)
       root:CreateButton("Open Settings", openBagOptions)
     end)
   else
     local menu = {
       { text = "Switch back to default bags", notCheckable = true, func = switchToDefault },
-      { text = "Track Crest Currencies", isNotRadio = true, keepShownOnClick = true,
-        disabled = not isRetail(), checked = trackCrests, func = toggleCrests },
-      { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
-        checked = autoSell, func = toggleAutoSell },
-      { text = "Open Settings", notCheckable = true, func = openBagOptions },
     }
+    if isRetail() then
+      menu[#menu + 1] = { text = "Footer Display", notCheckable = true, hasArrow = true, menuList = {
+        { text = "Crests", checked = function() return footerSelected(true) end,
+          func = function() selectFooter(true) end },
+        { text = "Supplies", checked = function() return footerSelected(false) end,
+          func = function() selectFooter(false) end },
+      } }
+    end
+    menu[#menu + 1] = { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
+      checked = autoSell, func = toggleAutoSell }
+    menu[#menu + 1] = { text = "Open Settings", notCheckable = true, func = openBagOptions }
     if not module.bagSettingsMenu then
       module.bagSettingsMenu = CreateFrame("Frame", "SlackHacksListviewBagSettingsMenu", UIParent, "UIDropDownMenuTemplate")
     end
@@ -3545,6 +3719,8 @@ function module:OnEnable()
   self:RegisterEvent("INVENTORY_SEARCH_UPDATE", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
+  self:RegisterEvent("UNIT_INVENTORY_CHANGED", "OnSupplyInventoryChanged")
+  self:RegisterEvent("UPDATE_INVENTORY_DURABILITY", "RefreshFooter")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
   self:RegisterEvent("CURSOR_CHANGED", "OnCursorChanged")
@@ -3766,6 +3942,13 @@ end
 
 function module:RefreshFooter()
   refreshFooter()
+end
+
+--- Refresh equipped ammunition when the player's inventory changes.
+---@param event string Event name.
+---@param unit string Unit whose inventory changed.
+function module:OnSupplyInventoryChanged(event, unit)
+  if unit == "player" then refreshFooter() end
 end
 
 function module:Refresh()
