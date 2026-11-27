@@ -2,6 +2,7 @@
 *~
 users.json
 .vscode/settings.json
-dist/
+dist/*
+!dist/LibRPMedia/
 .env
 .bin/

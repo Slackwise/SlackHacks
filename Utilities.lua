@@ -441,6 +441,7 @@ end
 
 --- Updates command ownership and the inventory baseline after option, profile, or addon-load changes.
 function module:ApplyAll()
+  ApplyNativeIconPickerSearch()
   if self.lootContainerFrame and self.lootContainerSettings ~= db.profile.utilities.autoOpenLootContainers then
     self:ResetLootContainerTracking()
   end

@@ -368,6 +368,38 @@ end
 ---@return string version
 function addon.getAddonVersion() return "test" end
 assert(loadfile("Options.lua"))()
+local nativeSearchApplications, appliedSearchPreference = 0, nil
+--- Count application of the native picker search preference.
+function addon.ApplyNativeIconPickerSearch()
+  nativeSearchApplications = nativeSearchApplications + 1
+  appliedSearchPreference = addon.db.profile.utilities.addIconPickerSearch
+end
+local pickerSearch = addon.options.args.utilities.args.addIconPickerSearch
+assert(addon.dbDefaults.profile.utilities.addIconPickerSearch == false)
+assert(pickerSearch.order > addon.options.args.utilities.args.showInGameNavigation.order)
+assert(pickerSearch.desc == "Adds a Search box to the Macro and Equipment Set icon pickers.")
+pickerSearch.set(nil, true)
+assert(pickerSearch.get() and nativeSearchApplications == 1)
+pickerSearch.set(nil, false)
+assert(not pickerSearch.get() and nativeSearchApplications == 2)
+local profileCallbacks = {}
+--- Capture the Utilities module's AceDB profile callbacks.
+---@param target table Callback target.
+---@param event string Profile event.
+---@param method string Callback method.
+function addon.db.RegisterCallback(target, event, method)
+  --- Invoke the registered profile callback.
+  profileCallbacks[event] = function() target[method](target) end
+end
+module:OnInitialize()
+addon.db.profile.utilities.tomtomWayCommand = false
+addon.db.profile.utilities.addIconPickerSearch = true
+profileCallbacks.OnProfileChanged()
+assert(nativeSearchApplications == 3 and appliedSearchPreference)
+addon.db.profile.utilities.addIconPickerSearch = false
+profileCallbacks.OnProfileCopied()
+profileCallbacks.OnProfileReset()
+assert(nativeSearchApplications == 5 and not appliedSearchPreference)
 local group = addon.options.args.utilities.args.autoOpenLootContainers
 local path = { "utilities", "autoOpenLootContainers", "clams" }
 addon.db.profile.utilities.tomtomWayCommand = true

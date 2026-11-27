@@ -75,6 +75,7 @@ dbDefaults = {
     -- Additive utility defaults preserve existing profiles and keep native loot features opt-in.
     utilities = {
       tomtomWayCommand = false,
+      addIconPickerSearch = false,
       autoOpenLootContainers = { ["*"] = false },
       nodes = {
         lootSparkles = false,
@@ -2875,6 +2876,24 @@ options = {
           ---@param value boolean Whether to show in-world navigation.
           set = function(_, value) Self.Utilities:SetInGameNavigationShown(value) end,
           order = 2.5
+        },
+        addIconPickerSearch = {
+          name = "Add Search to Icon Picker",
+          desc = "Adds a Search box to the Macro and Equipment Set icon pickers.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Read the active profile's icon picker search preference.
+          ---@return boolean enabled Whether search injection is enabled.
+          get = function() return db.profile.utilities.addIconPickerSearch end,
+          --- Apply the icon picker search preference immediately.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Whether to inject icon search.
+          set = function(_, value)
+            db.profile.utilities.addIconPickerSearch = value
+            ApplyNativeIconPickerSearch()
+          end,
+          order = 2.6
         },
         autoOpenLootContainers = {
           name = "Auto-Open Loot Containers",
