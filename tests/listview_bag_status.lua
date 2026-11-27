@@ -2113,7 +2113,7 @@ local categoryLine = tooltipIndex("Equipment") + 1
 assert(_G["GameTooltipTextLeft" .. categoryLine].fontSize == 8
   and _G["GameTooltipTextRight" .. categoryLine].fontSize == 8
   and _G.GameTooltipTextLeft2.fontSize == 10,
-  "Only the category rows should use smaller text")
+  "Category rows should use smaller text than the slot summary")
 assert(not tooltipIndex("Ammo") and not tooltipValue("Arrows") and not tooltipValue("Shots")
   and tooltipValue("Soul Shards") == "3",
   "Warlocks must see shards but not ranged ammunition")
@@ -2124,11 +2124,26 @@ assert(tooltipRawLabel("Soul Shards") == "|T1002:18:18|t Soul Shards"
   "Consumable rows must include bag icons or cached item icons")
 local _, rejuvenationLines = tooltipValue("both")
 assert(tooltipValue("Bandages") == "4" and tooltipValue("bandage") == "4"
-  and tooltipText:find("Health Potions", 1, true) and not tooltipIndex("Mana Potions")
-  and not tooltipValue("Health Potions") and not tooltipValue("Mana Potions")
+  and tooltipValue("Health Potions") == "5" and tooltipValue("Mana Potions") == "11"
   and tooltipValue("heal") == "2" and tooltipValue("both") == "3" and rejuvenationLines == 2
   and tooltipValue("mana") == "8"
   and tooltipText:find("still loading", 1, true))
+for _, label in ipairs({ "bandage", "heal", "mana" }) do
+  local line = tooltipIndex(label) + 1
+  assert(_G["GameTooltipTextLeft" .. line].fontSize == 8 and _G["GameTooltipTextRight" .. line].fontSize == 8,
+    "Individual consumables must use smaller text in both columns")
+end
+assert(_G["GameTooltipTextLeft" .. (tooltipIndex("Mana Potions") + 1)].fontSize == 10,
+  "Consumable totals must retain the normal font size")
+do
+  local rejuvenation, manaPotion = tooltipItems[0][6], tooltipItems[0][8]
+  tooltipItems[0][6], tooltipItems[0][8] = nil, nil
+  updateFooter()
+  assert(tooltipValue("Mana Potions") == "(None)" and tooltipValue("Health Potions") == "2",
+    "An empty mana breakdown must not affect health potion totals")
+  tooltipItems[0][6], tooltipItems[0][8] = rejuvenation, manaPotion
+  updateFooter()
+end
 assert(itemRequests[9999] == 1 and tooltipText:find("Item #9999", 1, true),
   "Uncached item data must be requested and identified in the loading message")
 updateFooter()
@@ -2139,11 +2154,12 @@ assert(table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true)
   "A failed item request must be identified as unavailable, not loading indefinitely")
 updateFooter()
 assert(itemRequests[9999] == 1, "A failed item request must not be retried on every tooltip refresh")
-assert(tooltipIndex("Soul Shards") < tooltipIndex("Health Potions")
-  and tooltipIndex("Health Potions") < tooltipIndex("Bandages")
-  and tooltipIndex("Bandages") < tooltipIndex("mana")
+assert(tooltipIndex("Soul Shards") < tooltipIndex("Bandages")
+  and tooltipIndex("Bandages") < tooltipIndex("Health Potions")
+  and tooltipIndex("Health Potions") < tooltipIndex("Mana Potions")
+  and tooltipIndex("Mana Potions") < tooltipIndex("mana")
   and tooltipIndex("both") < tooltipIndex("heal")
-  and tooltipIndex("mana") < tooltipIndex("both", tooltipIndex("Bandages")),
+  and tooltipIndex("mana") < tooltipIndex("both", tooltipIndex("Mana Potions")),
   "Sections and item variants must follow the requested order")
 sizes[1], free[1], families[1] = 8, 3, 1
 updateFooter()
@@ -2249,9 +2265,17 @@ assert(not tooltipIndex("Arrows") and not tooltipIndex("Shots")
   and tooltipIndex("sharp") < tooltipIndex("arrow") and tooltipIndex("heavy") < tooltipIndex("shot")
   and tooltipIndex("Categories") < tooltipIndex("Ammo") and tooltipIndex("Ammo") < tooltipIndex("sharp")
   and tooltipIndex("shot") < tooltipIndex("Consumables", tooltipIndex("Ammo"))
-  and tooltipIndex("Health Potions") < tooltipIndex("Bandages") and tooltipIndex("Bandages") < tooltipIndex("mana")
+  and tooltipIndex("Bandages") < tooltipIndex("Health Potions")
+  and tooltipIndex("Health Potions") < tooltipIndex("Mana Potions") and tooltipIndex("Mana Potions") < tooltipIndex("mana")
   and not tooltipIndex("(None)", tooltipIndex("Ammo")),
   "Hunters must see all ammunition variants between categories and consumables")
+for _, label in ipairs({ "arrow", "shot" }) do
+  local line = tooltipIndex(label) + 1
+  assert(_G["GameTooltipTextLeft" .. line].fontSize == 8 and _G["GameTooltipTextRight" .. line].fontSize == 8,
+    "Individual ammunition rows must use smaller text in both columns")
+end
+assert(_G["GameTooltipTextLeft" .. (tooltipIndex("Ammo") + 1)].fontSize == 10,
+  "The Ammo heading must retain the normal font size")
 local shot, heavy = tooltipItems[0][9], tooltipItems[0][10]
 tooltipItems[0][9], tooltipItems[0][10] = nil, nil
 updateFooter()
@@ -2319,13 +2343,16 @@ playerClass = "MAGE"
 updateFooter()
 assert(not tooltipIndex("Ammo") and not tooltipValue("arrow") and not tooltipValue("shot")
   and not tooltipValue("Soul Shards")
-  and tooltipValue("mana") == "8" and not tooltipIndex("Mana Potions"),
+  and tooltipValue("mana") == "8" and tooltipValue("Mana Potions") == "11",
   "Classes unable to use ranged ammunition must not see its breakdown")
+local manaLine = tooltipIndex("mana") + 1
 footer.slotHover.scripts.OnLeave()
 assert(not rawget(GameTooltip, "owner") and not GameTooltip.shown)
 GameTooltip:SetText("Another tooltip")
 assert(_G["GameTooltipTextLeft" .. categoryLine].fontSize == 10
-  and _G["GameTooltipTextRight" .. categoryLine].fontSize == 10,
+  and _G["GameTooltipTextRight" .. categoryLine].fontSize == 10
+  and _G["GameTooltipTextLeft" .. manaLine].fontSize == 10
+  and _G["GameTooltipTextRight" .. manaLine].fontSize == 10,
   "Clearing the summary must restore shared tooltip fonts")
 SlackHacks.isForever = function() return false end
 SlackHacks.isRetail = function() return true end
@@ -2404,8 +2431,8 @@ for _, class in ipairs({ "DEATHKNIGHT", "DEMONHUNTER" }) do
 end
 playerClass = "MONK"
 updateFooter()
-assert(tooltipValue("mana") == "8" and not tooltipIndex("Mana Potions"),
-  "Monks can use mana as Mistweavers without a redundant heading")
+assert(tooltipValue("mana") == "8" and tooltipValue("Mana Potions") == "11",
+  "Monks can use mana as Mistweavers and must see the mana potion total")
 playerClass = "HUNTER"
 footer.slotHover.scripts.OnLeave()
 sizes = { [0] = 0, 0, 0, 0, 0, 0 }

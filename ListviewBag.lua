@@ -2491,6 +2491,33 @@ local function slotItemLabel(label, icon)
   return icon and ("|T%s:18:18|t %s"):format(icon, label) or label
 end
 
+local slotItemLoads = {}
+local tooltipFonts = {}
+local tooltipFontHooked = false
+
+--- Restore the shared tooltip's modified line fonts before it is reused.
+local function restoreTooltipFonts()
+  for _, saved in ipairs(tooltipFonts) do
+    saved.text:SetFont(saved.path, saved.size, saved.flags)
+  end
+  wipe(tooltipFonts)
+end
+
+--- Shrink both columns of the current tooltip line.
+local function shrinkTooltipLine()
+  local line = GameTooltip:NumLines()
+  for _, side in ipairs({ "Left", "Right" }) do
+    local text = _G["GameTooltipText" .. side .. line]
+    if text then
+      local path, size, flags = text:GetFont()
+      if path and size then
+        tooltipFonts[#tooltipFonts + 1] = { text = text, path = path, size = size, flags = flags }
+        text:SetFont(path, math.max(6, size - 2), flags)
+      end
+    end
+  end
+end
+
 --- Display individual item variants and, optionally, their total in the inventory tooltip.
 ---@param title string Breakdown heading.
 ---@param breakdown table Item variants keyed by link or item ID.
@@ -2516,33 +2543,7 @@ local function showSlotBreakdown(title, breakdown, showTotal, hideHeading)
   end
   for _, entry in ipairs(entries) do
     GameTooltip:AddDoubleLine(slotItemLabel(entry.label, entry.icon), tostring(entry.count), 1, 1, 1, 1, 1, 1)
-  end
-end
-
-local slotItemLoads = {}
-local categoryFonts = {}
-local categoryFontHooked = false
-
---- Restore the shared tooltip's category line fonts before it is reused.
-local function restoreCategoryFonts()
-  for _, saved in ipairs(categoryFonts) do
-    saved.text:SetFont(saved.path, saved.size, saved.flags)
-  end
-  wipe(categoryFonts)
-end
-
---- Shrink both columns of the current category line.
-local function shrinkCategoryLine()
-  local line = GameTooltip:NumLines()
-  for _, side in ipairs({ "Left", "Right" }) do
-    local text = _G["GameTooltipText" .. side .. line]
-    if text then
-      local path, size, flags = text:GetFont()
-      if path and size then
-        categoryFonts[#categoryFonts + 1] = { text = text, path = path, size = size, flags = flags }
-        text:SetFont(path, math.max(6, size - 2), flags)
-      end
-    end
+    shrinkTooltipLine()
   end
 end
 
@@ -2659,11 +2660,11 @@ local function showSlotTooltip(owner)
   table.sort(loading)
   table.sort(unavailable)
   -- GameTooltip reuses its font strings for unrelated tooltips, so restore them on clear.
-  if not categoryFontHooked then
-    GameTooltip:HookScript("OnTooltipCleared", restoreCategoryFonts)
-    categoryFontHooked = true
+  if not tooltipFontHooked then
+    GameTooltip:HookScript("OnTooltipCleared", restoreTooltipFonts)
+    tooltipFontHooked = true
   end
-  restoreCategoryFonts()
+  restoreTooltipFonts()
   GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT")
   GameTooltip:SetText("Inventory Summary")
   GameTooltip:AddDoubleLine("Normal bags", ("%d / %d (%d free)"):format(totalSlots - freeSlots, totalSlots, freeSlots),
@@ -2679,7 +2680,7 @@ local function showSlotTooltip(owner)
   GameTooltip:AddLine("Categories", 1, 0.82, 0)
   for _, category in ipairs(ITEM_CATEGORIES) do
     GameTooltip:AddDoubleLine(category.name, tostring(categories[category.id] or 0), 1, 1, 1, 1, 1, 1)
-    shrinkCategoryLine()
+    shrinkTooltipLine()
   end
   if showAmmo then
     GameTooltip:AddLine("Ammo", 1, 0.82, 0)
@@ -2694,10 +2695,10 @@ local function showSlotTooltip(owner)
     GameTooltip:AddDoubleLine(slotItemLabel("Soul Shards", shardIcon),
       shards > 0 and tostring(shards) or "(None)", 1, 1, 1, 1, 1, 1)
   end
-  showSlotBreakdown("Health Potions", health, false)
   showSlotBreakdown("Bandages", bandages, true)
+  showSlotBreakdown("Health Potions", health, true)
   if showMana then
-    showSlotBreakdown("Mana Potions", mana, false, true)
+    showSlotBreakdown("Mana Potions", mana, true)
   end
   if #loading > 0 then
     GameTooltip:AddLine("Item information is still loading:", 1, 0.82, 0)
