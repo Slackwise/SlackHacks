@@ -1621,10 +1621,13 @@ local cog = content.settingsButton
 assert(cog.normalAtlas == "common-dropdown-a-button-settings-shadowless"
   and cog.pushedAtlas == "common-dropdown-a-button-settings-pressed-shadowless"
   and cog.highlightAtlas == "common-dropdown-a-button-settings-hover-shadowless")
-assert(cog.width == openBags.width and cog.height == openBags.height
-  and cog:GetNormalTexture().allPoints == cog and cog:GetPushedTexture().allPoints == cog
-  and cog:GetHighlightTexture().allPoints == cog,
-  "All cog states must fit the same-sized backpack button")
+assert(cog.width == openBags.width and cog.height == openBags.height)
+for _, texture in ipairs({ cog:GetNormalTexture(), cog:GetPushedTexture(), cog:GetHighlightTexture() }) do
+  assert(texture.width == 33 and texture.height == 33 and texture.points.CENTER[1] == cog
+    and texture.points.CENTER[2] == "CENTER" and texture.points.CENTER[3] == 0
+    and texture.points.CENTER[4] == -3,
+    "Each cog state must compensate for the atlas padding and vertical offset")
+end
 assert(openBags.points.RIGHT[1] == cog and openBags.points.RIGHT[2] == "LEFT"
   and openBags.points.RIGHT[3] < 0, "The settings cog must sit to the right of the backpack button")
 assert(cog.scripts.OnClick == menuHandler and cog.clicks[1] == "LeftButtonUp"
@@ -2075,12 +2078,16 @@ local function tooltipRawLabel(label)
 end
 local tooltipText = table.concat(GameTooltip.lines, "\n")
 assert(GameTooltip.text == "Inventory Summary"
-  and tooltipValue("All physical slots") == "13 / 32 used (40.6%)"
-  and tooltipValue("Reagent bag") == "2 used, 18 free (20 total)")
-assert(tooltipText:find("Categories:", 1, true) and tooltipText:find("Consumables", 1, true))
-assert(tooltipValue("  Consumables") == "209" and tooltipValue("  Reagents") == "9",
+  and tooltipValue("Normal bags") == "11 / 12 (1 free)"
+  and tooltipValue("Reagent bag") == "2 / 20 (18 free)"
+  and not tooltipValue("All physical slots"))
+assert(tooltipIndex("Categories") and tooltipIndex("Consumables")
+  and not tooltipText:find("Categories:", 1, true))
+assert(tooltipValue("Consumables") == "209" and tooltipValue("Reagents") == "9"
+  and not tooltipValue("  Consumables"),
   "Categories must match filters and include hidden stacks")
-assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and tooltipValue("Soul Shards") == "3",
+assert(not tooltipIndex("Ammo") and not tooltipValue("Arrows") and not tooltipValue("Shots")
+  and tooltipValue("Soul Shards") == "3",
   "Warlocks must see shards but not ranged ammunition")
 assert(tooltipRawLabel("Soul Shards") == "|T1002:18:18|t Soul Shards"
   and tooltipRawLabel("heal") == "|T7000:18:18|t heal"
@@ -2089,7 +2096,7 @@ assert(tooltipRawLabel("Soul Shards") == "|T1002:18:18|t Soul Shards"
   "Consumable rows must include bag icons or cached item icons")
 local _, rejuvenationLines = tooltipValue("both")
 assert(tooltipValue("Bandages") == "4" and tooltipValue("bandage") == "4"
-  and tooltipText:find("Health Potions", 1, true) and tooltipText:find("Mana Potions", 1, true)
+  and tooltipText:find("Health Potions", 1, true) and not tooltipIndex("Mana Potions")
   and not tooltipValue("Health Potions") and not tooltipValue("Mana Potions")
   and tooltipValue("heal") == "2" and tooltipValue("both") == "3" and rejuvenationLines == 2
   and tooltipValue("mana") == "8"
@@ -2106,9 +2113,9 @@ updateFooter()
 assert(itemRequests[9999] == 1, "A failed item request must not be retried on every tooltip refresh")
 assert(tooltipIndex("Soul Shards") < tooltipIndex("Health Potions")
   and tooltipIndex("Health Potions") < tooltipIndex("Bandages")
-  and tooltipIndex("Bandages") < tooltipIndex("Mana Potions")
+  and tooltipIndex("Bandages") < tooltipIndex("mana")
   and tooltipIndex("both") < tooltipIndex("heal")
-  and tooltipIndex("mana") < tooltipIndex("both", tooltipIndex("Mana Potions")),
+  and tooltipIndex("mana") < tooltipIndex("both", tooltipIndex("Bandages")),
   "Sections and item variants must follow the requested order")
 tooltipItems[0][1].stackCount = 90
 tooltipItems[0][4].stackCount = 4
@@ -2118,12 +2125,12 @@ tooltipMetadata[9999] = { "Loaded item", 15, 0 }
 module:OnSlotItemDataLoaded("ITEM_DATA_LOAD_RESULT", 9999, true)
 assert(not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true)
   and not table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true)
-  and tooltipValue("  Other") == "91",
+  and tooltipValue("Other") == "91",
   "An item-info refresh must replace incomplete category totals")
 tooltipMetadata[1234] = tooltipMetadata.herb
 tooltipItems[0][12] = { itemID = 1234, hyperlink = "uncached-variant", stackCount = 1 }
 updateFooter()
-assert(tooltipValue("  Reagents") == "10"
+assert(tooltipValue("Reagents") == "10"
   and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true)
   and not table.concat(GameTooltip.lines, "\n"):find("unavailable", 1, true),
   "A missing variant link must fall back to cached item-ID data without losing its category")
@@ -2135,7 +2142,7 @@ assert(tooltipValue("Bandages") == "5" and tooltipIndex("Loaded bandage") < tool
   "Bandages must be counted by subclass and sorted by item level")
 profile.customEssentialItems[6289] = true
 updateFooter()
-assert(tooltipValue("  Essentials") == "2" and tooltipValue("  Reagents") == "7",
+assert(tooltipValue("Essentials") == "2" and tooltipValue("Reagents") == "7",
   "Essential fish must not also count as reagents")
 profile.customEssentialItems[6289] = nil
 playerClass = "HUNTER"
@@ -2187,8 +2194,9 @@ assert(tooltipValue("Arrows") == "180" and tooltipValue("arrow") == "110" and to
   and tooltipValue("Shots") == "90" and tooltipValue("shot") == "40"
   and tooltipValue("heavy") == "50" and not tooltipValue("Soul Shards")
   and tooltipIndex("sharp") < tooltipIndex("arrow") and tooltipIndex("heavy") < tooltipIndex("shot")
-  and tooltipIndex("Arrows") < tooltipIndex("Shots") and tooltipIndex("Shots") < tooltipIndex("Health Potions")
-  and tooltipIndex("Health Potions") < tooltipIndex("Bandages") and tooltipIndex("Bandages") < tooltipIndex("Mana Potions"),
+  and tooltipIndex("Health Potions") < tooltipIndex("Bandages") and tooltipIndex("Bandages") < tooltipIndex("mana")
+  and tooltipIndex("mana") < tooltipIndex("Ammo") and tooltipIndex("Ammo") < tooltipIndex("Arrows")
+  and tooltipIndex("Arrows") < tooltipIndex("Shots"),
   "Hunters must see ammunition totals and variants, including hidden stacks, but not Soul Shards")
 assert(tooltipRawLabel("arrow") == "|T1001:18:18|t arrow"
   and tooltipRawLabel("shot") == "|T7000:18:18|t shot",
@@ -2226,7 +2234,7 @@ for _, class in ipairs({ "ROGUE", "WARRIOR" }) do
   playerClass = class
   updateFooter()
   assert(tooltipValue("Arrows") == "180" and tooltipValue("Shots") == "90"
-    and not tooltipIndex("Mana Potions"),
+    and not tooltipValue("mana") and not tooltipIndex("Mana Potions"),
     class .. " must see both ammunition types")
   assert(footer.supplyFrame.buttons[1].shown and not footer.supplyFrame.buttons[2],
     class .. " must see only equipped arrows in the footer")
@@ -2234,7 +2242,7 @@ end
 playerClass = "MAGE"
 updateFooter()
 assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards")
-  and tooltipIndex("Mana Potions"),
+  and tooltipValue("mana") == "8" and not tooltipIndex("Mana Potions"),
   "Classes unable to use ranged ammunition must not see its breakdown")
 footer.slotHover.scripts.OnLeave()
 assert(not rawget(GameTooltip, "owner") and not GameTooltip.shown)
@@ -2305,28 +2313,32 @@ do
   footer.slotHover.scripts.OnEnter(footer.slotHover)
   updateFooter()
 end
-assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards"))
-assert(not tooltipIndex("Mana Potions"), "Retail Hunters must not see mana potions")
+assert(not tooltipIndex("Ammo") and not tooltipValue("Arrows") and not tooltipValue("Shots")
+  and not tooltipValue("Soul Shards"))
+assert(not tooltipValue("mana") and not tooltipIndex("Mana Potions"), "Retail Hunters must not see mana potions")
 for _, class in ipairs({ "DEATHKNIGHT", "DEMONHUNTER" }) do
   playerClass = class
   updateFooter()
-  assert(not tooltipIndex("Mana Potions"), class .. " must not see mana potions")
+  assert(not tooltipValue("mana") and not tooltipIndex("Mana Potions"), class .. " must not see mana potions")
 end
 playerClass = "MONK"
 updateFooter()
-assert(tooltipIndex("Mana Potions"), "Monks can use mana as Mistweavers")
+assert(tooltipValue("mana") == "8" and not tooltipIndex("Mana Potions"),
+  "Monks can use mana as Mistweavers without a redundant heading")
 playerClass = "HUNTER"
 footer.slotHover.scripts.OnLeave()
 sizes = { [0] = 0, 0, 0, 0, 0, 0 }
 free = { [0] = 0, 0, 0, 0, 0, 0 }
 footer.slotHover.scripts.OnEnter(footer.slotHover)
-assert(tooltipValue("All physical slots") == "0 / 0 used (0.0%)",
-  "Zero physical capacity must not divide by zero")
+assert(tooltipValue("Normal bags") == "0 / 0 (0 free)"
+  and tooltipValue("Reagent bag") == "0 / 0 (0 free)",
+  "Empty bag slots must use the same summary format")
 assert(tooltipValue("Bandages") == "(None)" and tooltipValue("Health Potions") == "(None)"
   and not tooltipIndex("Mana Potions"))
 SlackHacks.isForever = function() return true end
 footer.slotHover.scripts.OnEnter(footer.slotHover)
-assert(tooltipValue("Arrows") == "(None)" and tooltipValue("Shots") == "(None)"
+assert(tooltipIndex("Mana Potions") < tooltipIndex("Ammo")
+  and tooltipValue("Arrows") == "(None)" and tooltipValue("Shots") == "(None)"
   and tooltipValue("Mana Potions") == "(None)")
 playerClass = "WARLOCK"
 footer.slotHover.scripts.OnEnter(footer.slotHover)

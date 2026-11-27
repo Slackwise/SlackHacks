@@ -2493,7 +2493,8 @@ end
 ---@param title string Breakdown heading.
 ---@param breakdown table Item variants keyed by link or item ID.
 ---@param showTotal boolean Whether to display the combined quantity.
-local function showSlotBreakdown(title, breakdown, showTotal)
+---@param hideHeading boolean|nil Hide the heading when entries are present.
+local function showSlotBreakdown(title, breakdown, showTotal, hideHeading)
   local entries, total = {}, 0
   for _, entry in pairs(breakdown) do
     entries[#entries + 1] = entry
@@ -2508,7 +2509,7 @@ local function showSlotBreakdown(title, breakdown, showTotal)
     GameTooltip:AddDoubleLine(title, "(None)", 1, 1, 1, 1, 1, 1)
   elseif showTotal then
     GameTooltip:AddDoubleLine(title, tostring(total), 1, 1, 1, 1, 1, 1)
-  else
+  elseif not hideHeading then
     GameTooltip:AddLine(title, 1, 1, 1)
   end
   for _, entry in ipairs(entries) do
@@ -2548,8 +2549,11 @@ local function showSlotTooltip(owner)
   for _, bagID in ipairs(bagIDs()) do
     local slots = C_Container.GetContainerNumSlots(bagID)
     local free = C_Container.GetContainerNumFreeSlots(bagID)
-    totalSlots, freeSlots = totalSlots + slots, freeSlots + free
-    if bagID == REAGENT_BAG_ID then reagentSlots, reagentFree = slots, free end
+    if bagID == REAGENT_BAG_ID then
+      reagentSlots, reagentFree = slots, free
+    else
+      totalSlots, freeSlots = totalSlots + slots, freeSlots + free
+    end
     for slot = 1, slots do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID then
@@ -2624,33 +2628,30 @@ local function showSlotTooltip(owner)
   table.sort(unavailable)
   GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT")
   GameTooltip:SetText("Inventory Summary")
-  local used = totalSlots - freeSlots
-  local percent = totalSlots > 0 and used * 100 / totalSlots or 0
-  GameTooltip:AddDoubleLine("All physical slots", ("%d / %d used (%.1f%%)"):format(used, totalSlots, percent),
+  GameTooltip:AddDoubleLine("Normal bags", ("%d / %d (%d free)"):format(totalSlots - freeSlots, totalSlots, freeSlots),
     1, 1, 1, 1, 1, 1)
   if isRetailOrForever() then
-    GameTooltip:AddDoubleLine("Reagent bag", ("%d used, %d free (%d total)"):format(
-      reagentSlots - reagentFree, reagentFree, reagentSlots), 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddDoubleLine("Reagent bag", ("%d / %d (%d free)"):format(
+      reagentSlots - reagentFree, reagentSlots, reagentFree), 1, 1, 1, 1, 1, 1)
   end
-  GameTooltip:AddLine("Categories:", 1, 0.82, 0)
+  GameTooltip:AddLine("Categories", 1, 0.82, 0)
   for _, category in ipairs(ITEM_CATEGORIES) do
-    GameTooltip:AddDoubleLine("  " .. category.name, tostring(categories[category.id] or 0), 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddDoubleLine(category.name, tostring(categories[category.id] or 0), 1, 1, 1, 1, 1, 1)
   end
   GameTooltip:AddLine("Consumables", 1, 0.82, 0)
-  if forever then
-    if showAmmo then
-      showSlotBreakdown("Arrows", arrows, true)
-      showSlotBreakdown("Shots", shots, true)
-    end
-    if class == "WARLOCK" then
-      GameTooltip:AddDoubleLine(slotItemLabel("Soul Shards", shardIcon),
-        shards > 0 and tostring(shards) or "(None)", 1, 1, 1, 1, 1, 1)
-    end
+  if forever and class == "WARLOCK" then
+    GameTooltip:AddDoubleLine(slotItemLabel("Soul Shards", shardIcon),
+      shards > 0 and tostring(shards) or "(None)", 1, 1, 1, 1, 1, 1)
   end
   showSlotBreakdown("Health Potions", health, false)
   showSlotBreakdown("Bandages", bandages, true)
   if showMana then
-    showSlotBreakdown("Mana Potions", mana, false)
+    showSlotBreakdown("Mana Potions", mana, false, true)
+  end
+  if showAmmo then
+    GameTooltip:AddLine("Ammo", 1, 0.82, 0)
+    showSlotBreakdown("Arrows", arrows, true)
+    showSlotBreakdown("Shots", shots, true)
   end
   if #loading > 0 then
     GameTooltip:AddLine("Item information is still loading:", 1, 0.82, 0)
@@ -3513,11 +3514,12 @@ local function buildFrame()
   content.settingsButton:SetNormalAtlas("common-dropdown-a-button-settings-shadowless")
   content.settingsButton:SetPushedAtlas("common-dropdown-a-button-settings-pressed-shadowless")
   content.settingsButton:SetHighlightAtlas("common-dropdown-a-button-settings-hover-shadowless")
-  -- Atlas textures can retain their native dimensions rather than the button's 24-pixel size.
+  -- The cog atlas has transparent padding, mostly below the artwork; enlarge and lower it to match the backpack.
   for _, texture in ipairs({ content.settingsButton:GetNormalTexture(), content.settingsButton:GetPushedTexture(),
     content.settingsButton:GetHighlightTexture() }) do
     texture:ClearAllPoints()
-    texture:SetAllPoints(content.settingsButton)
+    texture:SetSize(33, 33)
+    texture:SetPoint("CENTER", content.settingsButton, "CENTER", 0, -3)
   end
   content.settingsButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   content.settingsButton:SetScript("OnClick", openBagSettingsMenu)
