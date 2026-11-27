@@ -17,7 +17,7 @@
 - The auto-vendor list now shows item links, icons, tooltips, and individual Remove buttons, and can be cleared with confirmation.
 - Listview Bag item flags now include Auction, Bank, and Mail; left-click the flag icon for the menu or right-click to toggle Junk.
 - Mail flags can be assigned to saved recipients with custom nicknames and searchable icons, including icons outside Blizzard's default list. Recipient rows show both nickname and character name and can be edited.
-- Mail flags support a queue of one-time quantities followed by an optional default recipient.
+- Mail flags support a queue of one-time quantities followed by an optional default recipient; flags clear once the queue finishes without a default.
 - Mail preparation confirms split-stack quantities before attaching them and blocks mismatched attachments.
 - Automatic mail preparation skips soulbound copies of flagged items.
 - The Send Mail tab opens the recipient list when assigned items are in your bags, prepares flagged items, and refills the next batch after sending.

@@ -4310,7 +4310,10 @@ function module:OnMailSendSuccess()
         if item.amount.remaining <= 0 then
           local queue = bag.mailQueues[item.statusKey]
           table.remove(queue, 1)
-          if #queue == 0 then bag.mailQueues[item.statusKey] = nil end
+          if #queue == 0 then
+            bag.mailQueues[item.statusKey] = nil
+            if not bag.mailAssignments[item.statusKey] then bag.mailItems[item.statusKey] = nil end
+          end
         end
         changed = true
       end

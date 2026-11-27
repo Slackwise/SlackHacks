@@ -1577,8 +1577,9 @@ attachments = {}
 SendMailFrame_Reset()
 module:OnMailSendSuccess()
 drainMailTimers()
-assert(not profile.mailQueues[swordKey] and bagSlots[1].stackCount == 9 and not attachments[1],
-  "Completing the one-item queue must not prepare the rest of the stack")
+assert(not profile.mailQueues[swordKey] and not profile.mailItems[swordKey]
+  and bagSlots[1].stackCount == 9 and not attachments[1],
+  "Completing the one-item queue must clear the flag without preparing the rest of the stack")
 SendMailFrame.hooks.OnHide()
 
 -- A one-time quantity must split stacks, survive a failed send, and clear only after success.
@@ -1598,15 +1599,16 @@ assert(attachments[1].stackCount == 8 and attachments[2].stackCount == 4 and not
   "One-time amounts must cap the total across stacks and split the final stack")
 globalHooks.SendMail("Alt-Realm")
 module:OnMailSendFailed()
-assert(profile.mailQueues[swordKey][1].remaining == 12, "Failed sends must not consume the quantity")
+assert(profile.mailQueues[swordKey][1].remaining == 12 and profile.mailItems[swordKey],
+  "Failed sends must not consume the quantity or clear the flag")
 globalHooks.SendMail("Alt-Realm")
 attachments = {}
 SendMailFrame_Reset()
 module:OnMailSendSuccess()
 drainMailTimers()
-assert(not profile.mailQueues[swordKey] and not profile.mailAssignments[swordKey] and profile.mailItems[swordKey]
+assert(not profile.mailQueues[swordKey] and not profile.mailAssignments[swordKey] and not profile.mailItems[swordKey]
   and bagSlots[2].stackCount == 3 and bagSlots[3].stackCount == 10,
-  "A completed one-time send must keep the Mail flag without preparing excess items")
+  "A completed one-time send must clear the Mail flag without preparing excess items")
 
 -- A shortage remains pending until more matching items are obtained.
 attachments, bagSlots = {}, {}
@@ -1637,7 +1639,7 @@ attachments = {}
 SendMailFrame_Reset()
 module:OnMailSendSuccess()
 drainMailTimers()
-assert(profile.mailItems[swordKey] and not profile.mailQueues[swordKey] and bagSlots[1].stackCount == 7)
+assert(not profile.mailItems[swordKey] and not profile.mailQueues[swordKey] and bagSlots[1].stackCount == 7)
 
 -- The remaining amount must carry across attachment-limited batches.
 attachments, bagSlots = {}, {}
@@ -1666,7 +1668,36 @@ attachments = {}
 SendMailFrame_Reset()
 module:OnMailSendSuccess()
 drainMailTimers()
-assert(profile.mailItems[swordKey] and not profile.mailQueues[swordKey])
+assert(not profile.mailItems[swordKey] and not profile.mailQueues[swordKey])
+
+-- A later recipient keeps the flag until the final queued quantity is sent.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
+profile.mailQueues[swordKey] = { { recipient = 1, remaining = 1 }, { recipient = 2, remaining = 1 } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 3 }
+module:OnMailInfoUpdate()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(profile.mailItems[swordKey] and #profile.mailQueues[swordKey] == 1
+  and profile.mailQueues[swordKey][1].recipient == 2,
+  "Finishing one recipient must retain the flag while another remains queued")
+recipientRow = pickerRow(scroll.elements[2])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+globalHooks.SendMail("Empty-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(not profile.mailItems[swordKey] and not profile.mailQueues[swordKey] and bagSlots[1].stackCount == 1,
+  "Finishing the last recipient without a default must clear the flag")
 
 -- A queue is strictly FIFO per item, with the remembered recipient used only after it is empty.
 attachments, bagSlots = {}, {}
