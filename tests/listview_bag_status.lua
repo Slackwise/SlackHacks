@@ -81,6 +81,9 @@ local function widget()
   function object:SetWordWrap(enabled) self.wordWrap = enabled end
   function object:SetEnabled(enabled) self.enabled = enabled end
   function object:SetAlpha(alpha) self.alpha = alpha end
+  --- Record a solid texture's color.
+  ---@param ... number Color components.
+  function object:SetColorTexture(...) self.colorTexture = { ... } end
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetNormalTexture(texture) self.normalTexture = texture end
   --- Record the disabled texture.
@@ -819,6 +822,7 @@ function CreateFrame(kind, name, parent, template)
     result.text, result.icon, result.Check = widget(), widget(), widget()
     result.SpecRing, result.SpecIcon = widget(), widget()
     result.SelectedBar, result.HighlightBar = widget(), widget()
+    result.BgTop, result.BgMiddle, result.BgBottom, result.Stripe = widget(), widget(), widget(), widget()
     result.DeleteButton, result.EditButton = widget(), widget()
     newRecipient = result
   elseif template == "InputBoxTemplate,AutoCompleteEditBoxTemplate" then
@@ -890,7 +894,7 @@ local innerBorder = inset.paneTextures[1]
 assert(innerBorder.atlas == "common-insideframe"
   and innerBorder.points.TOPLEFT[1] == inset and innerBorder.points.TOPLEFT[3] == 1
   and innerBorder.points.TOPLEFT[4] == 1 and innerBorder.points.BOTTOMRIGHT[3] == -4)
-assert(picker.width == 245 and picker.height == 560
+assert(picker.width == 245 and picker.height == 459
   and scroll.points.TOPLEFT[1] == 11 and scroll.points.TOPLEFT[2] == -29 and scroll.points.BOTTOMRIGHT[1] == -26)
 assert(viewPadding[1] == 0 and viewPadding[2] == 0 and viewPadding[3] == 3
   and viewPadding[4] == 0 and viewPadding[5] == 2)
@@ -899,8 +903,9 @@ assert(scrollWidth - viewPadding[3] >= 42 + 152, "Forever outfit cards must fit 
 assert(scrollBar.points.TOPLEFT[3] == -5 and scrollBar.points.TOPLEFT[4] == -12)
 assert(#scroll.elements == 0 and newRecipient.label.text == "New Mail Recipient")
 assert(newRecipient.points.BOTTOM[1] == picker and newRecipient.points.BOTTOM[4] == 12)
-assert(picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2] >= 10 * 44 + 9 * viewPadding[5] + 5,
-  "The list must retain space for ten recipients")
+local scrollHeight = picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2]
+assert(scrollHeight >= 8 * 44 + 7 * viewPadding[5] and scrollHeight < 9 * 44 + 8 * viewPadding[5],
+  "Forever must fit eight complete recipients, but not nine")
 assert(autoCompleteSource[1] == C_AutoComplete.GetAutoCompleteResults
   and autoCompleteSource[2] == 7 and autoCompleteSource[3] == 9)
 assert(recipientLabel.text == "Send to Character Name:" and recipientLabel.font == "GameFontHighlightSmall")
@@ -923,7 +928,9 @@ local function pickerRow(element)
   result.text, result.icon = widget(), widget()
   result.SpecRing, result.SpecIcon = widget(), widget()
   result.SelectedBar, result.HighlightBar = widget(), widget()
+  result.BgTop, result.BgMiddle, result.BgBottom, result.Stripe = widget(), widget(), widget(), widget()
   result.EditButton, result.DeleteButton = widget(), widget()
+  element.index = element.index or 1
   initializeRow(result, element)
   return result
 end
@@ -942,7 +949,7 @@ assert(recipientRow.DeleteButton.points.BOTTOMRIGHT[1] == recipientRow
 assert(recipientRow.EditButton.shown and recipientRow.EditButton.points.RIGHT[1] == recipientRow.DeleteButton
   and recipientRow.EditButton.points.RIGHT[2] == "LEFT" and not recipientRow.EditButton.scripts.OnMouseDown)
 local characterText = recipientRow.characterText
-initializeRow(recipientRow, { id = 2, recipient = { nickname = "Second", character = "Other-Realm", icon = 456 } })
+initializeRow(recipientRow, { id = 2, index = 2, recipient = { nickname = "Second", character = "Other-Realm", icon = 456 } })
 assert(recipientRow.characterText == characterText and characterText.text == "Other-Realm")
 local otherProfile = { enabled = true }
 SlackHacks.db.profile.listviewBag = otherProfile
@@ -1086,17 +1093,41 @@ profile.mailRecipients[2] = nil
 upvalue(openPicker, "recipientPicker", false)
 SlackHacks.isForever = function() return false end
 openPicker(button, "retail", row.statusInfo)
-assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0,
-  "Retail must retain its native inset background")
-assert(picker.width == 220 and picker.height == 560 and scroll.points.TOPLEFT[2] == -29
+assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0
+  and inset.Bg.points.TOPLEFT[1] == inset and inset.Bg.points.TOPLEFT[3] == 3
+  and inset.Bg.points.TOPLEFT[4] == -3 and inset.Bg.points.BOTTOMRIGHT[3] == -3
+  and inset.Bg.points.BOTTOMRIGHT[4] == 3,
+  "Retail must contain its native marble background within the inset border")
+assert(picker.width == 220 and picker.height == 451 and scroll.points.TOPLEFT[2] == -29
   and picker.width + scroll.points.BOTTOMRIGHT[1] - scroll.points.TOPLEFT[1] == 172
   and scrollBar.points.TOPLEFT[3] == 8 and scrollBar.points.TOPLEFT[4] == 0)
-assert(picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2] >= 10 * 44 + 9 * viewPadding[5] + 5)
+scrollHeight = picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRIGHT[2]
+assert(scrollHeight >= 8 * 44 + 7 * viewPadding[5] and scrollHeight < 9 * 44 + 8 * viewPadding[5],
+  "Retail must fit eight complete recipients, but not nine")
 assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
+assert(newRecipient.width == 169 and newRecipient.height == 44
+  and newRecipient.points.TOPLEFT[1] == scroll and newRecipient.points.TOPLEFT[2] == "BOTTOMLEFT"
+  and newRecipient.points.TOPLEFT[3] == 3 and newRecipient.points.TOPLEFT[4] == 0
+  and not newRecipient.points.LEFT and newRecipient.text.points.RIGHT[3] == -5
+  and newRecipient.BgTop.shown and newRecipient.BgBottom.shown,
+  "Retail's new recipient row must fit, align with the list, and leave no gap")
 local retailRow = pickerRow({ id = 1, recipient = { nickname = "Retail", character = "Retail-Realm", icon = 123 } })
 assert(retailRow.characterText.text == "Retail-Realm" and retailRow.text.points.TOPLEFT[3] == 44
   and retailRow.DeleteButton.points.BOTTOMRIGHT[1] == retailRow
   and retailRow.DeleteButton.points.BOTTOMRIGHT[3] == -2 and retailRow.DeleteButton.points.BOTTOMRIGHT[4] == 2)
+assert(retailRow.BgTop.shown and not retailRow.BgBottom.shown and not retailRow.Stripe.shown)
+initializeRow(retailRow, { id = 2, index = 2,
+  recipient = { nickname = "Second", character = "Second-Realm", icon = 123 }, enabled = true })
+assert(not retailRow.BgTop.shown and not retailRow.BgBottom.shown and retailRow.Stripe.shown
+  and retailRow.Stripe.colorTexture[1] == 0.9 and retailRow.Stripe.colorTexture[2] == 0.9
+  and retailRow.Stripe.colorTexture[3] == 1 and retailRow.Stripe.alpha == 0.1,
+  "Reused Retail rows must update their native top and alternating stripe")
+profile.mailRecipients[1] = { nickname = "Retail", character = "Retail-Realm", icon = 123 }
+picker.refreshRecipients()
+assert(not newRecipient.BgTop.shown and newRecipient.BgBottom.shown,
+  "The bottom row must only show its top cap when the list is empty")
+profile.mailRecipients[1] = nil
+picker.refreshRecipients()
 popup:Hide()
 newRecipient.scripts.OnClick()
 assert(popup.shown, "Retail's new-recipient button must open the popup")

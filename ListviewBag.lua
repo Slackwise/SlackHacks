@@ -1488,7 +1488,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
     local picker = CreateFrame("Frame", "SlackHacksMailRecipientPicker", frame, "DefaultPanelBaseTemplate")
     picker:Hide()
     -- Forever's outfit-card artwork extends to 194 pixels despite the 169-pixel row template.
-    picker:SetSize(forever and 245 or 220, 560)
+    picker:SetSize(forever and 245 or 220, forever and 459 or 451)
     picker:SetFrameStrata("DIALOG")
     picker:SetClampedToScreen(true)
     picker.TitleContainer.TitleText:SetText("Mail Recipients")
@@ -1504,12 +1504,17 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
       border:SetAtlas("common-insideframe", true)
       border:SetPoint("TOPLEFT", inset, "TOPLEFT", 1, 1)
       border:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -4, 2)
+    else
+      -- Keep the tiled marble inside the Retail inset's nine-slice border.
+      inset.Bg:ClearAllPoints()
+      inset.Bg:SetPoint("TOPLEFT", inset, "TOPLEFT", 3, -3)
+      inset.Bg:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -3, 3)
     end
     CreateFrame("Button", nil, picker, "UIPanelCloseButtonDefaultAnchors")
 
     local scrollBox = CreateFrame("Frame", nil, picker, "WowScrollBoxList")
     scrollBox:SetPoint("TOPLEFT", forever and 11 or 12, -29)
-    scrollBox:SetPoint("BOTTOMRIGHT", forever and -26 or -36, 64)
+    scrollBox:SetPoint("BOTTOMRIGHT", forever and -26 or -36, forever and 64 or 56)
     local scrollBar = CreateFrame("EventFrame", nil, picker, "MinimalScrollBar")
     scrollBar:SetPoint("TOPLEFT", scrollBox, "TOPRIGHT", forever and -5 or 8, forever and -12 or 0)
     scrollBar:SetPoint("BOTTOMLEFT", scrollBox, "BOTTOMRIGHT", forever and 0 or 8, forever and 0 or 30)
@@ -1517,6 +1522,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
     view:SetElementExtent(44)
     view:SetPadding(0, 0, 3, 0, 2)
 
+    local newRecipient
     --- Refresh the list from the profile that opened the picker.
     local function refreshRecipients()
       local elements = {}
@@ -1527,6 +1533,12 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
       table.sort(elements, function(a, b)
         return a.recipient.nickname:lower() < b.recipient.nickname:lower()
       end)
+      if not forever then
+        for index, element in ipairs(elements) do element.index = index end
+        newRecipient.BgTop:SetShown(#elements == 0)
+        if #elements == 0 then newRecipient.BgMiddle:SetPoint("TOP", newRecipient.BgTop, "BOTTOM")
+        else newRecipient.BgMiddle:SetPoint("TOP") end
+      end
       scrollBox:SetDataProvider(CreateDataProvider(elements), ScrollBoxConstants.RetainScrollPosition)
     end
 
@@ -1604,7 +1616,6 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
       end
     end)
 
-    local newRecipient
     if forever then
       newRecipient = CreateFrame("Button", nil, picker, "PaperDollTertiaryButtonTemplate")
       newRecipient:SetSize(180, 34)
@@ -1629,7 +1640,11 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
     else
       -- Retail renders its new-set control as a gear-set row; keep it outside our scrolling list.
       newRecipient = CreateFrame("Button", nil, picker, "GearSetButtonTemplate")
-      newRecipient:SetSize(180, 44)
+      newRecipient:SetSize(169, 44)
+      newRecipient.text:ClearAllPoints()
+      newRecipient.text:SetPoint("LEFT", newRecipient, "LEFT", 44, 0)
+      newRecipient.text:SetPoint("RIGHT", newRecipient, "RIGHT", -5, 0)
+      newRecipient.text:SetWordWrap(false)
       newRecipient.text:SetText("New Mail Recipient")
       newRecipient.text:SetTextColor(GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g, GREEN_FONT_COLOR.b)
       newRecipient.icon:SetTexture("Interface\\PaperDollInfoFrame\\Character-Plus")
@@ -1641,6 +1656,9 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
       newRecipient.SpecIcon:Hide()
       newRecipient.SelectedBar:Hide()
       newRecipient.HighlightBar:Hide()
+      newRecipient.Stripe:Hide()
+      newRecipient.BgBottom:Show()
+      newRecipient.BgMiddle:SetPoint("BOTTOM", newRecipient.BgBottom, "TOP")
       newRecipient.DeleteButton:Hide()
       newRecipient.EditButton:Hide()
       newRecipient:SetScript("OnDoubleClick", nil)
@@ -1648,7 +1666,11 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
       newRecipient:SetScript("OnEnter", function(self) self.HighlightBar:Show() end)
       newRecipient:SetScript("OnLeave", function(self) self.HighlightBar:Hide() end)
     end
-    newRecipient:SetPoint("BOTTOM", picker, "BOTTOM", 0, 12)
+    if forever then newRecipient:SetPoint("BOTTOM", picker, "BOTTOM", 0, 12)
+    else
+      newRecipient:ClearAllPoints()
+      newRecipient:SetPoint("TOPLEFT", scrollBox, "BOTTOMLEFT", 3, 0)
+    end
     newRecipient:SetScript("OnClick", function()
       if picker.bag ~= settings() then picker:Hide(); return end
       picker.editingRecipient = nil
@@ -1695,6 +1717,21 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
     view:SetElementInitializer("GearSetButtonTemplate", function(row, element)
       row:SetEnabled(element.enabled)
       row:SetAlpha(element.enabled and 1 or 0.45)
+      if not forever then
+        row.BgTop:SetShown(element.index == 1)
+        if element.index == 1 then row.BgMiddle:SetPoint("TOP", row.BgTop, "BOTTOM")
+        else row.BgMiddle:SetPoint("TOP") end
+        row.BgBottom:Hide()
+        row.BgMiddle:SetPoint("BOTTOM")
+        if element.index % 2 == 0 then
+          -- Match the equipment manager's locally scoped stripe color.
+          row.Stripe:SetColorTexture(0.9, 0.9, 1)
+          row.Stripe:SetAlpha(0.1)
+          row.Stripe:Show()
+        else
+          row.Stripe:Hide()
+        end
+      end
       row.text:ClearAllPoints()
       row.text:SetPoint("TOPLEFT", row, "TOPLEFT", forever and 55 or 44, -7)
       row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", forever and -55 or -36, -7)
