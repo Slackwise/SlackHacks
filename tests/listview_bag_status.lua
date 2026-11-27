@@ -16,7 +16,7 @@ function SlackHacks.isRetailOrForever() return true end
 --- Construct a minimal UI object that records scripts, text, textures, and visibility.
 ---@return table widget
 local function widget()
-  local object = { scripts = {}, hooks = {}, points = {}, shown = true }
+  local object = { scripts = {}, hooks = {}, points = {}, shown = true, fontSize = 10 }
   --- Accept irrelevant frame setup.
   local function noop() end
   setmetatable(object, { __index = function(_, key)
@@ -44,7 +44,12 @@ local function widget()
   function object:SetSize(width, height) self.width, self.height = width, height end
   function object:SetWidth(width) self.width = width end
   function object:GetWidth() return self.width or 0 end
-  function object:GetStringWidth() return #(self.text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) * 6 end
+  function object:GetFont() return "mock-font", self.fontSize or 10, "" end
+  function object:SetFont(_, size) self.fontSize = size end
+  function object:SetScale(scale) self.scale = scale end
+  function object:GetStringWidth()
+    return #(self.text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) * 6 * (self.fontSize or 10) / 10
+  end
   function object:SetTextColor(...) self.textColor = { ... } end
   function object:SetWordWrap(enabled) self.wordWrap = enabled end
   function object:SetEnabled(enabled) self.enabled = enabled end
@@ -119,8 +124,15 @@ function CreateAtlasMarkup(atlas, width, height)
 end
 GameTooltip = widget()
 function GameTooltip:SetOwner() end
-function GameTooltip:SetText(text) self.text = text; self.lines = {} end
-function GameTooltip:AddLine(text) self.lines[#self.lines + 1] = text end
+function GameTooltip:SetText(text) self.text = text; self.lines = {}; self.doubleLines = {}; self.lineOrder = {} end
+function GameTooltip:AddLine(text) self.lines[#self.lines + 1] = text; self.lineOrder[#self.lineOrder + 1] = text end
+--- Record left and right columns of a tooltip line.
+---@param left string Left-column text.
+---@param right string Right-column text.
+function GameTooltip:AddDoubleLine(left, right)
+  self.doubleLines[#self.doubleLines + 1] = { left, right }
+  self.lineOrder[#self.lineOrder + 1] = left
+end
 
 assert(loadfile("ListviewBag.lua"))()
 
@@ -1109,15 +1121,6 @@ function MoneyFrame_SetMaxDisplayWidth() end
 --- Supply a balance for the footer.
 ---@return number money Balance in copper.
 function GetMoney() return 0 end
-OKAY = "Okay"
-local freeSlotsPopup, popupUnavailable
---- Capture the free-slots messagebox.
----@param kind string Popup identifier.
----@return table|nil dialog Mock dialog when available.
-function StaticPopup_Show(kind)
-  freeSlotsPopup = kind
-  if not popupUnavailable then return {} end
-end
 createFooter()
 local footer = upvalue(createFooter, "footer")
 footer:SetWidth(684)
@@ -1135,45 +1138,26 @@ C_Container.GetContainerNumSlots = function(bagID) return sizes[bagID] end
 C_Container.GetContainerNumFreeSlots = function(bagID) return free[bagID], 0 end
 local updateFooter = upvalue(module.Refresh, "updateFooter")
 updateFooter()
-assert(footer.slotCount.text == "|cffffffff30 / 81|r slots used",
+assert(footer.slotCount.text == "|cffffffff30 / 81|r",
   "An equipped reagent bag with free space must count as one free slot")
-assert(footer.slotCount.points.BOTTOMLEFT[1] == footer and footer.freeSlotsButton.points.LEFT[1] == footer.slotCount
-  and footer.freeSlotsButton.text == "Free-Up Slots" and footer.freeSlotsButton:IsShown(),
-  "The free-slots button must be visible to the right of the footer counter")
-footer.freeSlotsButton.scripts.OnClick()
-local freeSlotsDialog = StaticPopupDialogs[freeSlotsPopup]
-assert(freeSlotsDialog and freeSlotsDialog.text == "Work in progress, sorry!"
-  and freeSlotsDialog.button1 == OKAY and freeSlotsDialog.hideOnEscape,
-  "Clicking the button must show the work-in-progress message")
-freeSlotsPopup = nil
-profile.enabled = false
-footer.freeSlotsButton.scripts.OnClick()
-assert(not freeSlotsPopup, "The button must not act when the module is disabled")
-profile.enabled = true
-popupUnavailable = true
-footer.freeSlotsButton.scripts.OnClick()
-assert(messages[#messages] == "Work in progress, sorry!", "Popup failures must still report the message")
-popupUnavailable = false
-assert(footer.height == 20 and footer.balances.points.BOTTOMRIGHT[4] == 0)
-
-footer:SetWidth(300)
-updateFooter()
-assert(footer.height == 40, "The visible button must count toward footer width")
-footer:SetWidth(684)
-updateFooter()
-assert(footer.height == 20, "A wider footer must return to one row")
+assert(footer.slotCount.points.LEFT[1] == footer and footer.slotCount.points.LEFT[2] == "LEFT"
+  and footer.slotCount.points.LEFT[3] == 4 and footer.slotCount.points.LEFT[4] == 0
+  and not rawget(footer, "freeSlotsButton")
+  and not rawget(footer, "currencyButton") and footer.balances.points.BOTTOMRIGHT[3] == -4
+  and footer.slotCount.fontSize == 9 and footer.height == 20 and footer.balanceContents.scale == 1,
+  "The compact footer must show slots and currencies without the removed buttons")
 
 free[5] = 1
 updateFooter()
-assert(footer.slotCount.text == "|cffffffff30 / 81|r slots used",
+assert(footer.slotCount.text == "|cffffffff30 / 81|r",
   "One and many free reagent slots must count identically")
 free[5] = 0
 updateFooter()
-assert(footer.slotCount.text == "|cffffffff31 / 81|r slots used",
+assert(footer.slotCount.text == "|cffffffff31 / 81|r",
   "A full reagent bag must count as one used slot")
 sizes[5] = 0
 updateFooter()
-assert(footer.slotCount.text == "|cffffffff30 / 80|r slots used",
+assert(footer.slotCount.text == "|cffffffff30 / 80|r",
   "An unequipped reagent bag must not count as a slot")
 sizes[5] = 20
 
@@ -1231,12 +1215,12 @@ assert(red == 255 and green > 128 and green < 255 and blue == 0,
   "The warning must transition through orange as space falls")
 free[0] = 0
 updateFooter()
-assert(footer.slotCount.text == "|cffff000016 / 16|r slots used", "A full backpack must be red")
+assert(footer.slotCount.text == "|cffff000016 / 16|r", "A full backpack must be red")
 sizes = { [0] = 16, 16, 16, 16, 16, 20 }
 free = { [0] = 10, 10, 10, 10, 10, 6 }
 SlackHacks.isRetailOrForever = function() return false end
 updateFooter()
-assert(footer.slotCount.text == "|cffffffff30 / 80|r slots used", "Clients without reagent bags must exclude them")
+assert(footer.slotCount.text == "|cffffffff30 / 80|r", "Clients without reagent bags must exclude them")
 SlackHacks.isRetailOrForever = function() return true end
 
 --- Create fixed-width currency tokens for the footer layout test.
@@ -1252,16 +1236,268 @@ footer.tokenFrame.ShouldShow = function() return true end
 footer.crestFrame.ShouldShow = function() return true end
 updateFooter()
 local scrollFrame = upvalue(realBuildFrame, "scrollFrame")
-assert(footer.height == 40 and footer.balances.points.BOTTOMRIGHT[4] == 20
-  and footer.currencyButton.points.BOTTOMRIGHT[4] == 20
-  and content.listInset.points.BOTTOMRIGHT[4] == 50 and scrollFrame.points.BOTTOMRIGHT[4] == 54,
-  "Wide currency strips must move above the controls without overlapping the item list")
+assert(footer.height == 20 and footer.balanceContents.scale == 1
+  and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
+  "All tracked currencies and the slot count must fit in the original footer")
+footer:SetWidth(620)
+updateFooter()
+assert(footer.slotCount.fontSize == 8 and footer.balanceContents.scale == 1
+  and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
+  "The slot font must shrink before the currency strip when that is enough to fit")
+footer:SetWidth(600)
+updateFooter()
+assert(footer.height == 20 and footer.balanceContents.scale < 1 and footer.slotCount.fontSize == 7
+  and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth() + 0.001,
+  "An oversized currency strip must scale down instead of overlapping or increasing the footer height")
+footer:SetWidth(684)
 footer.tokenFrame.ShouldShow = function() return false end
 footer.crestFrame.ShouldShow = function() return false end
 updateFooter()
-assert(footer.height == 20 and footer.balances.points.BOTTOMRIGHT[4] == 0
+assert(footer.height == 20 and footer.balanceContents.scale == 1 and footer.slotCount.fontSize == 9
+  and footer.balances.points.BOTTOMRIGHT[4] == 0
   and content.listInset.points.BOTTOMRIGHT[4] == 30 and scrollFrame.points.BOTTOMRIGHT[4] == 34,
-  "The footer and item list must return to one row when currencies fit")
+  "The footer must restore normal sizes when currencies fit")
+
+-- Slot statistics use all physical slots and all items, even when filters hide them.
+SlackHacks.BEST_ITEMS = {
+  BEST_BANDAGES = { [1251] = 66 },
+  BEST_HEALING_POTIONS = { [118] = 90 },
+  BEST_MANA_POTIONS = {},
+}
+local tooltipItems = {
+  [0] = {
+    { itemID = 2512, itemName = "Rough Arrow", hyperlink = "arrow", iconFileID = 1001, stackCount = 100, isFiltered = true },
+    { itemID = 2512, itemName = "Rough Arrow", hyperlink = "arrow", stackCount = 20 },
+    { itemID = 6289, itemName = "Raw Fish", hyperlink = "fish", stackCount = 2 },
+    { itemID = 6265, itemName = "Soul Shard", hyperlink = "shard", iconFileID = 1002, stackCount = 3 },
+    { itemID = 118, itemName = "Minor Healing Potion", hyperlink = "heal", stackCount = 2 },
+    { itemID = 2456, itemName = "Minor Rejuvenation Potion", hyperlink = "both", stackCount = 3 },
+    { itemID = 1251, itemName = "Linen Bandage", hyperlink = "bandage", stackCount = 4 },
+    { itemID = 241300, itemName = "Lightfused Mana Potion", hyperlink = "mana", stackCount = 8 },
+    { itemID = 2516, itemName = "Light Shot", hyperlink = "shot", stackCount = 40, isFiltered = true },
+    { itemID = 2519, itemName = "Heavy Shot", hyperlink = "heavy", stackCount = 50 },
+    { itemID = 2515, itemName = "Sharp Arrow", hyperlink = "sharp", stackCount = 70 },
+  },
+  [5] = {
+    { itemID = 9999, stackCount = 1 },
+    { itemID = 1234, itemName = "Herb", hyperlink = "herb", stackCount = 7 },
+  },
+}
+local tooltipMetadata = {
+  arrow = { "Rough Arrow", 6, 2, false, 5 }, sharp = { "Sharp Arrow", 6, 2, false, 20 },
+  fish = { "Raw Fish", 7, 0 }, shard = { "Soul Shard", 7, 0 },
+  heal = { "Minor Healing Potion", 0, 0, false, 5 },
+  both = { "Minor Rejuvenation Potion", 0, 0, false, 20 },
+  bandage = { "Linen Bandage", 0, 0, false, 5 },
+  mana = { "Lightfused Mana Potion", 0, 1, false, 30 }, herb = { "Herb", 7, 0, true },
+  shot = { "Light Shot", 6, 3, false, 5 }, heavy = { "Heavy Shot", 6, 3, false, 20 },
+}
+--- Supply all inventory items, including those hidden by search.
+---@param bagID number Container ID.
+---@param slot number Slot index.
+---@return table|nil info Container item information.
+C_Container.GetContainerItemInfo = function(bagID, slot)
+  return tooltipItems[bagID] and tooltipItems[bagID][slot]
+end
+--- Supply item metadata or simulate an uncached item.
+---@param key string|number Item link or ID.
+---@return string|nil name Item name.
+C_Item.GetItemInfo = function(key)
+  local item = tooltipMetadata[key]
+  if not item then return nil end
+  local level = item[5]
+  if level == nil then level = 1 elseif level == false then level = nil end
+  local icon = item[6]
+  if icon == nil then icon = 7000 elseif icon == false then icon = nil end
+  return item[1], type(key) == "string" and key or nil, 1, level, nil, nil, nil, nil, "", icon, 1,
+    item[2], item[3], 0, nil, nil, item[4]
+end
+--- Supply the variant-specific item level.
+---@param key string|number Item link or ID.
+---@return number|nil level Detailed item level, if available.
+C_Item.GetDetailedItemLevelInfo = function(key)
+  local item = tooltipMetadata[key]
+  return item and item[5] or nil
+end
+sizes = { [0] = 12, 0, 0, 0, 0, 20 }
+free = { [0] = 1, 0, 0, 0, 0, 18 }
+profile.categoryFilters.consumables = false
+SlackHacks.isForever = function() return true end
+local playerClass = "WARLOCK"
+--- Supply the player class for tooltip gating.
+---@return string name Localized class name.
+---@return string token Class token.
+function UnitClass() return playerClass, playerClass end
+--- Record the tooltip owner.
+---@param owner table Tooltip anchor.
+function GameTooltip:SetOwner(owner) self.owner = owner end
+--- Check the current tooltip owner.
+---@param owner table Tooltip anchor.
+---@return boolean owned Whether the tooltip belongs to the anchor.
+function GameTooltip:IsOwned(owner) return self.owner == owner end
+--- Hide the tooltip and release its owner.
+GameTooltip_Hide = function() GameTooltip.owner = nil; GameTooltip:Hide() end
+footer.slotHover:SetScript("OnLeave", GameTooltip_Hide)
+updateFooter()
+assert(footer.slotHover:GetWidth() == footer.slotCount:GetStringWidth()
+  and footer.slotHover.points.LEFT[1] == footer.slotCount)
+footer.slotHover.scripts.OnEnter(footer.slotHover)
+--- Return the right-column value and number of occurrences for a left-column label.
+---@param label string Left-column text.
+---@return string|nil value Right-column text.
+---@return number count Number of matching lines.
+local function tooltipValue(label)
+  local value, count = nil, 0
+  for _, line in ipairs(GameTooltip.doubleLines) do
+    if line[1]:gsub("^|T.-|t ", "") == label then value, count = line[2], count + 1 end
+  end
+  return value, count
+end
+--- Find a tooltip line by its left-column text.
+---@param label string Line label.
+---@param after number|nil Ignore lines up to this position.
+---@return number|nil index Position in the tooltip.
+local function tooltipIndex(label, after)
+  for index, value in ipairs(GameTooltip.lineOrder) do
+    if value:gsub("^|T.-|t ", "") == label and index > (after or 0) then return index end
+  end
+end
+--- Return the actual left-column text, including any icon markup.
+---@param label string Label without icon markup.
+---@return string|nil text Actual tooltip text.
+local function tooltipRawLabel(label)
+  for _, line in ipairs(GameTooltip.doubleLines) do
+    if line[1]:gsub("^|T.-|t ", "") == label then return line[1] end
+  end
+end
+local tooltipText = table.concat(GameTooltip.lines, "\n")
+assert(GameTooltip.text == "Inventory Summary"
+  and tooltipValue("All physical slots") == "13 / 32 used (40.6%)"
+  and tooltipValue("Reagent bag") == "2 used, 18 free (20 total)")
+assert(tooltipText:find("Categories:", 1, true) and tooltipText:find("Consumables", 1, true))
+assert(tooltipValue("  Consumables") == "209" and tooltipValue("  Reagents") == "9",
+  "Categories must match filters and include hidden stacks")
+assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and tooltipValue("Soul Shards") == "3",
+  "Warlocks must see shards but not ranged ammunition")
+assert(tooltipRawLabel("Soul Shards") == "|T1002:18:18|t Soul Shards"
+  and tooltipRawLabel("heal") == "|T7000:18:18|t heal"
+  and tooltipRawLabel("bandage") == "|T7000:18:18|t bandage"
+  and tooltipRawLabel("mana") == "|T7000:18:18|t mana",
+  "Consumable rows must include bag icons or cached item icons")
+local _, rejuvenationLines = tooltipValue("both")
+assert(tooltipValue("Bandages") == "4" and tooltipValue("bandage") == "4"
+  and tooltipText:find("Health Potions", 1, true) and tooltipText:find("Mana Potions", 1, true)
+  and not tooltipValue("Health Potions") and not tooltipValue("Mana Potions")
+  and tooltipValue("heal") == "2" and tooltipValue("both") == "3" and rejuvenationLines == 2
+  and tooltipValue("mana") == "8"
+  and tooltipText:find("still loading", 1, true))
+assert(tooltipIndex("Soul Shards") < tooltipIndex("Health Potions")
+  and tooltipIndex("Health Potions") < tooltipIndex("Bandages")
+  and tooltipIndex("Bandages") < tooltipIndex("Mana Potions")
+  and tooltipIndex("both") < tooltipIndex("heal")
+  and tooltipIndex("mana") < tooltipIndex("both", tooltipIndex("Mana Potions")),
+  "Sections and item variants must follow the requested order")
+tooltipItems[0][1].stackCount = 90
+tooltipItems[0][4].stackCount = 4
+updateFooter()
+assert(tooltipValue("Soul Shards") == "4", "An open tooltip must refresh when bag contents change")
+tooltipMetadata[9999] = { "Loaded item", 15, 0 }
+updateFooter()
+assert(not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true)
+  and tooltipValue("  Other") == "91",
+  "An item-info refresh must replace incomplete category totals")
+tooltipMetadata[9999] = { "Loaded bandage", 0, 7, false, 20 }
+updateFooter()
+assert(tooltipValue("Bandages") == "5" and tooltipIndex("Loaded bandage") < tooltipIndex("bandage"),
+  "Bandages must be counted by subclass and sorted by item level")
+profile.customEssentialItems[6289] = true
+updateFooter()
+assert(tooltipValue("  Essentials") == "2" and tooltipValue("  Reagents") == "7",
+  "Essential fish must not also count as reagents")
+profile.customEssentialItems[6289] = nil
+playerClass = "HUNTER"
+updateFooter()
+assert(tooltipValue("Arrows") == "180" and tooltipValue("arrow") == "110" and tooltipValue("sharp") == "70"
+  and tooltipValue("Shots") == "90" and tooltipValue("shot") == "40"
+  and tooltipValue("heavy") == "50" and not tooltipValue("Soul Shards")
+  and tooltipIndex("sharp") < tooltipIndex("arrow") and tooltipIndex("heavy") < tooltipIndex("shot")
+  and tooltipIndex("Arrows") < tooltipIndex("Shots") and tooltipIndex("Shots") < tooltipIndex("Health Potions")
+  and tooltipIndex("Health Potions") < tooltipIndex("Bandages") and tooltipIndex("Bandages") < tooltipIndex("Mana Potions"),
+  "Hunters must see ammunition totals and variants, including hidden stacks, but not Soul Shards")
+assert(tooltipRawLabel("arrow") == "|T1001:18:18|t arrow"
+  and tooltipRawLabel("shot") == "|T7000:18:18|t shot",
+  "Ammunition variants must include their item icons")
+tooltipItems[0][1].iconFileID, tooltipItems[0][2].iconFileID = nil, 1003
+tooltipMetadata.arrow[6] = false
+updateFooter()
+assert(tooltipRawLabel("arrow") == "|T1003:18:18|t arrow"
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "An icon from a later stack must complete the grouped item")
+tooltipItems[0][1].iconFileID, tooltipItems[0][2].iconFileID = 1001, nil
+tooltipMetadata.arrow[6] = nil
+tooltipMetadata.heal[6] = false
+updateFooter()
+assert(tooltipRawLabel("heal") == "heal" and table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "Missing icons must leave the item visible and report incomplete information")
+tooltipMetadata.heal[6] = nil
+updateFooter()
+assert(tooltipRawLabel("heal") == "|T7000:18:18|t heal"
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "The icon must appear after item information becomes available")
+tooltipMetadata.sharp[5] = false
+updateFooter()
+assert(tooltipIndex("arrow") < tooltipIndex("sharp")
+  and table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "Missing item levels must sort last and report incomplete information")
+tooltipMetadata.sharp[5] = 20
+updateFooter()
+assert(tooltipIndex("sharp") < tooltipIndex("arrow")
+  and not table.concat(GameTooltip.lines, "\n"):find("still loading", 1, true),
+  "The item-info refresh must restore level ordering and clear the loading message")
+for _, class in ipairs({ "ROGUE", "WARRIOR" }) do
+  playerClass = class
+  updateFooter()
+  assert(tooltipValue("Arrows") == "180" and tooltipValue("Shots") == "90"
+    and not tooltipIndex("Mana Potions"),
+    class .. " must see both ammunition types")
+end
+playerClass = "MAGE"
+updateFooter()
+assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards")
+  and tooltipIndex("Mana Potions"),
+  "Classes unable to use ranged ammunition must not see its breakdown")
+footer.slotHover.scripts.OnLeave()
+assert(not rawget(GameTooltip, "owner") and not GameTooltip.shown)
+SlackHacks.isForever = function() return false end
+playerClass = "HUNTER"
+footer.slotHover.scripts.OnEnter(footer.slotHover)
+assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards"))
+assert(not tooltipIndex("Mana Potions"), "Retail Hunters must not see mana potions")
+for _, class in ipairs({ "DEATHKNIGHT", "DEMONHUNTER" }) do
+  playerClass = class
+  updateFooter()
+  assert(not tooltipIndex("Mana Potions"), class .. " must not see mana potions")
+end
+playerClass = "MONK"
+updateFooter()
+assert(tooltipIndex("Mana Potions"), "Monks can use mana as Mistweavers")
+playerClass = "HUNTER"
+footer.slotHover.scripts.OnLeave()
+sizes = { [0] = 0, 0, 0, 0, 0, 0 }
+free = { [0] = 0, 0, 0, 0, 0, 0 }
+footer.slotHover.scripts.OnEnter(footer.slotHover)
+assert(tooltipValue("All physical slots") == "0 / 0 used (0.0%)",
+  "Zero physical capacity must not divide by zero")
+assert(tooltipValue("Bandages") == "(None)" and tooltipValue("Health Potions") == "(None)"
+  and not tooltipIndex("Mana Potions"))
+SlackHacks.isForever = function() return true end
+footer.slotHover.scripts.OnEnter(footer.slotHover)
+assert(tooltipValue("Arrows") == "(None)" and tooltipValue("Shots") == "(None)"
+  and tooltipValue("Mana Potions") == "(None)")
+playerClass = "WARLOCK"
+footer.slotHover.scripts.OnEnter(footer.slotHover)
+assert(tooltipValue("Soul Shards") == "(None)" and not tooltipValue("Arrows") and not tooltipValue("Shots"))
+footer.slotHover.scripts.OnLeave()
 
 upvalue(startMail, "mailJob", {})
 module.IsEnabled = function() return false end

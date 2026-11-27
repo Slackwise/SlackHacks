@@ -47,6 +47,14 @@ local TRACK_NAMES = { Explorer = true, Adventurer = true, Veteran = true, Champi
 local ARMOR_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Armor) or 4
 local PROJECTILE_CLASS_ID = (Enum.ItemClass and Enum.ItemClass.Projectile) or 6
 local ARROW_SUBCLASS_ID = 2
+local SHOT_SUBCLASS_ID = 3
+-- These Forever classes can learn both bows and guns, even before training the individual skill.
+local RANGED_AMMO_CLASSES = { HUNTER = true, ROGUE = true, WARRIOR = true }
+-- Monks can use mana as Mistweavers; hunters use mana in Forever but focus on Retail.
+local MANA_CLASSES = {
+  DRUID = true, EVOKER = true, MAGE = true, MONK = true, PALADIN = true,
+  PRIEST = true, SHAMAN = true, WARLOCK = true,
+}
 local sortColumn
 local sortAscending = true
 
@@ -129,6 +137,53 @@ module.ESSENTIAL_ITEMS = {
 local ESSENTIAL_ITEM_IDS = {}
 for _, item in ipairs(module.ESSENTIAL_ITEMS) do ESSENTIAL_ITEM_IDS[item.id] = true end
 local SOUL_SHARD_ITEM_ID = 6265
+-- Potion subclasses do not distinguish health from mana. Supplement the shared best-use lists
+-- without changing the potions selected by those bindings; rejuvenation potions belong to both.
+-- Item IDs are maintained from Warcraft Wiki's healing, mana, and rejuvenation potion categories.
+local ADDITIONAL_HEALTH_POTIONS = {
+  [4596] = true, -- Discolored / Minor Discolored Healing Potion
+  [247239] = true, [247240] = true, [247241] = true, [247242] = true, [241650] = true, -- Forever discolored potions
+  [169451] = true, [136569] = true, [127834] = true, -- Abyssal, Aged, Ancient
+  [43531] = true, [32947] = true, [32905] = true, -- Argent, Auchenai, Nethergon Vapor
+  [142325] = true, [167917] = true, [18839] = true, -- Brawler's Ancient/Coastal, Combat
+  [187802] = true, [33934] = true, [124660] = true, -- Cosmic, Crystal, Darkmoon
+  [43569] = true, [175241] = true, [124661] = true, -- Endless, Expedition, Gladiator's
+  [33092] = true, [109223] = true, [64994] = true, -- Injector, Healing Tonic, Hellscream's
+  [180317] = true, [144396] = true, -- Soulful, Valorous
+  [241298] = true, [241299] = true, -- Amani Extract
+  [244835] = true, [244838] = true, [244839] = true, -- Invigorating
+  [241304] = true, [241305] = true, -- Silvermoon
+  [271883] = true, [271884] = true, -- Concentrated Silvermoon
+}
+local ADDITIONAL_MANA_POTIONS = {
+  [43530] = true, [32948] = true, [63145] = true, -- Argent, Auchenai, Baradin's
+  [32783] = true, [32909] = true, [32902] = true, -- Blue Ogre Brew, Special, Nethergon Energy
+  [18841] = true, [109226] = true, [43570] = true, -- Combat, Draenic Channeled, Endless
+  [64993] = true, [40067] = true, [31855] = true, -- Hellscream's, Icy, Major Combat
+  [152495] = true, [57194] = true, [168502] = true, -- Coastal, Concentration, Reconstitution
+  [180318] = true, [28101] = true, -- Soulful, Unstable
+  [212245] = true, [212246] = true, [212247] = true, -- Slumbering Soul Serum
+  [241300] = true, [241301] = true, [245916] = true, [245917] = true, -- Lightfused and Fleeting
+  [241294] = true, [241295] = true, [245904] = true, [245905] = true, -- Devoured Dreams and Fleeting
+}
+local REJUVENATION_POTIONS = {
+  [2456] = true, [9144] = true, -- Minor Rejuvenation, Wildvine
+  [12190] = true, [20002] = true, [22836] = true, -- Dreamless Sleep potions
+  [22850] = true, [34440] = true, [40077] = true, -- Super Rejuvenation, Mad and Crazy Alchemist's
+  [40081] = true, [40087] = true, [44698] = true, -- Nightmares, Powerful Rejuvenation, Intravenous
+  [57099] = true, [57193] = true, [67415] = true, -- Mysterious, Mighty Rejuvenation, Draught of War
+  [76094] = true, [113585] = true, [163082] = true, -- Alchemist's, Iron Horde, Coastal
+  [171269] = true, [241306] = true, [241307] = true, -- Spiritual, Refreshing Serum
+}
+-- Forever may report older bandages as generic consumables rather than the Retail subclass.
+local ADDITIONAL_BANDAGES = {
+  [19307] = true, -- Alterac Heavy Runecloth Bandage
+  [20065] = true, [20066] = true, [20067] = true, -- Arathi Basin bandages
+  [20232] = true, [20234] = true, [20235] = true, -- Defiler's bandages
+  [20237] = true, [20243] = true, [20244] = true, -- Highlander's bandages
+  [19066] = true, [19067] = true, [19068] = true, -- Warsong Gulch bandages
+  [232433] = true, -- Dense Runecloth Bandage
+}
 local EQUIPMENT_SLOTS = {
   INVTYPE_HEAD = true, INVTYPE_NECK = true, INVTYPE_SHOULDER = true, INVTYPE_BODY = true,
   INVTYPE_CHEST = true, INVTYPE_WAIST = true, INVTYPE_LEGS = true, INVTYPE_FEET = true,
@@ -1886,6 +1941,166 @@ local function slotCountColor(totalSlots, freeSlots)
   return ("|cffff%02x%02x"):format(math.floor(green * 255 + 0.5), math.floor(blue * 255 + 0.5))
 end
 
+--- Add an item stack to a named tooltip breakdown.
+---@param breakdown table Item variants keyed by link or item ID.
+---@param info table Container item information.
+---@param name string|nil Item name.
+---@param link string|nil Item link.
+---@param itemLevel number|nil Base item level.
+---@param icon number|string|nil Item icon.
+local function addSlotBreakdown(breakdown, info, name, link, itemLevel, icon)
+  local key = link or info.itemID
+  local entry = breakdown[key]
+  if not entry then
+    entry = { label = link or name or ("Item #" .. info.itemID), name = name or "", count = 0, icon = icon,
+      itemLevel = C_Item.GetDetailedItemLevelInfo(link or info.itemID) or itemLevel }
+    breakdown[key] = entry
+  else
+    entry.icon = entry.icon or icon
+    entry.itemLevel = entry.itemLevel or itemLevel
+  end
+  entry.count = entry.count + (info.stackCount or 1)
+end
+
+--- Add an inline item icon when its texture is available.
+---@param label string Item label.
+---@param icon number|string|nil Item icon.
+---@return string text Label with icon markup.
+local function slotItemLabel(label, icon)
+  return icon and ("|T%s:18:18|t %s"):format(icon, label) or label
+end
+
+--- Display individual item variants and, optionally, their total in the inventory tooltip.
+---@param title string Breakdown heading.
+---@param breakdown table Item variants keyed by link or item ID.
+---@param showTotal boolean Whether to display the combined quantity.
+local function showSlotBreakdown(title, breakdown, showTotal)
+  local entries, total = {}, 0
+  for _, entry in pairs(breakdown) do
+    entries[#entries + 1] = entry
+    if showTotal then total = total + entry.count end
+  end
+  table.sort(entries, function(a, b)
+    if (a.itemLevel or -1) ~= (b.itemLevel or -1) then return (a.itemLevel or -1) > (b.itemLevel or -1) end
+    if a.name ~= b.name then return a.name < b.name end
+    return a.label < b.label
+  end)
+  if #entries == 0 then
+    GameTooltip:AddDoubleLine(title, "(None)", 1, 1, 1, 1, 1, 1)
+  elseif showTotal then
+    GameTooltip:AddDoubleLine(title, tostring(total), 1, 1, 1, 1, 1, 1)
+  else
+    GameTooltip:AddLine(title, 1, 1, 1)
+  end
+  for _, entry in ipairs(entries) do
+    GameTooltip:AddDoubleLine(slotItemLabel(entry.label, entry.icon), tostring(entry.count), 1, 1, 1, 1, 1, 1)
+  end
+end
+
+--- Show physical capacity and inventory statistics, independent of active bag filters.
+---@param owner table Mouse-enabled slot-count frame.
+local function showSlotTooltip(owner)
+  if not isModuleEnabled() then return end
+  local totalSlots, freeSlots, reagentSlots, reagentFree = 0, 0, 0, 0
+  local categories, arrows, shots, bandages, health, mana = {}, {}, {}, {}, {}, {}
+  local shards, shardIcon, incomplete = 0, nil, false
+  local bag = settings()
+  local forever = isForever()
+  local class = select(2, UnitClass("player"))
+  local showAmmo = forever and RANGED_AMMO_CLASSES[class]
+  local showMana = MANA_CLASSES[class] or (forever and class == "HUNTER")
+  for _, bagID in ipairs(bagIDs()) do
+    local slots = C_Container.GetContainerNumSlots(bagID)
+    local free = C_Container.GetContainerNumFreeSlots(bagID)
+    totalSlots, freeSlots = totalSlots + slots, freeSlots + free
+    if bagID == REAGENT_BAG_ID then reagentSlots, reagentFree = slots, free end
+    for slot = 1, slots do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.itemID then
+        local name, link, quality, itemLevel, _, _, _, _, equipLoc, itemIcon, sellPrice, classID, subclassID,
+          bindType, _, _, isCraftingReagent = C_Item.GetItemInfo(info.hyperlink or info.itemID)
+        name, link, quality = name or info.itemName, link or info.hyperlink, quality or info.quality
+        itemIcon = info.iconFileID or itemIcon
+        local count = info.stackCount or 1
+        if classID == nil or quality == nil or sellPrice == nil then
+          incomplete = true
+        else
+          local group = { itemID = info.itemID, classID = classID, subclassID = subclassID,
+            quality = quality, equipLoc = equipLoc, sellPrice = sellPrice, bindType = bindType,
+            isCraftingReagent = isCraftingReagent }
+          local category = itemCategory(group, bag)
+          categories[category] = (categories[category] or 0) + count
+          -- Match the filters: edible Forever fish belong to both categories unless Essential.
+          if category == "consumables" and forever and FOREVER_EDIBLE_RAW_FISH_IDS[info.itemID] then
+            categories.reagents = (categories.reagents or 0) + count
+          end
+        end
+        if showAmmo and classID == PROJECTILE_CLASS_ID and subclassID == ARROW_SUBCLASS_ID then
+          addSlotBreakdown(arrows, info, name, link, itemLevel, itemIcon)
+        elseif showAmmo and classID == PROJECTILE_CLASS_ID and subclassID == SHOT_SUBCLASS_ID then
+          addSlotBreakdown(shots, info, name, link, itemLevel, itemIcon)
+        end
+        if forever and class == "WARLOCK" and info.itemID == SOUL_SHARD_ITEM_ID then
+          shards, shardIcon = shards + count, shardIcon or itemIcon
+        end
+        if (BEST_ITEMS and BEST_ITEMS.BEST_BANDAGES[info.itemID]) or ADDITIONAL_BANDAGES[info.itemID]
+          or (classID == 0 and subclassID == ((Enum.ItemConsumableSubclass and Enum.ItemConsumableSubclass.Bandage) or 7)) then
+          addSlotBreakdown(bandages, info, name, link, itemLevel, itemIcon)
+        end
+        if (BEST_ITEMS and BEST_ITEMS.BEST_HEALING_POTIONS[info.itemID])
+          or ADDITIONAL_HEALTH_POTIONS[info.itemID] or REJUVENATION_POTIONS[info.itemID] then
+          addSlotBreakdown(health, info, name, link, itemLevel, itemIcon)
+        end
+        if showMana and ((BEST_ITEMS and BEST_ITEMS.BEST_MANA_POTIONS[info.itemID])
+          or ADDITIONAL_MANA_POTIONS[info.itemID] or REJUVENATION_POTIONS[info.itemID]) then
+          addSlotBreakdown(mana, info, name, link, itemLevel, itemIcon)
+        end
+        if not name then incomplete = true end
+      end
+    end
+  end
+
+  if shards > 0 and not shardIcon then incomplete = true end
+  for _, breakdown in ipairs({ arrows, shots, bandages, health, mana }) do
+    for _, entry in pairs(breakdown) do
+      if entry.itemLevel == nil or not entry.icon then incomplete = true end
+    end
+  end
+
+  GameTooltip:SetOwner(owner, "ANCHOR_TOPLEFT")
+  GameTooltip:SetText("Inventory Summary")
+  local used = totalSlots - freeSlots
+  local percent = totalSlots > 0 and used * 100 / totalSlots or 0
+  GameTooltip:AddDoubleLine("All physical slots", ("%d / %d used (%.1f%%)"):format(used, totalSlots, percent),
+    1, 1, 1, 1, 1, 1)
+  if isRetailOrForever() then
+    GameTooltip:AddDoubleLine("Reagent bag", ("%d used, %d free (%d total)"):format(
+      reagentSlots - reagentFree, reagentFree, reagentSlots), 1, 1, 1, 1, 1, 1)
+  end
+  GameTooltip:AddLine("Categories:", 1, 0.82, 0)
+  for _, category in ipairs(ITEM_CATEGORIES) do
+    GameTooltip:AddDoubleLine("  " .. category.name, tostring(categories[category.id] or 0), 1, 1, 1, 1, 1, 1)
+  end
+  GameTooltip:AddLine("Consumables", 1, 0.82, 0)
+  if forever then
+    if showAmmo then
+      showSlotBreakdown("Arrows", arrows, true)
+      showSlotBreakdown("Shots", shots, true)
+    end
+    if class == "WARLOCK" then
+      GameTooltip:AddDoubleLine(slotItemLabel("Soul Shards", shardIcon),
+        shards > 0 and tostring(shards) or "(None)", 1, 1, 1, 1, 1, 1)
+    end
+  end
+  showSlotBreakdown("Health Potions", health, false)
+  showSlotBreakdown("Bandages", bandages, true)
+  if showMana then
+    showSlotBreakdown("Mana Potions", mana, false)
+  end
+  if incomplete then GameTooltip:AddLine("Some item information is still loading.", 1, 0.82, 0) end
+  GameTooltip:Show()
+end
+
 --- Refresh the footer slots, balances, and filter summary.
 local function updateFooter()
   updateFiltersLabel()
@@ -1901,7 +2116,7 @@ local function updateFooter()
     totalSlots = totalSlots + slots
     freeSlots = freeSlots + free
   end
-  footer.slotCount:SetText(("%s%d / %d|r slots used"):format(
+  footer.slotCount:SetText(("%s%d / %d|r"):format(
     slotCountColor(totalSlots, freeSlots), totalSlots - freeSlots, totalSlots))
   MoneyFrame_Update(footer.moneyFrame:GetName(), GetMoney())
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
@@ -1920,18 +2135,23 @@ local function updateFooter()
     footer.crestFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
   end
   if crestWidth > 0 then width = width + crestWidth + 4 end
-  footer.balances:SetWidth(width)
 
-  -- Move currencies above the controls if all tracked currencies do not fit on one row.
-  local controlsWidth = 4 + footer.slotCount:GetStringWidth() + 6 + footer.freeSlotsButton:GetWidth() + 4
-  local wrap = controlsWidth + width + 24 > footer:GetWidth()
-  footer:SetHeight(wrap and 40 or 20)
-  footer.balances:ClearAllPoints()
-  footer.balances:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", -24, wrap and 20 or 0)
-  footer.currencyButton:ClearAllPoints()
-  footer.currencyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, wrap and 20 or 0)
-  content.listInset:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -4, wrap and 50 or 30)
-  scrollFrame:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", -30, wrap and 54 or 34)
+  footer.slotCount:SetFont(footer.slotFont, footer.slotFontSize, footer.slotFontFlags)
+  local available = footer:GetWidth() - 12
+  local slotWidth = footer.slotCount:GetStringWidth()
+  if width + slotWidth > available and slotWidth > 0 then
+    local fontSize = math.max(math.min(7, footer.slotFontSize),
+      math.floor(footer.slotFontSize * (available - width) / slotWidth))
+    footer.slotCount:SetFont(footer.slotFont, fontSize, footer.slotFontFlags)
+    slotWidth = footer.slotCount:GetStringWidth()
+  end
+  -- The tracked currencies alone can exceed the remaining width, even at the smallest slot font.
+  local scale = math.min(1, math.max(0.01, (available - slotWidth) / width))
+  footer.balanceContents:SetWidth(width)
+  footer.balanceContents:SetScale(scale)
+  footer.balances:SetWidth(width * scale)
+  footer.slotHover:SetWidth(slotWidth)
+  if GameTooltip:IsOwned(footer.slotHover) then showSlotTooltip(footer.slotHover) end
 end
 
 --- Populate the native filters dropdown or open its legacy menu.
@@ -2015,31 +2235,28 @@ local function createFooter()
   footer.Bg:SetAllPoints()
 
   footer.slotCount = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  footer.slotCount:SetPoint("BOTTOMLEFT", footer, "BOTTOMLEFT", 4, 4)
+  footer.slotCount:SetPoint("LEFT", footer, "LEFT", 4, 0)
+  footer.slotFont, footer.slotFontSize, footer.slotFontFlags = footer.slotCount:GetFont()
+  footer.slotFontSize = math.min(footer.slotFontSize, 9)
 
-  StaticPopupDialogs.SLACKHACKS_FREE_UP_SLOTS_WIP = {
-    text = "Work in progress, sorry!",
-    button1 = OKAY,
-    timeout = 0,
-    whileDead = true,
-    hideOnEscape = true,
-  }
-  footer.freeSlotsButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-  footer.freeSlotsButton:SetSize(90, 20)
-  footer.freeSlotsButton:SetPoint("LEFT", footer.slotCount, "RIGHT", 6, 0)
-  footer.freeSlotsButton:SetText("Free-Up Slots")
-  footer.freeSlotsButton:SetScript("OnClick", function()
-    if not isModuleEnabled() then return end
-    if not StaticPopup_Show("SLACKHACKS_FREE_UP_SLOTS_WIP") then prn("Work in progress, sorry!") end
-  end)
+  footer.slotHover = CreateFrame("Frame", nil, footer)
+  footer.slotHover:SetPoint("LEFT", footer.slotCount, "LEFT")
+  footer.slotHover:SetHeight(20)
+  footer.slotHover:EnableMouse(true)
+  footer.slotHover:SetScript("OnEnter", showSlotTooltip)
+  footer.slotHover:SetScript("OnLeave", GameTooltip_Hide)
 
   footer.balances = CreateFrame("Frame", nil, footer)
   footer.balances:SetSize(168, 20)
-  footer.balances:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", -24, 0)
+  footer.balances:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", -4, 0)
 
-  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer.balances, "ContainerMoneyFrameTemplate")
+  footer.balanceContents = CreateFrame("Frame", nil, footer.balances)
+  footer.balanceContents:SetSize(168, 20)
+  footer.balanceContents:SetPoint("RIGHT", footer.balances, "RIGHT")
+
+  footer.moneyFrame = CreateFrame("Frame", "SlackHacksListviewBagMoneyFrame", footer.balanceContents, "ContainerMoneyFrameTemplate")
   footer.moneyFrame:SetSize(168, 16)
-  footer.moneyFrame:SetPoint("RIGHT", footer.balances, "RIGHT", 0, 0)
+  footer.moneyFrame:SetPoint("RIGHT", footer.balanceContents, "RIGHT", 0, 0)
   MoneyFrame_SetMaxDisplayWidth(footer.moneyFrame, 168)
 
   if MenuUtil and MenuUtil.CreateContextMenu then
@@ -2058,32 +2275,18 @@ local function createFooter()
   footer.filtersButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
   updateFiltersLabel()
 
-  footer.currencyButton = CreateFrame("Button", nil, footer, "UIPanelButtonTemplate")
-  footer.currencyButton:SetSize(20, 20)
-  footer.currencyButton:SetNormalTexture(133784)
-  footer.currencyButton:SetPushedTexture(133784)
-  footer.currencyButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-  footer.currencyButton:SetPoint("BOTTOMRIGHT", footer, "BOTTOMRIGHT", 0, 0)
-  footer.currencyButton:SetScript("OnClick", function() ToggleCharacter("TokenFrame") end)
-  footer.currencyButton:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:SetText("Open Currencies Window")
-    GameTooltip:Show()
-  end)
-  footer.currencyButton:SetScript("OnLeave", GameTooltip_Hide)
-
   if C_AddOns and C_AddOns.LoadAddOn then
     C_AddOns.LoadAddOn("Blizzard_TokenUI")
   else
     UIParentLoadAddOn("Blizzard_TokenUI")
   end
-  footer.tokenFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
+  footer.tokenFrame = CreateFrame("Frame", nil, footer.balanceContents, "BackpackTokenFrameTemplate")
   footer.tokenFrame:SetIsCombinedInventory(true)
   footer.tokenFrame.GetMaxTokensWatched = function() return 3 end
   footer.tokenFrame:SetWidth(150)
   footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
 
-  footer.crestFrame = CreateFrame("Frame", nil, footer.balances, "BackpackTokenFrameTemplate")
+  footer.crestFrame = CreateFrame("Frame", nil, footer.balanceContents, "BackpackTokenFrameTemplate")
   footer.crestFrame:SetIsCombinedInventory(true)
   footer.crestFrame.Update = updateCrestFrame
   footer.crestFrame:SetWidth(276)

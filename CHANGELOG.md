@@ -17,7 +17,7 @@
 - Configure which built-in items are Essentials, optionally include arrows or Soul Shards, and add custom items from your bags.
 - Forever arrows and edible raw fish now appear under Consumables; edible raw fish also remain under Reagents.
 - The bag portrait and settings cog open a menu for Listview Bag settings, switching views, crest tracking, and Auto-Sell Junk. Auto-Sell Junk sells unprotected greys and marked items; Blizzard's grey sale still sells all greys when used separately.
-- The Listview Bag footer shows used bag slots with a color warning that scales with capacity. An equipped reagent bag counts as one available-or-full slot.
+- The compact Listview Bag footer shows used bag slots alongside currencies, with a color warning that scales with capacity. Hover over the count for physical capacity and inventory breakdowns; the footer itself counts an equipped reagent bag as one available-or-full slot.
 
 ## v33
 

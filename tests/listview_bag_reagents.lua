@@ -93,6 +93,11 @@ function CreateFrame(frameType, name, parent, template)
   --- Create a mocked font string.
   ---@return table fontString
   function widget:CreateFontString() return CreateFrame("FontString") end
+  --- Supply the inherited font used by the footer.
+  ---@return string path Font path.
+  ---@return number size Font size.
+  ---@return string flags Font flags.
+  function widget:GetFont() return "mock-font", 10, "" end
   if name then frames[name] = widget end
   if template == "UIDropDownMenuTemplate" and name then
     _G[name .. "Button"] = CreateFrame("Button", nil, widget)
