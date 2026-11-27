@@ -10,6 +10,7 @@
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
+## OptionalDeps: Auctionator, Auctionator_PriceHistoryTrends
 embeds.xml
 Init.lua
 Debug.lua
@@ -26,6 +27,8 @@ Reminders_Talents.lua
 Weeklies.lua
 IconNames.lua
 IconNamePopup.lua
+ListviewBagGear.lua
+ListviewBagAuction.lua
 ListviewBag.lua
 Minimap.lua
 Windows.lua

@@ -9,6 +9,7 @@
 - Fixed bug when switching off square mode
 
 ### Inventory
+- Added Selling and Gear views to the Listview Bag, with cached auction pricing, equipment stat comparisons, and gear filters.
 - Reduced icon-search memory use by loading only icon names and file IDs, compressed until first use.
 - Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
 - The auto-vendor list now shows item links, icons, tooltips, and individual Remove buttons, and can be cleared with confirmation.

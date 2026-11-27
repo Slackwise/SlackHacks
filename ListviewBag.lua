@@ -11,6 +11,7 @@ setfenv(1, _G.SlackHacks)
 
 local module = Self:NewModule("ListviewBag", "AceEvent-3.0")
 Self.ListviewBag = module
+local gear = Self.ListviewBagGear
 
 --=====================================================================
 -- Constants
@@ -34,11 +35,19 @@ local COLUMN_DEFS = {
   quantity =  { label = "Qty",   width = 36 },
   name =      { label = "Name",  width = 200, flexible = true },
   ilvl =      { label = "iLvl",  width = 60 },
+  upgrade =   { label = "Upgrade", width = 185 },
+  vendor =    { label = "Vendor", width = 52 },
+  auction =   { label = "Auction", width = 105 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
   bind =      { label = "|TInterface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture:18:18:0:0:128:64:6:26:7:28|t", width = 24 },
 }
 local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
+local VIEWS = {
+  { id = "default", name = "Default View" },
+  { id = "selling", name = "Selling View" },
+  { id = "gear", name = "Gear View" },
+}
 
 -- English-only track-name recognizer used to pull the gear "track" (e.g. "Champion 5/6") out of the
 -- tooltip, since there is no direct API exposing it -- this is a deliberate, documented simplification.
@@ -293,6 +302,33 @@ local function settings()
   return listviewSettings
 end
 
+--- Return the selected view, treating older profiles as the default view.
+---@return string view View identifier.
+local function selectedView()
+  local view = settings().view
+  for _, entry in ipairs(VIEWS) do
+    if entry.id == view then return view end
+  end
+  return "default"
+end
+
+--- Derive view-specific columns without changing the saved default column order.
+---@return table columns Active column identifiers.
+local function activeColumns()
+  local columns = {}
+  local view = selectedView()
+  for _, id in ipairs(settings().columnOrder or DEFAULT_COLUMN_ORDER) do
+    if id == "ilvl" and view == "selling" then
+      columns[#columns + 1] = "vendor"
+      columns[#columns + 1] = "auction"
+    else
+      if id == "ilvl" and view == "gear" then columns[#columns + 1] = "upgrade" end
+      columns[#columns + 1] = id
+    end
+  end
+  return columns
+end
+
 --- Return the item's selected status, prioritizing non-junk flags for older overlapping marks.
 ---@param key string Item status key.
 ---@param quality number|nil Item quality, if known.
@@ -420,6 +456,8 @@ local function collectGroups()
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID and not info.isFiltered then
         local key = info.hyperlink or info.itemID
+        -- Identical links can include both bound and unbound copies, which have different sale eligibility.
+        if selectedView() == "selling" then key = tostring(key) .. (info.isBound and "\031bound" or "\031unbound") end
         local group = groups[key]
         if not group then
           group = {
@@ -461,14 +499,22 @@ local function collectGroups()
     group.itemLevel = C_Item.GetDetailedItemLevelInfo(group.hyperlink) or itemLevel
     group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
     group.isArmor = classID == ARMOR_CLASS_ID
+    group.isEquipment = (classID == ARMOR_CLASS_ID or classID == 2) and EQUIPMENT_SLOTS[itemEquipLoc]
     group.classID, group.subclassID, group.equipLoc, group.sellPrice, group.isCraftingReagent =
       classID, subclassID, itemEquipLoc, sellPrice, isCraftingReagent
-    if group.isArmor then
+    if group.isArmor or (selectedView() == "gear" and group.isEquipment) then
       group.armorType = itemSubType
       group.armorSlot = itemEquipLoc and _G[itemEquipLoc]
     end
     if first then
       group.bindLabel, group.bindType, group.accountBound, group.isBound = getBindInfo(first.bagID, first.slot, group.hyperlink)
+    end
+    if selectedView() == "gear" and gear then
+      group.comparisons, group.itemStats = gear.CompareItem(group.hyperlink, itemEquipLoc)
+    elseif selectedView() == "selling" and Self.ListviewBagAuction and not group.isBound and not group.accountBound then
+      group.auction = Self.ListviewBagAuction.GetQuote(group.hyperlink, function()
+        if module.Refresh then module:Refresh() end
+      end)
     end
     group.statusKey = itemStatusKey(group.itemName, group.quality, group.itemLevel, group.upgradeTrack)
     if sortColumn == "flag" then
@@ -506,6 +552,19 @@ local function collectGroups()
       result = sortValueBefore(a.armorSlot or "", b.armorSlot or "")
     elseif sortColumn == "bind" then
       result = sortValueBefore(a.bindLabel or "", b.bindLabel or "")
+    elseif sortColumn == "vendor" then
+      result = sortValueBefore(a.sellPrice or 0, b.sellPrice or 0)
+    elseif sortColumn == "auction" then
+      result = sortValueBefore(a.auction and a.auction.minimum or 0, b.auction and b.auction.minimum or 0)
+    elseif sortColumn == "upgrade" then
+      local ap, as, bp, bs = 0, 0, 0, 0
+      for _, comparison in ipairs(a.comparisons or {}) do
+        ap, as = ap + comparison.primary, as + comparison.secondary
+      end
+      for _, comparison in ipairs(b.comparisons or {}) do
+        bp, bs = bp + comparison.primary, bs + comparison.secondary
+      end
+      result = sortValueBefore(ap, bp) or (ap == bp and sortValueBefore(as, bs))
     elseif sortColumn == "flag" then
       result = sortValueBefore(a.flagSortOrder, b.flagSortOrder)
     else
@@ -529,6 +588,7 @@ local rowPool = {}
 local expandedGroups = {}
 local bagKeyBindingButton
 local layoutHeaders, renderRows, positionRowCells, layoutFrame
+local updateAuctionView
 local sellMarkedTrashItems, updateMerchantJunkButton
 -- Tracked from MERCHANT_SHOW/MERCHANT_CLOSED rather than MerchantFrame:IsShown(), because Blizzard's
 -- frame may not have shown/hidden yet when our handler for the same event runs.
@@ -544,19 +604,24 @@ local trackedCursorItem
 local function computeLayout()
   local contentWidth = scrollChild:GetWidth()
   local fixedWidth = 0
-  for _, colID in ipairs(settings().columnOrder) do
+  local columns = activeColumns()
+  local view = selectedView()
+  for _, colID in ipairs(columns) do
     local def = COLUMN_DEFS[colID]
     if not def.flexible then
-      fixedWidth = fixedWidth + def.width + CELL_PAD
+      local width = view == "gear" and (colID == "armorType" or colID == "armorSlot") and 52 or def.width
+      fixedWidth = fixedWidth + width + CELL_PAD
     end
   end
-  local flexWidth = math.max(COLUMN_DEFS.name.width, contentWidth - COLLAPSE_WIDTH - STATUS_WIDTH - fixedWidth - CELL_PAD)
+  local minimumName = view == "gear" and 115 or COLUMN_DEFS.name.width
+  local flexWidth = math.max(minimumName, contentWidth - COLLAPSE_WIDTH - STATUS_WIDTH - fixedWidth - CELL_PAD)
 
   local x = COLLAPSE_WIDTH + CELL_PAD
   columnLayout = {}
-  for _, colID in ipairs(settings().columnOrder) do
+  for _, colID in ipairs(columns) do
     local def = COLUMN_DEFS[colID]
-    local width = def.flexible and flexWidth or def.width
+    local width = def.flexible and flexWidth
+      or view == "gear" and (colID == "armorType" or colID == "armorSlot") and 52 or def.width
     columnLayout[colID] = { x = x, width = width }
     x = x + width + CELL_PAD
   end
@@ -580,6 +645,7 @@ local function selectSortColumn(colID)
 end
 
 local function onHeaderDragStart(self)
+  if selectedView() ~= "default" then return end
   draggingColumn = self.columnID
 end
 
@@ -621,7 +687,7 @@ layoutHeaders = function()
   -- and positions the header buttons itself (BOTTOMLEFT-chained, real "ColumnDisplayButtonTemplate" art)
   -- -- reused directly instead of hand-positioning plain buttons, which is what didn't look right before.
   local columnInfo = {}
-  local order = settings().columnOrder
+  local order = activeColumns()
   for index, colID in ipairs(order) do
     local width = columnLayout[colID].width
     if index < #order then
@@ -636,7 +702,7 @@ layoutHeaders = function()
   -- own column identity and drag-to-reorder scripts on top of Blizzard's real header buttons.
   wipe(headerButtons)
   for header in headerFrame.columnHeaders:EnumerateActive() do
-    local colID = settings().columnOrder[header:GetID()]
+    local colID = order[header:GetID()]
     header.columnID = colID
     if not header.sortIcon then
       header.sortIcon = header:CreateTexture(nil, "OVERLAY")
@@ -708,6 +774,40 @@ local function matchesFilters(group)
     return bag.categoryFilters.consumables ~= false or bag.categoryFilters.reagents ~= false
   end
   return bag.categoryFilters[category] ~= false
+end
+
+--- Initialize the additive gear-filter settings for existing profiles.
+---@return table filters Gear filter settings.
+local function gearFilters()
+  local bag = settings()
+  bag.gearFilters = bag.gearFilters or {}
+  local filters = bag.gearFilters
+  filters.types = filters.types or {}
+  filters.slots = filters.slots or {}
+  filters.stats = filters.stats or {}
+  return filters
+end
+
+--- Check a gear item against its type, slot, stat, and downgrade filters.
+---@param group table Collected item and comparisons.
+---@return boolean matches Whether the item is visible in Gear view.
+local function matchesGearFilters(group)
+  if not gear or not gear.GetSlots(group.equipLoc) then return false end
+  local filters = gearFilters()
+  local typeKey = tostring(group.classID) .. ":" .. tostring(group.subclassID)
+  if filters.types[typeKey] == false or filters.slots[group.equipLoc] == false then return false end
+  if filters.downgradeOnly and not gear.IsDowngrade(group.comparisons) then return false end
+  if next(filters.stats) then
+    local anySelected = false
+    for key, value in pairs(group.itemStats or {}) do
+      if type(value) == "number" and value ~= 0 and filters.stats[key] ~= false then
+        anySelected = true
+        break
+      end
+    end
+    if not anySelected then return false end
+  end
+  return true
 end
 
 local refreshMailSendButton
@@ -1231,6 +1331,12 @@ local function openMailAmountPrompt(picker, choice)
     prompt:SetToplevel(true)
     prompt:SetClampedToScreen(true)
     prompt.Inset:Hide()
+    prompt.Bg:SetHorizTile(false)
+    prompt.Bg:SetVertTile(false)
+    prompt.Bg:SetTexture("Interface\\MailFrame\\UI-MailFrameBG")
+    -- The inbox artwork is 512 square; crop its occupied upper-left area to fit this smaller panel.
+    prompt.Bg:SetTexCoord(0, 320 / 512, 0, 224 / 512)
+    prompt.Bg:SetVertexColor(1, 1, 1, 1)
     prompt.Bg:ClearAllPoints()
     prompt.Bg:SetPoint("TOPLEFT", 0, -6)
     prompt.Bg:SetPoint("BOTTOMRIGHT", -4, 3)
@@ -1906,6 +2012,12 @@ local function createRow(index)
 
   row.quantityText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.ilvlText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.upgradeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  local upgradeFont, upgradeSize, upgradeFlags = row.upgradeText:GetFont()
+  if upgradeFont and upgradeSize then row.upgradeText:SetFont(upgradeFont, math.max(6, upgradeSize - 2), upgradeFlags) end
+  row.upgradeText:SetWordWrap(true)
+  row.vendorText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  row.auctionText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   row.quantityText:SetJustifyH("RIGHT")
   row.ilvlText:SetJustifyH("LEFT")
   row.armorTypeText = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1917,6 +2029,27 @@ local function createRow(index)
     if not row.primaryEntry and row.hyperlink then
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:SetHyperlink(row.hyperlink)
+      GameTooltip:Show()
+    end
+    if selectedView() == "selling" and row.auctionData and GameTooltip:IsOwned(self) then
+      local quote = row.auctionData
+      GameTooltip:AddLine("Auction price (" .. quote.source .. ")", 1, 1, 1)
+      if quote.minimum then GameTooltip:AddDoubleLine("Lowest per item", GetMoneyString(quote.minimum, true)) end
+      if quote.average then GameTooltip:AddDoubleLine("Average per item", GetMoneyString(quote.average, true)) end
+      if quote.source == "Auctionator" and not quote.average then
+        GameTooltip:AddLine("Listing average unavailable in Auctionator's cache.", 0.7, 0.7, 0.7)
+      end
+      if quote.timestamp then
+        GameTooltip:AddLine("Cached: " .. date("%Y-%m-%d %H:%M", quote.timestamp), 0.7, 0.7, 0.7)
+      elseif quote.ageDays then
+        GameTooltip:AddLine(("Last scan: %d day(s) ago"):format(quote.ageDays), 0.7, 0.7, 0.7)
+      end
+      GameTooltip:Show()
+    elseif selectedView() == "gear" and row.comparisons and gear and GameTooltip:IsOwned(self) then
+      GameTooltip:AddLine("Compared with equipped gear:", 1, 1, 1)
+      for _, comparison in ipairs(row.comparisons) do
+        GameTooltip:AddLine(gear.FormatComparison(comparison, #row.comparisons > 1), 1, 1, 1, true)
+      end
       GameTooltip:Show()
     end
   end)
@@ -1972,11 +2105,15 @@ positionRowCells = function(row)
   row.nameText:SetPoint("LEFT", row.icon, "RIGHT", 3, 0)
   row.nameText:SetWidth(math.max(20, nameLayout.width - indent - ROW_HEIGHT - 19))
 
-  for _, colID in ipairs({ "quantity", "ilvl", "armorType", "armorSlot" }) do
+  for _, colID in ipairs({ "quantity", "ilvl", "upgrade", "vendor", "auction", "armorType", "armorSlot" }) do
     local cell = row[colID .. "Text"]
     cell:ClearAllPoints()
-    cell:SetPoint("LEFT", row, "LEFT", columnLayout[colID].x, 0)
-    cell:SetWidth(columnLayout[colID].width)
+    local layout = columnLayout[colID]
+    cell:SetShown(layout ~= nil)
+    if layout then
+      cell:SetPoint("LEFT", row, "LEFT", layout.x, 0)
+      cell:SetWidth(layout.width)
+    end
   end
 
   local qualityOffset = math.min(row.nameText:GetStringWidth(), row.nameText:GetWidth())
@@ -1996,7 +2133,7 @@ local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
   for _, group in ipairs(groups) do
-    if matchesFilters(group) then
+    if matchesFilters(group) and (selectedView() ~= "gear" or matchesGearFilters(group)) then
       group.isGroupHeader = #group.entries > 1
       rows[#rows + 1] = group
       if group.isGroupHeader and expandedGroups[group.key] then
@@ -2014,10 +2151,15 @@ local function buildDisplayRows()
             count = entry.count,
             entries = { entry },
             isArmor = group.isArmor,
+            isEquipment = group.isEquipment,
             itemLevel = group.itemLevel,
             upgradeTrack = group.upgradeTrack,
             armorType = group.armorType,
             armorSlot = group.armorSlot,
+            comparisons = group.comparisons,
+            itemStats = group.itemStats,
+            sellPrice = group.sellPrice,
+            auction = group.auction,
             bindLabel = group.bindLabel,
             bindType = group.bindType,
             accountBound = group.accountBound,
@@ -2037,12 +2179,13 @@ renderRows = function()
   layoutHeaders()
 
   local rows = buildDisplayRows()
-  scrollChild:SetHeight(math.max(scrollFrame:GetHeight(), #rows * ROW_HEIGHT))
-
+  local y = 0
   for i, data in ipairs(rows) do
     local row = acquireRow(i)
+    row.holder:SetHeight(ROW_HEIGHT)
+    row:SetHeight(ROW_HEIGHT)
     row.holder:ClearAllPoints()
-    row.holder:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_HEIGHT)
+    row.holder:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
     row.holder:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
     row.holder:Show()
     row:Show()
@@ -2054,6 +2197,8 @@ renderRows = function()
     row.groupKey = data.isGroupHeader and data.key or nil
     row.statusKey = data.statusKey
     row.statusInfo = data.statusInfo
+    row.comparisons = data.comparisons
+    row.auctionData = not data.isBound and not data.accountBound and data.auction or nil
     row.primaryEntry = data.entries and data.entries[1]
     row.locked = isProtectedItem(data.statusKey)
     row.holder:SetID(row.primaryEntry and row.primaryEntry.bagID or 0)
@@ -2084,14 +2229,43 @@ renderRows = function()
     end
 
     row.quantityText:SetText((data.count or 1) > 1 and tostring(data.count) or "")
-    if data.isArmor and data.itemLevel then
+    row.vendorText:SetText(selectedView() == "selling" and data.sellPrice and data.sellPrice > 0
+      and GetMoneyString(data.sellPrice, true) or "")
+    if selectedView() ~= "selling" then
+      row.auctionText:SetText("")
+    elseif data.accountBound then
+      row.auctionText:SetText("|cff9d9d9dWarbound|r")
+    elseif data.isBound then
+      row.auctionText:SetText("|cff9d9d9dSoulbound|r")
+    elseif data.auction and data.auction.minimum then
+      local trend = data.auction.trend
+      local suffix = trend and (" |c%s%s%%|r"):format(
+        trend.direction == "up" and "ff40ff40" or trend.direction == "down" and "ffff4040" or "ffbfbfbf",
+        trend.percent > 0 and ("+" .. trend.percent) or tostring(trend.percent)) or ""
+      row.auctionText:SetText(GetMoneyString(data.auction.minimum, true) .. suffix)
+    elseif data.auction and data.auction.timestamp then
+      row.auctionText:SetText("|cff9d9d9dNo listings|r")
+    else
+      row.auctionText:SetText("|cff9d9d9dUnavailable|r")
+    end
+    if data.comparisons then
+      local text = {}
+      for _, comparison in ipairs(data.comparisons) do
+        text[#text + 1] = gear.FormatComparison(comparison, #data.comparisons > 1)
+      end
+      row.upgradeText:SetText(table.concat(text, "\n"))
+    else
+      row.upgradeText:SetText("")
+    end
+    if (data.isArmor or selectedView() == "gear" and data.isEquipment) and data.itemLevel then
       local upgradeTrack = data.upgradeTrack and (" |cff9d9d9d" .. data.upgradeTrack .. "|r") or ""
       row.ilvlText:SetText(tostring(data.itemLevel) .. upgradeTrack)
     else
       row.ilvlText:SetText("")
     end
-    row.armorTypeText:SetText(data.isArmor and data.armorType or "")
-    row.armorSlotText:SetText(data.isArmor and data.armorSlot or "")
+    local showEquipment = data.isArmor or selectedView() == "gear" and data.isEquipment
+    row.armorTypeText:SetText(showEquipment and data.armorType or "")
+    row.armorSlotText:SetText(showEquipment and data.armorSlot or "")
     if data.bindType and data.bindType > 0 then
       local bindType = data.bindType == 4 and 1 or data.bindType
       local x = (bindType - 1) / 4
@@ -2111,7 +2285,16 @@ renderRows = function()
     end
 
     positionRowCells(row)
+    local height = ROW_HEIGHT
+    if selectedView() == "gear" and data.comparisons then
+      local textHeight = row.upgradeText:GetStringHeight()
+      if textHeight then height = math.max(height, math.ceil(textHeight) + 4) end
+    end
+    row.holder:SetHeight(height)
+    row:SetHeight(height)
+    y = y + height
   end
+  scrollChild:SetHeight(math.max(scrollFrame:GetHeight(), y))
 
   for i = #rows + 1, #rowPool do
     rowPool[i].holder:Hide()
@@ -2445,7 +2628,7 @@ local function openFiltersMenu(anchor, root)
     renderRows()
   end
   if root then
-    local checkAllButton = root:CreateButton("Check All", checkAll)
+    local checkAllButton = root:CreateButton("Show All", checkAll)
     checkAllButton:SetResponse(MenuResponse.Refresh)
     root:CreateTitle("Flags")
     root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
@@ -2464,7 +2647,7 @@ local function openFiltersMenu(anchor, root)
     end
   else
     local menu = {
-      { text = "Check All", notCheckable = true, keepShownOnClick = true, func = checkAll },
+      { text = "Show All", notCheckable = true, keepShownOnClick = true, func = checkAll },
     }
     menu[#menu + 1] = { text = "Flags", isTitle = true, notCheckable = true }
     menu[#menu + 1] = { text = "Unflagged", isNotRadio = true, keepShownOnClick = true,
@@ -2488,6 +2671,168 @@ local function openFiltersMenu(anchor, root)
     end
     EasyMenu(menu, module.filtersMenu, "cursor", 0, 0, "MENU")
   end
+end
+
+--- Update view controls and the space available to the search box.
+local function updateViewControls()
+  local view = selectedView()
+  local label = VIEWS[1].name
+  for _, entry in ipairs(VIEWS) do
+    if entry.id == view then label = entry.name; break end
+  end
+  if footer.viewsButton.legacy then UIDropDownMenu_SetText(footer.viewsButton, label)
+  else footer.viewsButton:OverrideText(label) end
+  footer.gearFiltersButton:SetShown(view == "gear")
+  if searchBox then searchBox:SetWidth(view == "gear" and 90 or 180) end
+end
+
+--- Select a view without modifying the default column order or existing filters.
+---@param view string View identifier.
+local function selectView(view)
+  settings().view = view
+  sortColumn = nil
+  sortAscending = true
+  updateViewControls()
+  renderRows()
+  if updateAuctionView then updateAuctionView() end
+end
+
+--- Populate the native view selector or its legacy equivalent.
+---@param anchor table Dropdown frame.
+---@param root table|nil Modern menu description.
+local function openViewsMenu(anchor, root)
+  if root then
+    for _, entry in ipairs(VIEWS) do
+      local view = entry
+      root:CreateRadio(view.name, function() return selectedView() == view.id end,
+        function() selectView(view.id) end)
+    end
+  else
+    local menu = {}
+    for _, entry in ipairs(VIEWS) do
+      local view = entry
+      menu[#menu + 1] = { text = view.name, checked = function() return selectedView() == view.id end,
+        func = function() selectView(view.id) end }
+    end
+    if not module.viewsMenu then
+      module.viewsMenu = CreateFrame("Frame", "SlackHacksListviewBagViewsMenu", UIParent, "UIDropDownMenuTemplate")
+    end
+    EasyMenu(menu, module.viewsMenu, "cursor", 0, 0, "MENU")
+  end
+end
+
+--- Collect localized filter choices from the client's item-class and stat definitions.
+---@return table groups Ordered filter groups and their choices.
+local function gearFilterChoices()
+  local groups = { { name = "Armor and Weapons", key = "types", entries = {} },
+    { name = "Equipment Slots", key = "slots", entries = {} },
+    { name = "Stats", key = "stats", entries = {} } }
+  if C_Item and C_Item.GetItemSubClassInfo then
+    for _, classID in ipairs({ 4, 2 }) do
+      for subclassID = 0, 30 do
+        local label = C_Item.GetItemSubClassInfo(classID, subclassID)
+        if label and label ~= "" then
+          groups[1].entries[#groups[1].entries + 1] =
+            { key = classID .. ":" .. subclassID, name = label }
+        end
+      end
+    end
+  end
+  for key in pairs(EQUIPMENT_SLOTS) do
+    if gear.GetSlots(key) then
+      groups[2].entries[#groups[2].entries + 1] = { key = key, name = _G[key] or key }
+    end
+  end
+  for key, value in pairs(_G) do
+    if type(key) == "string" and key:match("^ITEM_MOD_") and type(value) == "string" then
+      groups[3].entries[#groups[3].entries + 1] = { key = key, name = gear.StatLabel(key) }
+    end
+  end
+  for _, group in ipairs(groups) do
+    table.sort(group.entries, function(a, b)
+      return a.name == b.name and a.key < b.key or a.name < b.name
+    end)
+  end
+  return groups
+end
+
+--- Populate the Gear view's grouped filters.
+---@param anchor table Dropdown frame.
+---@param root table|nil Modern menu description.
+local function openGearFiltersMenu(anchor, root)
+  local filters = gearFilters()
+  --- Restore all gear filters.
+  local function showAll()
+    filters.types, filters.slots, filters.stats = {}, {}, {}
+    filters.downgradeOnly = false
+    renderRows()
+  end
+  --- Toggle a filter and refresh the view.
+  ---@param group string Filter group.
+  ---@param key string Filter identifier.
+  local function toggle(group, key)
+    if filters[group][key] == false then filters[group][key] = nil
+    else filters[group][key] = false end
+    renderRows()
+  end
+  --- Toggle the strict downgrade filter.
+  local function toggleDowngrade()
+    filters.downgradeOnly = not filters.downgradeOnly
+    renderRows()
+  end
+  local groups = gearFilterChoices()
+  if root then
+    root:CreateButton("Show All", showAll):SetResponse(MenuResponse.Refresh)
+    root:CreateCheckbox("Downgrade Only", function() return filters.downgradeOnly end, toggleDowngrade)
+    for _, entry in ipairs(groups) do
+      local group = entry
+      local submenu = root:CreateButton(group.name)
+      if submenu.SetScrollMode then submenu:SetScrollMode(350) end
+      for _, value in ipairs(group.entries) do
+        local choice = value
+        submenu:CreateCheckbox(choice.name, function() return filters[group.key][choice.key] ~= false end,
+          function() toggle(group.key, choice.key) end)
+      end
+    end
+  else
+    local menu = {
+      { text = "Show All", notCheckable = true, keepShownOnClick = true, func = showAll },
+      { text = "Downgrade Only", isNotRadio = true, keepShownOnClick = true,
+        checked = function() return filters.downgradeOnly end, func = toggleDowngrade },
+    }
+    for _, entry in ipairs(groups) do
+      local group = entry
+      local submenu = {}
+      for _, value in ipairs(group.entries) do
+        local choice = value
+        submenu[#submenu + 1] = { text = choice.name, isNotRadio = true, keepShownOnClick = true,
+          checked = function() return filters[group.key][choice.key] ~= false end,
+          func = function() toggle(group.key, choice.key) end }
+      end
+      menu[#menu + 1] = { text = group.name, notCheckable = true, hasArrow = true, menuList = submenu }
+    end
+    if not module.gearFiltersMenu then
+      module.gearFiltersMenu = CreateFrame("Frame", "SlackHacksListviewBagGearFiltersMenu", UIParent, "UIDropDownMenuTemplate")
+    end
+    EasyMenu(menu, module.gearFiltersMenu, "cursor", 0, 0, "MENU")
+  end
+end
+
+--- Start auction scans only while the selling view and auction house are both open.
+updateAuctionView = function()
+  local prices = Self.ListviewBagAuction
+  if not prices then return end
+  prices.Cancel()
+  if selectedView() ~= "selling" or not auctionOpen or not frame or not frame:IsShown() then return end
+  if prices.HasAuctionator() then return end
+  local items = {}
+  for _, group in ipairs(collectGroups()) do
+    local entry = group.entries[1]
+    if entry and group.hyperlink and not group.isBound and not group.accountBound then
+      items[#items + 1] = { link = group.hyperlink, bagID = entry.bagID, slot = entry.slot }
+    end
+  end
+  prices.Start(items, renderRows)
 end
 
 --- Create the window footer and its filter controls.
@@ -2543,6 +2888,31 @@ local function createFooter()
   footer.filtersButton:SetFrameLevel(content:GetFrameLevel() + 1)
   footer.filtersButton:SetPoint("RIGHT", content.openBagsButton, "LEFT", -4, 0)
   updateFiltersLabel()
+
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    footer.viewsButton = CreateFrame("DropdownButton", "SlackHacksListviewBagViewsButton", content, "WowStyle1DropdownTemplate")
+    footer.viewsButton:SetWidth(110)
+    footer.viewsButton:SetupMenu(openViewsMenu)
+    footer.gearFiltersButton = CreateFrame("DropdownButton", "SlackHacksListviewBagGearFiltersButton", content, "WowStyle1DropdownTemplate")
+    footer.gearFiltersButton:SetWidth(110)
+    footer.gearFiltersButton:SetupMenu(openGearFiltersMenu)
+    footer.gearFiltersButton:OverrideText("Gear Filters")
+  else
+    footer.viewsButton = CreateFrame("Frame", "SlackHacksListviewBagViewsButton", content, "UIDropDownMenuTemplate")
+    footer.viewsButton.legacy = true
+    UIDropDownMenu_SetWidth(footer.viewsButton, 110)
+    _G[footer.viewsButton:GetName() .. "Button"]:SetScript("OnClick", function() openViewsMenu(footer.viewsButton) end)
+    footer.gearFiltersButton = CreateFrame("Frame", "SlackHacksListviewBagGearFiltersButton", content, "UIDropDownMenuTemplate")
+    footer.gearFiltersButton.legacy = true
+    UIDropDownMenu_SetWidth(footer.gearFiltersButton, 110)
+    UIDropDownMenu_SetText(footer.gearFiltersButton, "Gear Filters")
+    _G[footer.gearFiltersButton:GetName() .. "Button"]:SetScript("OnClick", function() openGearFiltersMenu(footer.gearFiltersButton) end)
+  end
+  footer.viewsButton:SetFrameLevel(content:GetFrameLevel() + 1)
+  footer.viewsButton:SetPoint("RIGHT", footer.filtersButton, "LEFT", -4, 0)
+  footer.gearFiltersButton:SetFrameLevel(content:GetFrameLevel() + 1)
+  footer.gearFiltersButton:SetPoint("RIGHT", footer.viewsButton, "LEFT", -4, 0)
+  updateViewControls()
 
   if C_AddOns and C_AddOns.LoadAddOn then
     C_AddOns.LoadAddOn("Blizzard_TokenUI")
@@ -2976,7 +3346,7 @@ local function buildFrame()
   headerFrame.Background:Hide()
   headerFrame.TopTileStreaks:Hide()
   headerFrame.sortingFunction = function(_, columnIndex)
-    selectSortColumn(settings().columnOrder[columnIndex])
+    selectSortColumn(activeColumns()[columnIndex])
   end
   content.statusHeaderButton = CreateFrame("Button", nil, headerFrame, "ColumnDisplayButtonNoScriptsTemplate")
   content.statusHeaderButton:SetSize(24, 24)
@@ -3009,6 +3379,10 @@ local function buildFrame()
     layoutFrame()
     renderRows()
     updateFooter()
+    updateAuctionView()
+  end)
+  frame:SetScript("OnHide", function()
+    if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
   end)
 
   if settings().point then
@@ -3151,6 +3525,7 @@ function module:OnEnable()
   self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
   self:RegisterEvent("INVENTORY_SEARCH_UPDATE", "Refresh")
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
+  self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
   self:RegisterEvent("PLAYER_MONEY", "RefreshFooter")
   self:RegisterEvent("CURRENCY_DISPLAY_UPDATE", "RefreshFooter")
   self:RegisterEvent("CURSOR_CHANGED", "OnCursorChanged")
@@ -3176,6 +3551,7 @@ end
 
 function module:OnDisable()
   trackedCursorItem = nil
+  if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
   if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
   if mailJob then stopMailJob("mail preparation stopped because Listview Bag was disabled.") end
   mailSelection = nil
@@ -3225,6 +3601,7 @@ function module:OnBagInteractionOpen(event)
   returnBlockedCursorItem()
   self:OnNativeBagOpen()
   renderRows()
+  if event == "AUCTION_HOUSE_SHOW" then updateAuctionView() end
 end
 
 --- Forget the list-view pickup when the cursor no longer holds that item.
@@ -3243,7 +3620,10 @@ function module:OnBagInteractionClosed(event)
     mailOpen = false
     if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
   end
-  if event == "AUCTION_HOUSE_CLOSED" then auctionOpen = false end
+  if event == "AUCTION_HOUSE_CLOSED" then
+    auctionOpen = false
+    if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
+  end
   if event == "BANKFRAME_CLOSED" then bankOpen = false end
   if event == "GUILDBANKFRAME_CLOSED" then guildBankOpen = false end
   renderRows()

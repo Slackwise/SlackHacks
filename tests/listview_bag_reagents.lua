@@ -118,6 +118,7 @@ function UIDropDownMenu_SetText(dropdown, text) dropdown.label = text end
 ---@param ... any Money-frame arguments.
 function MoneyFrame_SetMaxDisplayWidth(...) end
 
+assert(loadfile("ListviewBagGear.lua"))()
 assert(loadfile("ListviewBag.lua"))()
 
 --- Read or replace a closure's named upvalue.
@@ -169,6 +170,9 @@ local function openModernFilters(dropdown)
     CreateButton = function(_, text, select)
       local entry = { text = text, select = select, kind = "button" }
       function entry:SetResponse(response) self.response = response end
+      function entry:CreateCheckbox(label, checked, select)
+        menuEntries[#menuEntries + 1] = { text = label, section = text, checked = checked, select = select }
+      end
       menuEntries[#menuEntries + 1] = entry
       return entry
     end,
@@ -176,6 +180,9 @@ local function openModernFilters(dropdown)
     CreateTitle = function(_, title) section = title end,
     CreateCheckbox = function(_, text, checked, select)
       menuEntries[#menuEntries + 1] = { text = text, section = section, checked = checked, select = select }
+    end,
+    CreateRadio = function(_, text, checked, select)
+      menuEntries[#menuEntries + 1] = { text = text, checked = checked, select = select }
     end,
   }
   dropdown.menuGenerator(dropdown, root)
@@ -190,7 +197,7 @@ local function entry(text, section)
   end
 end
 openModernFilters(filtersButton)
-assert(menuEntries[1].text == "Check All" and menuEntries[1].response == MenuResponse.Refresh)
+assert(menuEntries[1].text == "Show All" and menuEntries[1].response == MenuResponse.Refresh)
 assert(not entry("Reagent Bag") and entry("Unflagged", "Flags").checked())
 assert(entry("Junk", "Flags").checked() and entry("Junk", "Categories").checked())
 profile.categoryFilters.special = false
@@ -205,15 +212,15 @@ assert(table.concat(categoryLabels, ",") == expectedCategories, "Modern menu mus
 entry("Auction", "Flags").select()
 entry("Equipment", "Categories").select()
 assert(profile.flagFilters.auction == false and profile.categoryFilters.equipment == false and filtersButton.label == "Filters (2)")
-entry("Check All").select()
+entry("Show All").select()
 assert(entry("Auction", "Flags").checked() and entry("Equipment", "Categories").checked()
   and profile.showReagentBagContents == false and refreshes == 3 and filtersButton.label == "Filters (None)")
 for _, value in ipairs(menuEntries) do
   if value.checked then value.select() end
 end
 assert(filtersButton.label == "Filters (14)", "Count every visible unchecked filter")
-entry("Check All").select()
-assert(filtersButton.label == "Filters (None)", "Check All must clear the filter count")
+entry("Show All").select()
+assert(filtersButton.label == "Filters (None)", "Show All must clear the filter count")
 local updateFiltersLabel = upvalue(createFooter, "updateFiltersLabel")
 local originalProfile = SlackHacks.db.profile.listviewBag
 SlackHacks.db.profile.listviewBag = { flagFilters = { mail = false }, categoryFilters = {}, showReagentBagContents = false }
@@ -222,6 +229,57 @@ assert(filtersButton.label == "Filters (1)", "The label must reflect a changed p
 SlackHacks.db.profile.listviewBag = originalProfile
 updateFiltersLabel()
 assert(filtersButton.label == "Filters (None)")
+
+local viewsButton = frames.SlackHacksListviewBagViewsButton
+local gearButton = frames.SlackHacksListviewBagGearFiltersButton
+assert(viewsButton.anchor[2] == filtersButton and gearButton.anchor[2] == viewsButton)
+assert(viewsButton.label == "Default View" and not gearButton.shown)
+openModernFilters(viewsButton)
+assert(entry("Default View").checked() and entry("Selling View") and entry("Gear View"))
+local activeColumns = upvalue(upvalue(renderRows, "layoutHeaders"), "computeLayout")
+activeColumns = upvalue(activeColumns, "activeColumns")
+profile.columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
+entry("Selling View").select()
+assert(viewsButton.label == "Selling View")
+assert(table.concat(activeColumns(), ",") == "quantity,name,vendor,auction,armorType,armorSlot,bind")
+assert(table.concat(profile.columnOrder, ",") == "quantity,name,ilvl,armorType,armorSlot,bind",
+  "view changes must preserve the user's default column order")
+openModernFilters(viewsButton)
+entry("Gear View").select()
+assert(profile.view == "gear" and gearButton.shown and viewsButton.label == "Gear View")
+assert(table.concat(activeColumns(), ",") == "quantity,name,upgrade,ilvl,armorType,armorSlot,bind")
+C_Item = { GetItemSubClassInfo = function(class, subclass)
+  if class == 4 and subclass == 1 then return "Cloth" end
+end }
+ITEM_MOD_AGILITY_SHORT = "Agility"
+INVTYPE_HEAD = "Head"
+openModernFilters(gearButton)
+assert(entry("Show All") and entry("Downgrade Only") and entry("Cloth", "Armor and Weapons")
+  and entry("Head", "Equipment Slots") and entry("Agi", "Stats"))
+local matchesGearFilters = upvalue(buildDisplayRows, "matchesGearFilters")
+local gearItem = { classID = 4, subclassID = 1, equipLoc = "INVTYPE_HEAD",
+  itemStats = { ITEM_MOD_AGILITY_SHORT = 2 },
+  comparisons = { SlackHacks.ListviewBagGear.CompareStats({ ITEM_MOD_AGILITY_SHORT = 2 },
+    { ITEM_MOD_AGILITY_SHORT = 3 }, 1) } }
+assert(matchesGearFilters(gearItem), "gear is initially shown")
+entry("Cloth", "Armor and Weapons").select()
+assert(not matchesGearFilters(gearItem), "unchecked armor types are hidden")
+entry("Cloth", "Armor and Weapons").select()
+entry("Agi", "Stats").select()
+assert(not matchesGearFilters(gearItem), "unchecked stats are hidden")
+entry("Cloth", "Armor and Weapons").select()
+entry("Downgrade Only").select()
+assert(profile.gearFilters.types["4:1"] == false and profile.gearFilters.stats.ITEM_MOD_AGILITY_SHORT == false
+  and profile.gearFilters.downgradeOnly)
+entry("Show All").select()
+assert(not next(profile.gearFilters.types) and not next(profile.gearFilters.stats)
+  and not profile.gearFilters.downgradeOnly)
+openModernFilters(viewsButton)
+entry("Default View").select()
+assert(not gearButton.shown and viewsButton.label == "Default View")
+profile.view = nil
+ITEM_MOD_AGILITY_SHORT = nil
+INVTYPE_HEAD = nil
 
 local visited = {}
 C_Container = {
@@ -270,7 +328,7 @@ filtersButton = frames.SlackHacksListviewBagFiltersButton
 assert(filtersButton.template == "UIDropDownMenuTemplate" and filtersButton.label == "Filters (None)")
 local legacyButton = _G[filtersButton:GetName() .. "Button"]
 legacyButton.scripts.OnClick(legacyButton)
-assert(legacy[1].text == "Check All")
+assert(legacy[1].text == "Show All")
 categoryLabels = {}
 local inCategories = false
 for _, value in ipairs(legacy) do

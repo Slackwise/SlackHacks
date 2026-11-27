@@ -184,6 +184,7 @@ end)
 profile.mailRecipients = { [1] = { nickname = "Bank Alt", character = "Example" } }
 
 local row = createRow(1)
+assert(row.upgradeText.fontSize == 8, "Upgrade text must use a smaller font than the normal 10-point row text")
 row.statusKey = "item"
 row.statusInfo = { name = "Item", quality = 1 }
 local button = row.statusBtn
@@ -570,6 +571,50 @@ profile.mailItems[statusKey("Unmarked", 1, 10, nil)] = {}
 assert(displayedNames() == "Grey,Junk A,Junk B,Auction,Mail,Unmarked,Bank,Protect",
   "Changing a flag must update its position in the active sort")
 
+-- Exercise real selling-row and tooltip rendering without the removed coin-texture API.
+do
+  local saleRow = createRow(2)
+  local originalRows = upvalue(renderRows, "buildDisplayRows", function()
+    return { { itemName = "Sale item", statusKey = "sale", statusInfo = {}, quality = 1,
+      count = 1, sellPrice = 1717, entries = { { bagID = 0, slot = 1 } },
+      auction = { minimum = 3000, average = 4000, source = "Auction House" } } }
+  end)
+  local originalAcquire = upvalue(renderRows, "acquireRow", function() return saleRow end)
+  local originalLayout = upvalue(renderRows, "layoutHeaders", function() end)
+  local originalPosition = upvalue(renderRows, "positionRowCells", function() end)
+  local bagFrame = upvalue(renderRows, "frame")
+  local scrollFrame = upvalue(renderRows, "scrollFrame")
+  local wasShown, previousView = bagFrame.shown, profile.view
+  local originalGetHeight, originalColors = scrollFrame.GetHeight, ITEM_QUALITY_COLORS
+  local originalIsOwned = GameTooltip.IsOwned
+  function scrollFrame:GetHeight() return 100 end
+  function GameTooltip:IsOwned(owner) return owner == saleRow end
+  --- Format a price using the supported client API.
+  ---@param copper number Price in copper.
+  ---@param showIcons boolean Whether coin icons are requested.
+  ---@return string price Formatted price.
+  function GetMoneyString(copper, showIcons)
+    assert(showIcons, "Prices must retain coin icons")
+    return "coins:" .. copper
+  end
+  ITEM_QUALITY_COLORS = {}
+  profile.view = "selling"
+  bagFrame:Show()
+  renderRows()
+  assert(saleRow.vendorText.text == "coins:1717" and saleRow.auctionText.text == "coins:3000",
+    "Selling rows must render vendor and auction prices using the supported money formatter")
+  GameTooltip:SetText("Sale item")
+  saleRow.hooks.OnEnter(saleRow)
+  assert(GameTooltip.doubleLines[1][2] == "coins:3000" and GameTooltip.doubleLines[2][2] == "coins:4000",
+    "Auction tooltip prices must use the same supported formatter")
+  upvalue(renderRows, "buildDisplayRows", originalRows)
+  upvalue(renderRows, "acquireRow", originalAcquire)
+  upvalue(renderRows, "layoutHeaders", originalLayout)
+  upvalue(renderRows, "positionRowCells", originalPosition)
+  scrollFrame.GetHeight, ITEM_QUALITY_COLORS, GameTooltip.IsOwned = originalGetHeight, originalColors, originalIsOwned
+  profile.view, bagFrame.shown, GetMoneyString = previousView, wasShown, nil
+end
+
 -- Enable the module with a client-like event registry that rejects removed cursor events.
 local registeredEvents = {}
 --- Record events registered during module enable.
@@ -786,6 +831,9 @@ recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 assert(amountPrompt.shown and not profile.mailItems.pick,
   "Non-stackable items must also show the amount prompt")
+assert(amountPrompt.Bg.texture == "Interface\\MailFrame\\UI-MailFrameBG"
+  and amountPrompt.Bg.texCoord[2] == 320 / 512 and amountPrompt.Bg.texCoord[4] == 224 / 512,
+  "The mail prompt must use the cropped inbox background")
 amountButtons[2].scripts.OnClick()
 assert(profile.mailItems.pick and not profile.trashItems.pick and profile.mailAssignments.pick == 1
   and not profile.mailQueues.pick, "Remember must assign a default recipient")
