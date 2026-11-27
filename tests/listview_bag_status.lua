@@ -1747,23 +1747,104 @@ SlackHacks.isRetailOrForever = function() return true end
 ---@return table tokens Mock tokens.
 local function currencyTokens(count)
   local tokens = {}
-  for index = 1, count do tokens[index] = { GetWidth = function() return 50 end } end
+  for index = 1, count do
+    local token = { width = 50 }
+    --- Get the mock token width.
+    ---@return number width Mock token width.
+    function token:GetWidth() return self.width end
+    --- Set the mock token width.
+    ---@param width number New mock token width.
+    function token:SetWidth(width) self.width = width end
+    tokens[index] = token
+  end
   return tokens
 end
 footer.tokenFrame.Tokens, footer.crestFrame.Tokens = currencyTokens(3), currencyTokens(5)
 footer.tokenFrame.ShouldShow = function() return true end
 footer.crestFrame.ShouldShow = function() return true end
 updateFooter()
+local compactTokenWidth = 50 * 2 / 3 * 1.3
+for _, frame in ipairs({ footer.tokenFrame, footer.crestFrame }) do
+  for _, token in ipairs(frame.Tokens) do
+    assert(math.abs(token:GetWidth() - compactTokenWidth) < 0.001,
+      "Each watched currency and crest must be 30% wider than its previous compact width")
+  end
+end
+footer.tokenFrame:UpdateTokenAnchoring()
+updateFooter()
+assert(math.abs(footer.tokenFrame.Tokens[1]:GetWidth() - compactTokenWidth) < 0.001,
+  "Repeated native and addon updates must not shrink pooled buttons again")
+do
+  local anchor = footer.tokenFrame.UpdateTokenAnchoring
+  --- Verify that native anchoring receives compacted tokens.
+  ---@param frame table Mock watched-currency frame.
+  local previousAnchor = upvalue(anchor, "nativeAnchorTokens", function(frame)
+    assert(math.abs(frame.Tokens[1]:GetWidth() - compactTokenWidth) < 0.001
+      and math.abs(frame:GetWidth() - (26 + 3 * compactTokenWidth)) < 0.001,
+      "Blizzard must anchor the resized tokens using the resized frame")
+    frame.anchored = true
+  end)
+  footer.tokenFrame:UpdateTokenAnchoring()
+  assert(footer.tokenFrame.anchored)
+  upvalue(anchor, "nativeAnchorTokens", previousAnchor)
+
+  local originalRetail, originalCurrencies = SlackHacks.isRetail, C_CurrencyInfo
+  local originalBreakUp, originalUtf8 = BreakUpLargeNumbers, strlenutf8
+  local previousPreference = profile.trackCrestCurrencies
+  local tokens, nextToken = currencyTokens(2), 0
+  for _, token in ipairs(tokens) do
+    token.Icon, token.Count = widget(), widget()
+    --- Accept a mock script registration.
+    function token:SetScript() end
+    --- Accept a mock anchor reset.
+    function token:ClearAllPoints() end
+    --- Record the mock token's horizontal anchor offset.
+    ---@param x number Horizontal anchor offset.
+    function token:SetPoint(_, _, _, x) self.x = x end
+    --- Accept a mock visibility update.
+    function token:Show() end
+  end
+  local crest = { tokenPool = {
+    --- Reset the mock pool.
+    ReleaseAll = function() nextToken = 0 end,
+    --- Acquire the next mock token.
+    ---@return table token Next mock token.
+    Acquire = function() nextToken = nextToken + 1; return tokens[nextToken] end,
+  } }
+  --- Report the mocked client flavor.
+  ---@return boolean retail Whether the mocked client is Retail.
+  SlackHacks.isRetail = function() return true end
+  profile.trackCrestCurrencies = true
+  --- Return information for two mocked crests.
+  ---@param id number Currency identifier.
+  ---@return table|nil info Mock information for two crests.
+  C_CurrencyInfo = { GetCurrencyInfo = function(id)
+    if id == 3446 or id == 3445 then return { iconFileID = id, quantity = 42 } end
+  end }
+  --- Format a mock quantity.
+  ---@param value number Currency quantity.
+  ---@return string text Mock formatted quantity.
+  BreakUpLargeNumbers = function(value) return tostring(value) end
+  strlenutf8 = string.len
+  local updateCrests = upvalue(createFooter, "updateCrestFrame")
+  updateCrests(crest)
+  updateCrests(crest)
+  assert(#crest.Tokens == 2 and math.abs(tokens[1]:GetWidth() - compactTokenWidth) < 0.001
+    and math.abs(tokens[2].x - (13 + compactTokenWidth)) < 0.001,
+    "Crest buttons must stay compact and correctly spaced after pool reuse")
+  SlackHacks.isRetail, C_CurrencyInfo = originalRetail, originalCurrencies
+  BreakUpLargeNumbers, strlenutf8, profile.trackCrestCurrencies = originalBreakUp, originalUtf8, previousPreference
+end
 local scrollFrame = upvalue(realBuildFrame, "scrollFrame")
 assert(footer.height == 20 and footer.balanceContents.scale == 1
   and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
   "All tracked currencies and the slot count must fit in the original footer")
-footer:SetWidth(620)
+footer:SetWidth(567)
 updateFooter()
 assert(footer.slotCount.fontSize == 8 and footer.balanceContents.scale == 1
   and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth(),
   "The slot font must shrink before the currency strip when that is enough to fit")
-footer:SetWidth(600)
+footer:SetWidth(550)
 updateFooter()
 assert(footer.height == 20 and footer.balanceContents.scale < 1 and footer.slotCount.fontSize == 7
   and footer.slotCount:GetStringWidth() + footer.balances:GetWidth() + 12 <= footer:GetWidth() + 0.001,
@@ -1910,6 +1991,15 @@ assert(#footer.supplyFrame.buttons == 4 and footer.supplyFrame.buttons[1].supply
   and footer.supplyFrame.buttons[3].supply.itemID == 2456
   and footer.supplyFrame.buttons[4].supply.itemID == 241300,
   "Forever Warlocks must see shards and the highest-level bandage, health, and mana potions in order")
+assert(footer.supplies.points.LEFT[1] == footer.slotCount and footer.supplies.points.LEFT[2] == "RIGHT"
+  and footer.supplies.points.LEFT[3] == 4 and footer.supplyFrame.points.LEFT[1] == footer.supplies,
+  "The supply strip must be anchored immediately to the right of the bag slot count")
+for _, button in ipairs(footer.supplyFrame.buttons) do
+  assert(button.Count.points.LEFT[1] == button and button.Count.points.LEFT[2] == "LEFT"
+    and button.Icon.points.LEFT[1] == button.Count and button.Icon.points.LEFT[2] == "RIGHT"
+    and button.Icon.points.LEFT[3] == 2,
+    "Each supply icon must appear to the right of its count")
+end
 footer.supplyFrame.buttons[2].scripts.OnEnter(footer.supplyFrame.buttons[2])
 assert(GameTooltip.bagItem[1] == 0 and GameTooltip.bagItem[2] == 7,
   "Hovering a supply must show the selected bag item's native tooltip")
@@ -2098,6 +2188,76 @@ profile.trackCrestCurrencies = true
 updateFooter()
 assert(not footer.supplyFrame.shown, "Retail crest mode must hide the supply strip")
 profile.trackCrestCurrencies = false
+do
+  local originalCurrencies, originalBreakUp, originalUtf8 = C_CurrencyInfo, BreakUpLargeNumbers, strlenutf8
+  local oldTokens, oldTokenShouldShow = footer.tokenFrame.Tokens, footer.tokenFrame.ShouldShow
+  local oldCrestUpdate, oldCrestShouldShow, oldPool = footer.crestFrame.Update, footer.crestFrame.ShouldShow,
+    footer.crestFrame.tokenPool
+  local crests, nextCrest = currencyTokens(2), 0
+  for _, token in ipairs(crests) do
+    token.Icon, token.Count = widget(), widget()
+    --- Accept a mock script registration.
+    function token:SetScript() end
+    --- Accept a mock anchor reset.
+    function token:ClearAllPoints() end
+    --- Accept a mock anchor.
+    function token:SetPoint() end
+    --- Accept a mock visibility update.
+    function token:Show() end
+  end
+  footer.crestFrame.tokenPool = {
+    --- Reset the mock crest pool.
+    ReleaseAll = function() nextCrest = 0 end,
+    --- Acquire the next mock crest.
+    ---@return table token Mock crest token.
+    Acquire = function() nextCrest = nextCrest + 1; return crests[nextCrest] end,
+  }
+  footer.crestFrame.Update = upvalue(createFooter, "updateCrestFrame")
+  --- Report whether the mock crest frame has tokens.
+  ---@return boolean shown Whether any crests are visible.
+  footer.crestFrame.ShouldShow = function(self) return self.numWatchedTokens > 0 end
+  --- Report whether the mock currency frame has tokens.
+  ---@return boolean shown Whether any currencies are tracked.
+  footer.tokenFrame.ShouldShow = function(self) return #self.Tokens > 0 end
+  --- Provide two current-season crest currencies.
+  ---@param id number Currency identifier.
+  ---@return table|nil info Mock crest information.
+  C_CurrencyInfo = { GetCurrencyInfo = function(id)
+    if id == 3446 or id == 3445 then return { iconFileID = id, quantity = 42 } end
+  end }
+  --- Format a mock quantity.
+  ---@param value number Currency quantity.
+  ---@return string text Mock formatted quantity.
+  BreakUpLargeNumbers = function(value) return tostring(value) end
+  strlenutf8 = string.len
+  for _, preferCrests in ipairs({ true, false }) do
+    profile.trackCrestCurrencies = preferCrests
+    footer.tokenFrame.Tokens = {}
+    updateFooter()
+    assert(footer.supplyFrame.shown and footer.crestFrame.shown and #footer.crestFrame.Tokens == 2
+      and profile.trackCrestCurrencies == preferCrests,
+      "Retail must show both strips without tracked currencies without changing the saved preference")
+    footer.tokenFrame.Tokens = currencyTokens(1)
+    updateFooter()
+    assert(footer.crestFrame.shown == preferCrests and footer.supplyFrame.shown == not preferCrests,
+      "Tracking a currency must restore the selected Retail footer mode")
+  end
+  footer.tokenFrame.Tokens = {}
+  footer:SetWidth(300)
+  updateFooter()
+  assert(footer.supplyFrame.shown and footer.crestFrame.shown and footer.balanceContents.scale < 1
+    and footer.supplyFrame.scale == footer.balanceContents.scale
+    and footer.slotCount:GetStringWidth() + 4 + footer.supplies:GetWidth() + 4 + footer.balances:GetWidth()
+      <= footer:GetWidth() - 8 + 0.001,
+    "The left supply strip and right balances must scale together without overlapping")
+  footer:SetWidth(684)
+  footer.tokenFrame.Tokens, footer.tokenFrame.ShouldShow = oldTokens, oldTokenShouldShow
+  footer.crestFrame.Update, footer.crestFrame.ShouldShow, footer.crestFrame.tokenPool =
+    oldCrestUpdate, oldCrestShouldShow, oldPool
+  C_CurrencyInfo, BreakUpLargeNumbers, strlenutf8 = originalCurrencies, originalBreakUp, originalUtf8
+  profile.trackCrestCurrencies = false
+  updateFooter()
+end
 assert(not tooltipValue("Arrows") and not tooltipValue("Shots") and not tooltipValue("Soul Shards"))
 assert(not tooltipIndex("Mana Potions"), "Retail Hunters must not see mana potions")
 for _, class in ipairs({ "DEATHKNIGHT", "DEMONHUNTER" }) do

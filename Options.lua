@@ -2002,7 +2002,7 @@ options = {
             },
             footerDisplay = {
               name = "Footer Display",
-              desc = "Show either current season crests or your best available supplies in the Listview Bag footer.",
+              desc = "Choose crests or supplies when tracking currencies. Both are shown when no currencies are tracked.",
               type = "select",
               style = "radio",
               values = { crests = "Crests", supplies = "Supplies" },

@@ -2337,15 +2337,26 @@ local function crestTokenOnClick(self)
   ToggleCharacter("TokenFrame")
 end
 
+--- Size a pooled currency button to 13/15 of its original width.
+---@param token table Currency token button.
+local function compactCurrencyToken(token)
+  -- Blizzard reuses pooled buttons, so always resize from the original width.
+  token.slackHacksOriginalWidth = token.slackHacksOriginalWidth or token:GetWidth()
+  token:SetWidth(token.slackHacksOriginalWidth * 13 / 15)
+end
+
+--- Refresh current-season crest buttons according to the active footer display.
+---@param self table Crest currency frame.
 local function updateCrestFrame(self)
   self.tokenPool:ReleaseAll()
   self.Tokens = {}
   self.numWatchedTokens = 0
-  if not isRetail() or not settings().trackCrestCurrencies then return end
+  if not isRetail() or not (settings().trackCrestCurrencies or self.showBoth) then return end
   for _, currencyID in ipairs(CREST_CURRENCY_IDS) do
     local info = C_CurrencyInfo.GetCurrencyInfo(currencyID)
     if info then
       local token = self.tokenPool:Acquire()
+      compactCurrencyToken(token)
       token.currencyID = currencyID
       token.Icon:SetTexture(info.iconFileID)
       local quantity = info.quantity or 0
@@ -2363,12 +2374,24 @@ local function updateCrestFrame(self)
   self.numWatchedTokens = #self.Tokens
 end
 
-local function sizeCurrencyFrame(currencyFrame)
+--- Size a token frame to its compacted currency buttons.
+---@param currencyFrame table Currency token frame.
+---@return number width Total frame width.
+local function resizeCurrencyFrame(currencyFrame)
   local width = 26
   for _, token in ipairs(currencyFrame.Tokens or {}) do
+    compactCurrencyToken(token)
     width = width + token:GetWidth()
   end
   currencyFrame:SetWidth(width)
+  return width
+end
+
+--- Size the currency frame and return its visible width.
+---@param currencyFrame table Currency token frame.
+---@return number width Visible frame width, or zero when hidden.
+local function sizeCurrencyFrame(currencyFrame)
+  local width = resizeCurrencyFrame(currencyFrame)
   local shown = currencyFrame:ShouldShow()
   currencyFrame:SetShown(shown)
   return shown and width or 0
@@ -2681,9 +2704,10 @@ end
 
 --- Update the compact item strip and return its measured width.
 ---@param supplyFrame table Frame containing the supply buttons.
+---@param showBoth boolean Whether Retail should show supplies alongside crests.
 ---@return number width Strip width, or zero when not shown.
-local function updateSupplyFrame(supplyFrame)
-  local show = isForever() or (isRetail() and not settings().trackCrestCurrencies)
+local function updateSupplyFrame(supplyFrame, showBoth)
+  local show = isForever() or (isRetail() and (showBoth or not settings().trackCrestCurrencies))
   local items = show and collectFooterSupplies() or {}
   local width = 0
   for index, item in ipairs(items) do
@@ -2694,9 +2718,9 @@ local function updateSupplyFrame(supplyFrame)
       button:EnableMouse(true)
       button.Icon = button:CreateTexture(nil, "ARTWORK")
       button.Icon:SetSize(16, 16)
-      button.Icon:SetPoint("LEFT")
       button.Count = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-      button.Count:SetPoint("LEFT", button.Icon, "RIGHT", 2, 0)
+      button.Count:SetPoint("LEFT", button, "LEFT")
+      button.Icon:SetPoint("LEFT", button.Count, "RIGHT", 2, 0)
       button:SetScript("OnEnter", supplyOnEnter)
       button:SetScript("OnLeave", GameTooltip_Hide)
       supplyFrame.buttons[index] = button
@@ -2743,9 +2767,11 @@ local function updateFooter()
   footer.moneyFrame:SetWidth(footer.moneyFrame:GetWidth() + 13)
   footer.tokenFrame:Update()
   local tokenWidth = sizeCurrencyFrame(footer.tokenFrame)
+  local showBoth = isRetail() and #(footer.tokenFrame.Tokens or {}) == 0
+  footer.crestFrame.showBoth = showBoth
   footer.crestFrame:Update()
   local crestWidth = sizeCurrencyFrame(footer.crestFrame)
-  local supplyWidth = updateSupplyFrame(footer.supplyFrame)
+  local supplyWidth = updateSupplyFrame(footer.supplyFrame, showBoth)
   local width = footer.moneyFrame:GetWidth()
   footer.tokenFrame:ClearAllPoints()
   footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
@@ -2757,30 +2783,24 @@ local function updateFooter()
     footer.crestFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
   end
   if crestWidth > 0 then width = width + crestWidth + 4 end
-  footer.supplyFrame:ClearAllPoints()
-  if crestWidth > 0 then
-    footer.supplyFrame:SetPoint("RIGHT", footer.crestFrame, "LEFT", -4, 0)
-  elseif tokenWidth > 0 then
-    footer.supplyFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
-  else
-    footer.supplyFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
-  end
-  if supplyWidth > 0 then width = width + supplyWidth + 4 end
 
   footer.slotCount:SetFont(footer.slotFont, footer.slotFontSize, footer.slotFontFlags)
-  local available = footer:GetWidth() - 12
+  local available = footer:GetWidth() - 12 - (supplyWidth > 0 and 4 or 0)
+  local combinedWidth = width + supplyWidth
   local slotWidth = footer.slotCount:GetStringWidth()
-  if width + slotWidth > available and slotWidth > 0 then
+  if combinedWidth + slotWidth > available and slotWidth > 0 then
     local fontSize = math.max(math.min(7, footer.slotFontSize),
-      math.floor(footer.slotFontSize * (available - width) / slotWidth))
+      math.floor(footer.slotFontSize * (available - combinedWidth) / slotWidth))
     footer.slotCount:SetFont(footer.slotFont, fontSize, footer.slotFontFlags)
     slotWidth = footer.slotCount:GetStringWidth()
   end
-  -- The tracked currencies alone can exceed the remaining width, even at the smallest slot font.
-  local scale = math.min(1, math.max(0.01, (available - slotWidth) / width))
+  -- Scale both strips together if they cannot fit even at the smallest slot font.
+  local scale = math.min(1, math.max(0.01, (available - slotWidth) / combinedWidth))
   footer.balanceContents:SetWidth(width)
   footer.balanceContents:SetScale(scale)
   footer.balances:SetWidth(width * scale)
+  footer.supplyFrame:SetScale(scale)
+  footer.supplies:SetWidth(math.max(1, supplyWidth * scale))
   footer.slotHover:SetWidth(slotWidth)
   if GameTooltip:IsOwned(footer.slotHover) then showSlotTooltip(footer.slotHover) end
 end
@@ -3101,6 +3121,13 @@ local function createFooter()
   footer.tokenFrame = CreateFrame("Frame", nil, footer.balanceContents, "BackpackTokenFrameTemplate")
   footer.tokenFrame:SetIsCombinedInventory(true)
   footer.tokenFrame.GetMaxTokensWatched = function() return 3 end
+  local nativeAnchorTokens = footer.tokenFrame.UpdateTokenAnchoring
+  --- Compact tokens before Blizzard positions them, including its own event-driven updates.
+  ---@param self table Watched currency frame.
+  footer.tokenFrame.UpdateTokenAnchoring = function(self)
+    resizeCurrencyFrame(self)
+    nativeAnchorTokens(self)
+  end
   footer.tokenFrame:SetWidth(150)
   footer.tokenFrame:SetPoint("RIGHT", footer.moneyFrame, "LEFT", -4, 0)
 
@@ -3109,7 +3136,11 @@ local function createFooter()
   footer.crestFrame.Update = updateCrestFrame
   footer.crestFrame:SetWidth(276)
   footer.crestFrame:SetPoint("RIGHT", footer.tokenFrame, "LEFT", -4, 0)
-  footer.supplyFrame = CreateFrame("Frame", nil, footer.balanceContents)
+  footer.supplies = CreateFrame("Frame", nil, footer)
+  footer.supplies:SetHeight(20)
+  footer.supplies:SetPoint("LEFT", footer.slotCount, "RIGHT", 4, 0)
+  footer.supplyFrame = CreateFrame("Frame", nil, footer.supplies)
+  footer.supplyFrame:SetPoint("LEFT", footer.supplies, "LEFT")
   footer.supplyFrame.buttons = {}
   footer.supplyFrame:SetHeight(20)
 end
