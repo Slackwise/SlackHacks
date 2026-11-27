@@ -143,6 +143,93 @@ args.clear.func()
 assert(next(list) == nil and profile.trashItems == list and profile.protectedItems.keep)
 assert(refreshes == 3 and getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args.clear.disabled())
 
+-- Essentials settings preserve the existing defaults and allow inventory-backed custom items.
+local bagOptions = getOptions().args.inventory.args.listviewBag.args
+local essentials = bagOptions.essentials
+assert(essentials.inline and essentials.name == '"Essentials" Filter Items'
+  and essentials.order < bagOptions.autoSellMarkedItems.order)
+assert(essentials.args.description.name == "These items are common to all players but you usually don't interact with them directly.")
+for _, item in ipairs(module.ESSENTIAL_ITEMS) do
+  assert(essentials.args["item:" .. item.id].get(), item.name .. " must be checked by default")
+end
+assert(not essentials.args.arrows.get() and not essentials.args.soulShards.get())
+essentials.args["item:6948"].set(nil, false)
+assert(not essentials.args["item:6948"].get())
+essentials.args["item:6948"].set(nil, true)
+essentials.args.arrows.set(nil, true)
+assert(essentials.args.arrows.get())
+essentials.args.arrows.set(nil, false)
+
+local previousContainer, previousItem = C_Container, C_Item
+local searchSlots = {
+  [0] = {
+    { itemID = 100, itemName = "Healing Herb", hyperlink = "healing-link", iconFileID = 1000, isFiltered = true },
+    { itemID = 100, itemName = "Healing Herb", hyperlink = "healing-link", iconFileID = 1000 },
+    { itemID = 101, itemName = "Silver Herb", hyperlink = "silver-link", iconFileID = 1001 },
+    { itemID = 103 },
+    { itemID = 104 },
+  },
+  [5] = { { itemID = 102, itemName = "Rare Herb", hyperlink = "rare-link", iconFileID = 1002 } },
+}
+local stalePresent = true
+local globalSearchChanged = false
+C_Container = {
+  GetContainerNumSlots = function(bagID) return searchSlots[bagID] and #searchSlots[bagID] or 0 end,
+  GetContainerItemInfo = function(bagID, slot)
+    local item = searchSlots[bagID][slot]
+    if item.itemID == 102 and not stalePresent then return nil end
+    return item
+  end,
+  SetItemSearch = function() globalSearchChanged = true end,
+}
+C_Item = { GetItemInfo = function(id)
+  if id == 104 then return "Hidden Herb", "hidden-link", 1, 1, nil, nil, nil, nil, nil, 1004 end
+end }
+local messages = {}
+SlackHacks.prn = function(message) messages[#messages + 1] = message end
+local custom = getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems
+assert(custom.inline and custom.name == "Custom Essential Items")
+registry:RegisterOptionsTable("Essentials", function()
+  return getOptions().args.inventory.args.listviewBag.args.essentials
+end)
+registry:GetOptionsTable("Essentials", "dialog", "Test-1.0")
+local customArgs = custom.args
+customArgs.search.set(nil, "  HeRb  ")
+local values = customArgs.results.values()
+local sorting = customArgs.results.sorting()
+assert(values[100] and values[101] and values[102] and values[104] and not values[103]
+  and #sorting == 4 and sorting[1] == 100 and sorting[2] == 104 and sorting[3] == 102 and sorting[4] == 101)
+assert(not customArgs.results.disabled() and customArgs.add.disabled() and not globalSearchChanged,
+  "Search must include filtered and reagent-bag items without changing Blizzard's bag search")
+assert(customArgs.searchStatus.name():find("still loading", 1, true),
+  "Uncached item names must be reported")
+customArgs.results.set(nil, 102)
+assert(not customArgs.add.disabled())
+stalePresent = false
+customArgs.add.func()
+assert(not profile.customEssentialItems[102] and messages[#messages]:find("no longer in your bags", 1, true),
+  "A stale result must not add an item that left the inventory")
+stalePresent = true
+customArgs.search.set(nil, "healing")
+assert(customArgs.results.get() == 100, "A single distinct match must be selected automatically")
+customArgs.add.func()
+assert(profile.customEssentialItems[100].link == "healing-link" and profile.customEssentialItems[100].icon == 1000)
+customArgs = getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args
+assert(customArgs["item:100"].args.item.name == "|T1000:18:18|t healing-link"
+  and customArgs["item:100"].args.item.tooltipHyperlink == "healing-link")
+customArgs.results.set(nil, 100)
+assert(customArgs.add.disabled(), "Already-added items must not be added twice")
+customArgs["item:100"].args.remove.func()
+assert(not profile.customEssentialItems[100]
+  and not getOptions().args.inventory.args.listviewBag.args.essentials.args.customItems.args["item:100"],
+  "Removing a custom Essential must remove its saved rule and options row")
+customArgs.search.set(nil, "absent")
+assert(customArgs.results.disabled() and customArgs.add.disabled())
+SlackHacks.db.profile.listviewBag = otherProfile
+assert(customArgs.search.get() == "", "Search state must not leak between profiles")
+SlackHacks.db.profile.listviewBag = profile
+C_Container, C_Item = previousContainer, previousItem
+
 -- Both the portrait menu and Ace options use the same auto-sell confirmation.
 SlackHacks.db.profile.inventory = { autoSellGreyItems = true }
 profile.autoSellMarkedItems = true
@@ -303,4 +390,44 @@ SlackHacks.openOptions("inventory", "listviewBag")
 assert(openedDialog == "SlackHacks", "Group navigation in combat must open the standalone dialog")
 SlackHacks.openOptions()
 assert(closedDialog == "SlackHacks", "The standalone settings toggle must still close an open dialog")
+
+-- Exercise real AceDB defaults and logout/reload with a pre-existing profile.
+UnitFactionGroup = function() return "Alliance" end
+GetLocale = function() return "enUS" end
+UnitClass = function() return "Mage", "MAGE" end
+UnitRace = function() return "Human", "Human" end
+GetRealmName = function() return "Realm" end
+UnitNameUnmodified = function() return "Player" end
+GetCurrentRegionName = function() return "US" end
+GetCurrentRegion = function() return 1 end
+strlenutf8 = string.len
+local dbFrame = { scripts = {}, RegisterEvent = function() end }
+--- Capture AceDB's logout handler.
+---@param event string Script name.
+---@param handler function Script callback.
+function dbFrame:SetScript(event, handler) self.scripts[event] = handler end
+CreateFrame = function() return dbFrame end
+assert(loadfile("Libs/Ace3/AceDB-3.0/AceDB-3.0.lua"))()
+local saved = { profiles = { Default = { listviewBag = {
+  enabled = true, categoryFilters = { special = false }, trashItems = { retained = true },
+} } } }
+local aceDB = LibStub("AceDB-3.0")
+local oldDB = SlackHacks.db
+SlackHacks.db = aceDB:New(saved, SlackHacks.dbDefaults, true)
+local savedBag = SlackHacks.db.profile.listviewBag
+assert(not savedBag.categoryFilters.special and savedBag.trashItems.retained
+  and not savedBag.essentialItems.arrows and not savedBag.essentialItems.soulShards)
+local persistedOptions = getOptions().args.inventory.args.listviewBag.args.essentials.args
+assert(persistedOptions["item:6948"].get(), "Existing profiles must keep built-in Essentials enabled")
+persistedOptions["item:6948"].set(nil, false)
+persistedOptions.arrows.set(nil, true)
+savedBag.customEssentialItems[100] = { name = "Healing Herb", link = "healing-link", icon = 1000 }
+dbFrame.scripts.OnEvent(dbFrame, "PLAYER_LOGOUT")
+SlackHacks.db = aceDB:New(saved, SlackHacks.dbDefaults, true)
+savedBag = SlackHacks.db.profile.listviewBag
+assert(savedBag.essentialItems[6948] == false and savedBag.essentialItems.arrows
+  and savedBag.customEssentialItems[100].link == "healing-link"
+  and not savedBag.categoryFilters.special and savedBag.trashItems.retained,
+  "Custom settings must persist across logout without changing existing profile settings")
+SlackHacks.db = oldDB
 print("Listview bag vendor options tests passed")

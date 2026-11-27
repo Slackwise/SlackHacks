@@ -323,6 +323,20 @@ local cases = {
   { "equipment", makeItem(34, 0, "INVTYPE_HEAD", 1) },
 }
 local categoryNames = { "equipment", "consumables", "special", "reagents", "professionGoods", "junk", "quest", "other" }
+local classify = upvalue(matchesFilters, "itemCategory")
+for _, item in ipairs(SlackHacks.ListviewBag.ESSENTIAL_ITEMS) do
+  assert(classify(makeItem(item.id, 15, "", 1)) == "special",
+    item.name .. " must remain an Essential by default")
+end
+profile.essentialItems[2901] = false
+assert(classify(makeItem(2901, 2, "INVTYPE_WEAPONMAINHAND", 1)) == "equipment",
+  "Unchecking a built-in Essential must restore its normal category")
+profile.essentialItems[2901] = nil
+local shard = makeItem(6265, 7, "", 1, true)
+assert(classify(shard) == "reagents", "Soul Shards must not be Essentials by default")
+profile.essentialItems.soulShards = true
+assert(classify(shard) == "special", "Opted-in Soul Shards must be Essentials")
+profile.essentialItems.soulShards = false
 for _, case in ipairs(cases) do
   for _, selected in ipairs(categoryNames) do
     for _, name in ipairs(categoryNames) do
@@ -450,6 +464,13 @@ local itemCategory = upvalue(matchesFilters, "itemCategory")
 local arrow = makeItem(2512, 6, "INVTYPE_AMMO", 0, true, 4)
 arrow.subclassID = 2
 assert(itemCategory(arrow) == "consumables", "All Forever arrows must be consumables even with overlapping properties")
+profile.essentialItems.arrows = true
+assert(itemCategory(arrow) == "special", "Opted-in arrows must be classified as Essentials")
+profile.categoryFilters.special, profile.categoryFilters.consumables = false, true
+assert(not matchesFilters(arrow), "Essentials must override Consumables for opted-in arrows")
+profile.categoryFilters.special = true
+assert(matchesFilters(arrow), "The Essentials filter must control opted-in arrows")
+profile.essentialItems.arrows = false
 arrow.subclassID = 3
 assert(itemCategory(arrow) == "quest", "Other projectile subtypes must retain normal classification")
 arrow.quality, arrow.isCraftingReagent, arrow.bindType = 1, false, 0
@@ -468,6 +489,11 @@ end
 local inedibleFish = makeItem(6358, 7, "", 1, true)
 assert(itemCategory(inedibleFish) == "reagents", "Inedible fish must remain Reagents")
 local fish = makeItem(6291, 7, "", 1, true)
+profile.customEssentialItems[6291] = { name = "Raw Brilliant Smallfish" }
+profile.categoryFilters.special, profile.categoryFilters.consumables, profile.categoryFilters.reagents = false, true, true
+assert(itemCategory(fish) == "special" and not matchesFilters(fish),
+  "Custom Essentials must override the raw-fish Consumables/Reagents overlap")
+profile.customEssentialItems[6291] = nil
 retail, forever = true, false
 assert(itemCategory(fish) == "reagents", "Retail fish classification must be unchanged")
 retail, forever = false, false

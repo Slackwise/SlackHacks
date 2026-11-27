@@ -104,28 +104,31 @@ local FOREVER_EDIBLE_RAW_FISH_IDS = {
   [21071] = true, -- Raw Sagefish
   [21153] = true, -- Raw Greater Sagefish
 }
-local ESSENTIAL_ITEM_IDS = {
-  [6948] = true, -- Hearthstone
-  [211527] = true, -- Cozy Sleeping Bag
-  [280612] = true, -- Night Watchman's Torch
-  [2901] = true, -- Mining Pick
-  [7005] = true, -- Skinning Knife
-  [5956] = true, -- Blacksmith Hammer
-  [6219] = true, -- Arclight Spanner
-  [10498] = true, -- Gyromatic Micro-Adjustor
-  [4471] = true, -- Flint and Tinder
-  [6256] = true, -- Fishing Pole
-  [20815] = true, -- Jeweler's Toolset
-  [20824] = true, -- Simple Grinder
-  [40892] = true, -- Hammer Pick
-  [40893] = true, -- Bladed Pickaxe
-  [40772] = true, -- Gnomish Army Knife
-  [6218] = true, -- Runed Copper Rod
-  [6339] = true, -- Runed Silver Rod
-  [11130] = true, -- Runed Golden Rod
-  [11145] = true, -- Runed Truesilver Rod
-  [16207] = true, -- Runed Arcanite Rod
+module.ESSENTIAL_ITEMS = {
+  { id = 6948, name = "Hearthstone" },
+  { id = 211527, name = "Cozy Sleeping Bag" },
+  { id = 280612, name = "Night Watchman's Torch" },
+  { id = 2901, name = "Mining Pick" },
+  { id = 7005, name = "Skinning Knife" },
+  { id = 5956, name = "Blacksmith Hammer" },
+  { id = 6219, name = "Arclight Spanner" },
+  { id = 10498, name = "Gyromatic Micro-Adjustor" },
+  { id = 4471, name = "Flint and Tinder" },
+  { id = 6256, name = "Fishing Pole" },
+  { id = 20815, name = "Jeweler's Toolset" },
+  { id = 20824, name = "Simple Grinder" },
+  { id = 40892, name = "Hammer Pick" },
+  { id = 40893, name = "Bladed Pickaxe" },
+  { id = 40772, name = "Gnomish Army Knife" },
+  { id = 6218, name = "Runed Copper Rod" },
+  { id = 6339, name = "Runed Silver Rod" },
+  { id = 11130, name = "Runed Golden Rod" },
+  { id = 11145, name = "Runed Truesilver Rod" },
+  { id = 16207, name = "Runed Arcanite Rod" },
 }
+local ESSENTIAL_ITEM_IDS = {}
+for _, item in ipairs(module.ESSENTIAL_ITEMS) do ESSENTIAL_ITEM_IDS[item.id] = true end
+local SOUL_SHARD_ITEM_ID = 6265
 local EQUIPMENT_SLOTS = {
   INVTYPE_HEAD = true, INVTYPE_NECK = true, INVTYPE_SHOULDER = true, INVTYPE_BODY = true,
   INVTYPE_CHEST = true, INVTYPE_WAIST = true, INVTYPE_LEGS = true, INVTYPE_FEET = true,
@@ -156,6 +159,34 @@ local function bagIDs()
   return ids
 end
 
+--- Find distinct inventory items whose names contain the entered text.
+---@param query string Search text.
+---@return table items Matching item metadata, keyed by item ID.
+---@return boolean incomplete Whether any item names are still unavailable.
+function module:SearchInventoryItems(query)
+  local items, incomplete = {}, false
+  local search = query:lower()
+  if search == "" then return items, incomplete end
+  for _, bagID in ipairs(bagIDs()) do
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.itemID and not items[info.itemID] then
+        local name, link, icon = info.itemName, info.hyperlink, info.iconFileID
+        if not name or not link or not icon then
+          local cachedName, cachedLink, _, _, _, _, _, _, _, cachedIcon = C_Item.GetItemInfo(link or info.itemID)
+          name, link, icon = name or cachedName, link or cachedLink, icon or cachedIcon
+        end
+        if not name then
+          incomplete = true
+        elseif name:lower():find(search, 1, true) then
+          items[info.itemID] = { name = name, link = link, icon = icon }
+        end
+      end
+    end
+  end
+  return items, incomplete
+end
+
 --- Return bag settings, initializing optional status lists in older profiles.
 ---@return table settings Current profile's bag settings.
 local function settings()
@@ -167,6 +198,8 @@ local function settings()
   listviewSettings.categoryFilters = listviewSettings.categoryFilters or {}
   listviewSettings.mailRecipients = listviewSettings.mailRecipients or {}
   listviewSettings.mailAssignments = listviewSettings.mailAssignments or {}
+  listviewSettings.essentialItems = listviewSettings.essentialItems or {}
+  listviewSettings.customEssentialItems = listviewSettings.customEssentialItems or {}
   local columnOrder = listviewSettings and listviewSettings.columnOrder
   if columnOrder then
     for index = #columnOrder, 1, -1 do
@@ -551,16 +584,20 @@ end
 
 --- Classify an item for the bag filters and mail summaries.
 ---@param group table Collected item and its metadata.
+---@param bag table|nil Current bag settings, if already available.
 ---@return string category Item category identifier.
-local function itemCategory(group)
+local function itemCategory(group, bag)
   -- The game does not expose its sorter classification. Resolve overlapping item properties
-  -- in priority order, independently of which filters are enabled. Forever arrows and edible raw fish
-  -- are consumables even when they have other properties such as being crafting reagents.
-  if (FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID]
+  -- in priority order, independently of which filters are enabled.
+  bag = bag or settings()
+  if bag.customEssentialItems[group.itemID]
+    or (ESSENTIAL_ITEM_IDS[group.itemID] and bag.essentialItems[group.itemID] ~= false)
+    or (group.itemID == SOUL_SHARD_ITEM_ID and bag.essentialItems.soulShards)
+    or (group.classID == PROJECTILE_CLASS_ID and group.subclassID == ARROW_SUBCLASS_ID and bag.essentialItems.arrows) then
+    return "special"
+  elseif (FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID]
     or (group.classID == PROJECTILE_CLASS_ID and group.subclassID == ARROW_SUBCLASS_ID)) and isForever() then
     return "consumables"
-  elseif ESSENTIAL_ITEM_IDS[group.itemID] then
-    return "special"
   elseif group.classID == 12 or group.bindType == 4 then
     return "quest"
   elseif group.quality == 0 and group.sellPrice ~= nil then
@@ -584,10 +621,11 @@ local function matchesFilters(group)
   local bag = settings()
   local status = getItemStatus(group.statusKey, group.quality)
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
-  if FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID] and isForever() then
+  local category = itemCategory(group, bag)
+  if category == "consumables" and FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID] and isForever() then
     return bag.categoryFilters.consumables ~= false or bag.categoryFilters.reagents ~= false
   end
-  return bag.categoryFilters[itemCategory(group)] ~= false
+  return bag.categoryFilters[category] ~= false
 end
 
 --- Replace an item's status while retaining the metadata used by vendor matching.

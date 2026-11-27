@@ -63,6 +63,8 @@ dbDefaults = {
       mailItems = {},
       mailRecipients = {},
       mailAssignments = {},
+      essentialItems = { arrows = false, soulShards = false },
+      customEssentialItems = {},
       autoSellMarkedItems = false,
       point = nil
     },
@@ -975,6 +977,44 @@ local selfVendorModeSorting = {
   Enum.SelfVendorMode.AUGMENTS,
 }
 
+--- Build a linked item label and an adjacent removal button using native AceGUI controls.
+---@param item table Item name, link, icon, and optional description.
+---@param remove function Removal callback.
+---@param description string Removal-button tooltip.
+---@param order number Row order.
+---@return table row AceConfig inline group.
+local function removableItemRow(item, remove, description, order)
+  local label = item.link or item.name
+  if item.icon then label = ("|T%s:18:18|t %s"):format(item.icon, label) end
+  return {
+    type = "group",
+    name = "",
+    inline = true,
+    order = order,
+    args = {
+      item = {
+        type = "description",
+        dialogControl = "InteractiveLabel",
+        name = label,
+        desc = item.desc,
+        tooltipHyperlink = item.link,
+        width = "relative",
+        relWidth = 0.78,
+        order = 1,
+      },
+      remove = {
+        type = "execute",
+        name = "Remove",
+        desc = description,
+        func = remove,
+        width = "relative",
+        relWidth = 0.2,
+        order = 2,
+      },
+    },
+  }
+end
+
 --- Build the marked-item controls from the current profile.
 ---@return table args AceConfig controls for clearing or removing marked items.
 local function listviewVendorItemOptions()
@@ -1016,47 +1056,222 @@ local function listviewVendorItemOptions()
     end
     -- Status keys contain control characters, which AceConfig forbids in option keys.
     local optionKey = "item:" .. tostring(itemKey):gsub(".", function(char) return ("%02x"):format(char:byte()) end)
-    local label = link or (type(entry) == "table" and entry.name) or tostring(itemKey)
-    if itemIcon then label = ("|T%s:18:18|t %s"):format(itemIcon, label) end
-    args[optionKey] = {
-      type = "group",
-      name = "",
-      inline = true,
-      order = 1,
-      args = {
-        item = {
-          type = "description",
-          dialogControl = "InteractiveLabel",
-          name = label,
-          desc = type(entry) == "table" and not entry.link
-            and "Older entries show the base item until the exact item is seen in your bags." or nil,
-          tooltipHyperlink = link,
-          width = "relative",
-          relWidth = 0.78,
-          order = 1,
-        },
-        remove = {
-          type = "execute",
-          name = "Remove",
-          desc = "Remove this item from the Junk list.",
-          func = function()
-            db.profile.listviewBag.trashItems[itemKey] = nil
-            if Self.ListviewBag then Self.ListviewBag:Refresh() end
-          end,
-          width = "relative",
-          relWidth = 0.2,
-          order = 2,
-        },
-      },
-    }
+    args[optionKey] = removableItemRow({
+      name = (type(entry) == "table" and entry.name) or tostring(itemKey),
+      link = link,
+      icon = itemIcon,
+      desc = type(entry) == "table" and not entry.link
+        and "Older entries show the base item until the exact item is seen in your bags." or nil,
+    }, function()
+      db.profile.listviewBag.trashItems[itemKey] = nil
+      if Self.ListviewBag then Self.ListviewBag:Refresh() end
+    end, "Remove this item from the Junk list.", 1)
   end
   return args
 end
 
---- Refresh dynamic marked-item controls whenever AceConfig requests the options table.
+local essentialSearch = { query = "" }
+
+--- Reset the temporary search when the active profile changes.
+local function syncEssentialSearch()
+  local profile = db.profile
+  local bag = profile.listviewBag
+  bag.essentialItems = bag.essentialItems or {}
+  bag.customEssentialItems = bag.customEssentialItems or {}
+  if essentialSearch.profile ~= profile or essentialSearch.bag ~= bag then
+    essentialSearch.profile = profile
+    essentialSearch.bag = bag
+    essentialSearch.query = ""
+    essentialSearch.selected = nil
+  end
+end
+
+--- Search the current inventory without changing Blizzard's global bag search.
+---@return table items Matches keyed by item ID.
+---@return boolean incomplete Whether some item names have not loaded.
+local function essentialSearchResults()
+  syncEssentialSearch()
+  return Self.ListviewBag:SearchInventoryItems(essentialSearch.query)
+end
+
+--- Build the custom Essentials search and removable saved-item list.
+---@return table args AceConfig controls for custom Essentials.
+local function customEssentialItemOptions()
+  syncEssentialSearch()
+  local args = {
+    searchHint = {
+      type = "description",
+      name = "Enter part of an item name and press Enter, then select a match.",
+      width = "full",
+      order = 0,
+    },
+    search = {
+      type = "input",
+      name = "Search Inventory",
+      desc = "Enter part of an item name and press Enter to search your bags.",
+      get = function() syncEssentialSearch(); return essentialSearch.query end,
+      set = function(_, value)
+        syncEssentialSearch()
+        essentialSearch.query = value:match("^%s*(.-)%s*$")
+        essentialSearch.selected = nil
+        local items = essentialSearchResults()
+        local only
+        for id in pairs(items) do
+          if only then only = nil; break end
+          only = id
+        end
+        essentialSearch.selected = only
+      end,
+      width = "full",
+      order = 1,
+    },
+    results = {
+      type = "select",
+      name = "Matching Items",
+      desc = "Choose an item currently in your bags.",
+      values = function()
+        local values = {}
+        for id, item in pairs(essentialSearchResults()) do
+          local label = item.link or item.name
+          values[id] = item.icon and ("|T%s:18:18|t %s"):format(item.icon, label) or label
+        end
+        return values
+      end,
+      sorting = function()
+        local items = essentialSearchResults()
+        local ids = {}
+        for id in pairs(items) do ids[#ids + 1] = id end
+        table.sort(ids, function(a, b)
+          local left, right = items[a].name:lower(), items[b].name:lower()
+          if left == right then return a < b end
+          return left < right
+        end)
+        return ids
+      end,
+      get = function() syncEssentialSearch(); return essentialSearch.selected end,
+      set = function(_, value) syncEssentialSearch(); essentialSearch.selected = value end,
+      disabled = function()
+        local items = essentialSearchResults()
+        return not next(items)
+      end,
+      width = "relative",
+      relWidth = 0.7,
+      order = 2,
+    },
+    add = {
+      type = "execute",
+      name = "Add Custom Item",
+      desc = "Add the selected inventory item to the Essentials filter.",
+      disabled = function()
+        syncEssentialSearch()
+        return not essentialSearch.selected
+          or db.profile.listviewBag.customEssentialItems[essentialSearch.selected] ~= nil
+      end,
+      func = function()
+        syncEssentialSearch()
+        local id = essentialSearch.selected
+        local items = essentialSearchResults()
+        local item = id and items[id]
+        if not item then
+          prn("the selected item is no longer in your bags; search again.")
+          essentialSearch.selected = nil
+          return
+        end
+        if db.profile.listviewBag.customEssentialItems[id] then
+          prn("that item is already in the custom Essentials list.")
+          return
+        end
+        db.profile.listviewBag.customEssentialItems[id] = item
+        essentialSearch.selected = nil
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = "relative",
+      relWidth = 0.28,
+      order = 3,
+    },
+    searchStatus = {
+      type = "description",
+      name = function()
+        local items, incomplete = essentialSearchResults()
+        if incomplete then return "Some item names are still loading; search again shortly." end
+        if essentialSearch.query ~= "" and not next(items) then return "No matching items in your bags." end
+        return ""
+      end,
+      width = "full",
+      order = 3.5,
+    },
+  }
+  for id, item in pairs(db.profile.listviewBag.customEssentialItems or {}) do
+    local itemID = id
+    args["item:" .. tostring(itemID)] = removableItemRow({
+      name = item.name or tostring(itemID),
+      link = item.link,
+      icon = item.icon,
+    }, function()
+      db.profile.listviewBag.customEssentialItems[itemID] = nil
+      if Self.ListviewBag then Self.ListviewBag:Refresh() end
+    end, "Remove this item from custom Essentials.", 4)
+  end
+  return args
+end
+
+--- Build the built-in Essentials checkboxes and custom-item controls.
+---@return table args AceConfig controls for the Essentials filter.
+local function essentialItemOptions()
+  syncEssentialSearch()
+  local args = {
+    description = {
+      type = "description",
+      name = "These items are common to all players but you usually don't interact with them directly.",
+      width = "full",
+      order = 0,
+    },
+  }
+  for index, item in ipairs(Self.ListviewBag.ESSENTIAL_ITEMS) do
+    local id, defaultName = item.id, item.name
+    args["item:" .. id] = {
+      type = "toggle",
+      name = function() return C_Item.GetItemInfo(id) or defaultName end,
+      get = function() syncEssentialSearch(); return db.profile.listviewBag.essentialItems[id] ~= false end,
+      set = function(_, value)
+        syncEssentialSearch()
+        db.profile.listviewBag.essentialItems[id] = value
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = 1.5,
+      order = index,
+    }
+  end
+  for index, choice in ipairs({ { key = "arrows", name = "Arrows" }, { key = "soulShards", name = "Soul Shards" } }) do
+    local key = choice.key
+    args[key] = {
+      type = "toggle",
+      name = choice.name,
+      get = function() syncEssentialSearch(); return db.profile.listviewBag.essentialItems[key] == true end,
+      set = function(_, value)
+        syncEssentialSearch()
+        db.profile.listviewBag.essentialItems[key] = value
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = 1.5,
+      order = #Self.ListviewBag.ESSENTIAL_ITEMS + index,
+    }
+  end
+  args.customItems = {
+    type = "group",
+    name = "Custom Essential Items",
+    inline = true,
+    args = customEssentialItemOptions(),
+    order = #Self.ListviewBag.ESSENTIAL_ITEMS + 3,
+  }
+  return args
+end
+
+--- Refresh dynamic bag-item controls whenever AceConfig requests the options table.
 ---@return table options The shared addon options table.
 local function getOptions()
   options.args.inventory.args.listviewBag.args.autoVendorItems.args = listviewVendorItemOptions()
+  options.args.inventory.args.listviewBag.args.essentials.args = essentialItemOptions()
   return options
 end
 
@@ -1745,6 +1960,13 @@ options = {
               end,
               disabled = function() return not db.profile.listviewBag.enabled or not isRetail() end,
               order = 2.5
+            },
+            essentials = {
+              type = "group",
+              name = "\"Essentials\" Filter Items",
+              inline = true,
+              args = {},
+              order = 2.75,
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Junk",
