@@ -1485,7 +1485,9 @@ end
 local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
   if not recipientPicker then
     local forever = isForever()
-    local picker = CreateFrame("Frame", "SlackHacksMailRecipientPicker", frame, "DefaultPanelBaseTemplate")
+    -- Retail's base template has no background behind the inset and exposes the world around its edges.
+    local picker = CreateFrame("Frame", "SlackHacksMailRecipientPicker", frame,
+      forever and "DefaultPanelBaseTemplate" or "DefaultPanelTemplate")
     picker:Hide()
     -- Forever's outfit-card artwork extends to 194 pixels despite the 169-pixel row template.
     picker:SetSize(forever and 245 or 220, forever and 459 or 451)

@@ -792,7 +792,8 @@ function CreateFrame(kind, name, parent, template)
   elseif parent == amountPrompt and template == "SharedButtonSmallTemplate" then
     amountButtons[#amountButtons + 1] = result
   elseif name == "SlackHacksMailRecipientPicker" then
-    assert(template == "DefaultPanelBaseTemplate")
+    assert(template == (SlackHacks.isForever() and "DefaultPanelBaseTemplate" or "DefaultPanelTemplate"))
+    result.template = template
     result.TitleContainer = { TitleText = widget() }
     function result:Hide()
       self.shown = false
@@ -1093,7 +1094,8 @@ profile.mailRecipients[2] = nil
 upvalue(openPicker, "recipientPicker", false)
 SlackHacks.isForever = function() return false end
 openPicker(button, "retail", row.statusInfo)
-assert(picker.shown and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0
+assert(picker.shown and picker.template == "DefaultPanelTemplate"
+  and rawget(inset.Bg, "atlas") == nil and #inset.paneTextures == 0
   and inset.Bg.points.TOPLEFT[1] == inset and inset.Bg.points.TOPLEFT[3] == 3
   and inset.Bg.points.TOPLEFT[4] == -3 and inset.Bg.points.BOTTOMRIGHT[3] == -3
   and inset.Bg.points.BOTTOMRIGHT[4] == 3,
