@@ -1233,8 +1233,7 @@ local function customEssentialItemOptions()
         essentialSearch.selected = nil
         if Self.ListviewBag then Self.ListviewBag:Refresh() end
       end,
-      width = "relative",
-      relWidth = 0.28,
+      width = 1,
       order = 4,
     },
     searchStatus = {
