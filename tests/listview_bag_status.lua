@@ -39,7 +39,8 @@ local function widget()
   --- Accept irrelevant frame setup.
   local function noop() end
   setmetatable(object, { __index = function(_, key)
-    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" and key ~= "mailMode" and key ~= "legacy" then
+    if key ~= "blockedAction" and key ~= "characterText" and key ~= "editingRecipient" and key ~= "mailMode"
+      and key ~= "legacy" and key ~= "statusContext" then
       return noop
     end
   end })
@@ -222,6 +223,7 @@ local updateStatusButton = upvalue(renderRows, "updateStatusButton")
 local updateInteractionBlocker = upvalue(renderRows, "updateInteractionBlocker")
 local blockedItemAction = upvalue(updateInteractionBlocker, "blockedItemAction")
 local merchantUpdates = 0
+local validateStatus = upvalue(setStatus, "validateStatusContext", function() return true end)
 upvalue(setStatus, "renderRows", function() end)
 upvalue(setStatus, "updateMerchantJunkButton", function() merchantUpdates = merchantUpdates + 1 end)
 
@@ -1301,8 +1303,7 @@ reagentBagSlots[1] = {
   itemID = 2, itemName = "Herb", hyperlink = "reagent-link", quality = 1, stackCount = 1, isFiltered = true,
 }
 assert(#collectMail(profile)[1] == 14, "Mail preparation must include filtered reagent-bag items")
-local isSoulboundBagItem = upvalue(collectMail, "isSoulboundBagItem")
-local originalBindInfo = upvalue(isSoulboundBagItem, "getBindInfo", function(_, slot)
+local originalBindInfo = upvalue(collectMail, "getBindInfo", function(_, slot)
   return nil, nil, slot == 2, true
 end)
 bagSlots[1].isBound, bagSlots[2].isBound = true, true
@@ -1315,7 +1316,7 @@ for _, item in ipairs(mixedMail) do
 end
 assert(sawAccountBound, "Account-bound copies must remain available for mailing")
 bagSlots[1].isBound, bagSlots[2].isBound = nil, nil
-upvalue(isSoulboundBagItem, "getBindInfo", originalBindInfo)
+upvalue(collectMail, "getBindInfo", originalBindInfo)
 profile.bankItems[swordKey] = {}
 assert(#collectMail(profile)[1] == 3, "Conflicting protected flags must prevent automatic mailing")
 profile.bankItems[swordKey] = nil
@@ -1915,6 +1916,129 @@ upvalue(module.OnDisable, "showDefaultBags", originalShowBags)
 upvalue(module.OnDisable, "merchantOpen", originalMerchantOpen)
 
 -- A secure mail hook must not disable Blizzard's send button after the module is disabled.
+-- Validate live flag choices, including stale menus and independently flagged copies.
+do
+  upvalue(setStatus, "validateStatusContext", validateStatus)
+  upvalue(validateStatus, "getBindInfo", function(bagID, slot)
+    local info = C_Container.GetContainerItemInfo(bagID, slot)
+    return "", 0, info.accountBound, info.isBound
+  end)
+  profile.enabled = true
+  profile.protectedItems, profile.trashItems, profile.auctionItems = {}, {}, {}
+  profile.bankItems, profile.mailItems, profile.mailAssignments, profile.mailQueues = {}, {}, {}, {}
+  profile.auctionIneligibleOverrides = {}
+  bagSlots = {
+    { itemID = 1, hyperlink = "sword-link", isBound = true },
+    { itemID = 1, hyperlink = "sword-link" },
+  }
+  local base = statusKey("Sword", 1, 10, nil)
+  local variant = base .. "\031auction-ineligible"
+  local info = { name = "Sword", quality = 1, itemLevel = 10, link = "sword-link" }
+  local bound = { bag = profile, baseKey = base, eligible = false, soulbound = true, itemID = 1, link = "sword-link",
+    entries = { { bagID = 0, slot = 1 } } }
+  local unbound = { bag = profile, baseKey = base, eligible = true, soulbound = false, itemID = 1, link = "sword-link",
+    entries = { { bagID = 0, slot = 2 } } }
+  C_AuctionHouse.IsSellItemValid = function() return true end
+  profile.protectedItems[base] = info
+  row.statusKey, row.statusInfo, row.statusContext = base, info, bound
+  MenuUtil = {
+    CreateContextMenu = function(_, build)
+      entries = {}
+      build(button, {
+        CreateTitle = function() end,
+        CreateRadio = function(_, label, checked, select)
+          entries[#entries + 1] = { label = label, checked = checked, selectStatus = select }
+        end,
+      })
+    end,
+  }
+  button.scripts.OnClick(button, "LeftButton")
+  entries[3].selectStatus()
+  assert(profile.protectedItems[base] and not profile.auctionItems[base],
+    "A soulbound Auction choice must leave the existing flag untouched")
+  MenuUtil = nil
+  button.scripts.OnClick(button, "LeftButton")
+  legacy[4].func()
+  assert(profile.protectedItems[base] and not profile.auctionItems[base],
+    "The legacy menu must reject soulbound Auction choices too")
+  assert(not setStatus(base, info, statuses[5], bound) and profile.protectedItems[base],
+    "Soulbound items must not be flagged for Mail")
+
+  bagSlots[1].accountBound = true
+  bound.soulbound = false
+  assert(setStatus(base, info, statuses[5], bound) == variant and profile.mailItems[variant]
+    and profile.protectedItems[base], "Account-bound copies may be mailed independently")
+  assert(not setStatus(variant, info, statuses[2], bound) and profile.mailItems[variant],
+    "Account-bound items must not be flagged for Auction")
+
+  profile.mailItems[base], profile.protectedItems[base] = info, nil
+  profile.mailQueues[base] = { { recipient = 1, remaining = 3 } }
+  profile.mailAssignments[base] = 1
+  profile.auctionIneligibleOverrides[variant], profile.mailItems[variant] = nil, nil
+  profile.mailAssignments[variant], profile.mailQueues[variant] = nil, nil
+  assert(setStatus(base, info, statuses[2], unbound) == base and profile.auctionItems[base]
+    and profile.mailItems[variant] and profile.mailAssignments[variant] == 1
+    and profile.mailQueues[variant][1].remaining == 3 and not profile.mailQueues[base],
+    "Separating an Auction flag must preserve, not duplicate, an inherited Mail queue")
+
+  local applyChoice = upvalue(upvalue(openPicker, "openMailAmountPrompt"), "applyMailChoice")
+  profile.auctionItems[base], profile.mailItems[base] = nil, info
+  profile.auctionIneligibleOverrides[variant], profile.mailItems[variant] = nil, nil
+  profile.mailAssignments[base], profile.mailAssignments[variant] = 1, nil
+  profile.mailQueues[base], profile.mailQueues[variant] = { { recipient = 1, remaining = 3 } }, nil
+  local choice = {
+    bag = profile, key = base, statusInfo = info, context = bound, id = 1,
+    recipient = profile.mailRecipients[1], previousStatus = statuses[5], previousValue = info,
+    previousRecipient = 1, previousHead = profile.mailQueues[base][1],
+  }
+  picker.bag, picker.shown = profile, true
+  bagSlots[1].accountBound = false
+  applyChoice(picker, choice, 2)
+  assert(profile.mailQueues[base][1].remaining == 3 and not profile.mailQueues[variant],
+    "A stale Mail choice must not change its queue when the item becomes soulbound")
+  bagSlots[1].accountBound = true
+  applyChoice(picker, choice, 2)
+  assert(not profile.mailQueues[base] and profile.mailQueues[variant][1].remaining == 3
+    and profile.mailQueues[variant][2].remaining == 2 and profile.mailAssignments[variant] == 1
+    and profile.mailItems[base] and profile.mailItems[variant],
+    "Separating a Mail flag must move its existing queue before appending")
+  profile.auctionItems[base], profile.mailItems[base] = info, nil
+
+  row.statusKey, row.statusContext = base, unbound
+  button.scripts.OnClick(button, "LeftButton")
+  bagSlots[2].isBound = true
+  legacy[4].func()
+  assert(profile.auctionItems[base] and profile.mailQueues[variant][1].remaining == 3,
+    "A stale menu must not replace flags or queues after binding changes")
+  bagSlots[2].isBound = nil
+  C_AuctionHouse.IsSellItemValid = function() return false end
+  assert(not setStatus(base, info, statuses[2], unbound) and profile.auctionItems[base],
+    "Blizzard-invalid items must not acquire an Auction flag")
+  C_AuctionHouse.IsSellItemValid = nil
+  assert(not setStatus(base, info, statuses[2], unbound) and profile.auctionItems[base],
+    "Unavailable auction validation must not overwrite flags")
+  C_AuctionHouse.IsSellItemValid = function() return true end
+  bagSlots[2].itemID = 2
+  assert(not setStatus(base, info, statuses[2], unbound) and profile.auctionItems[base],
+    "A moved or replaced item must invalidate a menu")
+  bagSlots[2].itemID = 1
+  local itemInfo = C_Item.GetItemInfo
+  for _, price in ipairs({ 0, -1 }) do
+    C_Item.GetItemInfo = function() return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, price end
+    assert(not setStatus(base, info, statuses[1], unbound) and profile.auctionItems[base],
+      "Items without vendor value must not be marked Junk")
+  end
+  C_Item.GetItemInfo = function() return nil end
+  assert(not setStatus(base, info, statuses[1], unbound) and profile.auctionItems[base],
+    "An unavailable vendor price must not replace the flag")
+  C_Item.GetItemInfo = itemInfo
+  bagSlots[2].hasNoValue = true
+  assert(not setStatus(base, info, statuses[1], unbound) and profile.auctionItems[base],
+    "Unsellable stacks must not be marked Junk")
+  assert(setStatus(base, info, statuses[2], unbound) == base,
+    "A lack of vendor value must not prevent Blizzard-approved auctioning")
+end
+
 upvalue(startMail, "mailJob", {})
 module.IsEnabled = function() return false end
 SendMailMailButton.enabled = true

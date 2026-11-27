@@ -786,12 +786,45 @@ do
   }
   local differentBindings = collectGroups()
   assert(#differentBindings == 3, "Copies of the same item with different bindings must not merge")
+  local base = differentBindings[1].statusBaseKey
+  profile.mailItems[base] = { name = "Material", quality = 1 }
+  differentBindings = collectGroups()
+  for _, copy in ipairs(differentBindings) do
+    assert((copy.statusKey ~= base) == copy.soulbound,
+      "A shared Mail flag must not appear on the soulbound copy")
+  end
+  profile.mailItems[base] = nil
   profile.bindingFilters.soulbound = false
   local visible = buildDisplayRows()
   assert(#visible == 2, "Binding filters must only hide the matching copies of a shared item")
   profile.bindingFilters.soulbound = true
   C_Container = originalContainer
   upvalue(collectGroups, "getBindInfo", originalBind)
+end
+do
+  local originalContainer = C_Container
+  C_Container = {
+    GetContainerNumSlots = function(bagID) return bagID == 0 and 2 or 0 end,
+    GetContainerItemInfo = function(_, slot)
+      return { itemID = 30, itemName = "Material", hyperlink = "material-link", quality = 1, stackCount = 1 }
+    end,
+  }
+  local copies = collectGroups()
+  assert(#copies == 2 and copies[1].auctionEligible ~= copies[2].auctionEligible,
+    "Identical links with different auction eligibility must have separate rows")
+  local base = copies[1].statusBaseKey
+  local variant = base .. "\031auction-ineligible"
+  profile.auctionItems[base] = { name = "Material", quality = 1 }
+  profile.auctionIneligibleOverrides[variant] = true
+  profile.protectedItems[variant] = { name = "Material", quality = 1 }
+  copies = collectGroups()
+  for _, copy in ipairs(copies) do
+    assert(copy.statusKey == (copy.auctionEligible and base or variant)
+      and copy.statusContext.bag == profile and #copy.statusContext.entries == 1,
+      "Each copy must carry its own effective flag and live location")
+  end
+  profile.auctionItems[base], profile.protectedItems[variant], profile.auctionIneligibleOverrides[variant] = nil, nil, nil
+  C_Container = originalContainer
 end
 profile.showReagentBagContents = true
 rows = buildDisplayRows()

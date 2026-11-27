@@ -201,4 +201,39 @@ module.IsEnabled = function() return false end
 SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
 module:MERCHANT_SHOW()
 assert(table.concat(actions, ",") == "native", "The independent grey option must work when the bag module is disabled")
+
+-- A separately protected soulbound copy must not be sold with an identical marked copy.
+do
+  local key = statusKey("Marked", 1, 10, nil)
+  local variant = key .. "\031auction-ineligible\031soulbound"
+  slots = {
+    { itemID = 1, itemName = "Marked", hyperlink = "Marked", quality = 1 },
+    { itemID = 1, itemName = "Marked", hyperlink = "Marked", quality = 1, isBound = true },
+  }
+  profile.trashItems = { [key] = true }
+  profile.protectedItems = { [variant] = true }
+  profile.auctionItems, profile.bankItems, profile.mailItems = {}, {}, {}
+  profile.auctionIneligibleOverrides = { [variant] = true }
+  C_AuctionHouse = { IsSellItemValid = function() return true end }
+  ItemLocation = { CreateFromBagAndSlot = function()
+    return { IsValid = function() return true end }
+  end }
+  local visited = {}
+  visitSlots(function(_, slot) visited[#visited + 1] = slot end)
+  assert(#visited == 1 and visited[1] == 1,
+    "Merchant scanning must respect a separately protected soulbound copy")
+  profile.auctionIneligibleOverrides = {}
+  profile.protectedItems = { [key] = true }
+  profile.auctionItems = { [key] = true }
+  assert(visitSlots() == 0 and profile.protectedItems[variant],
+    "Legacy overlapping Auction and Protect flags must retain protection for soulbound copies")
+  slots[2] = nil
+  profile.protectedItems = { [key .. "\031auction-ineligible"] = true }
+  profile.auctionItems = {}
+  profile.auctionIneligibleOverrides = { [key .. "\031auction-ineligible"] = true }
+  C_AuctionHouse = nil
+  local count, unavailable = visitSlots()
+  assert(count == 0 and unavailable == 1,
+    "An unvalidated copy must not be sold when its separate flag might protect it")
+end
 print("Listview bag merchant tests passed")

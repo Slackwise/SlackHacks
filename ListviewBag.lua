@@ -301,6 +301,7 @@ local function settings()
   -- Development builds may already have config v16, so also migrate on profile access.
   module:MigrateLegacyMailAmounts(listviewSettings)
   listviewSettings.mailQueues = listviewSettings.mailQueues or {}
+  listviewSettings.auctionIneligibleOverrides = listviewSettings.auctionIneligibleOverrides or {}
   listviewSettings.essentialItems = listviewSettings.essentialItems or {}
   listviewSettings.customEssentialItems = listviewSettings.customEssentialItems or {}
   local columnOrder = listviewSettings and listviewSettings.columnOrder
@@ -364,6 +365,41 @@ end
 
 local function itemStatusKey(itemName, quality, itemLevel, upgradeTrack)
   return table.concat({ itemName or "", quality or 0, itemLevel or 0, upgradeTrack or "" }, "\031")
+end
+
+--- Build a separate key for an auction-ineligible copy.
+---@param key string Original item status key.
+---@param soulbound boolean Whether the copy is character-bound.
+---@return string key Variant item status key.
+local function ineligibleStatusKey(key, soulbound)
+  return key .. "\031auction-ineligible" .. (soulbound and "\031soulbound" or "")
+end
+
+--- Resolve separately edited flags for auction-ineligible copies.
+---@param key string Original item status key.
+---@param eligible boolean|nil Whether this copy can be auctioned.
+---@param bag table Current bag settings.
+---@param soulbound boolean Whether the copy is character-bound.
+---@return string key Effective item status key.
+local function effectiveStatusKey(key, eligible, bag, soulbound)
+  local variant = ineligibleStatusKey(key, soulbound)
+  if eligible == nil and bag.auctionIneligibleOverrides[variant] then
+    -- Neither saved flag can safely be attributed to an unvalidated copy.
+    return key .. "\031auction-unknown"
+  end
+  local sharedMail = soulbound and bag.mailItems[key] ~= nil and bag.protectedItems[key] == nil
+    and bag.bankItems[key] == nil
+  if eligible == false and bag.auctionItems[key] ~= nil and not bag.auctionIneligibleOverrides[variant]
+    and (bag.protectedItems[key] ~= nil or bag.bankItems[key] ~= nil) then
+    -- Older profiles may have overlapping flags; do not drop their protection on ineligible copies.
+    bag.protectedItems[variant] = bag.protectedItems[key]
+    bag.bankItems[variant] = bag.bankItems[key]
+    bag.auctionIneligibleOverrides[variant] = true
+  end
+  if eligible == false and (bag.auctionIneligibleOverrides[variant] or bag.auctionItems[key] ~= nil or sharedMail) then
+    return variant
+  end
+  return key
 end
 
 --- Check whether a flag prevents vendor sales.
@@ -450,6 +486,29 @@ local function isSoulboundBagItem(bagID, slot, info)
   return not accountBound
 end
 
+--- Check whether the client can validate individual auction items.
+---@return boolean available Whether auction eligibility can be checked.
+local function auctionEligibilityAvailable()
+  return C_AuctionHouse and type(C_AuctionHouse.IsSellItemValid) == "function"
+    and ItemLocation and type(ItemLocation.CreateFromBagAndSlot) == "function" or false
+end
+
+--- Check a live bag stack against the requirements for an Auction flag.
+---@param bagID number Bag identifier.
+---@param slot number Bag slot.
+---@param info table Container item information.
+---@param accountBound boolean Whether the item is account-bound.
+---@return boolean|nil eligible Nil if the item or auction data is unavailable.
+local function auctionFlagEligibility(bagID, slot, info, accountBound)
+  if info.isBound or accountBound then return false end
+  if not info.hyperlink then return nil end
+  if not auctionEligibilityAvailable() then return nil end
+  local location = ItemLocation:CreateFromBagAndSlot(bagID, slot)
+  if not location or not location:IsValid() then return nil end
+  local valid = C_AuctionHouse.IsSellItemValid(location, false)
+  if type(valid) == "boolean" then return valid end
+end
+
 -- Extracts the upgrade track (e.g. "Champion 5/6") from the tooltip. There's no direct API for
 -- this -- every addon that shows it does the same tooltip-line scan.
 local function getUpgradeTrack(bagID, slot)
@@ -482,11 +541,13 @@ local function collectGroups()
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID and not info.isFiltered and (not selling or not info.hasNoValue) then
         local bindLabel, bindType, accountBound, isBound = getBindInfo(bagID, slot, info.hyperlink)
+        local auctionEligible = auctionFlagEligibility(bagID, slot, info, accountBound)
         local binding = accountBound and isRetail() and "warbound"
           or (isBound or accountBound) and "soulbound" or "unbound"
-        -- Copies with the same link can have different binding states and filter eligibility.
+        -- Copies with the same link can have different binding and auction eligibility.
         local key = tostring(info.hyperlink or info.itemID) .. "\031" .. binding
           .. (info.isBound and "\031bound" or "\031unbound")
+          .. (auctionEligible == nil and "\031auction-unknown" or auctionEligible and "\031auction-yes" or "\031auction-no")
         local group = groups[key]
         if not group then
           group = {
@@ -501,6 +562,8 @@ local function collectGroups()
             accountBound = accountBound,
             isBound = isBound,
             binding = binding,
+            auctionEligible = auctionEligible,
+            soulbound = info.isBound and not accountBound or false,
             count = 0,
             entries = {},
           }
@@ -547,7 +610,12 @@ local function collectGroups()
         if module.Refresh then module:Refresh() end
       end)
     end
-    group.statusKey = itemStatusKey(group.itemName, group.quality, group.itemLevel, group.upgradeTrack)
+    group.statusBaseKey = itemStatusKey(group.itemName, group.quality, group.itemLevel, group.upgradeTrack)
+    group.statusKey = effectiveStatusKey(group.statusBaseKey, group.auctionEligible, settings(), group.soulbound)
+    group.statusContext = {
+      baseKey = group.statusBaseKey, eligible = group.auctionEligible, entries = group.entries,
+      itemID = group.itemID, link = group.hyperlink, bag = settings(), soulbound = group.soulbound,
+    }
     if sortColumn == "flag" then
       local status = getItemStatus(group.statusKey, group.quality)
       group.flagSortOrder = status and status.sortOrder or 0
@@ -843,13 +911,6 @@ local function isAuctionBlocked(key, quality, bag)
     or quality ~= 0 and (bag.bankItems[key] ~= nil or bag.mailItems[key] ~= nil)
 end
 
---- Check whether the client can validate individual auction items.
----@return boolean available Whether auction eligibility can be checked.
-local function auctionEligibilityAvailable()
-  return C_AuctionHouse and type(C_AuctionHouse.IsSellItemValid) == "function"
-    and ItemLocation and type(ItemLocation.CreateFromBagAndSlot) == "function" or false
-end
-
 --- Keep only bag slots that Blizzard considers eligible for auction.
 ---@param group table Collected item and its bag entries.
 ---@return boolean eligible Whether the group has any sellable entries.
@@ -904,11 +965,72 @@ end
 
 local refreshMailSendButton
 
+--- Recheck a row's live items before changing their flags.
+---@param context table|nil Captured row and bag slots.
+---@param selected table|nil Requested status.
+---@return boolean valid Whether the selection is still valid.
+local function validateStatusContext(context, selected)
+  if not context then
+    if selected and selected.id == "auction" then
+      prn("the item location is unavailable; select it again.")
+      return false
+    end
+    return true
+  end
+  if context.bag ~= settings() or not context.entries or #context.entries == 0 then
+    prn("the item or profile changed; select it again.")
+    return false
+  end
+  if context.eligible == nil
+    and context.bag.auctionIneligibleOverrides[ineligibleStatusKey(context.baseKey, context.soulbound)] then
+    prn("auction eligibility is not yet available; select the item again when it can be checked.")
+    return false
+  end
+  for _, entry in ipairs(context.entries) do
+    local info = C_Container.GetContainerItemInfo(entry.bagID, entry.slot)
+    if not info or info.itemID ~= context.itemID or info.hyperlink ~= context.link then
+      prn("the item changed; select it again.")
+      return false
+    end
+    local _, _, accountBound = getBindInfo(entry.bagID, entry.slot, info.hyperlink)
+    if selected and selected.id == "mail" and info.isBound and not accountBound then
+      prn("soulbound items cannot be mailed.")
+      return false
+    end
+    if selected and selected.id == "vendor" then
+      local sellPrice = select(11, C_Item.GetItemInfo(info.hyperlink))
+      if info.hasNoValue or type(sellPrice) == "number" and sellPrice <= 0 then
+        prn("this item cannot be sold to a vendor.")
+        return false
+      elseif type(sellPrice) ~= "number" then
+        prn("the item's vendor price is not yet available.")
+        return false
+      end
+    end
+    if (info.isBound and not accountBound or false) ~= context.soulbound then
+      prn("the item's binding changed; select it again.")
+      return false
+    end
+    local eligible = auctionFlagEligibility(entry.bagID, entry.slot, info, accountBound)
+    if selected and selected.id == "auction" and eligible ~= true then
+      prn(eligible == false and "this item cannot be auctioned." or "auction eligibility is not yet available.")
+      return false
+    end
+    if eligible ~= context.eligible then
+      prn("the item's auction eligibility changed; select it again.")
+      return false
+    end
+  end
+  return true
+end
+
 --- Replace an item's status while retaining the metadata used by vendor matching.
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata to save.
 ---@param selected table|nil Status definition, or nil to clear.
-local function setItemStatus(key, statusInfo, selected)
+---@param context table|nil Captured row and bag slots.
+---@return string|nil key Saved key, or nil if validation failed.
+local function setItemStatus(key, statusInfo, selected, context)
   if not isModuleEnabled() then return end
   if selected and (statusInfo.quality == nil or (statusInfo.quality == 0 and selected ~= PROTECT_STATUS)) then
     prn(statusInfo.quality == 0 and "grey items can only be protected." or "item quality is not yet available.")
@@ -919,7 +1041,33 @@ local function setItemStatus(key, statusInfo, selected)
     prn("item information is not yet available; try protecting it again.")
     return
   end
+  if not validateStatusContext(context, selected) then return end
   local listviewSettings = settings()
+  if context and effectiveStatusKey(context.baseKey, context.eligible, listviewSettings, context.soulbound) ~= key then
+    prn("the item's flag changed; select it again.")
+    return
+  end
+  if context and context.eligible == false then
+    key = ineligibleStatusKey(context.baseKey, context.soulbound)
+    listviewSettings.auctionIneligibleOverrides[key] = true
+  elseif context and selected and selected.id == "auction" then
+    for _, soulbound in ipairs({ false, true }) do
+      local variant = ineligibleStatusKey(context.baseKey, soulbound)
+      if not listviewSettings.auctionIneligibleOverrides[variant] then
+        -- Preserve shared flags without duplicating mail quotas or assigning Mail to soulbound copies.
+        for _, status in ipairs(ITEM_STATUSES) do
+          if status.id ~= "auction" and (not soulbound or status.id ~= "mail") then
+            listviewSettings[status.field][variant] = listviewSettings[status.field][context.baseKey]
+          end
+        end
+        if not soulbound then
+          listviewSettings.mailAssignments[variant] = listviewSettings.mailAssignments[context.baseKey]
+          listviewSettings.mailQueues[variant] = listviewSettings.mailQueues[context.baseKey]
+        end
+        listviewSettings.auctionIneligibleOverrides[variant] = true
+      end
+    end
+  end
   for _, status in ipairs(ITEM_STATUSES) do
     listviewSettings[status.field][key] = nil
   end
@@ -933,6 +1081,7 @@ local function setItemStatus(key, statusInfo, selected)
   updateMerchantJunkButton()
   local registry = LibStub("AceConfigRegistry-3.0", true)
   if registry then registry:NotifyChange("SlackHacks") end
+  return key
 end
 
 --- Return the blocked interaction for this flag and the currently open windows.
@@ -1086,11 +1235,14 @@ local function collectRecipientMailItems(bag)
         quality = info.quality or quality
         if name and classID ~= nil and quality and quality ~= 0 then
           local track = getUpgradeTrack(bagID, slot)
-          local key = itemStatusKey(name, quality,
+          local baseKey = itemStatusKey(name, quality,
             C_Item.GetDetailedItemLevelInfo(info.hyperlink) or level, track)
+          local _, _, accountBound = getBindInfo(bagID, slot, info.hyperlink)
+          local eligible = auctionFlagEligibility(bagID, slot, info, accountBound)
+          local key = effectiveStatusKey(baseKey, eligible, bag, info.isBound and not accountBound)
           local id, amount = activeMailRecipient(bag, key)
           if id and bag.mailRecipients[id] and getItemStatus(key) == ITEM_STATUSES[5]
-            and not isSoulboundBagItem(bagID, slot, info) then
+            and not (info.isBound and not accountBound) then
             items[id] = items[id] or {}
             items[id][#items[id] + 1] = {
               bagID = bagID, slot = slot, itemID = info.itemID, link = info.hyperlink,
@@ -1504,7 +1656,25 @@ local function applyMailChoice(picker, choice, amount)
     if mailAmountPrompt then mailAmountPrompt:Hide() end
     return
   end
-  if status ~= ITEM_STATUSES[5] then setItemStatus(key, choice.statusInfo, ITEM_STATUSES[5]) end
+  if not validateStatusContext(choice.context, ITEM_STATUSES[5]) then return end
+  if choice.context and effectiveStatusKey(choice.context.baseKey, choice.context.eligible, bag,
+    choice.context.soulbound) ~= key then
+    prn("the item's flag changed; select the recipient again.")
+    return
+  end
+  if status == ITEM_STATUSES[5] and choice.context and choice.context.eligible == false
+    and key == choice.context.baseKey then
+    local variant = ineligibleStatusKey(key, choice.context.soulbound)
+    -- Move finite queues instead of duplicating them when a shared Mail flag is separated.
+    bag.auctionIneligibleOverrides[variant] = true
+    bag.mailItems[variant] = bag.mailItems[key]
+    bag.mailAssignments[variant] = bag.mailAssignments[key]
+    bag.mailQueues[variant], bag.mailQueues[key] = bag.mailQueues[key], nil
+    key = variant
+  elseif status ~= ITEM_STATUSES[5] then
+    key = setItemStatus(key, choice.statusInfo, ITEM_STATUSES[5], choice.context)
+    if not key then return end
+  end
   if amount then
     bag.mailQueues[key] = bag.mailQueues[key] or {}
     table.insert(bag.mailQueues[key], { recipient = choice.id, remaining = amount })
@@ -1599,7 +1769,8 @@ end
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata.
 ---@param mailMode boolean|nil Whether the picker is opened from the Send Mail tab.
-local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
+---@param context table|nil Captured row and bag slots.
+local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, context)
   if mailMode and not next(collectRecipientMailItems(settings())) then return end
   if not recipientPicker then
     local forever = isForever()
@@ -1932,7 +2103,8 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
           local info = picker.statusInfo
           local status = getItemStatus(picker.key, info.quality)
           local choice = {
-            bag = picker.bag, key = picker.key, statusInfo = info, id = element.id, recipient = element.recipient,
+            bag = picker.bag, key = picker.key, statusInfo = info, context = picker.statusContext,
+            id = element.id, recipient = element.recipient,
             previousStatus = status, previousValue = status and picker.bag[status.field][picker.key],
             previousRecipient = picker.bag.mailAssignments[picker.key],
             previousHead = picker.bag.mailQueues[picker.key] and picker.bag.mailQueues[picker.key][1],
@@ -1956,6 +2128,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
   recipientPicker.mailMode = mailMode
   recipientPicker.key = key
   recipientPicker.statusInfo = statusInfo
+  recipientPicker.statusContext = context
   recipientPicker:ClearAllPoints()
   recipientPicker:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 4, 0)
   recipientPicker.refreshRecipients()
@@ -2024,15 +2197,16 @@ end
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata.
 ---@param status table Selected flag.
-local function selectItemStatus(anchor, key, statusInfo, status)
+---@param context table|nil Captured row and bag slots.
+local function selectItemStatus(anchor, key, statusInfo, status, context)
   if status.id == "mail" then
     if statusInfo.quality == nil or statusInfo.quality == 0 then
-      setItemStatus(key, statusInfo, status)
-    else
-      openMailRecipientPicker(anchor, key, statusInfo)
+      setItemStatus(key, statusInfo, status, context)
+    elseif validateStatusContext(context, status) then
+      openMailRecipientPicker(anchor, key, statusInfo, nil, context)
     end
   else
-    setItemStatus(key, statusInfo, status)
+    setItemStatus(key, statusInfo, status, context)
   end
 end
 
@@ -2040,19 +2214,20 @@ end
 ---@param anchor table Status button.
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata to save.
-local function openItemStatusMenu(anchor, key, statusInfo)
+---@param context table|nil Captured row and bag slots.
+local function openItemStatusMenu(anchor, key, statusInfo, context)
   GameTooltip:Hide()
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateTitle("Flag item for:")
       root:CreateRadio("None", function() return not getItemStatus(key, statusInfo.quality) end,
-        function() setItemStatus(key, statusInfo, nil) end)
+        function() setItemStatus(key, statusInfo, nil, context) end)
       for _, entry in ipairs(ITEM_STATUSES) do
         local status = entry
         if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
           local label = statusMenuLabel(status)
           root:CreateRadio(label, function() return getItemStatus(key, statusInfo.quality) == status end,
-            function() selectItemStatus(anchor, key, statusInfo, status) end)
+            function() selectItemStatus(anchor, key, statusInfo, status, context) end)
         end
       end
     end)
@@ -2060,7 +2235,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
     local menu = {
       { text = "Flag item for:", isTitle = true, notCheckable = true },
       { text = "None", checked = function() return not getItemStatus(key, statusInfo.quality) end,
-        func = function() setItemStatus(key, statusInfo, nil) end },
+        func = function() setItemStatus(key, statusInfo, nil, context) end },
     }
     for _, entry in ipairs(ITEM_STATUSES) do
       local status = entry
@@ -2068,7 +2243,7 @@ local function openItemStatusMenu(anchor, key, statusInfo)
         menu[#menu + 1] = {
           text = statusMenuLabel(status),
           checked = function() return getItemStatus(key, statusInfo.quality) == status end,
-          func = function() selectItemStatus(anchor, key, statusInfo, status) end,
+          func = function() selectItemStatus(anchor, key, statusInfo, status, context) end,
         }
       end
     end
@@ -2203,14 +2378,14 @@ local function createRow(index)
       end
       local status = getItemStatus(row.statusKey, row.statusInfo.quality)
       if status == ITEM_STATUSES[1] then
-        setItemStatus(row.statusKey, row.statusInfo, nil)
+        setItemStatus(row.statusKey, row.statusInfo, nil, row.statusContext)
       elseif not status then
-        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1])
+        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext)
       else
         prn("use the flag menu to change this item's " .. status.name .. " flag.")
       end
     elseif button == "LeftButton" then
-      openItemStatusMenu(self, row.statusKey, row.statusInfo)
+      openItemStatusMenu(self, row.statusKey, row.statusInfo, row.statusContext)
     end
   end)
   row.statusBtn:SetScript("OnEnter", function(self)
@@ -2450,6 +2625,7 @@ local function buildDisplayRows()
             accountBound = group.accountBound,
             isBound = entry.isBound,
             statusKey = group.statusKey,
+            statusContext = group.statusContext,
             statusInfo = group.statusInfo,
           }
         end
@@ -2482,6 +2658,7 @@ renderRows = function()
     row.groupKey = data.isGroupHeader and data.key or nil
     row.statusKey = data.statusKey
     row.statusInfo = data.statusInfo
+    row.statusContext = data.statusContext
     row.comparisons = data.comparisons
     row.auctionData = not data.isBound and not data.accountBound and data.auction or nil
     row.primaryEntry = data.entries and data.entries[1]
@@ -4052,12 +4229,21 @@ local function forEachSellableTrashSlot(callback, includeGrey)
         -- An incomplete status key cannot reliably match a saved protection flag.
         if itemName and itemQuality ~= nil and level ~= nil then
           local upgradeTrack = getUpgradeTrack(bagID, slot)
-          local key = itemStatusKey(itemName, itemQuality, level, upgradeTrack)
-          local grey = itemQuality == 0 and includeGrey and settings().protectedItems[key] == nil
-          local marked = itemQuality ~= 0 and isTrashItem(key) and not isProtectedItem(key)
-          if grey or marked then
-            count = count + 1
-            if callback then callback(bagID, slot) end
+          local baseKey = itemStatusKey(itemName, itemQuality, level, upgradeTrack)
+          local _, _, accountBound = getBindInfo(bagID, slot, info.hyperlink)
+          local eligible = auctionFlagEligibility(bagID, slot, info, accountBound)
+          local bag = settings()
+          local soulbound = info.isBound and not accountBound
+          if eligible == nil and bag.auctionIneligibleOverrides[ineligibleStatusKey(baseKey, soulbound)] then
+            unavailable = unavailable + 1
+          else
+            local key = effectiveStatusKey(baseKey, eligible, bag, soulbound)
+            local grey = itemQuality == 0 and includeGrey and bag.protectedItems[key] == nil
+            local marked = itemQuality ~= 0 and isTrashItem(key) and not isProtectedItem(key)
+            if grey or marked then
+              count = count + 1
+              if callback then callback(bagID, slot) end
+            end
           end
         else
           unavailable = unavailable + 1

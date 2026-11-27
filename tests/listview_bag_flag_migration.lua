@@ -49,6 +49,8 @@ end
 ---@param profile table Profile to check.
 local function checkProfile(profile)
   assert(profile.listviewBag.enabled)
+  assert(type(profile.listviewBag.auctionIneligibleOverrides) == "table",
+    "Migrated profiles must support separate flags for auction-ineligible copies")
   assert(profile.listviewBag.trackCrestCurrencies == false,
     "An existing disabled crest preference must remain available as the supplies selection")
   assert(profile.listviewBag.mailAssignments[common] == 3
@@ -89,6 +91,12 @@ for _, version in ipairs({ 0, 15 }) do
   addon.CONFIG_MIGRATIONS[16]()
   checkProfile(active)
 end
+local existing = makeProfile()
+existing.listviewBag.auctionIneligibleOverrides = { existing = true }
+addon.db = { global = { configVersion = 15 }, profile = existing }
+addon.migrateConfig()
+assert(existing.listviewBag.auctionIneligibleOverrides.existing,
+  "Repeating migration must preserve existing overrides")
 local alreadyCurrent = makeProfile()
 addon.db = { global = { configVersion = 16 }, profile = alreadyCurrent }
 addon.migrateConfig()

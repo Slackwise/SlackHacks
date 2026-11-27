@@ -94,6 +94,8 @@ assert(not bagOptions.autoAHMode and SlackHacks.dbDefaults.profile.listviewBag.a
 profile.trashItems.old = { name = "Marked Item", quality = 2, itemLevel = 1 }
 profile.trashItems.uncached = { name = "Uncached" }
 profile.trashItems.clear = true
+local variant = key .. "\031auction-ineligible\031soulbound"
+profile.trashItems[variant] = { name = "Marked Item", link = link, icon = 123 }
 profile.protectedItems.keep = true
 
 local group = getOptions().args.inventory.args.listviewBag.args.autoVendorItems
@@ -120,6 +122,13 @@ assert(args[optionKey("old")].args.item.name == "|T123:18:18|t " .. baseLink
 assert(args[optionKey("uncached")].args.item.name == "Uncached"
   and not args[optionKey("uncached")].args.item.tooltipHyperlink)
 assert(args[optionKey("clear")].args.item.name == "clear", "Legacy keys must not collide with the clear button")
+assert(args[optionKey(variant)].args.item.name == "|T123:18:18|t " .. link .. " (soulbound)"
+  and args[optionKey(variant)].args.item.tooltipHyperlink == link,
+  "Separately flagged copies must remain distinguishable without changing their item tooltip")
+args[optionKey(variant)].args.remove.func()
+assert(not profile.trashItems[variant] and profile.trashItems[key],
+  "Removing one copy's flag must not remove the other")
+refreshes = 0
 assert(loadfile("Libs/Ace3/LibStub/LibStub.lua"))()
 assert(loadfile("Libs/Ace3/CallbackHandler-1.0/CallbackHandler-1.0.lua"))()
 assert(loadfile("Libs/Ace3/AceConfig-3.0/AceConfigRegistry-3.0/AceConfigRegistry-3.0.lua"))()

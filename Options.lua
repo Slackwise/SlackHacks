@@ -60,6 +60,7 @@ dbDefaults = {
       protectedItems = {},
       trashItems = {},
       auctionItems = {},
+      auctionIneligibleOverrides = {},
       bankItems = {},
       mailItems = {},
       mailRecipients = {},
@@ -981,7 +982,7 @@ local selfVendorModeSorting = {
 }
 
 --- Build a linked item label and an adjacent removal button using native AceGUI controls.
----@param item table Item name, link, icon, and optional description.
+---@param item table Item name, link, icon, optional description, and label suffix.
 ---@param remove function Removal callback.
 ---@param description string Removal-button tooltip.
 ---@param order number Row order.
@@ -989,6 +990,7 @@ local selfVendorModeSorting = {
 local function removableItemRow(item, remove, description, order)
   local label = item.link or item.name
   if item.icon then label = ("|T%s:18:18|t %s"):format(item.icon, label) end
+  if item.suffix then label = label .. " " .. item.suffix end
   return {
     type = "group",
     name = "",
@@ -1062,6 +1064,8 @@ local function listviewVendorItemOptions()
       name = (type(entry) == "table" and entry.name) or tostring(itemKey),
       link = link,
       icon = itemIcon,
+      suffix = tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
+        or tostring(itemKey):find("\031auction-ineligible", 1, true) and "(not auctionable)" or nil,
       desc = type(entry) == "table" and not entry.link
         and "Older entries show the base item until the exact item is seen in your bags." or nil,
     }, function()

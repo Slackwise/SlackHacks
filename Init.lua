@@ -695,6 +695,9 @@ CONFIG_MIGRATIONS = {
       if type(rawget(bag, "mailAmounts")) == "table" then
         Self.ListviewBag:MigrateLegacyMailAmounts(bag)
       end
+      if rawget(bag, "auctionIneligibleOverrides") == nil then
+        bag.auctionIneligibleOverrides = {}
+      end
       for _, field in ipairs({ "trashItems", "auctionItems", "bankItems", "mailItems" }) do
         local items = rawget(bag, field)
         if type(items) == "table" then
