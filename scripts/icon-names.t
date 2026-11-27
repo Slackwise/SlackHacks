@@ -21,12 +21,30 @@ sub read_file {
     return $contents;
 }
 
+sub decode_records {
+    my ($generated) = @_;
+    my ($data) = $generated =~ /IconNames = \{ compressed = true, data = \[==\[\n(.*?)\]==\] \}/s;
+    die "Cannot find compressed icon data" unless defined $data;
+    my ($id, $name) = (0, '');
+    my @records;
+    for my $line (split /\n/, $data) {
+        my ($delta, $flags, $prefix, $suffix) = $line =~ /^(\d+)\|(\d+)\|(\d+)\|([^\r\n]*)$/
+            or die "Invalid compressed icon record: $line";
+        die "Invalid name prefix length" if $prefix > length($name);
+        $suffix =~ s/~$//;
+        $id += $delta;
+        $name = substr($name, 0, $prefix) . $suffix;
+        push @records, "$id|$flags|$name";
+    }
+    return @records;
+}
+
 my $temp = tempdir('slackhacks-icon-names-XXXXXX', TMPDIR => 1, CLEANUP => 1);
 make_path("$temp/scripts", "$temp/dist/LibRPMedia");
 copy("$FindBin::Bin/update-icon-names.pl", "$temp/scripts/update-icon-names.pl") or die $!;
 my %fixtures = (
-    Standard => [ '100,200,67108865', '"shared_icon","retail_tbc","atlas"' ],
-    Forever => [ '100,300', '"shared_icon","forever icon"' ],
+    Standard => [ '100,100,200,201,67108865', '"shared_ico","shared_icon","retail_tbc","retail_tbc","atlas"' ],
+    Forever => [ '100,300', '"shared_icon","forever icon "' ],
     Mists => [ '400', '"mists_icon"' ],
     TBC => [ '200', '"retail_tbc"' ],
     Vanilla => [ '500', '"vanilla_icon"' ],
@@ -40,10 +58,11 @@ for my $flavor (keys %fixtures) {
 is(system($^X, "$temp/scripts/update-icon-names.pl", '--no-update'), 0,
     'extractor works without a network update');
 my $result = read_file("$temp/IconNames.lua");
-like($result, qr/^100\|3\|shared_icon$/m, 'shared icons combine client flags');
-like($result, qr/^200\|9\|retail_tbc$/m, 'nonadjacent client flags combine');
-like($result, qr/^300\|2\|forever icon$/m, 'names with spaces are preserved');
-unlike($result, qr/atlas/, 'atlas entries are excluded');
+my @records = decode_records($result);
+is_deeply(\@records, [
+    '100|1|shared_ico', '100|3|shared_icon', '200|9|retail_tbc',
+    '201|1|retail_tbc', '300|2|forever icon ', '400|4|mists_icon', '500|16|vanilla_icon',
+], 'compressed records preserve IDs, flags, shared prefixes, repeated names and trailing spaces');
 is(system($^X, "$temp/scripts/update-icon-names.pl", '--no-update'), 0, 'regeneration succeeds');
 is(read_file("$temp/IconNames.lua"), $result, 'regeneration is deterministic');
 write_file("$temp/dist/LibRPMedia/LibRPMediaData_Mists.lua",
@@ -91,15 +110,13 @@ for my $flavor ([ Standard => 1 ], [ Forever => 2 ], [ Mists => 4 ], [ TBC => 8 
     }
 }
 my ($missing, $unexpected, $wrong_flags) = (0, 0, 0);
-open my $generated, '<', "$root/IconNames.lua" or die $!;
-while (<$generated>) {
-    next unless /^(\d+)\|(\d+)\|([^\r\n]+)\r?$/;
+for (decode_records(read_file("$root/IconNames.lua"))) {
+    /^(\d+)\|(\d+)\|([^\r\n]+)$/ or die "Invalid decoded record: $_";
     my ($id, $flags, $name) = ($1, $2, $3);
     my $expected = delete $expected{"$id|$name"};
     if (!defined $expected) { $unexpected++ }
     elsif ($flags != $expected) { $wrong_flags++ }
 }
-close $generated;
 $missing = keys %expected;
 is("$missing/$unexpected/$wrong_flags", '0/0/0',
     'generated file exactly matches all upstream file icons and client flags');

@@ -11,6 +11,30 @@ local function getIconDatasetFlag()
   if interface >= 10000 and interface < 20000 then return 16 end
 end
 
+--- Decode the generated icon names once, when an icon picker first needs them.
+---@return string data File IDs, client flags, and names separated into lines.
+local function getIconNameData()
+  if IconNames.compressed then
+    local previousID, previousName = 0, ""
+    -- IDs are deltas and names reuse a prefix from the previous record.
+    --- Expand one generated record and update the previous-record state.
+    ---@param delta string File ID delta.
+    ---@param flags string Client flags.
+    ---@param prefix string Length of the shared name prefix.
+    ---@param suffix string Remaining name characters.
+    ---@return string record Expanded record.
+    IconNames.data = IconNames.data:gsub("(%d+)|(%d+)|(%d+)|([^\n]*)\n", function(delta, flags, prefix, suffix)
+      previousID = previousID + tonumber(delta)
+      -- A terminal marker protects meaningful trailing spaces from whitespace cleanup.
+      if suffix:byte(-1) == 126 then suffix = suffix:sub(1, -2) end
+      previousName = previousName:sub(1, tonumber(prefix)) .. suffix
+      return previousID .. "|" .. flags .. "|" .. previousName .. "\n"
+    end)
+    IconNames.compressed = nil
+  end
+  return IconNames.data
+end
+
 --- Build a filtered icon list using the native provider and extracted file names.
 ---@param provider table Native icon provider.
 ---@param filter number Native icon filter.
@@ -23,8 +47,8 @@ local function buildIconList(provider, filter, query)
   local includeExtracted = filter == IconSelectorPopupFrameIconFilterTypes.All
   local matchingIDs, matchingNames, extraIcons = {}, {}, {}
   if datasetFlag and (query ~= "" or includeExtracted) then
-    -- Keep the compact data as one string; only matching records need temporary lookup tables.
-    for idText, flagsText, name in IconNames.data:gmatch("(%d+)|(%d+)|([^\n]+)\n") do
+    -- Only matching records need temporary lookup tables.
+    for idText, flagsText, name in getIconNameData():gmatch("(%d+)|(%d+)|([^\n]+)\n") do
       local flags = tonumber(flagsText)
       if math.floor(flags / datasetFlag) % 2 == 1 and (query == "" or name:find(query, 1, true)) then
         local id = tonumber(idText)

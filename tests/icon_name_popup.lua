@@ -126,17 +126,19 @@ local function runTimers()
   timers = {}
   for _, callback in ipairs(pending) do callback() end
 end
-SlackHacks.IconNames = { data = [[
-100|3|inv_sword_01
-200|3|ability_fire
-300|3|inv_axe
-400|2|forever_only
-500|1|retail_only
-600|4|mists_only
-601|8|tbc_only
-602|16|vanilla_only
-700|3|unavailable_icon
-626003|3|classicon_paladin
+SlackHacks.IconNames = { compressed = true, data = [[
+100|3|0|inv_sword_01
+0|2|11|2
+0|2|12|
+100|3|0|ability_fire
+100|3|0|inv_axe
+100|2|0|forever_only  ~
+100|1|0|retail_only
+100|4|0|mists_only
+1|8|0|tbc_only
+1|16|0|vanilla_only
+98|3|0|unavailable_icon
+625303|3|0|classicon_paladin
 ]] }
 --- Supply the native provider with file IDs and an older string icon.
 ---@return table provider Icon provider.
@@ -168,7 +170,22 @@ local popup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
   end,
 })
 assert(popup.BorderBox.EditBoxHeaderText:GetText() == "Nickname:" and popup:GetHeight() == 560)
+assert(SlackHacks.IconNames.compressed, "Icon data should stay compressed until the picker is opened")
 popup:Show()
+assert(not SlackHacks.IconNames.compressed and SlackHacks.IconNames.data == ([[
+100|3|inv_sword_01
+100|2|inv_sword_02
+100|2|inv_sword_02
+200|3|ability_fire
+300|3|inv_axe
+400|2|forever_onlyMARK
+500|1|retail_only
+600|4|mists_only
+601|8|tbc_only
+602|16|vanilla_only
+700|3|unavailable_icon
+626003|3|classicon_paladin
+]]):gsub("forever_onlyMARK", "forever_only  "), "Compressed data must decode exactly, including repeated IDs and full-name prefixes")
 assert(popup:GetNumIcons() == 5 and popup:GetIconByIndex(5) == 626003)
 popup.search:SetText("SWorD")
 assert(popup:GetNumIcons() == 1 and popup:GetIconByIndex(1) == 100)
@@ -328,6 +345,7 @@ for _, client in ipairs({ { 50504, "mists_only", 600 }, { 20506, "tbc_only", 601
   classicPopup:Hide()
 end
 assert(loadfile("IconNames.lua"))()
+assert(SlackHacks.IconNames.compressed)
 WOW_PROJECT_ID = WOW_PROJECT_MAINLINE
 local extractedPopup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
   nameLabel = "Name:",
@@ -336,6 +354,7 @@ local extractedPopup = SlackHacks.CreateIconNamePopupFrame(UIParent, {
   onConfirm = function() return true end,
 })
 extractedPopup:Show()
+assert(not SlackHacks.IconNames.compressed)
 extractedPopup.search:SetText("classicon_paladin")
 assert(extractedPopup:GetIndexOfIcon(626003))
 extractedPopup:Hide()
