@@ -1215,14 +1215,21 @@ end
 function GetSendMailItemLink(index) return attachments[index] and attachments[index].hyperlink end
 local moving
 function C_Container.GetContainerNumSlots(bagID) return bagID == 0 and 20 or bagID == 5 and 1 or 0 end
+function C_Container.GetContainerNumFreeSlots(bagID) return 1, bagID == 5 and 1 or 0 end
 function C_Container.GetContainerItemInfo(bagID, slot)
   return bagID == 0 and bagSlots[slot] or bagID == 5 and reagentBagSlots[slot] or nil
 end
 function C_Container.PickupContainerItem(bagID, slot)
   local slots = bagID == 5 and reagentBagSlots or bagSlots
-  moving = slots[slot]
-  slots[slot] = nil
-  cursorType, cursorLink = "item", moving.hyperlink
+  if cursorType == "item" then
+    assert(not slots[slot], "The mocked split destination must be empty")
+    slots[slot] = moving
+    cursorType, cursorLink, moving = nil, nil, nil
+  else
+    moving = slots[slot]
+    slots[slot] = nil
+    cursorType, cursorLink = "item", moving.hyperlink
+  end
 end
 --- Split the requested quantity onto the mocked cursor.
 ---@param bagID number Container ID.
@@ -1440,6 +1447,139 @@ SendMailFrame_CanSend()
 assert(SendMailMailButton.enabled)
 SendMailFrame.hooks.OnHide()
 assert(not picker.shown, "Closing the send tab must hide the mail recipient window")
+
+-- A failed split must not leave the full stack sendable as a one-item attachment.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems, profile.mailAssignments, profile.mailQueues = { [swordKey] = {} }, {},
+  { [swordKey] = { { recipient = 1, remaining = 1 } } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+local originalSplit = C_Container.SplitContainerItem
+local originalMailClick = ClickSendMailItemButton
+ClickSendMailItemButton = function(index, clear)
+  if not clear then moving.stackCount = 10 end
+  originalMailClick(index, clear)
+end
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 10 and not SendMailMailButton.enabled
+  and profile.mailQueues[swordKey][1].remaining == 1
+  and messages[#messages]:find("remove it before sending", 1, true),
+  "An unexpected full-stack attachment must remain blocked until removed")
+ClickSendMailItemButton = originalMailClick
+ClickSendMailItemButton(1, true)
+SendMailFrame_CanSend()
+assert(SendMailMailButton.enabled, "Removing the unexpected attachment must unblock the draft")
+C_Container.SplitContainerItem = originalSplit
+SendMailFrame.hooks.OnHide()
+
+-- A placed split can take time to reach the requested quantity in the bag.
+do
+  attachments, bagSlots = {}, {}
+  SendMailFrame_Reset()
+  profile.mailItems, profile.mailAssignments, profile.mailQueues = { [swordKey] = {} }, {},
+    { [swordKey] = { { recipient = 1, remaining = 1 } } }
+  bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+  local completeSplit
+  local delays, originalAfter = {}, C_Timer.After
+  C_Timer.After = function(delay, callback)
+    delays[#delays + 1] = delay
+    originalAfter(delay, callback)
+  end
+  C_Container.SplitContainerItem = function(_, slot, count)
+    local source = bagSlots[slot]
+    moving = {}
+    for key, value in pairs(source) do moving[key] = value end
+    local staged = moving
+    staged.isLocked = true
+    cursorType, cursorLink = "item", source.hyperlink
+    completeSplit = function()
+      source.stackCount, staged.isLocked, staged.stackCount = source.stackCount - count, false, count
+    end
+  end
+  SendMailFrame.hooks.OnShow()
+  recipientRow = pickerRow(scroll.elements[1])
+  recipientRow.scripts.OnClick()
+  table.remove(timers, 1)()
+  table.remove(timers, 1)()
+  assert(not attachments[1] and not cursorType and bagSlots[2] and not SendMailMailButton.enabled
+    and math.abs(delays[1] - 0.1) < 0.001 and math.abs(delays[2] - 0.2) < 0.001
+    and math.abs(delays[3] - 0.3) < 0.001,
+    "Mail preparation must wait and progressively poll the staged stack")
+  completeSplit()
+  drainMailTimers()
+  assert(attachments[1].stackCount == 1 and bagSlots[1].stackCount == 9 and SendMailMailButton.enabled,
+    "The confirmed split must attach only the requested item")
+  SendMailFrame.hooks.OnHide()
+  attachments, bagSlots = {}, {}
+  SendMailFrame_Reset()
+  profile.mailQueues[swordKey] = { { recipient = 1, remaining = 1 } }
+  bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+  SendMailFrame.hooks.OnShow()
+  recipientRow = pickerRow(scroll.elements[1])
+  recipientRow.scripts.OnClick()
+  profile.mailQueues[swordKey] = { { recipient = 2, remaining = 1 } }
+  drainMailTimers()
+  assert(not attachments[1] and not cursorType and bagSlots[2]
+    and messages[#messages]:find("mail queue changed", 1, true),
+    "A changed queue must stop without attaching the staged item")
+  SendMailFrame.hooks.OnHide()
+  attachments, bagSlots = {}, {}
+  SendMailFrame_Reset()
+  profile.mailQueues[swordKey] = { { recipient = 1, remaining = 1 } }
+  bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+  SendMailFrame.hooks.OnShow()
+  recipientRow = pickerRow(scroll.elements[1])
+  recipientRow.scripts.OnClick()
+  drainMailTimers()
+  assert(not attachments[1] and not cursorType and bagSlots[2]
+    and messages[#messages]:find("split did not finish", 1, true),
+    "A stalled split must time out without attaching an unconfirmed quantity")
+  C_Timer.After = originalAfter
+  C_Container.SplitContainerItem = originalSplit
+  SendMailFrame.hooks.OnHide()
+end
+
+-- Splitting must leave the original stack alone when no compatible empty slot exists.
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems, profile.mailAssignments, profile.mailQueues = { [swordKey] = {} }, {},
+  { [swordKey] = { { recipient = 1, remaining = 1 } } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+for slot = 2, 20 do
+  bagSlots[slot] = { itemID = 3, itemName = "Unrelated", hyperlink = "unassigned-link", quality = 1, stackCount = 1 }
+end
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(not attachments[1] and bagSlots[1].stackCount == 10 and not cursorType
+  and profile.mailQueues[swordKey][1].remaining == 1
+  and messages[#messages]:find("make room in a compatible bag", 1, true),
+  "A full bag must stop partial-stack preparation without moving or attaching the item")
+SendMailFrame.hooks.OnHide()
+
+attachments, bagSlots = {}, {}
+SendMailFrame_Reset()
+profile.mailItems, profile.mailAssignments, profile.mailQueues = { [swordKey] = {} }, {},
+  { [swordKey] = { { recipient = 1, remaining = 1 } } }
+bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 10 }
+SendMailFrame.hooks.OnShow()
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+drainMailTimers()
+assert(attachments[1].stackCount == 1 and not attachments[2] and bagSlots[1].stackCount == 9,
+  "A one-item queue must attach exactly one item from a larger stack")
+globalHooks.SendMail("Alt-Realm")
+attachments = {}
+SendMailFrame_Reset()
+module:OnMailSendSuccess()
+drainMailTimers()
+assert(not profile.mailQueues[swordKey] and bagSlots[1].stackCount == 9 and not attachments[1],
+  "Completing the one-item queue must not prepare the rest of the stack")
+SendMailFrame.hooks.OnHide()
 
 -- A one-time quantity must split stacks, survive a failed send, and clear only after success.
 attachments, bagSlots = {}, {}

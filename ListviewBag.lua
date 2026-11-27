@@ -1035,6 +1035,7 @@ local function hasStaleMailAttachments()
   if not mailSelection then return false end
   for slot = 1, ATTACHMENTS_MAX_SEND do
     if HasSendMailItem(slot) then
+      if mailSelection.invalidAttachments and mailSelection.invalidAttachments[slot] then return true end
       local _, itemID, _, count = GetSendMailItem(slot)
       local link = GetSendMailItemLink(slot)
       local expected = mailSelection.attachments[slot]
@@ -1206,6 +1207,11 @@ end
 --- Stop an attachment operation and restore Blizzard's normal send-button state.
 ---@param message string|nil Failure explanation.
 local function stopMailJob(message)
+  local cursorType, _, cursorLink = GetCursorInfo()
+  if message and mailJob and mailJob.waiting and mailJob.waiting.split and cursorType == "item"
+    and cursorLink == mailJob.waiting.item.link then
+    message = message .. " Return the item on your cursor to your bags."
+  end
   if message and mailJob and mailJob.selection then mailJob.selection.uncertain = true end
   mailJob = nil
   if SendMailFrame and SendMailFrame:IsShown() then SendMailFrame_CanSend() end
@@ -1213,6 +1219,50 @@ local function stopMailJob(message)
   if recipientPicker and recipientPicker:IsShown() and recipientPicker.mailMode then
     if recipientPicker.bag ~= settings() then recipientPicker:Hide() else recipientPicker.refreshRecipients() end
   end
+end
+
+--- Find a compatible empty slot for confirming a split stack.
+---@param sourceBag number Bag containing the original stack.
+---@return number|nil bagID Bag identifier.
+---@return number|nil slot Empty slot.
+local function findMailSplitSlot(sourceBag)
+  --- Find an empty slot in one bag.
+  ---@param bagID number Bag identifier.
+  ---@return number|nil slot Empty slot.
+  local function emptySlot(bagID)
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      if not C_Container.GetContainerItemInfo(bagID, slot) then return slot end
+    end
+  end
+  local slot = emptySlot(sourceBag)
+  if slot then return sourceBag, slot end
+  for _, bagID in ipairs(bagIDs()) do
+    if bagID ~= sourceBag then
+      if bagID == 0 or select(2, C_Container.GetContainerNumFreeSlots(bagID)) == 0 then
+        slot = emptySlot(bagID)
+        if slot then return bagID, slot end
+      end
+    end
+  end
+end
+
+--- Attach the item on the cursor and wait for Blizzard to confirm its quantity.
+---@param job table Active mail preparation.
+---@param item table Expected bag item and quantity.
+---@return boolean started Whether attachment confirmation is pending.
+local function attachMailCursor(job, item)
+  if HasSendMailItem(job.index) then
+    stopMailJob("the mail attachment slot changed; return the item on your cursor to your bags.")
+    return false
+  end
+  ClickSendMailItemButton(job.index)
+  if GetCursorInfo() then
+    ClearCursor()
+    stopMailJob("unable to attach " .. (item.name or "the item") .. "; check whether it can be mailed.")
+    return false
+  end
+  job.waiting = { slot = job.index, item = item }
+  return true
 end
 
 --- Continue clearing or attaching one stack after the client confirms the preceding operation.
@@ -1224,14 +1274,52 @@ local function advanceMailJob(job)
     stopMailJob("mail preparation stopped because the recipient or mail window changed.")
     return
   end
-  if job.waiting then
+  if job.waiting and job.waiting.split then
+    local item = job.waiting.item
+    local current = C_Container.GetContainerItemInfo(job.waiting.bagID, job.waiting.slot)
+    local recipient, amount = activeMailRecipient(job.bag, item.statusKey)
+    if SendMailNameEditBox:GetText() ~= job.recipient.character or GetCursorInfo()
+      or recipient ~= job.id or amount ~= item.amount or getItemStatus(item.statusKey) ~= ITEM_STATUSES[5]
+      or (current and (current.itemID ~= item.itemID or current.hyperlink ~= item.link)) then
+      stopMailJob("the split item, recipient, or mail queue changed; select the recipient again.")
+      return
+    end
+    -- Cursor information has no quantity; verify the staged stack after the asynchronous split settles.
+    if current and not current.isLocked and current.stackCount == item.sendCount then
+      if isSoulboundBagItem(job.waiting.bagID, job.waiting.slot, current) then
+        stopMailJob("the item became soulbound; select the recipient again.")
+        return
+      end
+      C_Container.PickupContainerItem(job.waiting.bagID, job.waiting.slot)
+      local cursorType, _, cursorLink = GetCursorInfo()
+      if cursorType ~= "item" or cursorLink ~= item.link then
+        stopMailJob("unable to pick up the confirmed split stack for mailing.")
+        return
+      end
+      job.attempts = 0
+      if not attachMailCursor(job, item) then return end
+      C_Timer.After(0.1, function() advanceMailJob(job) end)
+    else
+      if job.waiting.elapsed >= 3 then
+        stopMailJob("the item split did not finish; select the recipient again.")
+        return
+      end
+      local delay = math.min(job.waiting.delay + 0.1, 3 - job.waiting.elapsed)
+      job.waiting.delay = delay
+      job.waiting.elapsed = job.waiting.elapsed + delay
+      C_Timer.After(delay, function() advanceMailJob(job) end)
+    end
+    return
+  elseif job.waiting then
     local present = HasSendMailItem(job.waiting.slot)
     if (job.phase == "clearing" and not present) or (job.phase == "attaching" and present) then
       if job.phase == "attaching" then
         local _, itemID, _, count = GetSendMailItem(job.waiting.slot)
         if itemID ~= job.waiting.item.itemID or count ~= job.waiting.item.sendCount
           or GetSendMailItemLink(job.waiting.slot) ~= job.waiting.item.link then
-          stopMailJob("mail preparation stopped because an attachment changed.")
+          job.selection.invalidAttachments = job.selection.invalidAttachments or {}
+          job.selection.invalidAttachments[job.waiting.slot] = true
+          stopMailJob("mail preparation stopped because an attachment changed; remove it before sending.")
           return
         end
         local item = job.waiting.item
@@ -1248,6 +1336,10 @@ local function advanceMailJob(job)
     else
       job.attempts = job.attempts + 1
       if job.attempts >= 200 then
+        if job.phase == "attaching" then
+          job.selection.invalidAttachments = job.selection.invalidAttachments or {}
+          job.selection.invalidAttachments[job.waiting.slot] = true
+        end
         stopMailJob("mail preparation timed out; check the attachments and any confirmation dialogs.")
         return
       end
@@ -1319,22 +1411,32 @@ local function advanceMailJob(job)
       return
     end
     if item.sendCount < item.count then
+      local splitBag, splitSlot = findMailSplitSlot(item.bagID)
+      if not splitBag then
+        stopMailJob("make room in a compatible bag before preparing a partial stack for mail.")
+        return
+      end
       C_Container.SplitContainerItem(item.bagID, item.slot, item.sendCount)
+      local cursorType, _, cursorLink = GetCursorInfo()
+      if cursorType ~= "item" or cursorLink ~= item.link then
+        stopMailJob("unable to split " .. (item.name or "the item") .. " for mailing.")
+        return
+      end
+      C_Container.PickupContainerItem(splitBag, splitSlot)
+      if GetCursorInfo() then
+        stopMailJob("unable to place the split stack in a bag; return the item on your cursor to your bags.")
+        return
+      end
+      job.waiting = { split = true, item = item, bagID = splitBag, slot = splitSlot, delay = 0.1, elapsed = 0.1 }
     else
       C_Container.PickupContainerItem(item.bagID, item.slot)
+      local cursorType, _, cursorLink = GetCursorInfo()
+      if cursorType ~= "item" or cursorLink ~= item.link then
+        stopMailJob("unable to pick up " .. (item.name or "the item") .. " for mailing.")
+        return
+      end
+      if not attachMailCursor(job, item) then return end
     end
-    local cursorType, _, cursorLink = GetCursorInfo()
-    if cursorType ~= "item" or cursorLink ~= item.link then
-      stopMailJob("unable to pick up " .. (item.name or "the item") .. " for mailing.")
-      return
-    end
-    ClickSendMailItemButton(job.index)
-    if GetCursorInfo() then
-      ClearCursor()
-      stopMailJob("unable to attach " .. (item.name or "the item") .. "; check whether it can be mailed.")
-      return
-    end
-    job.waiting = { slot = job.index, item = item }
   end
   C_Timer.After(0.1, function() advanceMailJob(job) end)
 end
