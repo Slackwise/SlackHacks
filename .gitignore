@@ -3,6 +3,5 @@
 users.json
 .vscode/settings.json
 dist/*
-!dist/LibRPMedia/
 .env
 .bin/

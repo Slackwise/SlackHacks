@@ -1,11 +1,17 @@
 #!/usr/bin/env perl
+# Explicit updates check GitHub main and extract only when its revision changes.
+# --no-update extracts local data without checking or changing the recorded revision.
 use strict;
 use warnings;
 use FindBin;
 use File::Copy qw(move);
+use File::Path qw(make_path);
 use File::Spec;
 use File::Temp qw(tempfile);
 use Getopt::Long qw(GetOptions);
+use JSON::PP;
+use lib $FindBin::Bin;
+use ReleaseUtil qw(curl_response git_output);
 
 my $update = 1;
 GetOptions('update!' => \$update) or die "Usage: perl scripts/update-icon-names.pl [--no-update]\n";
@@ -14,22 +20,59 @@ die "Usage: perl scripts/update-icon-names.pl [--no-update]\n" if @ARGV;
 my $root = File::Spec->rel2abs(File::Spec->catdir($FindBin::Bin, '..'));
 my $library = File::Spec->catdir($root, 'dist', 'LibRPMedia');
 my $output = File::Spec->catfile($root, 'IconNames.lua');
+my $version_file = File::Spec->catfile($root, 'LibRPMedia-version.txt');
+my $repository = 'https://github.com/wow-rp-addons/LibRPMedia';
+my $api = 'https://api.github.com/repos/wow-rp-addons/LibRPMedia/git/ref/heads/main';
 
 sub run_git {
     system('git', @_) == 0 or die "git @_ failed.\n";
 }
 
+my $revision;
 if ($update) {
-    unless (-e File::Spec->catfile($library, '.git')) {
-        run_git('-C', $root, 'submodule', 'update', '--init', '--', 'dist/LibRPMedia');
+    my ($status, $body) = curl_response('--location', '--max-time', '60',
+        '-H', 'Accept: application/vnd.github+json',
+        '-H', 'User-Agent: SlackHacks-icon-updater',
+        '-H', 'X-GitHub-Api-Version: 2022-11-28', $api);
+    die "GitHub API request for LibRPMedia main failed (HTTP $status): $body\n" unless $status == 200;
+    my $response = JSON::PP->new->utf8->decode($body);
+    $revision = ref($response) eq 'HASH' && ref($response->{object}) eq 'HASH' ? $response->{object}{sha} : undef;
+    die "GitHub API returned an invalid LibRPMedia main commit.\n"
+        unless defined $revision && !ref($revision) && $revision =~ /^[0-9a-f]{40}$/;
+
+    if (-e $version_file) {
+        open my $version_in, '<:raw', $version_file or die "Cannot read '$version_file': $!\n";
+        my $stored_revision = do { local $/; <$version_in> } // '';
+        close $version_in or die "Cannot close '$version_file': $!\n";
+        $stored_revision =~ s/\s+\z//;
+        if ($stored_revision eq $revision) {
+            print "LibRPMedia icon names are already up to date at $revision.\n";
+            exit 0;
+        }
     }
-    open my $status, '-|', 'git', '-C', $library, 'status', '--porcelain'
-        or die "Cannot inspect LibRPMedia: $!\n";
-    my $changes = do { local $/; <$status> } // '';
-    close $status or die "Cannot inspect LibRPMedia.\n";
+
+    if (!-e $library) {
+        make_path(File::Spec->catdir($root, 'dist'));
+        run_git('clone', '--branch', 'main', '--single-branch', '--', $repository, $library);
+    } elsif (!-e File::Spec->catfile($library, '.git')) {
+        die "'$library' already exists and is not a Git checkout; preserve or move it before updating.\n";
+    }
+
+    my $origin = git_output('-C', $library, 'config', '--get', 'remote.origin.url');
+    die "LibRPMedia origin '$origin' is not the expected GitHub repository.\n"
+        unless $origin =~ m{^(?:https://github\.com/|git\@github\.com:|ssh://git\@github\.com/)wow-rp-addons/LibRPMedia(?:\.git)?/?$}i;
+    my $changes = git_output('-C', $library, 'status', '--porcelain', '--untracked-files=all');
     die "LibRPMedia has uncommitted changes; preserve them before updating.\n" if $changes =~ /\S/;
-    run_git('-C', $library, 'fetch', '--tags', 'origin');
-    run_git('-C', $library, 'merge', '--ff-only', 'origin/HEAD');
+    my $branch = git_output('-C', $library, 'branch', '--show-current');
+    die "LibRPMedia is on branch '$branch', not main; switch to main before updating.\n"
+        if $branch ne '' && $branch ne 'main';
+    run_git('-C', $library, 'fetch', '--no-tags', 'origin', 'main');
+    # Pin extraction to the API snapshot even if main advances during the fetch.
+    run_git('-C', $library, 'merge-base', '--is-ancestor', $revision, 'FETCH_HEAD');
+    run_git('-C', $library, 'merge-base', '--is-ancestor', 'HEAD', $revision);
+    run_git('-C', $library, 'merge', '--ff-only', '--no-overwrite-ignore', $revision);
+    my $head = git_output('-C', $library, 'rev-parse', 'HEAD');
+    die "LibRPMedia checkout did not reach API revision $revision (HEAD is $head).\n" if $head ne $revision;
 }
 
 my @datasets = (
@@ -93,5 +136,18 @@ for my $id (sort { $a <=> $b } keys %icons) {
 }
 print {$out} "]==] }\n" or die "Cannot write '$temporary': $!\n";
 close $out or die "Cannot close '$temporary': $!\n";
+my $version_temporary;
+if (defined $revision) {
+    my $version_out;
+    ($version_out, $version_temporary) = tempfile('.librpmedia-version-XXXXXX', DIR => $root, UNLINK => 1);
+    binmode $version_out;
+    print {$version_out} "$revision\n" or die "Cannot write '$version_temporary': $!\n";
+    close $version_out or die "Cannot close '$version_temporary': $!\n";
+}
 move($temporary, $output) or die "Cannot install '$output': $!\n";
+if (defined $revision) {
+    move($version_temporary, $version_file)
+        or die "IconNames.lua was updated, but '$version_file' could not be installed: $!\n";
+    print "Recorded LibRPMedia main revision $revision in '$version_file'.\n";
+}
 print "Extracted $count icon names into '$output'.\n";

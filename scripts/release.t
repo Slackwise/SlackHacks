@@ -1008,7 +1008,7 @@ test 'build.sh does not package CHANGELOG.md' => sub {
     is($result->{status}, 0, 'build succeeds') or diag $result->{stdout} . $result->{stderr};
     ok(-f "$repo/dist/SlackHacks/Core.lua", 'addon files are staged');
     ok(-f "$repo/dist/SlackHacks/IconNames.lua", 'extracted icon data is staged');
-    ok(-f "$repo/dist/LibRPMedia/not-packaged.lua", 'build preserves the submodule directory');
+    ok(-f "$repo/dist/LibRPMedia/not-packaged.lua", 'build preserves the upstream checkout');
     ok(!-e "$repo/dist/SlackHacks/LibRPMedia", 'upstream data is not embedded in the addon');
     ok(!-e "$repo/dist/SlackHacks/CHANGELOG.md", 'CHANGELOG.md is not staged');
     SKIP: {
@@ -1019,7 +1019,7 @@ test 'build.sh does not package CHANGELOG.md' => sub {
             $entries{$zip->getHeaderInfo->{Name}} = 1;
         } while $zip->nextStream() > 0;
         ok($entries{'SlackHacks/IconNames.lua'}, 'ZIP includes extracted icon data');
-        ok(!grep(/^LibRPMedia\//, keys %entries), 'ZIP does not contain the submodule');
+        ok(!grep(/^LibRPMedia\//, keys %entries), 'ZIP does not contain the upstream checkout');
     }
 };
 
