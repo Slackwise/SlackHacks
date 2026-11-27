@@ -1482,7 +1482,9 @@ end
 ---@param anchor table Flag button.
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata.
+---@param mailMode boolean|nil Whether the picker is opened from the Send Mail tab.
 local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
+  if mailMode and not next(collectRecipientMailItems(settings())) then return end
   if not recipientPicker then
     local forever = isForever()
     -- Retail's base template has no background behind the inset and exposes the world around its edges.

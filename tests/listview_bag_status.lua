@@ -1286,6 +1286,31 @@ profile.bankItems[swordKey] = nil
 reagentBagSlots[1] = nil
 upvalue(openPicker, "recipientPicker", false)
 upvalue(selectStatus, "openMailRecipientPicker", openPicker)
+local savedBagSlots = bagSlots
+bagSlots = {}
+module:OnBagInteractionOpen("MAIL_SHOW")
+SendMailFrame.hooks.OnShow()
+module:OnMailAddonLoaded("ADDON_LOADED", "Blizzard_MailFrame")
+assert(not upvalue(openPicker, "recipientPicker"),
+  "Opening the mail window or Send Mail tab with no assigned items must not create the picker")
+
+bagSlots[1] = savedBagSlots[1]
+profile.mailAssignments[swordKey] = nil
+SendMailFrame.hooks.OnShow()
+assert(not upvalue(openPicker, "recipientPicker"), "Unassigned Mail flags must not open the send picker")
+openPicker(button, "pick", row.statusInfo)
+assert(picker.shown and not picker.mailMode, "Choosing a recipient for a flag must still open an empty picker")
+picker:Hide()
+upvalue(openPicker, "recipientPicker", false)
+
+profile.mailAssignments[swordKey] = 1
+bagSlots[1].isLocked = true
+SendMailFrame.hooks.OnShow()
+assert(picker.shown and picker.mailMode and scroll.elements[1].enabled,
+  "Temporarily locked assigned items must still open the send picker")
+picker:Hide()
+bagSlots[1].isLocked = false
+bagSlots = savedBagSlots
 module:OnBagInteractionOpen("MAIL_SHOW")
 SendMailFrame.hooks.OnShow()
 assert(picker.shown and picker.parent == UIParent and picker.points.TOPLEFT[1] == MailFrame)
@@ -1595,6 +1620,7 @@ profile.mailItems[swordKey], profile.mailAssignments[swordKey] = {}, nil
 profile.mailQueues[swordKey] = { { recipient = 1, remaining = 3 } }
 bagSlots[1] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 3 }
 bagSlots[2] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 1 }
+SendMailFrame.hooks.OnShow()
 module:OnMailInfoUpdate()
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
