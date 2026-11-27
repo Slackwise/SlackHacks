@@ -1107,12 +1107,16 @@ scrollHeight = picker.height + scroll.points.TOPLEFT[2] - scroll.points.BOTTOMRI
 assert(scrollHeight >= 8 * 44 + 7 * viewPadding[5] and scrollHeight < 9 * 44 + 8 * viewPadding[5],
   "Retail must fit eight complete recipients, but not nine")
 assert(#scroll.elements == 0 and newRecipient.text.text == "New Mail Recipient")
-assert(newRecipient.width == 169 and newRecipient.height == 44
+assert(newRecipient.width == 191 and newRecipient.height == 44
   and newRecipient.points.TOPLEFT[1] == scroll and newRecipient.points.TOPLEFT[2] == "BOTTOMLEFT"
   and newRecipient.points.TOPLEFT[3] == 3 and newRecipient.points.TOPLEFT[4] == 0
+  and scroll.points.TOPLEFT[1] + newRecipient.points.TOPLEFT[3] + newRecipient.width
+    == picker.width + inset.points.BOTTOMRIGHT[1] - 8
+  and newRecipient.BgTop.width == 191 and newRecipient.BgMiddle.width == 190
+  and newRecipient.BgBottom.width == 191
   and not newRecipient.points.LEFT and newRecipient.text.points.RIGHT[3] == -5
   and newRecipient.BgTop.shown and newRecipient.BgBottom.shown,
-  "Retail's new recipient row must fit, align with the list, and leave no gap")
+  "Retail's new recipient row and background must fit inside the inset without a gap above")
 local retailRow = pickerRow({ id = 1, recipient = { nickname = "Retail", character = "Retail-Realm", icon = 123 } })
 assert(retailRow.characterText.text == "Retail-Realm" and retailRow.text.points.TOPLEFT[3] == 44
   and retailRow.DeleteButton.points.BOTTOMRIGHT[1] == retailRow

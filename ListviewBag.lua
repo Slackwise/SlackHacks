@@ -1642,7 +1642,11 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode)
     else
       -- Retail renders its new-set control as a gear-set row; keep it outside our scrolling list.
       newRecipient = CreateFrame("Button", nil, picker, "GearSetButtonTemplate")
-      newRecipient:SetSize(169, 44)
+      newRecipient:SetSize(191, 44)
+      -- The native row background has fixed-width textures that do not resize with the button.
+      newRecipient.BgTop:SetWidth(191)
+      newRecipient.BgMiddle:SetWidth(190)
+      newRecipient.BgBottom:SetWidth(191)
       newRecipient.text:ClearAllPoints()
       newRecipient.text:SetPoint("LEFT", newRecipient, "LEFT", 44, 0)
       newRecipient.text:SetPoint("RIGHT", newRecipient, "RIGHT", -5, 0)
