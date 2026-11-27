@@ -6,6 +6,13 @@
 - Document every Lua function with LuaDoc-style comments. Include a concise purpose and document parameters and return values when applicable. Keep documentation accurate when changing a function.
 - Explain the reason behind complex or non-obvious code sections. If a change is a tweak, workaround, or hack, add a nearby comment explaining why it is needed and any relevant constraints.
 
+## Architectural Decisions
+
+- Attempt to use native Blizzard code / FrameXML for as much as possible.
+- Otherwise try to use Ace3 libraries/features.
+- We want to look as native as possible.
+- We want to use as little custom code/widgets as possible.
+
 ## Ace3 configuration and saved data
 
 - Before changing Ace3/AceDB defaults, options, profiles, or the saved-variable data shape, check the impact on existing user configurations.
