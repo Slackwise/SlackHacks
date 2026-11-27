@@ -10,6 +10,14 @@ Everything is off by default. (Please read all the options!)
 
 It's similar to Plumber or Leatrix, but may be incompatible with full UI redesigns like Ellesmere UI.
 
+## Is this another "vibecoded" slop addon?!
+
+Well, is it AI generated? Partially. *Assisted*, more precisely. Is it "vibecoded"? **Absolutely not!**
+
+I am a professional developer with over 30 years of programming experience. While I'm not 1000% handwriting every line, I am reading, reviewing, and steering all changes as much as possible, piece-by-piece, and reviewing all impacts on performance and memory. One of my motivations to create this addon was to actually *avoid* all the "vibecoded" addons built by non-developers that have numerous bugs and poor performance.
+
+If you don't believe me, profile this addon yourself. Take a look at the compression algorithm I wrote in `IconNames.lua` to see my commitment to performance and efficiency; it adds icon search functionality to the Macro window where you pick icons so you can search by name. The source library for this metadata (`LibRPMedia`) was over 10MB. I extracted and compressed the data down to 0.7MB. Just an example of my efforts...
+
 ## Modules & Features
 
 ### Utilities
