@@ -12,6 +12,7 @@
 - Fixed the inventory summary's misleading item-loading status and identify items whose data is unavailable.
 - The Listview Bag footer shows equipped arrows or thrown durability and Soul Shards on Forever, and always shows crests on Retail.
 - Added Selling and Gear views to the Listview Bag, with manually refreshed auction pricing, an AH Mode filter, equipment stat comparisons, and gear filters. Selling View shows items with a vendor price; opening the Auction House temporarily selects it with AH Mode enabled.
+- Gear filters now show client-appropriate combat stats and equipment types, with duplicate choices grouped. Forever relics also appear in Gear View.
 - Reduced icon-search memory use by loading only icon names and file IDs, compressed until first use.
 - Removed the Listview Bag's Sell Trash button. Blizzard's Sell All Junk button also sells marked items after confirmation, including when there is no native junk to sell. Clients without that button can still auto-sell marked items.
 - The auto-vendor list now shows item links, icons, tooltips, and individual Remove buttons, and can be cleared with confirmation.

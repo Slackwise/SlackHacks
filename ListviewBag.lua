@@ -208,6 +208,7 @@ local EQUIPMENT_SLOTS = {
   INVTYPE_WEAPON = true, INVTYPE_SHIELD = true, INVTYPE_RANGED = true, INVTYPE_CLOAK = true,
   INVTYPE_2HWEAPON = true, INVTYPE_TABARD = true, INVTYPE_ROBE = true, INVTYPE_WEAPONMAINHAND = true,
   INVTYPE_WEAPONOFFHAND = true, INVTYPE_HOLDABLE = true, INVTYPE_THROWN = true, INVTYPE_RANGEDRIGHT = true,
+  INVTYPE_RELIC = true,
 }
 
 local BIND_ICON_TEXTURE = "Interface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture"
@@ -597,6 +598,7 @@ local function collectGroups()
     group.upgradeTrack = first and getUpgradeTrack(first.bagID, first.slot) or nil
     group.isArmor = classID == ARMOR_CLASS_ID
     group.isEquipment = (classID == ARMOR_CLASS_ID or classID == 2) and EQUIPMENT_SLOTS[itemEquipLoc]
+      and (itemEquipLoc ~= "INVTYPE_RELIC" or not isRetail())
     group.classID, group.subclassID, group.equipLoc, group.sellPrice, group.isCraftingReagent =
       classID, subclassID, itemEquipLoc, sellPrice, isCraftingReagent
     if group.isArmor or (selectedView() == "gear" and group.isEquipment) then
@@ -874,7 +876,7 @@ local function itemCategory(group, bag)
     return "junk"
   elseif group.isCraftingReagent then
     return "reagents"
-  elseif EQUIPMENT_SLOTS[group.equipLoc] or (group.equipLoc == "INVTYPE_RELIC" and not isRetailOrForever()) then
+  elseif EQUIPMENT_SLOTS[group.equipLoc] and (group.equipLoc ~= "INVTYPE_RELIC" or not isRetail()) then
     return "equipment"
   elseif group.classID == 0 then
     return "consumables"
@@ -948,19 +950,38 @@ local function matchesGearFilters(group)
   if not gear or not gear.GetSlots(group.equipLoc) then return false end
   local filters = gearFilters()
   local typeKey = tostring(group.classID) .. ":" .. tostring(group.subclassID)
+  local choices = gear.FilterChoices(EQUIPMENT_SLOTS)
+  for _, section in ipairs({ choices[1], choices[2] }) do
+    local key = section.key == "types" and typeKey or group.equipLoc
+    local choice = section.byKey[key]
+    if choice and not gear.ChoiceEnabled(filters[section.key], choice) then return false end
+  end
   if filters.types[typeKey] == false or filters.slots[group.equipLoc] == false then return false end
   if filters.downgradeOnly and not gear.IsDowngrade(group.comparisons) then return false end
-  if next(filters.stats) then
-    local anySelected = false
-    for key, value in pairs(group.itemStats or {}) do
-      if type(value) == "number" and value ~= 0 and filters.stats[key] ~= false then
-        anySelected = true
-        break
-      end
+  if not next(filters.stats) then return true end
+  local restricted = false
+  for _, choice in ipairs(choices[3].entries) do
+    if not gear.ChoiceEnabled(filters.stats, choice) then
+      restricted = true
+      break
     end
-    if not anySelected then return false end
   end
-  return true
+  if not restricted then return true end
+  for _, choice in ipairs(choices[3].entries) do
+    if gear.ChoiceEnabled(filters.stats, choice) then
+      if gear.StatChoiceMatches(choice, group.itemStats) then return true end
+    end
+  end
+  local sturdy = choices[3].byKey.ITEM_MOD_CR_STURDINESS_SHORT
+  if sturdy and gear.ChoiceEnabled(filters.stats, sturdy)
+    and group.entries and group.entries[1] and _G.ITEM_MOD_CR_STURDINESS_SHORT then
+    -- Indestructible may be a tooltip-only property rather than a numeric item stat.
+    local first = group.entries[1]
+    for _, line in ipairs(scanBagItemLines(first.bagID, first.slot)) do
+      if line == _G.ITEM_MOD_CR_STURDINESS_SHORT then return true end
+    end
+  end
+  return false
 end
 
 local refreshMailSendButton
@@ -3465,47 +3486,12 @@ local function openViewsMenu(anchor, root)
   end
 end
 
---- Collect localized filter choices from the client's item-class and stat definitions.
----@return table groups Ordered filter groups and their choices.
-local function gearFilterChoices()
-  local groups = { { name = "Armor and Weapons", key = "types", entries = {} },
-    { name = "Equipment Slots", key = "slots", entries = {} },
-    { name = "Stats", key = "stats", entries = {} } }
-  if C_Item and C_Item.GetItemSubClassInfo then
-    for _, classID in ipairs({ 4, 2 }) do
-      for subclassID = 0, 30 do
-        local label = C_Item.GetItemSubClassInfo(classID, subclassID)
-        if label and label ~= "" then
-          groups[1].entries[#groups[1].entries + 1] =
-            { key = classID .. ":" .. subclassID, name = label }
-        end
-      end
-    end
-  end
-  for key in pairs(EQUIPMENT_SLOTS) do
-    if gear.GetSlots(key) then
-      groups[2].entries[#groups[2].entries + 1] = { key = key, name = _G[key] or key }
-    end
-  end
-  for key, value in pairs(_G) do
-    if type(key) == "string" and key:match("^ITEM_MOD_") and type(value) == "string" then
-      groups[3].entries[#groups[3].entries + 1] = { key = key, name = gear.StatLabel(key) }
-    end
-  end
-  for _, group in ipairs(groups) do
-    table.sort(group.entries, function(a, b)
-      return a.name == b.name and a.key < b.key or a.name < b.name
-    end)
-  end
-  return groups
-end
-
 --- Populate the Gear view's grouped filters.
 ---@param anchor table Dropdown frame.
 ---@param root table|nil Modern menu description.
 local function openGearFiltersMenu(anchor, root)
   local filters = gearFilters()
-  local groups = gearFilterChoices()
+  local groups = gear.FilterChoices(EQUIPMENT_SLOTS)
   --- Restore all gear filters.
   local function showAll()
     filters.types, filters.slots, filters.stats = {}, {}, {}
@@ -3516,7 +3502,7 @@ local function openGearFiltersMenu(anchor, root)
   local function uncheckAll()
     for _, group in ipairs(groups) do
       for _, choice in ipairs(group.entries) do
-        filters[group.key][choice.key] = false
+        for _, key in ipairs(choice.keys) do filters[group.key][key] = false end
       end
     end
     filters.downgradeOnly = false
@@ -3524,10 +3510,11 @@ local function openGearFiltersMenu(anchor, root)
   end
   --- Toggle a filter and refresh the view.
   ---@param group string Filter group.
-  ---@param key string Filter identifier.
-  local function toggle(group, key)
-    if filters[group][key] == false then filters[group][key] = nil
-    else filters[group][key] = false end
+  ---@param choice table Grouped filter identifiers.
+  local function toggle(group, choice)
+    local value
+    if gear.ChoiceEnabled(filters[group], choice) then value = false end
+    for _, key in ipairs(choice.keys) do filters[group][key] = value end
     renderRows()
   end
   --- Toggle the strict downgrade filter.
@@ -3545,8 +3532,8 @@ local function openGearFiltersMenu(anchor, root)
       if submenu.SetScrollMode then submenu:SetScrollMode(350) end
       for _, value in ipairs(group.entries) do
         local choice = value
-        submenu:CreateCheckbox(choice.name, function() return filters[group.key][choice.key] ~= false end,
-          function() toggle(group.key, choice.key) end)
+        submenu:CreateCheckbox(choice.name, function() return gear.ChoiceEnabled(filters[group.key], choice) end,
+          function() toggle(group.key, choice) end)
       end
     end
   else
@@ -3562,8 +3549,8 @@ local function openGearFiltersMenu(anchor, root)
       for _, value in ipairs(group.entries) do
         local choice = value
         submenu[#submenu + 1] = { text = choice.name, isNotRadio = true, keepShownOnClick = true,
-          checked = function() return filters[group.key][choice.key] ~= false end,
-          func = function() toggle(group.key, choice.key) end }
+          checked = function() return gear.ChoiceEnabled(filters[group.key], choice) end,
+          func = function() toggle(group.key, choice) end }
       end
       menu[#menu + 1] = { text = group.name, notCheckable = true, hasArrow = true, menuList = submenu }
     end

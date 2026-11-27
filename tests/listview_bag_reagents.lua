@@ -287,7 +287,7 @@ openModernFilters(gearButton)
 assert(menuEntries[1].text == "Show All" and menuEntries[2].text == "Uncheck All"
   and menuEntries[2].response == MenuResponse.Refresh
   and entry("Downgrade Only") and entry("Cloth", "Armor and Weapons")
-  and entry("Head", "Equipment Slots") and entry("Agi", "Stats"))
+  and entry("Head", "Equipment Slots") and entry("Agility", "Stats"))
 local matchesGearFilters = upvalue(buildDisplayRows, "matchesGearFilters")
 local gearItem = { classID = 4, subclassID = 1, equipLoc = "INVTYPE_HEAD",
   itemStats = { ITEM_MOD_AGILITY_SHORT = 2 },
@@ -297,7 +297,7 @@ assert(matchesGearFilters(gearItem), "gear is initially shown")
 entry("Cloth", "Armor and Weapons").select()
 assert(not matchesGearFilters(gearItem), "unchecked armor types are hidden")
 entry("Cloth", "Armor and Weapons").select()
-entry("Agi", "Stats").select()
+entry("Agility", "Stats").select()
 assert(not matchesGearFilters(gearItem), "unchecked stats are hidden")
 entry("Cloth", "Armor and Weapons").select()
 entry("Downgrade Only").select()
@@ -315,15 +315,151 @@ gearItem.comparisons[2] = nil
 assert(matchesGearFilters(gearItem) and loss.hasLoss, "Pure stat losses must remain visible")
 entry("Uncheck All").select()
 assert(not entry("Downgrade Only").checked() and not entry("Cloth", "Armor and Weapons").checked()
-  and not entry("Head", "Equipment Slots").checked() and not entry("Agi", "Stats").checked()
+  and not entry("Head", "Equipment Slots").checked() and not entry("Agility", "Stats").checked()
   and not matchesGearFilters(gearItem), "Uncheck All must disable every gear filter")
 entry("Cloth", "Armor and Weapons").select()
 entry("Head", "Equipment Slots").select()
-entry("Agi", "Stats").select()
+entry("Agility", "Stats").select()
 assert(matchesGearFilters(gearItem), "Individual filters must be selectable after Uncheck All")
 entry("Show All").select()
 assert(entry("Cloth", "Armor and Weapons").checked() and entry("Head", "Equipment Slots").checked()
-  and entry("Agi", "Stats").checked(), "Show All must restore the unchecked filters")
+  and entry("Agility", "Stats").checked(), "Show All must restore the unchecked filters")
+do
+  local oldSubclass = C_Item.GetItemSubClassInfo
+  --- Return representative client subclass labels, including obsolete and duplicate labels.
+  ---@param class number Item class.
+  ---@param subclass number Item subclass.
+  ---@return string|nil label Mock label.
+  C_Item.GetItemSubClassInfo = function(class, subclass)
+    if class == 4 and subclass == 1 then return "Cloth" end
+    if class == 4 and subclass == 0 or class == 2 and subclass == 14 then return "Miscellaneous" end
+    if class == 2 and subclass == 9 then return "Warglaives" end
+    if class == 2 and subclass == 11 then return "Bear Claws" end
+    if class == 2 and subclass == 12 then return "CatClaws" end
+    if class == 2 and subclass == 16 then return "Thrown" end
+    if class == 2 and subclass == 17 then return "Spears" end
+    if class == 4 and subclass == 7 then return "Librams" end
+    if class == 4 and subclass == 8 then return "Idols" end
+    if class == 4 and subclass == 9 then return "Totems" end
+  end
+  INVTYPE_CHEST, INVTYPE_ROBE = "Chest", "Chest"
+  INVTYPE_RELIC = "Relic"
+  openModernFilters(gearButton)
+  local count = 0
+  for _, value in ipairs(menuEntries) do
+    if value.section == "Armor and Weapons" and value.text == "Miscellaneous" then count = count + 1 end
+  end
+  assert(count == 1 and entry("Warglaives", "Armor and Weapons")
+    and not entry("Bear Claws", "Armor and Weapons") and not entry("CatClaws", "Armor and Weapons")
+    and not entry("Thrown", "Armor and Weapons") and not entry("Librams", "Armor and Weapons"),
+    "Retail must expose supported gear subclasses only")
+  count = 0
+  for _, value in ipairs(menuEntries) do
+    if value.section == "Equipment Slots" and value.text == "Chest" then count = count + 1 end
+  end
+  assert(count == 1 and not entry("Relic", "Equipment Slots"), "Duplicate equipment-slot labels must be merged")
+  profile.gearFilters.types["4:0"] = false
+  assert(not entry("Miscellaneous", "Armor and Weapons").checked(),
+    "A previously unchecked subclass must keep its combined filter unchecked")
+  gearItem.classID, gearItem.subclassID = 2, 14
+  assert(not matchesGearFilters(gearItem), "A combined type filter must control every matching subclass")
+  entry("Miscellaneous", "Armor and Weapons").select()
+  assert(not profile.gearFilters.types["4:0"] and matchesGearFilters(gearItem))
+  profile.gearFilters.slots.INVTYPE_ROBE = false
+  gearItem.equipLoc = "INVTYPE_CHEST"
+  assert(not entry("Chest", "Equipment Slots").checked() and not matchesGearFilters(gearItem),
+    "A previously unchecked duplicate slot must control the combined filter")
+  entry("Chest", "Equipment Slots").select()
+  assert(matchesGearFilters(gearItem))
+  local legacyGear
+  --- Capture the generated legacy filter menu.
+  ---@param menu table Menu entries.
+  EasyMenu = function(menu) legacyGear = menu end
+  upvalue(createFooter, "openGearFiltersMenu")(gearButton)
+  local miscellaneous
+  for _, choice in ipairs(legacyGear[4].menuList) do
+    if choice.text == "Miscellaneous" then
+      assert(not miscellaneous, "The legacy menu must not duplicate grouped types")
+      miscellaneous = choice
+    end
+  end
+  miscellaneous.func()
+  assert(profile.gearFilters.types["4:0"] == false and profile.gearFilters.types["2:14"] == false,
+    "The legacy menu must toggle all grouped type keys")
+  miscellaneous.func()
+  gearItem.classID, gearItem.subclassID, gearItem.equipLoc = 4, 1, "INVTYPE_HEAD"
+
+  local equipmentSlots = upvalue(matchesGearFilters, "EQUIPMENT_SLOTS")
+  --- Leave only one stat category enabled.
+  ---@param label string Stat category to enable.
+  local function onlyStat(label)
+    local choices = SlackHacks.ListviewBagGear.FilterChoices(equipmentSlots)[3].entries
+    profile.gearFilters.stats = {}
+    for _, choice in ipairs(choices) do
+      for _, key in ipairs(choice.keys) do profile.gearFilters.stats[key] = false end
+      if choice.name == label then
+        for _, key in ipairs(choice.keys) do profile.gearFilters.stats[key] = nil end
+      end
+    end
+  end
+  assert(entry("Mastery", "Stats") and entry("Versatility", "Stats") and entry("Indestructible", "Stats")
+    and not entry("Spirit", "Stats") and not entry("Spell Damage", "Stats"),
+    "Retail must offer only its combat stats")
+  onlyStat("Critical Strike")
+  gearItem.itemStats = { ITEM_MOD_CRIT_RATING_SHORT = 2, ITEM_MOD_CRAFTING_SPEED_SHORT = 10 }
+  assert(matchesGearFilters(gearItem))
+  gearItem.itemStats = { ITEM_MOD_CRAFTING_SPEED_SHORT = 10 }
+  assert(not matchesGearFilters(gearItem), "Profession stats must not bypass combat stat filters")
+  onlyStat("Indestructible")
+  gearItem.entries = { { bagID = 0, slot = 1 } }
+  ITEM_MOD_CR_STURDINESS_SHORT = "Indestructible"
+  --- Return an item tooltip containing the Indestructible property.
+  ---@return table lines Tooltip lines.
+  local function indestructibleLines() return { "Indestructible" } end
+  local oldScan = upvalue(matchesGearFilters, "scanBagItemLines", indestructibleLines)
+  assert(matchesGearFilters(gearItem), "Indestructible must match even when it is only in the tooltip")
+  upvalue(matchesGearFilters, "scanBagItemLines", oldScan)
+  ITEM_MOD_CR_STURDINESS_SHORT = nil
+  gearItem.entries = nil
+
+  retail, forever = false, true
+  openModernFilters(gearButton)
+  assert(entry("Thrown", "Armor and Weapons") and entry("Librams", "Armor and Weapons")
+    and entry("Idols", "Armor and Weapons") and entry("Totems", "Armor and Weapons")
+    and entry("Relic", "Equipment Slots") and not entry("Warglaives", "Armor and Weapons")
+    and not entry("Spears", "Armor and Weapons"), "Forever must show its actual weapon and relic types")
+  assert(entry("Spirit", "Stats") and entry("Spell Damage", "Stats") and entry("Healing", "Stats")
+    and entry("Magic Resistances", "Stats") and not entry("Mastery", "Stats")
+    and not entry("Indestructible", "Stats"), "Forever must offer its own combat stats")
+  onlyStat("Attack Power")
+  gearItem.itemStats = { ITEM_MOD_RANGED_ATTACK_POWER_SHORT = 12 }
+  assert(matchesGearFilters(gearItem), "Ranged Attack Power must also match Attack Power")
+  onlyStat("Spell Damage")
+  gearItem.itemStats = { ITEM_MOD_FIRE_DAMAGE_DONE_SHORT = 1 }
+  assert(matchesGearFilters(gearItem), "School-specific damage must match Spell Damage")
+  gearItem.itemStats = { ITEM_MOD_SPELL_HEALING_DONE_SHORT = 23, ITEM_MOD_SPELL_DAMAGE_DONE_SHORT = 8 }
+  assert(matchesGearFilters(gearItem), "Combined damage and healing must match Spell Damage")
+  onlyStat("Healing")
+  assert(matchesGearFilters(gearItem), "Combined damage and healing must also match Healing")
+  gearItem.itemStats = { ITEM_MOD_SPELL_POWER_SHORT = 8 }
+  assert(matchesGearFilters(gearItem), "Spell Power also directly improves healing")
+  gearItem.itemStats = { ITEM_MOD_SPELL_DAMAGE_DONE_SHORT = 8 }
+  assert(not matchesGearFilters(gearItem), "Damage-only stats must not match Healing")
+  onlyStat("Magic Resistances")
+  gearItem.itemStats = { RESISTANCE4_NAME = 10 }
+  assert(matchesGearFilters(gearItem), "School resistance keys must match the combined resistance filter")
+  gearItem.itemStats = { RESISTANCE0_NAME = 10, RESISTANCE1_NAME = 10 }
+  assert(not matchesGearFilters(gearItem), "Armor and Holy resistance are not the requested magic resistances")
+  profile.gearFilters.stats = { ITEM_MOD_FIRE_DAMAGE_DONE_SHORT = false }
+  openModernFilters(gearButton)
+  assert(not entry("Spell Damage", "Stats").checked(), "Older unchecked school stats must survive grouping")
+  entry("Show All").select()
+  retail, forever = true, false
+  C_Item.GetItemSubClassInfo = oldSubclass
+  INVTYPE_CHEST, INVTYPE_ROBE, INVTYPE_RELIC = nil, nil, nil
+  gearItem.itemStats = { ITEM_MOD_AGILITY_SHORT = 2 }
+  openModernFilters(gearButton)
+end
 do
   local legacyGear
   EasyMenu = function(menu) legacyGear = menu end
@@ -879,6 +1015,8 @@ profile.categoryFilters.consumables = false
 profile.categoryFilters.other = true
 assert(#buildDisplayRows() == 0, "Forever arrows must not appear under Other")
 local itemCategory = upvalue(matchesFilters, "itemCategory")
+local relic = makeItem(205218, 4, "INVTYPE_RELIC", 1)
+assert(itemCategory(relic) == "equipment", "Forever relics must be classified as equipment")
 local arrow = makeItem(2512, 6, "INVTYPE_AMMO", 0, true, 4)
 arrow.subclassID = 2
 assert(itemCategory(arrow) == "consumables", "All Forever arrows must be consumables even with overlapping properties")

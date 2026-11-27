@@ -49,7 +49,9 @@ assert(not gear.IsDowngrade({ loss, gain }) and not gear.IsDowngrade({ gain, los
   and not gear.IsDowngrade({ neutral }) and not gear.IsDowngrade(nil),
   "Any gain, or no loss, must disqualify an item from Downgrade Only")
 stats.right = nil
-assert(gear.CompareItem("candidate", "INVTYPE_FINGER") == nil, "uncached equipped stats must not look like zero")
+local pendingComparison, availableStats = gear.CompareItem("candidate", "INVTYPE_FINGER")
+assert(pendingComparison == nil and availableStats == stats.candidate,
+  "Uncached equipped stats must not look like zero or hide the candidate's available stats")
 stats.right = { ITEM_MOD_AGILITY_SHORT = 2 }
 GetInventoryItemLink = function(_, slot) return slot == 16 and "left" or slot == 17 and "right" end
 comparisons = gear.CompareItem("candidate", "INVTYPE_2HWEAPON")
@@ -73,6 +75,46 @@ assert(comparisons[2].label == "Replaces Main Hand", "Titan's Grip does not allo
 IsPlayerSpell = nil
 retail = true
 assert(gear.GetSlots("INVTYPE_RANGED")[1] == 16)
+assert(not gear.GetSlots("INVTYPE_RELIC"), "Retail must not expose the removed relic slot")
 retail = false
 assert(gear.GetSlots("INVTYPE_RANGED")[1] == 18)
+assert(gear.GetSlots("INVTYPE_RELIC")[1] == 18, "Forever relics use the ranged equipment slot")
+do
+  local expected = {
+    retail = {
+      Strength = "ITEM_MOD_STRENGTH_SHORT", Agility = "ITEM_MOD_AGILITY_SHORT",
+      Intellect = "ITEM_MOD_INTELLECT_SHORT", Stamina = "ITEM_MOD_STAMINA_SHORT",
+      ["Critical Strike"] = "ITEM_MOD_CRIT_RATING_SHORT", Haste = "ITEM_MOD_HASTE_RATING_SHORT",
+      Mastery = "ITEM_MOD_MASTERY_RATING_SHORT", Versatility = "ITEM_MOD_VERSATILITY",
+      Leech = "ITEM_MOD_CR_LIFESTEAL_SHORT", Avoidance = "ITEM_MOD_CR_AVOIDANCE_SHORT",
+      Speed = "ITEM_MOD_CR_SPEED_SHORT", Indestructible = "ITEM_MOD_CR_STURDINESS_SHORT",
+    },
+    forever = {
+      Strength = "ITEM_MOD_STRENGTH_SHORT", Agility = "ITEM_MOD_AGILITY_SHORT",
+      Intellect = "ITEM_MOD_INTELLECT_SHORT", Stamina = "ITEM_MOD_STAMINA_SHORT",
+      ["Critical Strike"] = "ITEM_MOD_CRIT_SPELL_RATING_SHORT", Haste = "ITEM_MOD_HASTE_RATING_SHORT",
+      Spirit = "ITEM_MOD_SPIRIT_SHORT", ["Attack Power"] = "ITEM_MOD_RANGED_ATTACK_POWER_SHORT",
+      ["Ranged Attack Power"] = "ITEM_MOD_RANGED_ATTACK_POWER_SHORT", ["Spell Power"] = "ITEM_MOD_SPELL_POWER_SHORT",
+      ["Spell Damage"] = "ITEM_MOD_FIRE_DAMAGE_DONE_SHORT", Healing = "ITEM_MOD_SPELL_HEALING_DONE_SHORT",
+      ["Hit Rating"] = "ITEM_MOD_HIT_SPELL_RATING_SHORT", Expertise = "ITEM_MOD_EXPERTISE_RATING_SHORT",
+      ["Weapon Skill"] = "ITEM_MOD_SWORDS_SHORT", ["Armor Penetration"] = "ITEM_MOD_ARMOR_PENETRATION_RATING_SHORT",
+      ["Spell Penetration"] = "ITEM_MOD_SPELL_PENETRATION_SHORT", Defense = "ITEM_MOD_DEFENSE_SKILL_RATING_SHORT",
+      Dodge = "ITEM_MOD_DODGE_RATING_SHORT", Parry = "ITEM_MOD_PARRY_RATING_SHORT",
+      ["Block Chance"] = "ITEM_MOD_BLOCK_RATING_SHORT", ["Mana per 5 Seconds"] = "ITEM_MOD_POWER_REGEN0_SHORT",
+      ["Health per 5 Seconds"] = "ITEM_MOD_HEALTH_REGEN_SHORT", ["Magic Resistances"] = "RESISTANCE5_NAME",
+    },
+  }
+  for _, client in ipairs({ "retail", "forever" }) do
+    retail = client == "retail"
+    local seen = {}
+    for _, choice in ipairs(gear.StatFilterChoices()) do
+      local key = expected[client][choice.name]
+      assert(key and not seen[choice.name], "Unexpected or duplicate " .. client .. " stat: " .. choice.name)
+      assert(gear.StatChoiceMatches(choice, { [key] = 1 }), choice.name .. " must match its item stat")
+      assert(not gear.StatChoiceMatches(choice, { [key] = 0 }), choice.name .. " must ignore zero values")
+      seen[choice.name] = true
+    end
+    for name in pairs(expected[client]) do assert(seen[name], "Missing " .. client .. " stat: " .. name) end
+  end
+end
 print("Listview Bag gear comparisons passed")

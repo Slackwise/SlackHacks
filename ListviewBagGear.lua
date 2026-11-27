@@ -37,6 +37,83 @@ local slotLabels = {
   [16] = "Main Hand", [17] = "Off Hand",
 }
 
+-- A filter keeps its original GetItemStats keys, so existing unchecked settings remain usable.
+local commonStatFilters = {
+  { "Strength", "STRENGTH" }, { "Agility", "AGILITY" },
+  { "Intellect", "INTELLECT" }, { "Stamina", "STAMINA" },
+  { "Critical Strike", "CRIT_RATING", "CRIT_MELEE_RATING", "CRIT_RANGED_RATING", "CRIT_SPELL_RATING" },
+  { "Haste", "HASTE_RATING", "HASTE_MELEE_RATING", "HASTE_RANGED_RATING", "HASTE_SPELL_RATING",
+    "SPELL_HASTE_RATING" },
+}
+local retailStatFilters = {
+  { "Mastery", "MASTERY_RATING" }, { "Versatility", "VERSATILITY", "VERSATILITY_RATING" },
+  { "Leech", "CR_LIFESTEAL" }, { "Avoidance", "CR_AVOIDANCE" },
+  { "Speed", "CR_SPEED" }, { "Indestructible", "CR_STURDINESS" },
+}
+local foreverStatFilters = {
+  { "Spirit", "SPIRIT" },
+  { "Attack Power", "ATTACK_POWER", "MELEE_ATTACK_POWER", "FERAL_ATTACK_POWER" },
+  { "Ranged Attack Power", "RANGED_ATTACK_POWER" },
+  { "Spell Power", "SPELL_POWER" },
+  { "Spell Damage", "SPELL_DAMAGE_DONE", "FIRE_DAMAGE_DONE", "FROST_DAMAGE_DONE", "SHADOW_DAMAGE_DONE",
+    "NATURE_DAMAGE_DONE", "ARCANE_DAMAGE_DONE", "HOLY_DAMAGE_DONE", "SPELL_DAMAGE_AND_HEALING_DONE" },
+  { "Healing", "SPELL_HEALING_DONE", "HEALING_DONE", "BONUS_HEALING" },
+  { "Hit Rating", "HIT_RATING", "HIT_MELEE_RATING", "HIT_RANGED_RATING", "HIT_SPELL_RATING" },
+  { "Expertise", "EXPERTISE_RATING", "EXPERTISE" },
+  { "Weapon Skill", "WEAPON_SKILL_RATING", "WEAPON_SKILL", "AXES", "TWOHANDED_AXES", "MACES",
+    "TWOHANDED_MACES", "SWORDS", "TWOHANDED_SWORDS", "DAGGERS", "FIST_WEAPONS", "STAVES",
+    "POLEARMS", "BOWS", "GUNS", "CROSSBOWS", "THROWN", "WANDS", "DUAL_WIELD" },
+  { "Armor Penetration", "ARMOR_PENETRATION_RATING", "ARMOR_PENETRATION" },
+  { "Spell Penetration", "SPELL_PENETRATION", "ARCANE_PENETRATION", "FIRE_PENETRATION",
+    "FROST_PENETRATION", "NATURE_PENETRATION", "SHADOW_PENETRATION" },
+  { "Defense", "DEFENSE_SKILL_RATING", "DEFENSE_SKILL" },
+  { "Dodge", "DODGE_RATING" }, { "Parry", "PARRY_RATING" }, { "Block Chance", "BLOCK_RATING" },
+  { "Mana per 5 Seconds", "MANA_REGENERATION", "POWER_REGEN0" },
+  { "Health per 5 Seconds", "HEALTH_REGEN", "HEALTH_REGENERATION" },
+}
+
+--- Build the combat-stat choices supported by the current client.
+---@return table choices Filter labels and their saved and matching stat keys.
+function gear.StatFilterChoices()
+  local choices = {}
+  --- Add the known keys for each combat stat.
+  ---@param definitions table Stat labels and Blizzard key stems.
+  local function add(definitions)
+    for _, definition in ipairs(definitions) do
+      local keys = {}
+      for index = 2, #definition do
+        local stem = "ITEM_MOD_" .. definition[index]
+        keys[#keys + 1], keys[#keys + 2] = stem .. "_SHORT", stem
+      end
+      choices[#choices + 1] = {
+        key = keys[1], keys = keys,
+        name = #definition == 2 and type(_G[keys[1]]) == "string" and _G[keys[1]] or definition[1],
+      }
+    end
+  end
+  add(commonStatFilters)
+  if isRetail() then
+    add(retailStatFilters)
+  else
+    add(foreverStatFilters)
+    for _, choice in ipairs(choices) do
+      if choice.key == "ITEM_MOD_ATTACK_POWER_SHORT" then
+        choice.extraMatch = { "ITEM_MOD_RANGED_ATTACK_POWER_SHORT", "ITEM_MOD_RANGED_ATTACK_POWER" }
+      elseif choice.key == "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT" then
+        choice.extraMatch = { "ITEM_MOD_SPELL_POWER_SHORT", "ITEM_MOD_SPELL_POWER" }
+      elseif choice.key == "ITEM_MOD_SPELL_HEALING_DONE_SHORT" then
+        choice.extraMatch = { "ITEM_MOD_SPELL_DAMAGE_AND_HEALING_DONE_SHORT", "ITEM_MOD_SPELL_DAMAGE_AND_HEALING_DONE",
+          "ITEM_MOD_SPELL_POWER_SHORT", "ITEM_MOD_SPELL_POWER" }
+      end
+    end
+    choices[#choices + 1] = {
+      key = "RESISTANCE2_NAME", name = "Magic Resistances",
+      keys = { "RESISTANCE2_NAME", "RESISTANCE3_NAME", "RESISTANCE4_NAME", "RESISTANCE5_NAME", "RESISTANCE6_NAME" },
+    }
+  end
+  return choices
+end
+
 --- Check whether Titan's Grip permits the given two-handed weapon in the off hand.
 ---@param link string|nil Weapon hyperlink.
 ---@return boolean allowed Whether this weapon can be dual-wielded.
@@ -54,9 +131,93 @@ end
 ---@return table|nil slots Inventory slot IDs.
 function gear.GetSlots(equipLoc, link)
   if equipLoc == "INVTYPE_2HWEAPON" and canDualWieldTwoHanded(link) then return { 16, 17 } end
+  if equipLoc == "INVTYPE_RELIC" and not isRetail() then return { 18 } end
   if isRetail() and (equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT"
       or equipLoc == "INVTYPE_THROWN") then return { 16 } end
   return slots[equipLoc]
+end
+
+local gearChoicesCache, gearChoicesClient, gearChoicesSubclassAPI
+
+--- Collect supported, localized filter choices, merging labels that describe the same filter.
+---@param equipmentSlots table Supported equipment inventory types.
+---@return table groups Ordered filter groups and their choices.
+function gear.FilterChoices(equipmentSlots)
+  local client = isRetail() and "retail" or "classic"
+  local subclassAPI = C_Item and C_Item.GetItemSubClassInfo
+  if gearChoicesCache and gearChoicesClient == client and gearChoicesSubclassAPI == subclassAPI then
+    return gearChoicesCache
+  end
+  local groups = { { name = "Armor and Weapons", key = "types", entries = {} },
+    { name = "Equipment Slots", key = "slots", entries = {} },
+    { name = "Stats", key = "stats", entries = gear.StatFilterChoices() } }
+  --- Merge distinct Blizzard identifiers that share a localized label.
+  ---@param section table Filter section.
+  ---@param label string Display name.
+  ---@param key string Saved filter identifier.
+  local function addChoice(section, label, key)
+    for _, entry in ipairs(section.entries) do
+      if entry.name == label then entry.keys[#entry.keys + 1] = key; return end
+    end
+    section.entries[#section.entries + 1] = { key = key, keys = { key }, name = label }
+  end
+  if subclassAPI then
+    -- Bear/cat claws and spears are internal or obsolete subclasses, not normal player gear.
+    local armor = isRetail() and { 0, 1, 2, 3, 4, 5, 6 } or { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }
+    local weapons = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 14, 15, 18, 19, 20 }
+    weapons[#weapons + 1] = isRetail() and 9 or 16
+    for _, class in ipairs({ { id = 4, subclasses = armor }, { id = 2, subclasses = weapons } }) do
+      for _, subclassID in ipairs(class.subclasses) do
+        local label = subclassAPI(class.id, subclassID)
+        if label and label ~= "" then addChoice(groups[1], label, class.id .. ":" .. subclassID) end
+      end
+    end
+  end
+  for key in pairs(equipmentSlots) do
+    if gear.GetSlots(key) then addChoice(groups[2], _G[key] or key, key) end
+  end
+  for _, group in ipairs(groups) do
+    group.byKey = {}
+    for _, entry in ipairs(group.entries) do
+      table.sort(entry.keys)
+      entry.key = entry.keys[1]
+      for _, key in ipairs(entry.keys) do group.byKey[key] = entry end
+    end
+    table.sort(group.entries, function(a, b)
+      return a.name == b.name and a.key < b.key or a.name < b.name
+    end)
+  end
+  gearChoicesCache, gearChoicesClient, gearChoicesSubclassAPI = groups, client, subclassAPI
+  return gearChoicesCache
+end
+
+--- Check whether a grouped choice is enabled, including older independently saved keys.
+---@param values table Saved unchecked filter keys.
+---@param choice table Choice and its equivalent keys.
+---@return boolean enabled Whether every key in the group is enabled.
+function gear.ChoiceEnabled(values, choice)
+  for _, key in ipairs(choice.keys) do
+    if values[key] == false then return false end
+  end
+  return true
+end
+
+--- Check whether a stat choice matches a nonzero item stat.
+---@param choice table Stat category and its item-stat keys.
+---@param stats table|nil Item stats from Blizzard.
+---@return boolean matches Whether the item has a stat in the category.
+function gear.StatChoiceMatches(choice, stats)
+  if not stats then return false end
+  for index = 1, 2 do
+    local keys = index == 1 and choice.keys or choice.extraMatch
+    if keys then
+      for _, key in ipairs(keys) do
+        local value = stats[key]
+        if type(value) == "number" and value ~= 0 then return true end
+      end
+    end
+  end
+  return false
 end
 
 --- Return a readable stat name, preferring compact labels for common stats.
@@ -108,7 +269,7 @@ end
 ---@param link string Item hyperlink.
 ---@param equipLoc string Item inventory type.
 ---@return table|nil comparisons Comparison for each slot, or nil while item data is unavailable.
----@return table|nil itemStats Candidate item's stats.
+---@return table|nil itemStats Candidate item's stats, even if an equipped item is unavailable.
 function gear.CompareItem(link, equipLoc)
   local applicable = gear.GetSlots(equipLoc, link)
   if not applicable or not link or not C_Item or not C_Item.GetItemStats then return nil end
@@ -117,7 +278,7 @@ function gear.CompareItem(link, equipLoc)
   local results = {}
   for _, slot in ipairs(applicable) do
     local equippedLink = GetInventoryItemLink("player", slot)
-    if not equippedLink and GetInventoryItemID and GetInventoryItemID("player", slot) then return nil end
+    if not equippedLink and GetInventoryItemID and GetInventoryItemID("player", slot) then return nil, itemStats end
     local replacesMainHand
     if slot == 17 and not equippedLink and C_Item.GetItemInfoInstant then
       local mainHand = GetInventoryItemLink("player", 16)
@@ -129,14 +290,14 @@ function gear.CompareItem(link, equipLoc)
     end
     local equippedStats = equippedLink and C_Item.GetItemStats(equippedLink)
     if not equippedLink then equippedStats = {} end
-    if not equippedStats then return nil end
+    if not equippedStats then return nil, itemStats end
     local combined
     if equipLoc == "INVTYPE_2HWEAPON" and #applicable == 1 then
       local offhandLink = GetInventoryItemLink("player", 17)
-      if not offhandLink and GetInventoryItemID and GetInventoryItemID("player", 17) then return nil end
+      if not offhandLink and GetInventoryItemID and GetInventoryItemID("player", 17) then return nil, itemStats end
       if offhandLink then
         local offhandStats = C_Item.GetItemStats(offhandLink)
-        if not offhandStats then return nil end
+        if not offhandStats then return nil, itemStats end
         local total = {}
         for key, value in pairs(equippedStats) do total[key] = value end
         for key, value in pairs(offhandStats) do
