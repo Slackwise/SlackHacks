@@ -109,11 +109,16 @@ function Self:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload) -- Out of comb
   initBagsFrameHiding()
 end
 
+--- Repair and perform the selected automatic grey-item sale when a merchant opens.
+---@param eventName string Event name.
 function Self:MERCHANT_SHOW(eventName)
   if db.profile.inventory.autoRepair then
     repairAllItems()
   end
-  if db.profile.inventory.autoSellGreyItems then
+  local bag = db.profile.listviewBag
+  local autoSellJunk = bag and bag.enabled and bag.autoSellMarkedItems
+    and Self.ListviewBag and Self.ListviewBag:IsEnabled()
+  if db.profile.inventory.autoSellGreyItems and not autoSellJunk then
     sellGreyItems()
   end
 end
@@ -382,7 +387,16 @@ end
 
 ITEM_QUALITY_GREY = 0 
 
+--- Sell grey items through Blizzard's API, or use the legacy bag scan when unavailable.
 function sellGreyItems()
+  if C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
+    if Self.ListviewBag and db.profile.listviewBag.enabled and Self.ListviewBag:IsEnabled() then
+      Self.ListviewBag:SellBlizzardGreyItems()
+    else
+      C_MerchantFrame.SellAllJunkItems()
+    end
+    return
+  end
   for bag = 0, NUM_BAG_SLOTS do
     for slot = 0, C_Container.GetContainerNumSlots(bag) do
       local link = C_Container.GetContainerItemLink(bag, slot)

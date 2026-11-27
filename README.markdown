@@ -39,6 +39,15 @@ values in `.env` if your item names differ from the defaults. Environment
 variables already set by the shell or CI/CD environment take precedence over
 both files, so CI can inject its own configuration and secrets.
 
+### Updating icon names
+
+Icon search uses only file IDs and names extracted from the public-domain
+LibRPMedia submodule in `dist/LibRPMedia`; the library is not shipped or loaded.
+Run `perl scripts/update-icon-names.pl` to fetch its latest commit and regenerate
+`IconNames.lua`. Use `--no-update` to regenerate from the checked-out revision
+without fetching. Commit both the generated file and the updated submodule
+revision. The build refuses to reset an unstaged submodule revision.
+
 ### Publishing and retrying releases
 
 Run `perl scripts/release.pl` from a clean development branch after committing

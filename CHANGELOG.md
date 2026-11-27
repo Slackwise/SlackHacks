@@ -1,5 +1,21 @@
 # SlackHacks Changelog
 
+## v34
+
+### Utilities
+- Optionally add icon-name search to the Macro and Equipment Set icon pickers.
+
+### Mimimap
+- Fixed bug when switching off square mode.
+
+### Inventory
+- Added Selling and Gear views with auction prices, equipment comparisons, and client-specific filters.
+- Expanded item flags to include Auction, Bank, and Mail, with safeguards against conflicting actions.
+- Added saved mail recipients and queued quantities, with automatic preparation of mail batches.
+- Added item, binding, and category filters, including configurable Essentials.
+- Improved junk-selling controls and the marked-item list.
+- Redesigned the bag footer and inventory summary with capacity, currencies, and client-specific supplies.
+
 ## v33
 
 ### Utilities

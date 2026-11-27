@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 15
+CONFIG_VERSION = 16
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -40,6 +40,7 @@ CONFIG_VERSION_RELEASES = {
   [13] = 27,
   [14] = 28,
   [15] = 30,
+  [16] = 34,
 }
 
 function getAddonVersion()
@@ -671,6 +672,46 @@ CONFIG_MIGRATIONS = {
       local assist = type(combat) == "table" and rawget(combat, "assistTankMacro")
       if type(assist) == "table" and rawget(assist, "enabled") == true and rawget(assist, "macroName") == nil then
         assist.macroName = "ASSIST_TANK"
+      end
+    end
+
+    local migrated = {}
+    for _, p in pairs(Self.db.profiles or {}) do
+      migrateProfile(p)
+      migrated[p] = true
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  -- Config v16, ships in addon v34.
+  --- Remove unsupported grey-item flags and migrate one-time mail assignments in every saved profile.
+  [16] = function()
+    --- Remove flags whose saved status key or metadata identifies a grey item.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      local bag = type(p) == "table" and rawget(p, "listviewBag")
+      if type(bag) ~= "table" then return end
+      if type(rawget(bag, "mailAmounts")) == "table" then
+        Self.ListviewBag:MigrateLegacyMailAmounts(bag)
+      end
+      if rawget(bag, "auctionIneligibleOverrides") == nil then
+        bag.auctionIneligibleOverrides = {}
+      end
+      for _, field in ipairs({ "trashItems", "auctionItems", "bankItems", "mailItems" }) do
+        local items = rawget(bag, field)
+        if type(items) == "table" then
+          for key, item in pairs(items) do
+            -- The key is authoritative for matching, including legacy boolean entries.
+            local quality
+            if type(key) == "string" then quality = tonumber(key:match("\031(%d+)\031")) end
+            if quality == nil and type(item) == "table"
+              and (type(item.quality) == "number" or type(item.quality) == "string") then
+              quality = tonumber(item.quality)
+            end
+            if quality == 0 then items[key] = nil end
+          end
+        end
       end
     end
 

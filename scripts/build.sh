@@ -23,6 +23,11 @@ if ! command -v git >/dev/null 2>&1; then
   status_error "Error: git command not found."
   exit 1
 fi
+submodule_status="$(git submodule status --recursive)"
+if grep -q '^+' <<< "$submodule_status"; then
+  status_error "Error: A submodule checkout differs from the index. Stage its intended revision before building."
+  exit 1
+fi
 git submodule update --init --recursive
 
 # 2. Extract version from TOC file

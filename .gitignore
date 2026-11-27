@@ -2,6 +2,6 @@
 *~
 users.json
 .vscode/settings.json
-dist/
+dist/*
 .env
 .bin/

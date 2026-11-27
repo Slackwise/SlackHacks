@@ -309,7 +309,7 @@ BINDINGS = {
     {"CTRL-0",               "NONE", BT.COMMAND},
     {",",                    "NONE", BT.COMMAND},
     {"ALT-CTRL-W",           "FOLLOWTARGET", BT.COMMAND},
-    {"E",                    "INTERACTTARGET", BT.COMMAND},
+    {"E",                    "STARTATTACK", BT.COMMAND},
     {"SHIFT-E",              "INTERACTTARGET", BT.COMMAND},
     {"CTRL-E",               "Single-Button Assistant"},
     {"ALT-E",                "EXTRAACTIONBUTTON1", BT.COMMAND},
@@ -1010,7 +1010,8 @@ BINDINGS = {
       {"CTRL-E",  "@TANK", BT.MACRO},
       {"4",       "Judgement"},  -- Holy Shock later
       {"5",       "Hammer of Wrath"},
-      {"6",       "Exorcism"},
+      {"6",             "RAIDTARGET8", BT.COMMAND}, -- Mark: Skull
+      {"SHIFT-6",       "RAIDTARGET7", BT.COMMAND}, -- Mark: X (Cross)
       {"C",       "Consecration"},
 
       -- Heals (Coming from left hand?)
@@ -1171,6 +1172,9 @@ BINDINGS = {
         { 
           "ENGAGE", "inv_misc_questionmark", multilineTrim([[
             #showtooltip Hunter's Mark
+            /petautocaston Bite
+            /petautocaston Claw
+            /petautocaston Dash
             /petattack
             /cast !Hunter's Mark
           ]])
@@ -1187,7 +1191,6 @@ BINDINGS = {
         { 
           "MOUSE4", "inv_misc_questionmark", multilineTrim([[
             #showtooltip
-            /petattack [nomod, harm, @mouseover]
             /cast [@mouseover,harm,nodead] Hunter's Mark; [mod:shift,@cursor] Volley; [@cursor] Flare
           ]])
         },
@@ -1278,14 +1281,17 @@ BINDINGS = {
       {"4",             "Arcane Shot"},
       {"5",             "Hunter's Mark"},
       {"SHIFT-5",       "ENGAGE", BT.MACRO},
+      {"6",             "RAIDTARGET8", BT.COMMAND}, -- Mark: Skull
+      {"SHIFT-6",       "RAIDTARGET7", BT.COMMAND}, -- Mark: X (Cross)
       {"F5",            "CHAINEAGLE", BT.MACRO},
       {"Q",             "PET_CONTROL", BT.MACRO},
       {"CTRL-Q",        "PET_MOVE", BT.MACRO},
       {"ALT-CTRL-Q",    "PET_TOGGLE", BT.MACRO},
-      {"CTRL-E",        "ASSIST_TANK", BT.MACRO},
-      {"R",             "Wing Clip"},
-      {"SHIFT-R",       "Raptor Strike"},
-      {"CTRL-R",        "Mongoose Bite"},
+      {"E",             "Wing Clip"},
+      {"CTRL-E",        "@TANK", BT.MACRO},
+      {"R",             "Raptor Strike"},
+      {"SHIFT-R",       "Mongoose Bite"},
+      {"CTRL-R",        "Immolation Trap"},
       {"CTRL-SHIFT-R",  "Immolation Trap"},
       {"ALT-R",         "BEAST", BT.MACRO},
       {"T",             "HAWK", BT.MACRO},

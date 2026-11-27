@@ -52,11 +52,22 @@ dbDefaults = {
     listviewBag = {
       enabled = false,
       showListviewBag = false,
-      showReagentBagContents = true,
+      flagFilters = { ["*"] = true },
+      categoryFilters = { ["*"] = true },
+      -- Retain the retired preference so existing profiles remain unchanged.
       trackCrestCurrencies = true,
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
+      auctionItems = {},
+      auctionIneligibleOverrides = {},
+      bankItems = {},
+      mailItems = {},
+      mailRecipients = {},
+      mailAssignments = {},
+      mailQueues = {},
+      essentialItems = { arrows = false, soulShards = false },
+      customEssentialItems = {},
       autoSellMarkedItems = false,
       point = nil
     },
@@ -67,6 +78,7 @@ dbDefaults = {
     -- Additive utility defaults preserve existing profiles and keep native loot features opt-in.
     utilities = {
       tomtomWayCommand = false,
+      addIconPickerSearch = false,
       autoOpenLootContainers = { ["*"] = false },
       nodes = {
         lootSparkles = false,
@@ -504,9 +516,18 @@ local function hideNonRetailOptions()
   end
 end
 
-function openOptions()
-  -- If Blizzard SettingsPanel is already open, toggle it closed:
-  if SettingsPanel and SettingsPanel:IsShown() then
+--- Toggle the options window, or open it at a specific group without closing it.
+---@param ... string Option-group keys to select.
+function openOptions(...)
+  local selectGroup = select("#", ...) > 0
+  local acd
+  if selectGroup then
+    acd = LibStub("AceConfigDialog-3.0")
+    acd:SelectGroup("SlackHacks", ...)
+  end
+
+  -- The untargeted options action toggles an already open panel.
+  if not selectGroup and SettingsPanel and SettingsPanel:IsShown() then
     HideUIPanel(SettingsPanel)
     return
   end
@@ -518,7 +539,7 @@ function openOptions()
   end
 
   if InterfaceOptionsFrame_OpenToCategory and Self.configDialog and not InCombatLockdown() then
-    if InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then
+    if not selectGroup and InterfaceOptionsFrame and InterfaceOptionsFrame:IsShown() then
       InterfaceOptionsFrame:Hide()
       return
     end
@@ -526,8 +547,8 @@ function openOptions()
     return
   end
 
-  local acd = LibStub("AceConfigDialog-3.0")
-  if acd.OpenFrames and acd.OpenFrames["SlackHacks"] and acd.OpenFrames["SlackHacks"]:IsShown() then
+  acd = acd or LibStub("AceConfigDialog-3.0")
+  if not selectGroup and acd.OpenFrames and acd.OpenFrames["SlackHacks"] and acd.OpenFrames["SlackHacks"]:IsShown() then
     acd:Close("SlackHacks")
   else
     acd:Open("SlackHacks")
@@ -960,20 +981,356 @@ local selfVendorModeSorting = {
   Enum.SelfVendorMode.AUGMENTS,
 }
 
-local function listviewVendorItemValues()
-  local values = {}
+--- Build a linked item label and an adjacent removal button using native AceGUI controls.
+---@param item table Item name, link, icon, optional description, and label suffix.
+---@param remove function Removal callback.
+---@param description string Removal-button tooltip.
+---@param order number Row order.
+---@return table row AceConfig inline group.
+local function removableItemRow(item, remove, description, order)
+  local label = item.link or item.name
+  if item.icon then label = ("|T%s:18:18|t %s"):format(item.icon, label) end
+  if item.suffix then label = label .. " " .. item.suffix end
+  return {
+    type = "group",
+    name = "",
+    inline = true,
+    order = order,
+    args = {
+      item = {
+        type = "description",
+        dialogControl = "InteractiveLabel",
+        name = label,
+        desc = item.desc,
+        tooltipHyperlink = item.link,
+        width = "relative",
+        relWidth = 0.75,
+        order = 1,
+      },
+      remove = {
+        type = "execute",
+        name = "Remove",
+        desc = description,
+        func = remove,
+        width = 0.48,
+        order = 2,
+      },
+    },
+  }
+end
+
+--- Build the marked-item controls from the current profile.
+---@return table args AceConfig controls for clearing or removing marked items.
+local function listviewVendorItemOptions()
+  local args = {
+    clear = {
+      type = "execute",
+      name = "Clear List",
+      desc = "Remove all items from the auto-vendor list.",
+      confirm = true,
+      confirmText = "Remove all items from the auto-vendor list?",
+      disabled = function() return not next(db.profile.listviewBag.trashItems or {}) end,
+      func = function()
+        wipe(db.profile.listviewBag.trashItems)
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = "full",
+      order = 0,
+    },
+  }
   for key, item in pairs(db.profile.listviewBag.trashItems or {}) do
-    if type(item) == "table" then
-      local suffix = "Quality " .. tostring(item.quality or 0) .. ", iLvl " .. tostring(item.itemLevel or 0)
-      if item.upgradeTrack and item.upgradeTrack ~= "" then
-        suffix = suffix .. ", " .. item.upgradeTrack
+    local entry = item
+    local itemKey = key
+    local link, itemIcon
+    if type(entry) == "table" then
+      link, itemIcon = entry.link, entry.icon
+      -- A legacy entry can only resolve to the base item until its exact variant is seen again.
+      if not link and entry.name then
+        args.legacyInfo = {
+          type = "description",
+          name = "Older entries show the base item until the exact item is seen in your bags.",
+          width = "full",
+          order = 0.5,
+        }
+        local _, baseLink, _, _, _, _, _, _, _, baseIcon = C_Item.GetItemInfo(entry.name)
+        link, itemIcon = baseLink, baseIcon
+      elseif link and not itemIcon then
+        itemIcon = select(10, C_Item.GetItemInfo(link))
       end
-      values[key] = (item.name or "Unknown item") .. " (" .. suffix .. ")"
-    else
-      values[key] = tostring(key)
     end
+    -- Status keys contain control characters, which AceConfig forbids in option keys.
+    local optionKey = "item:" .. tostring(itemKey):gsub(".", function(char) return ("%02x"):format(char:byte()) end)
+    args[optionKey] = removableItemRow({
+      name = (type(entry) == "table" and entry.name) or tostring(itemKey),
+      link = link,
+      icon = itemIcon,
+      suffix = tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
+        or tostring(itemKey):find("\031auction-ineligible", 1, true) and "(not auctionable)" or nil,
+      desc = type(entry) == "table" and not entry.link
+        and "Older entries show the base item until the exact item is seen in your bags." or nil,
+    }, function()
+      db.profile.listviewBag.trashItems[itemKey] = nil
+      if Self.ListviewBag then Self.ListviewBag:Refresh() end
+    end, "Remove this item from the Junk list.", 1)
   end
-  return values
+  return args
+end
+
+local essentialSearch = { query = "" }
+
+--- Reset the temporary search when the active profile changes.
+local function syncEssentialSearch()
+  local profile = db.profile
+  local bag = profile.listviewBag
+  bag.essentialItems = bag.essentialItems or {}
+  bag.customEssentialItems = bag.customEssentialItems or {}
+  if essentialSearch.profile ~= profile or essentialSearch.bag ~= bag then
+    essentialSearch.profile = profile
+    essentialSearch.bag = bag
+    essentialSearch.query = ""
+    essentialSearch.selected = nil
+  end
+end
+
+--- Search the current inventory without changing Blizzard's global bag search.
+---@return table items Matches keyed by item ID.
+---@return boolean incomplete Whether some item names have not loaded.
+local function essentialSearchResults()
+  syncEssentialSearch()
+  return Self.ListviewBag:SearchInventoryItems(essentialSearch.query:match("^%s*(.-)%s*$"))
+end
+
+--- Register an AceGUI edit box that refreshes its AceConfig option as the user types.
+local function registerEssentialSearchControl()
+  local gui = LibStub("AceGUI-3.0")
+  local controlType = "SlackHacksEssentialSearch"
+  if gui:GetWidgetVersion(controlType) then return end
+  gui:RegisterWidgetType(controlType, function()
+    local widget = gui:Create("EditBox")
+    local acquire, setCallback = widget.OnAcquire, widget.SetCallback
+    widget.type = controlType
+    widget.OnAcquire = function(self)
+      acquire(self)
+      self:DisableButton(true)
+      essentialSearch.control = self
+    end
+    widget.SetCallback = function(self, event, callback)
+      setCallback(self, event, callback)
+      if event == "OnEnterPressed" then
+        setCallback(self, "OnTextChanged", function(control, _, value)
+          if not control.editbox:HasFocus() then return end
+          local cursor = control.editbox:GetCursorPosition()
+          local root = control:GetUserData("rootframe")
+          essentialSearch.control = nil
+          -- AceConfig rebuilds the panel on every commit, so restore the replacement edit box's focus.
+          control:Fire("OnEnterPressed", value)
+          local replacement = essentialSearch.control
+          if replacement and replacement:GetUserData("rootframe") == root then
+            replacement:SetFocus()
+            replacement.editbox:SetCursorPosition(cursor)
+          end
+        end)
+      end
+    end
+    return widget
+  end, 1)
+end
+
+--- Build the custom Essentials search and removable saved-item list.
+---@return table args AceConfig controls for custom Essentials.
+local function customEssentialItemOptions()
+  syncEssentialSearch()
+  local args = {
+    empty = {
+      type = "description",
+      name = "|cff808080No custom essential items added.|r",
+      hidden = function() return next(db.profile.listviewBag.customEssentialItems) ~= nil end,
+      width = "full",
+      order = 0,
+    },
+    divider = {
+      type = "header",
+      name = "",
+      order = 0.5,
+    },
+    searchHint = {
+      type = "description",
+      name = "Enter part of an item name, then select a match.",
+      width = "full",
+      order = 1,
+    },
+    search = {
+      type = "input",
+      dialogControl = "SlackHacksEssentialSearch",
+      name = "Search Inventory",
+      desc = "Enter part of an item name to search your bags.",
+      get = function() syncEssentialSearch(); return essentialSearch.query end,
+      set = function(_, value)
+        syncEssentialSearch()
+        essentialSearch.query = value
+        essentialSearch.selected = nil
+        local items = essentialSearchResults()
+        local only
+        for id in pairs(items) do
+          if only then only = nil; break end
+          only = id
+        end
+        essentialSearch.selected = only
+      end,
+      width = "full",
+      order = 2,
+    },
+    results = {
+      type = "select",
+      style = "radio",
+      name = "Matching Items",
+      desc = "Choose an item currently in your bags.",
+      values = function()
+        local values = {}
+        for id, item in pairs(essentialSearchResults()) do
+          local label = item.link or item.name
+          values[id] = item.icon and ("|T%s:18:18|t %s"):format(item.icon, label) or label
+        end
+        return values
+      end,
+      sorting = function()
+        local items = essentialSearchResults()
+        local ids = {}
+        for id in pairs(items) do ids[#ids + 1] = id end
+        table.sort(ids, function(a, b)
+          local left, right = items[a].name:lower(), items[b].name:lower()
+          if left == right then return a < b end
+          return left < right
+        end)
+        return ids
+      end,
+      get = function() syncEssentialSearch(); return essentialSearch.selected end,
+      set = function(_, value) syncEssentialSearch(); essentialSearch.selected = value end,
+      disabled = function()
+        local items = essentialSearchResults()
+        return not next(items)
+      end,
+      hidden = function()
+        local items = essentialSearchResults()
+        return not next(items)
+      end,
+      width = "full",
+      order = 3,
+    },
+    add = {
+      type = "execute",
+      name = "Add Custom Item",
+      desc = "Add the selected inventory item to the Essentials filter.",
+      disabled = function()
+        syncEssentialSearch()
+        return not essentialSearch.selected
+          or db.profile.listviewBag.customEssentialItems[essentialSearch.selected] ~= nil
+      end,
+      func = function()
+        syncEssentialSearch()
+        local id = essentialSearch.selected
+        local items = essentialSearchResults()
+        local item = id and items[id]
+        if not item then
+          prn("the selected item is no longer in your bags; search again.")
+          essentialSearch.selected = nil
+          return
+        end
+        if db.profile.listviewBag.customEssentialItems[id] then
+          prn("that item is already in the custom Essentials list.")
+          return
+        end
+        db.profile.listviewBag.customEssentialItems[id] = item
+        essentialSearch.selected = nil
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = 1,
+      order = 4,
+    },
+    searchStatus = {
+      type = "description",
+      name = function()
+        local items, incomplete = essentialSearchResults()
+        if incomplete then return "Some item names are still loading; edit your search to try again." end
+        if essentialSearch.query:match("%S") and not next(items) then return "No matching items in your bags." end
+        return ""
+      end,
+      width = "full",
+      order = 5,
+    },
+  }
+  for id, item in pairs(db.profile.listviewBag.customEssentialItems or {}) do
+    local itemID = id
+    args["item:" .. tostring(itemID)] = removableItemRow({
+      name = item.name or tostring(itemID),
+      link = item.link,
+      icon = item.icon,
+    }, function()
+      db.profile.listviewBag.customEssentialItems[itemID] = nil
+      if Self.ListviewBag then Self.ListviewBag:Refresh() end
+    end, "Remove this item from custom Essentials.", 0)
+  end
+  return args
+end
+
+--- Build the built-in Essentials checkboxes and custom-item controls.
+---@return table args AceConfig controls for the Essentials filter.
+local function essentialItemOptions()
+  syncEssentialSearch()
+  local args = {
+    description = {
+      type = "description",
+      name = "These items are common to all players but you usually don't interact with them directly.",
+      width = "full",
+      order = 0,
+    },
+  }
+  for index, item in ipairs(Self.ListviewBag.ESSENTIAL_ITEMS) do
+    local id, defaultName = item.id, item.name
+    args["item:" .. id] = {
+      type = "toggle",
+      name = function() return C_Item.GetItemInfo(id) or defaultName end,
+      get = function() syncEssentialSearch(); return db.profile.listviewBag.essentialItems[id] ~= false end,
+      set = function(_, value)
+        syncEssentialSearch()
+        db.profile.listviewBag.essentialItems[id] = value
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = 1.5,
+      order = index,
+    }
+  end
+  for index, choice in ipairs({ { key = "arrows", name = "Arrows" }, { key = "soulShards", name = "Soul Shards" } }) do
+    local key = choice.key
+    args[key] = {
+      type = "toggle",
+      name = choice.name,
+      get = function() syncEssentialSearch(); return db.profile.listviewBag.essentialItems[key] == true end,
+      set = function(_, value)
+        syncEssentialSearch()
+        db.profile.listviewBag.essentialItems[key] = value
+        if Self.ListviewBag then Self.ListviewBag:Refresh() end
+      end,
+      width = 1.5,
+      order = #Self.ListviewBag.ESSENTIAL_ITEMS + index,
+    }
+  end
+  args.customItems = {
+    type = "group",
+    name = "Custom Essential Items",
+    inline = true,
+    args = customEssentialItemOptions(),
+    order = #Self.ListviewBag.ESSENTIAL_ITEMS + 3,
+  }
+  return args
+end
+
+--- Refresh dynamic bag-item controls whenever AceConfig requests the options table.
+---@return table options The shared addon options table.
+local function getOptions()
+  options.args.inventory.args.listviewBag.args.autoVendorItems.args = listviewVendorItemOptions()
+  options.args.inventory.args.listviewBag.args.essentials.args = essentialItemOptions()
+  return options
 end
 
 local function selfVendorModeOptions()
@@ -1546,8 +1903,8 @@ options = {
       args = {
         overview = goldModuleOverview("Small quality-of-life features for managing your inventory."),
         autoSellGreyItems = {
-          name = "Auto Sell Grey Items",
-          desc = "Automatically sell grey-quality items when visiting a merchant.",
+          name = "Auto-Sell |cffff4040ALL|r Grey Items",
+          desc = "Use Blizzard's grey-item sale when visiting a merchant. This sells all grey items, including protected items, unless Listview Bag's Auto-Sell Junk is enabled.",
           type = "toggle",
           descStyle = "inline",
           width = "full",
@@ -1648,45 +2005,30 @@ options = {
               disabled = function() return not db.profile.listviewBag.enabled end,
               order = 2
             },
-            trackCrestCurrencies = {
-              name = "Track Crest Currencies",
-              desc = "Display a strip of your current season crest currencies in the bottom status bar of the Listview Bag.",
-              type = "toggle",
-              descStyle = "inline",
-              width = "full",
-              get = function() return db.profile.listviewBag.trackCrestCurrencies end,
-              set = function(_, value)
-                db.profile.listviewBag.trackCrestCurrencies = value
-                if Self.ListviewBag then Self.ListviewBag:RefreshFooter() end
-              end,
-              disabled = function() return not db.profile.listviewBag.enabled or not isRetail() end,
-              order = 2.5
+            essentials = {
+              type = "group",
+              name = "\"Essentials\" Filter Items",
+              inline = true,
+              args = {},
+              order = 2.75,
             },
             autoSellMarkedItems = {
-              name = "Auto-Sell Items Marked for Vendoring",
-              desc = "Sell marked items automatically when opening a merchant. Otherwise, they sell when you " ..
-                "confirm Blizzard's Sell All Junk action.",
+              name = "Auto-Sell Junk",
+              desc = "Sell unprotected grey items and items marked as Junk when opening a vendor. This takes precedence over Auto-Sell ALL Grey Items.",
+              descStyle = "inline",
               type = "toggle",
               get = function() return db.profile.listviewBag.autoSellMarkedItems end,
-              set = function(_, value) db.profile.listviewBag.autoSellMarkedItems = value end,
+              set = function(_, value) Self.ListviewBag:SetAutoSellJunk(value) end,
+              disabled = function() return not db.profile.listviewBag.enabled end,
               width = "full",
               order = 3
             },
             autoVendorItems = {
-              name = "Auto-Vendor Items",
-              desc = "Uncheck an item to remove it from the auto-vendor list.",
-              type = "multiselect",
-              values = listviewVendorItemValues,
-              get = function(_, key) return db.profile.listviewBag.trashItems[key] ~= nil end,
-              set = function(_, key, value)
-                if not value then
-                  db.profile.listviewBag.trashItems[key] = nil
-                  if Self.ListviewBag then
-                    Self.ListviewBag:Refresh()
-                  end
-                end
-              end,
-              width = "full",
+              name = "Junk Items",
+              desc = "Remove an item from the Junk list.",
+              type = "group",
+              inline = true,
+              args = {},
               order = 4
             }
           }
@@ -2526,6 +2868,24 @@ options = {
           ---@param value boolean Whether to show in-world navigation.
           set = function(_, value) Self.Utilities:SetInGameNavigationShown(value) end,
           order = 2.5
+        },
+        addIconPickerSearch = {
+          name = "Add Search to Icon Picker",
+          desc = "Adds a Search box to the Macro and Equipment Set icon pickers.",
+          type = "toggle",
+          descStyle = "inline",
+          width = "full",
+          --- Read the active profile's icon picker search preference.
+          ---@return boolean enabled Whether search injection is enabled.
+          get = function() return db.profile.utilities.addIconPickerSearch end,
+          --- Apply the icon picker search preference immediately.
+          ---@param _ table AceConfig option info.
+          ---@param value boolean Whether to inject icon search.
+          set = function(_, value)
+            db.profile.utilities.addIconPickerSearch = value
+            ApplyNativeIconPickerSearch()
+          end,
+          order = 2.6
         },
         autoOpenLootContainers = {
           name = "Auto-Open Loot Containers",
@@ -4461,6 +4821,7 @@ options = {
 -- Registers the AceConfig options table above and the Blizzard options panel entry.
 -- Called from OnInitialize, after all addon files/modules have loaded.
 function registerOptions()
+  registerEssentialSearchControl()
   options.args.utilities.args.autoOpenLootContainers.args = Self.Utilities:GetLootContainerOptions()
   options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(Self.db)
   options.args.profiles.order = 1
@@ -4476,7 +4837,7 @@ function registerOptions()
   if customConfig and customConfig.setOptions then
     customConfig.setOptions()
   end
-  config:RegisterOptionsTable("SlackHacks", options)
+  config:RegisterOptionsTable("SlackHacks", getOptions)
   Self.configDialog, Self.configCategoryID = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("SlackHacks", icon(16) .. " SlackHacks")
   updateMinimapIcon()
 end

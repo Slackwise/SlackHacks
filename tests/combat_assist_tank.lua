@@ -51,7 +51,7 @@ for version = 0, 13 do
   -- Enabled profiles keep the macro on their bars; others adopt the new @TANK default.
   assert(enabledDefault.combat.assistTankMacro.macroName == "ASSIST_TANK")
   assert(disabledDefault.combat.assistTankMacro.macroName == nil)
-  assert(addon.db.global.configVersion == 15 and addon.CONFIG_VERSION_RELEASES[14] == 28)
+  assert(addon.db.global.configVersion == 16 and addon.CONFIG_VERSION_RELEASES[14] == 28)
   assert(active.nameplates.raiseCastingNameplates and detached.nameplates.raiseCastingNameplates)
   assert(other.nameplates.raiseCastingNameplates == false)
   assert(active.combat.raiseCastingNameplates == nil)

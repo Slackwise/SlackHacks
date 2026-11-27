@@ -1,6 +1,6 @@
 # SlackHacks -- Essential Quality of Life Tweaks to Native Blizzard UIs
 
-This is *yet another* "Quality of Life" addon with various small features and tweaks, but my focus is on making my changes look like they're part of the native Blizzard UI.
+This is *yet another* quality-of-life addon, focused on making its features look like part of Blizzard's native UI.
 
 Everything is a module.
 
@@ -8,156 +8,172 @@ Everything is optional.
 
 Everything is off by default. (Please read all the options!)
 
-If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard to make it look like Blizzard wrote all the features I'm providing. (Because of this, it is probably incompatible with full UI redesigns like Ellesmere UI.) 
+It's similar to Plumber or Leatrix, but may be incompatible with full UI redesigns like Ellesmere UI.
+
+## Is this another "vibecoded" slop addon?!
+
+Well, is it AI generated? Partially. *Assisted*, more precisely. Is it "vibecoded"? **Absolutely not!**
+
+I am a professional developer with over 30 years of programming experience. While I'm not 1000% handwriting every line, I am reading, reviewing, and steering all changes as much as possible, piece-by-piece, and reviewing all impacts on performance and memory. One of my motivations to create this addon was to actually *avoid* all the "vibecoded" addons built by non-developers that have numerous bugs and poor performance.
+
+If you don't believe me, profile this addon yourself. Take a look at the compression algorithm I wrote in `IconNames.lua` to see my commitment to performance and efficiency; it adds icon search functionality to the Macro window where you pick icons so you can search by name. The source library for this metadata (`LibRPMedia`) was over 10MB. I extracted and compressed the data down to 0.7MB. Just an example of my efforts...
 
 ## Modules & Features
 
 ### Utilities
-* **Lootable Object Sparkles (WoW Forever only):** Checkbox to enable the hidden feature that enables Classic WoW lootable object sparkles.
-* **TomTom `/way` Command:** Creates native Blizzard waypoints using TomTom-style `/way` commands, without needing TomTom or overriding it when installed.
+* **Lootable Object Sparkles (WoW Forever only):** Enables Classic WoW's hidden lootable object sparkles.
+* **TomTom `/way` Command:** Creates native waypoints with TomTom-style `/way` commands without requiring or overriding TomTom.
 * **Show In-Game Navigation:** Toggles the in-world diamond pointing toward objectives on clients that support it.
+* **Add Search to Icon Picker:** Adds icon-name search to the Macro and Equipment Set icon pickers.
 
 ### Controls
 * **Camera Distance:** Unlocks maximum camera zoom distance (`cameraDistanceMaxZoomFactor = 4`).
 * **Dynamic Camera:** Enables ActionCam basic mode with dynamic pitch.
-* **Keybindings:** Many extra keybindings aren't in the options menu at all; the "Open Keybindings" button jumps straight to the SlackHacks section of Blizzard's Key Bindings.
-  * **Class Spec Keybinds:** Switch to Class Spec 1–4 (your specializations in Talents UI order) with a single key, out of combat.
-  * **Consumable Keybinds:** Keybinds to use the best healing potion, mana potion, or bandage in your bags, consuming smaller stacks first to conserve inventory space.
-  * **Dragonriding Overrides:** Applies context-sensitive keybinds for Skyward Ascent, Surge Forward, Whirling Surge, and Aerial Halt when mounting a Skyriding mount.
-  * **System Keybinds:** Keybinds for Reload UI, Sound System Restart, Quick Keybind Mode, and Click Casting.
+* **Keybindings:** "Open Keybindings" jumps to SlackHacks' extra bindings in Blizzard's Key Bindings menu.
+  * **Class Spec Keybinds:** Switch specializations 1–4 in Talents UI order, out of combat.
+  * **Consumable Keybinds:** Use the best healing potion, mana potion, or bandage, consuming smaller stacks first.
+  * **Dragonriding Overrides:** Apply context-sensitive bindings for Skyward Ascent, Surge Forward, Whirling Surge, and Aerial Halt on Skyriding mounts.
+  * **System Keybinds:** Reload UI, restart sound, enter Quick Keybind Mode, or open Click Casting.
 
 ### Graphics
-Directly applies and restores hidden client CVars not present in default interface menus:
-* **Ground Foliage:** Density (`groundEffectDensity`), fade distance (`groundEffectFade`), and draw distance (`groundEffectDist`).
-* **Level of Detail (LoD):** Object fade scale (`lodObjectFadeScale`), cull threshold size (`lodObjectCullSize`), and terrain LoD distance (`terrainLodDist`).
-* **Sharpening:** Enforces FSR/CAS spatial sharpening at native resolution (`ResampleAlwaysSharpen`).
-* **Water Reflections:** Water reflection detail level (`reflectionMode`, 0–3).
-* **Weather:** Weather effect density (`weatherDensity`, 0–3).
-* Includes a one-click button to reset all CVars to game defaults.
+Adjust hidden graphics settings not present in the default interface menus:
+* **Ground Foliage:** Density, fade distance, and draw distance.
+* **Level of Detail (LoD):** Object fade, culling, and terrain distance.
+* **Sharpening:** Enforce FSR/CAS spatial sharpening at native resolution.
+* **Water Reflections:** Reflection detail.
+* **Weather:** Effect density.
+* Reset all settings to game defaults with one button.
 
 ### Minimap
-* **Button Auto-Hide:** Hides tracking, calendar, clock, and addon buttons until the cursor hovers over the minimap.
-* **Addon Compartment:** Moves third-party addon minimap icons into the Addon Compartment dropdown.
-* **Opacity:** Configurable opacity values for idle, moving, and combat states.
-* **Square Minimap:** Changes the minimap shape from circular to square with a top title bar.
+* **Button Auto-Hide:** Hide tracking, calendar, clock, and addon buttons until hovering over the minimap.
+* **Addon Compartment:** Move addon minimap icons into the Addon Compartment.
+* **Opacity:** Set separate opacity for idle, moving, and combat.
+* **Square Minimap:** Use a square minimap with a title bar.
 
 ### Inventory
-* **Auto-Sell Greys:** Automatically sells poor-quality (grey) items when opening a merchant window.
-* **Hide Bags Frame:** Hides the Blizzard bag bar buttons and backpack container icon for players using keybinds.
+* **Auto-Sell ALL Grey Items:** Sell every grey item at merchants, including protected items. Listview Bag's Auto-Sell Junk takes precedence when enabled.
+* **Hide Bags Frame:** Hide Blizzard's bag bar and backpack icon.
 
 #### Auto Repair
-* Automatically repairs equipment upon opening a merchant window using Personal Funds, Guild Funds, or Guild Funds restricted to raid groups.
+* Automatically repair at merchants using personal funds, guild funds, or guild funds only in raids.
 
 #### Listview Bag
-An alternate list-based view for player bags that can replace the default grid backpack or be toggled as needed.
+An alternate list-based bag view that can replace the default backpack or be toggled as needed.
 * **Columns:** Quantity, Item Name, Item Level, Armor/Weapon Type, Equipment Slot, and Binding Type (BoE, BoP, Warbound).
-* **Sorting:** Ascending and descending sort support on all columns.
-* **Search:** Real-time text search filter.
-* **Item Protection:** Lock items to prevent them from being vendored or deleted.
-* **Junk Marking:** Mark specific items to be automatically sold at merchants or vendored with Blizzard's "Sell All Junk" button.
+* **Views:** Selling shows vendor-sellable items, vendor prices, and cached auction prices, refreshed manually or supplied by Auctionator. Opening the Auction House temporarily selects Selling View and AH Mode, which shows eligible items not blocked by flags, then restores your previous choices afterward. Gear compares equipped stats, including Forever relics, with filters for equipment types, slots, client-specific stats, and downgrades. Downgrade Only excludes items with a stat gain against any compared slot.
+* **Sorting:** Sort all columns ascending or descending, including flags.
+* **Search:** Filter items by text as you type.
+* **Filters:** Filter by flag, binding, and category, including reagent-bag items. Essentials includes configurable common items and custom items selected from your inventory, with optional arrows and Soul Shards. Classification may differ from Blizzard's bag sorting.
+* **Item Protection:** Protect items, including greys, from conflicting Listview Bag actions and Auto-Sell Junk. Blizzard's Sell All Junk and Auto-Sell ALL Grey Items ignore protection.
+* **Junk Marking:** Mark items for automatic sale or Blizzard's Sell All Junk button.
+* **Item Flags:** Left-click for Junk, Auction, Protect, Bank, or Mail; right-click to toggle Junk without replacing other flags. Grey items can only be protected. Auction requires eligible items, Junk requires a vendor price, and soulbound items cannot be marked for Mail. Flags prevent conflicting Listview Bag actions, but Auction and Bank do not automatically list or move items; normal bags and Blizzard's junk sale are unaffected.
+* **Auto-Sell Junk:** Sell unprotected greys and marked items at merchants instead of using Blizzard's automatic grey sale. Disabling it offers to disable Auto-Sell ALL Grey Items too.
+* **Bag Controls:** Temporarily show Blizzard's bags with the backpack button, or use the portrait or cog menu for settings, default bags, and Auto-Sell Junk.
+* **Bag Slots:** The footer shows used and total slots with a low-space warning. Hover for bag capacity, item categories, and consumable lists; Forever also shows relevant ammo and Soul Shards. An equipped reagent bag counts as one slot, free if it has any room.
+* **Footer Supplies:** Forever shows equipped arrows or thrown-weapon durability and Warlock Soul Shards. Retail always shows crests instead.
+* **Mail Recipients:** Save recipients with nicknames and searchable icons, and queue quantities with an optional default recipient. The Send Mail tab opens the list when assigned items are in your bags; select a recipient to prepare drafts and send each batch yourself, with subsequent batches prepared automatically. Partial stacks require a free compatible bag slot, and soulbound copies are skipped. Unfulfilled quantities remain pending; the Mail flag clears when the queue finishes without a default. Replacing a draft requires confirmation, and deleting a recipient leaves Mail flags intact.
 
 ### Info Display
-One "Enable Info Display Module" switch turns all Info Display features on or off at once: Char Sheet, Weeklies, and the Guildie, Friends, and Players Online lists. Each feature also has its own on/off setting. The Guildie, Friends, and Players Online lists work in both Retail and WoW Forever.
+The module has a master switch and individual feature settings. The Guildie, Friends, and Players Online lists work on Retail and WoW Forever.
 
 #### Char Sheet
-* **Gear Stats Overlay:** Adds a "Gear Stats" checkbox directly inside the Blizzard Character Sheet (also toggleable from the minimap icon menu).
-* **Item Level Overlays:** Displays item level on each equipment slot, with coloring based on item quality or upgrade track watermark tiers.
-* **Upgrade Track Progress:** Displays current track progression (e.g., `6/6 C`) below the item level, with an option to display a star icon when fully upgraded.
-* **Watermark & Stat Totals:** Displays slot high-watermark item levels alongside aggregate Critical Strike, Haste, Mastery, and Versatility ratings and percentages.
-* **Enchants & Gems:** Displays current enchants and gem statuses on equipment, with alert icons for empty sockets or un-enchanted items.
+* **Gear Stats Overlay:** Toggle gear stats from the Character Sheet or minimap menu.
+* **Item Level Overlays:** Show item levels on equipment slots, colored by quality or upgrade-track watermark.
+* **Upgrade Track Progress:** Show progress below item levels, optionally with a star for fully upgraded items.
+* **Watermark & Stat Totals:** Show slot high-watermark item levels and secondary stat ratings and percentages.
+* **Enchants & Gems:** Show enchants and gems, with alerts for missing enchants or empty sockets.
 
 #### Weeklies
-* **Delves Progression:** Integrates a Delves tracking widget into the Objective Tracker.
-  * Tracks weekly Gilded Stash completions (4 total).
-  * Tracks Trovehunter's Bounty status (Available, Acquired, Engaged, Completed).
-  * Displays companion level and Delve Renown progress.
-  * Displays currency totals for Restored Coffer Keys, Coffer Key Shards, Undercoin, and Untainted Mana-Crystals.
-  * Context menu for detailed progress breakdowns.
+* **Delves Progression:** Add an Objective Tracker widget with:
+  * Weekly Gilded Stash completions and Trovehunter's Bounty status.
+  * Companion level and Delve Renown progress.
+  * Restored Coffer Keys, Coffer Key Shards, Undercoin, and Untainted Mana-Crystals.
+  * A context menu with detailed progress.
 
 #### Guildie List
-* **Online Guild Members:** A movable, resizable window styled after Blizzard's Damage Meter, listing online guild members (class-colored) and their zone in two columns. Hovering a member shows a player tooltip like Blizzard's: name and AFK/DND status, guild and rank, level, race and class, faction, location, and guild notes.
-* **Context Menu:** Left- or right-click a member for the guild roster's Invite, Whisper, and View Houses options (Invite is hidden when they can't be invited, e.g. on mobile; View Houses is Retail only). Your own row has no menu.
-* **Instance Icons:** Members inside a dungeon, raid, or delve get the world map's Dungeon/Raid/Delve icon after their zone (toggleable).
-* **Rank Icons:** The guild roster's crown icon after the Guild Master's name and its assistant icon after officers' names (toggleable).
-* **Faction Icons:** A Horde/Alliance icon after member names for cross-faction guilds; by default only shown for members of the opposite faction to your character (toggleable).
-* **In-Group Indicator:** Quick Join's group icon at the end of the name of anyone already in a group, the same information Blizzard uses to offer "Request to Join Group" instead of "Invite" (toggleable, on by default).
+* **Online Guild Members:** List online members and their zones in a movable, resizable Damage Meter-style window, with Blizzard-style player tooltips.
+* **Context Menu:** Click a member for Invite, Whisper, and View Houses options. Invite is hidden when unavailable; View Houses is Retail only.
+* **Instance Icons:** Optionally show dungeon, raid, or delve icons.
+* **Rank Icons:** Optionally show guild master and officer icons.
+* **Faction Icons:** Optionally show faction icons, by default only for the opposite faction.
+* **In-Group Indicator:** Optionally show Blizzard's group icon for members already in a group (on by default).
 * **Sorting:** Sort the list by name (default) or by location.
-* **Fit to Content:** Optionally size the window automatically to fit its members and their locations.
-* **Collapsible:** Collapse the window down to its header (which still shows the online count) using the same minimize button as the Damage Meter.
-* **Settings Cog:** A Damage Meter-style cog menu on the header, with Fit to Content, a "Change Opacity" slider for the window background, the sort order, and the icon toggles.
-* **Minimap Toggle:** Turn the list on or off from the "Guildies List" checkbox in the minimap icon menu.
-* **Window Interaction:** Settings and the cog menu offer **Lock Position** to prevent dragging and **Make Non-Interactive** to pass mouse input through to the world. Only the settings cog remains interactive.
+* **Fit to Content:** Automatically size the window to its contents.
+* **Collapsible:** Minimize to a header that still shows the online count.
+* **Settings Cog:** Adjust sizing, background opacity, sorting, and icons from the header.
+* **Minimap Toggle:** Toggle the list from the minimap menu.
+* **Window Interaction:** Lock its position or make it click-through; the settings cog remains interactive.
 
 #### Friends List
-* **Online Friends:** The same Damage Meter-style window as the Guildie List, listing your online friends: Battle.net friends by their Battle.net name with their class-colored character name, and their location (or what they're doing in other Blizzard games). Hovering a friend shows a tooltip like the Friends list's: name and AFK/DND status, character, level, race and class, faction, zone and realm, note, and broadcast message.
-* **Context Menu:** Left- or right-click a friend for the Friends list's Invite, Whisper, and View Houses options (Invite is hidden for friends in another game or WoW version; View Houses is Retail only).
-* **Filters:** Only Favorite Friends (default on), Only Playing WoW, and Only Same WoW Version (e.g. hide Classic players while you're on Retail). With Only Favorite Friends off, character friends are listed too.
-* **Game Icons:** The icon of the Blizzard game or app each friend is in, after their name, for friends who aren't in the same game as you, including other WoW versions (toggleable).
-* **Instance, Faction, and In-Group Icons:** The same toggleable Dungeon/Raid/Delve, Horde/Alliance, and in-group icons as the Guildie List.
-* **Sorting, Fit to Content, Collapsible, Settings Cog, Window Interaction, Minimap Toggle:** Same as the Guildie List, including Lock Position and Make Non-Interactive, with the filters also in the cog menu. Name sorting follows the Friends list's order. The minimap checkbox is "Friends List".
+* **Online Friends:** Show online friends and their locations or other Blizzard game activity in a Damage Meter-style window, with Blizzard-style tooltips.
+* **Context Menu:** Click a friend for Invite, Whisper, and View Houses options. Invite is hidden for other games or WoW versions; View Houses is Retail only.
+* **Filters:** Show only favorites (on by default), WoW players, or players on the same WoW version. Turning off favorites also shows character friends.
+* **Game Icons:** Optionally show icons for friends in other Blizzard games or WoW versions.
+* **Instance, Faction, and In-Group Icons:** The same optional icons as the Guildie List.
+* **Sorting, Fit to Content, Collapsible, Settings Cog, Window Interaction, Minimap Toggle:** Match the Guildie List; filters are also in the cog menu. Name sorting follows Blizzard's Friends list.
 
 #### Players Online
-* **Stacked Lists:** Turn on "Stack Friends and Guildie Lists" to show both lists in one "Players Online (N)" window, where N counts everyone online once, even if they're both a friend and a guildie.
-* **Objective Tracker Sections:** Each list gets an Objective Tracker-style section header that collapses just that list. "List Stack Order" picks which list is on top.
-* **Settings Cogs:** The window's cog has Fit to Content and "Change Opacity", followed by a "Stack Friend/Guildie List" checkbox grouped with the "Friends List"/"Guildies List" visibility checkboxes. Uncheck stacking to split the lists into their own windows; turning both lists off also turns stacking off. Each section header has its own cog with that list's sorting, filters, and icon settings. When both lists are enabled but split, their cogs offer the same stacking checkbox.
+* **Stacked Lists:** Combine Friends and Guildie lists in one window; the online count excludes duplicates.
+* **Objective Tracker Sections:** Collapse each list independently and choose their order.
+* **Settings Cogs:** Adjust window settings and stacking from the main cog, or each list's sorting, filters, and icons from its section cog.
 * **Collapsible:** Same as the individual lists.
-* **Window Interaction:** Lock Position and Make Non-Interactive apply to the entire stacked window, independently of the standalone windows' settings. Only the topmost cog offers these options and remains interactive when click-through is on.
+* **Window Interaction:** Lock or make the stacked window click-through independently of the standalone windows. The top cog remains interactive.
 
 ### Reminders
-One "Enable Reminders Module" switch turns all Reminders features on or off at once. Each feature also has its own on/off setting. Retail only.
+Retail only, with a master switch and individual feature settings.
 
 #### Talent Loadouts
-* **Loadout by Content:** For each of your specs, pick a talent loadout (or "Off") for Questing, Delves, Raids, Dungeons, and PvP. Choices are saved per character.
-* **Switch Prompt:** When you enter or leave content and your active loadout doesn't match, a movable prompt near the top of the screen offers to switch, with your chosen loadout pre-selected in a dropdown. It never takes keyboard focus, waits until combat ends, and stays hidden during an active Mythic+ keystone.
-* **Mythics:** Enable per-Mythic loadouts to pick a loadout for each of the current season's Mythic+ dungeons (listed from the game's own Mythic+ data). Dungeons left on "Use Default" use the Dungeons loadout. The prompt lists the current dungeon's name on its own line.
-* **Raid Bosses (Midnight Season 2):** Optionally choose a loadout for each of The Venomous Abyss's eight bosses and Kith'ix in The Unbinding of Kith'ix (12.1.5), saved per character and specialization. Entering a mapped boss-room subzone (including after `/reload`) offers to switch, with the boss's name displayed as a large heading. "Use Default" uses your Raids loadout. Unmapped corridors do not prompt, and no combat or boss-engagement detection is needed.
+* **Loadout by Content:** Choose a loadout or "Off" for Questing, Delves, Raids, Dungeons, and PvP per character and specialization.
+* **Switch Prompt:** A movable prompt offers your chosen loadout when entering or leaving content. It waits for combat to end, never takes keyboard focus, and stays hidden during an active Mythic+ keystone.
+* **Mythics:** Optionally choose loadouts for individual current-season Mythic+ dungeons; others use the Dungeons default.
+* **Raid Bosses (Midnight Season 2):** Optionally choose loadouts for The Venomous Abyss bosses and Kith'ix in The Unbinding of Kith'ix (12.1.5). Entering a mapped boss room prompts a switch; bosses set to "Use Default" use the Raids loadout.
 
 #### Consumable Buff Reminders (**WIP!**)
-* **Clickable Aura Icons:** Shows on-screen buttons to apply Food, Flask, Weapon Oil, or Augment Runes when buffs are missing.
-* **Buff Expiration:** Triggers warnings if a buff is projected to expire during an active Mythic+ key or raid encounter.
-* **Where to Remind:** Options to restrict reminders to Mythic/Mythic+ dungeons and non-LFR raids (Normal, Heroic, Mythic).
-* **Edit Mode Support:** Registered with Blizzard's Edit Mode for positioning and scaling.
+* **Clickable Aura Icons:** Show buttons to apply missing Food, Flask, Weapon Oil, or Augment Rune buffs.
+* **Buff Expiration:** Warn when a buff may expire during an active Mythic+ key or raid encounter.
+* **Where to Remind:** Optionally restrict reminders to Mythic/Mythic+ dungeons and non-LFR raids.
+* **Edit Mode Support:** Position and scale reminders in Blizzard's Edit Mode.
 
 ### Mouse Ring
-* Centers a circular overlay on the mouse cursor with adjustable scale, opacity, and color. Can be set to only display during combat.
+* Show a ring around the cursor with adjustable scale, opacity, and color, optionally only in combat.
 
 ### Windows
-* **Toast Positioning:** Registers Blizzard's AlertFrame (achievement, loot, and mount popups) as a movable frame in Edit Mode.
-* **Zone Map Scaling:** Adds a "Change Scale" slider to the Zone Map's tab menu (right-click the tab).
-* **Keybinding:** Includes a dedicated keybind to toggle the module on or off without opening options.
+* **Toast Positioning:** Move Blizzard's achievement, loot, and mount popups in Edit Mode.
+* **Zone Map Scaling:** Change scale from the Zone Map's tab menu.
+* **Keybinding:** Toggle the module without opening options.
 
 #### Movable Windows
-* **Window Dragging:** Left-click drag native Blizzard panels (Character Frame, Merchant, Quest Log, Spellbook, etc.) by their title bars.
-* **Position Memory:** Configurable persistence (Do Not Remember, In Session Only, or Remember Permanently).
+* **Window Dragging:** Drag native Blizzard panels by their title bars.
+* **Position Memory:** Remember positions for the session, permanently, or not at all.
 
 #### Window Scaling
-* **Mouse-Wheel Scaling:** Hold a designated modifier key (`None`, `Shift`, `Ctrl`, or `Alt`) and scroll over a title bar to scale the window (0.3x to 2.5x).
-* **Scale Memory:** Configurable persistence (Do Not Remember, In Session Only, or Remember Permanently).
+* **Mouse-Wheel Scaling:** Scroll over a title bar with an optional modifier key to scale a window from 0.3x to 2.5x.
+* **Scale Memory:** Remember scales for the session, permanently, or not at all.
 
 ### Dialog
-* **Auto-Accept Quests:** Automatically accepts quests on interact.
-* **Auto-Complete Quests:** Automatically completes quests that have no choices in reward.
+* **Auto-Accept Quests:** Accept quests on interaction.
+* **Auto-Complete Quests:** Complete quests without reward choices automatically.
 * **NPC Dialog Auto-Click:**
-  * **Auto-Click First Dialog Option:** Automatically clicks an NPC dialog's option if it's the only option and no quests are listed.
-  * **Only During Mythic Runs:** Optionally restricts auto-clicking to Mythic+ runs whose timer is running. Hidden on WoW Forever. When combined with the Service NPC restriction, an active run allows other dialogs too.
-  * **Only when interacting with Service NPC:** Restricts auto-clicking to recognized service options such as vendors, banks, flight paths, and trainers, even when the NPC forces its gossip to display. Available on Retail as well as Classic clients.
+  * **Auto-Click First Dialog Option:** Select the sole NPC dialog option when no quests are listed.
+  * **Only During Mythic Runs:** Restrict auto-clicking to timed Mythic+ runs (not available on WoW Forever). An active run also permits non-service dialogs when the Service NPC restriction is enabled.
+  * **Only when interacting with Service NPC:** Restrict auto-clicking to recognized services such as vendors, banks, flight paths, and trainers, including forced dialogs.
 * **Dialog Keybindings:**
-  * **Number Key Dialog Options:** Maps quest and NPC dialog selections to the number keys (1–9, 0), displaying each shortcut after the icon and before the selection text (e.g., "{Icon} 1. See my wares.").
-  * **Spacebar to Accept/Complete Quest:** Independently enables Spacebar to accept, continue, or complete the current quest using Blizzard's normal buttons and confirmation prompts.
-* **Safe Dialog Shortcuts:** Temporary keybindings are cleared when the dialog closes or combat starts. Turn-ins requiring a choice between rewards remain entirely manual: dialog shortcuts and auto-completion are disabled on that screen, even after selecting a reward.
-* **Quest Item Extra Action Button:** Shows an Extra Action Button for a quest item while you're inside that quest's area, bound to your Extra Action Button key. Items that must be used on a target are left out.
-* **Toggles:** Keybindings to toggle each auto option or all of them at once, plus an "All NPC Auto-Interacts" checkbox in the minimap icon menu.
+  * **Number Key Dialog Options:** Select quest and NPC dialog options with numbered shortcuts.
+  * **Spacebar to Accept/Complete Quest:** Use Spacebar to accept, continue, or complete quests through Blizzard's normal buttons and confirmations.
+* **Safe Dialog Shortcuts:** Temporary bindings clear when dialog closes or combat starts. Turn-ins with reward choices remain manual.
+* **Quest Item Extra Action Button:** Show a quest item on the Extra Action Button in its quest area; targeted items are excluded.
+* **Toggles:** Use keybindings to toggle individual or all automatic interactions, or the minimap menu to toggle all.
 
 ### Self Vendor
-* **Chat Request Handling:** Listens in party, raid, instance, say, and whisper chat for consumable keywords (e.g., `crit oil rune`, `need flask`, `!flask`). Enable **Only Vend to Fellow Guildies** to ignore requests from non-guild members.
-* **Spec Matching:** Selects the recommended Flask and Weapon Oil for the requesting player's class and specialization using data from Wowhead or Icy Veins.
-* **Asynchronous Trade Queue:** Enqueues requests and handles item stack splitting via a FIFO queue to prevent trade window conflicts.
-* **Automatic Trade Response:** Pick a mode (or use `/slack vend <mode>`) and anyone who opens a trade with you is automatically handed those items, jumping to the front of the queue. Optionally turns itself Off when you leave your group.
-* **Configuration:** Granular toggles for Flasks, Oils, Augment Runes, and Vantus Runes, with configurable rune stack counts and optional chat prefix enforcement.
-* **Combat Safe:** Vending pauses in combat; entering combat clears the queue, and new requests are only accepted out of combat.
+* **Chat Request Handling:** Listen for consumable requests in party, raid, instance, say, and whisper chat. Optionally accept requests only from guild members.
+* **Spec Matching:** Select recommended flasks and oils for the requester's class and specialization using Wowhead or Icy Veins data.
+* **Asynchronous Trade Queue:** Queue requests and split stacks to prevent trade conflicts.
+* **Automatic Trade Response:** Choose items to offer anyone opening a trade, prioritizing them in the queue. Set the mode with `/slack vend <mode>` and optionally turn it off when leaving the group.
+* **Configuration:** Toggle flasks, oils, Augment Runes, and Vantus Runes; configure rune quantities and optional chat prefixes.
+* **Combat Safe:** Vending pauses in combat, clears the queue on entering combat, and accepts requests only out of combat.
 
 ### Combat
-* **Assist Tank Macro:** Generates an automatic "Assist Tank" macro that will `/assist` the current tank by name, otherwise your Hunter/Warlock pet. Optionally assist your current friendly target first. Includes its own keybinding, and tanks can mark their target with a skull instead.
+* **Assist Tank Macro:** Generate a macro and keybinding to assist the tank or your Hunter/Warlock pet. Optionally assist your friendly target first, or mark your target with a skull when tanking.
 
 ### Nameplates (**WIP!**)
 * **Raise Casting Nameplates:** Draws casting enemy nameplates above overlapping nameplates so their cast bars remain visible.

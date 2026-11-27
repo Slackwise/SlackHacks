@@ -6,10 +6,11 @@
 ## AddonCompartmentFuncOnEnter: SlackHacks_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: SlackHacks_OnAddonCompartmentLeave
 ## Author: Slack — Moon Guard
-## Version: 33
+## Version: 34
 ## X-Website: https://github.com/Slackwise/SlackHacks
 ## X-Feedback: https://github.com/Slackwise
 ## SavedVariables: SlackHacksDB
+## OptionalDeps: Auctionator, Auctionator_PriceHistoryTrends
 embeds.xml
 Init.lua
 Debug.lua
@@ -24,6 +25,10 @@ Reminders.lua
 Reminders_Buffs.lua
 Reminders_Talents.lua
 Weeklies.lua
+IconNames.lua
+IconNamePopup.lua
+ListviewBagGear.lua
+ListviewBagAuction.lua
 ListviewBag.lua
 Minimap.lua
 Windows.lua
