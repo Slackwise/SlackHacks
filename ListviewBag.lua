@@ -66,6 +66,9 @@ local MANA_CLASSES = {
 }
 local sortColumn
 local sortAscending = true
+local temporaryView
+local ahMode = false
+local ahModeBeforeAuction
 
 local function sortValueBefore(left, right)
   if left == right then return nil end
@@ -92,6 +95,11 @@ local ITEM_CATEGORIES = {
   -- Preserve the saved key when changing the displayed name.
   { id = "special", name = "Essentials" },
   { id = "other", name = "Other" },
+}
+local BINDING_FILTERS = {
+  { id = "unbound", name = "Unbound" },
+  { id = "soulbound", name = "Soulbound" },
+  { id = "warbound", name = "Warbound", retailOnly = true },
 }
 -- These edible Forever fish can also be crafting reagents; item class alone cannot distinguish them
 -- from inedible fish. Keep the IDs independent of localized item names.
@@ -286,6 +294,7 @@ local function settings()
     listviewSettings[status.field] = listviewSettings[status.field] or {}
   end
   listviewSettings.flagFilters = listviewSettings.flagFilters or {}
+  listviewSettings.bindingFilters = listviewSettings.bindingFilters or {}
   listviewSettings.categoryFilters = listviewSettings.categoryFilters or {}
   listviewSettings.mailRecipients = listviewSettings.mailRecipients or {}
   listviewSettings.mailAssignments = listviewSettings.mailAssignments or {}
@@ -308,7 +317,7 @@ end
 --- Return the selected view, treating older profiles as the default view.
 ---@return string view View identifier.
 local function selectedView()
-  local view = settings().view
+  local view = temporaryView or settings().view
   for _, entry in ipairs(VIEWS) do
     if entry.id == view then return view end
   end
@@ -409,7 +418,9 @@ local function getBindInfo(bagID, slot, itemLink)
   for _, text in ipairs(scanBagItemLines(bagID, slot)) do
     if text == ITEM_SOULBOUND then
       return "Soulbound", bindType, false, itemInfo and itemInfo.isBound
-    elseif text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_TO_ACCOUNT or text == ITEM_BNETACCOUNTBOUND then
+    elseif text == ITEM_ACCOUNTBOUND or text == ITEM_BIND_TO_ACCOUNT or text == ITEM_BNETACCOUNTBOUND
+      or text == ITEM_BIND_TO_BNETACCOUNT or text == ITEM_ACCOUNTBOUND_UNTIL_EQUIP
+      or text == ITEM_BIND_TO_ACCOUNT_UNTIL_EQUIP or text == ITEM_BNETACCOUNTBOUND_UNTIL_EQUIP then
       accountBound = true
     end
   end
@@ -458,9 +469,12 @@ local function collectGroups()
     for slot = 1, numSlots do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
       if info and info.itemID and not info.isFiltered then
-        local key = info.hyperlink or info.itemID
-        -- Identical links can include both bound and unbound copies, which have different sale eligibility.
-        if selectedView() == "selling" then key = tostring(key) .. (info.isBound and "\031bound" or "\031unbound") end
+        local bindLabel, bindType, accountBound, isBound = getBindInfo(bagID, slot, info.hyperlink)
+        local binding = accountBound and isRetail() and "warbound"
+          or (isBound or accountBound) and "soulbound" or "unbound"
+        -- Copies with the same link can have different binding states and filter eligibility.
+        local key = tostring(info.hyperlink or info.itemID) .. "\031" .. binding
+          .. (info.isBound and "\031bound" or "\031unbound")
         local group = groups[key]
         if not group then
           group = {
@@ -470,6 +484,11 @@ local function collectGroups()
             itemName = info.itemName,
             icon = info.iconFileID,
             quality = info.quality,
+            bindLabel = bindLabel,
+            bindType = bindType,
+            accountBound = accountBound,
+            isBound = isBound,
+            binding = binding,
             count = 0,
             entries = {},
           }
@@ -508,9 +527,6 @@ local function collectGroups()
     if group.isArmor or (selectedView() == "gear" and group.isEquipment) then
       group.armorType = itemSubType
       group.armorSlot = itemEquipLoc and _G[itemEquipLoc]
-    end
-    if first then
-      group.bindLabel, group.bindType, group.accountBound, group.isBound = getBindInfo(first.bagID, first.slot, group.hyperlink)
     end
     if selectedView() == "gear" and gear then
       group.comparisons, group.itemStats = gear.CompareItem(group.hyperlink, itemEquipLoc)
@@ -788,18 +804,56 @@ local function itemCategory(group, bag)
   return "other"
 end
 
---- Check an item against the selected flag and item-category filters.
+--- Check an item against the selected flag, binding, and item-category filters.
 ---@param group table Collected item and its metadata.
 ---@return boolean matches Whether the item is visible.
 local function matchesFilters(group)
   local bag = settings()
   local status = getItemStatus(group.statusKey, group.quality)
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
+  local binding = group.binding or (group.accountBound and isRetail() and "warbound")
+    or (group.isBound or group.accountBound) and "soulbound" or "unbound"
+  if bag.bindingFilters[binding] == false then return false end
   local category = itemCategory(group, bag)
   if category == "consumables" and FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID] and isForever() then
     return bag.categoryFilters.consumables ~= false or bag.categoryFilters.reagents ~= false
   end
   return bag.categoryFilters[category] ~= false
+end
+
+--- Check whether a flag prevents auctioning through the list view.
+---@param key string Item status key.
+---@param quality number|nil Item quality.
+---@param bag table Current bag settings.
+---@return boolean blocked Whether an auction is blocked.
+local function isAuctionBlocked(key, quality, bag)
+  return bag.protectedItems[key] ~= nil
+    or quality ~= 0 and (bag.bankItems[key] ~= nil or bag.mailItems[key] ~= nil)
+end
+
+--- Check whether the client can validate individual auction items.
+---@return boolean available Whether auction eligibility can be checked.
+local function auctionEligibilityAvailable()
+  return C_AuctionHouse and type(C_AuctionHouse.IsSellItemValid) == "function"
+    and ItemLocation and type(ItemLocation.CreateFromBagAndSlot) == "function" or false
+end
+
+--- Keep only bag slots that Blizzard considers eligible for auction.
+---@param group table Collected item and its bag entries.
+---@return boolean eligible Whether the group has any sellable entries.
+local function filterAuctionEntries(group)
+  if group.isBound or group.accountBound or type(group.sellPrice) ~= "number" or group.sellPrice <= 0
+    or isAuctionBlocked(group.statusKey, group.quality, settings()) then return false end
+  local entries, count = {}, 0
+  for _, entry in ipairs(group.entries) do
+    local location = ItemLocation:CreateFromBagAndSlot(entry.bagID, entry.slot)
+    if location:IsValid() and C_AuctionHouse.IsSellItemValid(location, false) then
+      entries[#entries + 1] = entry
+      count = count + entry.count
+    end
+  end
+  group.entries, group.count = entries, count
+  return #entries > 0
 end
 
 --- Initialize the additive gear-filter settings for existing profiles.
@@ -882,7 +936,7 @@ local function blockedItemAction(key, quality)
   if merchantOpen and (protected or auction or mail) then
     return "vendoring"
   end
-  if auctionOpen and (protected or mail) then
+  if auctionOpen and isAuctionBlocked(key, quality, bag) then
     return "auctioning"
   end
   if mailOpen and protected then
@@ -2160,8 +2214,10 @@ end
 local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
+  local filterAuction = selectedView() == "selling" and ahMode and auctionEligibilityAvailable()
   for _, group in ipairs(groups) do
-    if matchesFilters(group) and (selectedView() ~= "gear" or matchesGearFilters(group)) then
+    if matchesFilters(group) and (selectedView() ~= "gear" or matchesGearFilters(group))
+      and (not filterAuction or filterAuctionEntries(group)) then
       group.isGroupHeader = #group.entries > 1
       rows[#rows + 1] = group
       if group.isGroupHeader and expandedGroups[group.key] then
@@ -2403,6 +2459,9 @@ local function updateFiltersLabel()
   if bag.flagFilters.unflagged == false then count = count + 1 end
   for _, status in ipairs(ITEM_STATUSES) do
     if bag.flagFilters[status.id] == false then count = count + 1 end
+  end
+  for _, binding in ipairs(BINDING_FILTERS) do
+    if (not binding.retailOnly or isRetail()) and bag.bindingFilters[binding.id] == false then count = count + 1 end
   end
   for _, category in ipairs(ITEM_CATEGORIES) do
     if bag.categoryFilters[category.id] == false then count = count + 1 end
@@ -2900,6 +2959,9 @@ local function openFiltersMenu(anchor, root)
   local function checkAll()
     bag.flagFilters.unflagged = true
     for _, status in ipairs(ITEM_STATUSES) do bag.flagFilters[status.id] = true end
+    for _, binding in ipairs(BINDING_FILTERS) do
+      if not binding.retailOnly or isRetail() then bag.bindingFilters[binding.id] = true end
+    end
     for _, category in ipairs(ITEM_CATEGORIES) do bag.categoryFilters[category.id] = true end
     updateFiltersLabel()
     renderRows()
@@ -2924,6 +2986,15 @@ local function openFiltersMenu(anchor, root)
         function() toggle(bag.flagFilters, status.id) end)
     end
     root:CreateDivider()
+    root:CreateTitle("Binding")
+    for _, entry in ipairs(BINDING_FILTERS) do
+      local binding = entry
+      if not binding.retailOnly or isRetail() then
+        root:CreateCheckbox(binding.name, function() return bag.bindingFilters[binding.id] ~= false end,
+          function() toggle(bag.bindingFilters, binding.id) end)
+      end
+    end
+    root:CreateDivider()
     root:CreateTitle("Categories")
     for _, entry in ipairs(ITEM_CATEGORIES) do
       local category = entry
@@ -2944,6 +3015,15 @@ local function openFiltersMenu(anchor, root)
         checked = function() return bag.flagFilters[status.id] ~= false end,
         func = function() toggle(bag.flagFilters, status.id) end }
     end
+    menu[#menu + 1] = { text = "Binding", isTitle = true, notCheckable = true }
+    for _, entry in ipairs(BINDING_FILTERS) do
+      local binding = entry
+      if not binding.retailOnly or isRetail() then
+        menu[#menu + 1] = { text = binding.name, isNotRadio = true, keepShownOnClick = true,
+          checked = function() return bag.bindingFilters[binding.id] ~= false end,
+          func = function() toggle(bag.bindingFilters, binding.id) end }
+      end
+    end
     menu[#menu + 1] = { text = "Categories", isTitle = true, notCheckable = true }
     for _, entry in ipairs(ITEM_CATEGORIES) do
       local category = entry
@@ -2958,8 +3038,28 @@ local function openFiltersMenu(anchor, root)
   end
 end
 
+--- Temporarily enable AH Mode without changing the user's previous choice.
+local function beginAuctionMode()
+  if ahModeBeforeAuction ~= nil then return end
+  ahModeBeforeAuction = ahMode
+  if not auctionEligibilityAvailable() then
+    ahMode = false
+    prn("AH Mode is unavailable because auction eligibility cannot be checked.")
+    return
+  end
+  ahMode = true
+end
+
+--- Restore the AH Mode choice from before the auction house opened.
+local function endAuctionMode()
+  if ahModeBeforeAuction == nil then return end
+  ahMode = ahModeBeforeAuction
+  ahModeBeforeAuction = nil
+end
+
 --- Update view controls and the space available to the search box.
 local function updateViewControls()
+  if not footer then return end
   local view = selectedView()
   local label = VIEWS[1].name
   for _, entry in ipairs(VIEWS) do
@@ -2968,18 +3068,29 @@ local function updateViewControls()
   if footer.viewsButton.legacy then UIDropDownMenu_SetText(footer.viewsButton, label)
   else footer.viewsButton:OverrideText(label) end
   footer.gearFiltersButton:SetShown(view == "gear")
+  local showAuctionRefresh = view == "selling"
+    and not (Self.ListviewBagAuction and Self.ListviewBagAuction.HasAuctionator())
+  footer.auctionRefresh:SetShown(showAuctionRefresh)
+  footer.auctionRefresh:SetEnabled(auctionOpen)
+  footer.ahMode:SetShown(view == "selling")
+  footer.ahMode:ClearAllPoints()
+  footer.ahMode:SetPoint("RIGHT", showAuctionRefresh and footer.auctionRefresh or footer.viewsButton,
+    "LEFT", showAuctionRefresh and -60 or -64, 0)
+  footer.ahMode:SetChecked(ahMode)
+  footer.ahMode:SetEnabled(auctionEligibilityAvailable())
   if searchBox then searchBox:SetWidth(view == "gear" and 90 or 180) end
 end
 
 --- Select a view without modifying the default column order or existing filters.
 ---@param view string View identifier.
-local function selectView(view)
-  settings().view = view
+---@param temporary boolean|nil Whether to leave the saved view unchanged.
+local function selectView(view, temporary)
+  if temporary then temporaryView = view else temporaryView = nil; settings().view = view end
   sortColumn = nil
   sortAscending = true
   updateViewControls()
   renderRows()
-  if updateAuctionView then updateAuctionView() end
+  if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
 end
 
 --- Populate the native view selector or its legacy equivalent.
@@ -3115,13 +3226,13 @@ local function openGearFiltersMenu(anchor, root)
   end
 end
 
---- Start auction scans only while the selling view and auction house are both open.
+--- Refresh auction prices only on explicit request while the auction house is open.
 updateAuctionView = function()
   local prices = Self.ListviewBagAuction
   if not prices then return end
   prices.Cancel()
   if selectedView() ~= "selling" or not auctionOpen or not frame or not frame:IsShown() then return end
-  if prices.HasAuctionator() then return end
+  if prices.HasAuctionator() then renderRows(); return end
   local items = {}
   for _, group in ipairs(collectGroups()) do
     local entry = group.entries[1]
@@ -3210,6 +3321,44 @@ local function createFooter()
   footer.viewsButton:SetPoint("RIGHT", footer.filtersButton, "LEFT", -4, 0)
   footer.gearFiltersButton:SetFrameLevel(content:GetFrameLevel() + 1)
   footer.gearFiltersButton:SetPoint("RIGHT", footer.viewsButton, "LEFT", -4, 0)
+  footer.auctionRefresh = CreateFrame("Button", "SlackHacksListviewBagAuctionRefresh", content)
+  footer.auctionRefresh:SetSize(20, 20)
+  footer.auctionRefresh:SetPoint("RIGHT", footer.viewsButton, "LEFT", -4, 0)
+  footer.auctionRefresh:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
+  footer.auctionRefresh:SetDisabledTexture("Interface\\Buttons\\UI-RefreshButton")
+  footer.auctionRefresh:GetDisabledTexture():SetDesaturated(true)
+  footer.auctionRefresh:GetDisabledTexture():SetVertexColor(0.5, 0.5, 0.5)
+  footer.auctionRefresh:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  footer.auctionRefresh:SetMotionScriptsWhileDisabled(true)
+  footer.auctionRefresh:SetScript("OnClick", updateAuctionView)
+  footer.auctionRefresh:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Refresh Auction Prices")
+    local hint = not auctionOpen and "Open the Auction House to refresh prices."
+      or "Check auction prices for items in your bags."
+    GameTooltip:AddLine(hint, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  footer.auctionRefresh:SetScript("OnLeave", GameTooltip_Hide)
+  footer.ahMode = CreateFrame("CheckButton", "SlackHacksListviewBagAHMode", content, "UICheckButtonTemplate")
+  footer.ahMode:SetSize(20, 20)
+  footer.ahMode:SetPoint("RIGHT", footer.auctionRefresh, "LEFT", -60, 0)
+  footer.ahMode.text:SetText("AH Mode")
+  footer.ahMode:SetMotionScriptsWhileDisabled(true)
+  footer.ahMode:SetScript("OnClick", function(self)
+    ahMode = not not self:GetChecked()
+    renderRows()
+  end)
+  footer.ahMode:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("AH Mode")
+    GameTooltip:AddLine("Show only items eligible for auction that have a vendor price and aren't blocked by flags.", 1, 1, 1, true)
+    if not auctionEligibilityAvailable() then
+      GameTooltip:AddLine("Auction eligibility is unavailable on this client.", 1, 0.2, 0.2, true)
+    end
+    GameTooltip:Show()
+  end)
+  footer.ahMode:SetScript("OnLeave", GameTooltip_Hide)
   updateViewControls()
 
   if C_AddOns and C_AddOns.LoadAddOn then
@@ -3685,7 +3834,7 @@ local function buildFrame()
     layoutFrame()
     renderRows()
     updateFooter()
-    updateAuctionView()
+    updateViewControls()
   end)
   frame:SetScript("OnHide", function()
     if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
@@ -3818,6 +3967,12 @@ function module:OnEnable()
   mailOpen = MailFrame and MailFrame:IsShown() or false
   auctionOpen = (AuctionHouseFrame and AuctionHouseFrame:IsShown())
     or (AuctionFrame and AuctionFrame:IsShown()) or false
+  if auctionOpen then
+    beginAuctionMode()
+    selectView("selling", true)
+  else
+    updateViewControls()
+  end
   bankOpen = BankFrame and BankFrame:IsShown() or false
   guildBankOpen = GuildBankFrame and GuildBankFrame:IsShown() or false
   hookMerchantJunkButton()
@@ -3862,6 +4017,9 @@ function module:OnDisable()
   slotItemLoads = {}
   trackedCursorItem = nil
   if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
+  endAuctionMode()
+  auctionOpen = false
+  if temporaryView then temporaryView = nil; sortColumn = nil; sortAscending = true end
   if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
   if mailJob then stopMailJob("mail preparation stopped because Listview Bag was disabled.") end
   mailSelection = nil
@@ -3905,13 +4063,16 @@ function module:OnBagInteractionOpen(event)
       openMailRecipientPicker(MailFrame, nil, nil, true)
     end
   end
-  if event == "AUCTION_HOUSE_SHOW" then auctionOpen = true end
+  if event == "AUCTION_HOUSE_SHOW" and not auctionOpen then
+    auctionOpen = true
+    beginAuctionMode()
+    selectView("selling", true)
+  end
   if event == "BANKFRAME_OPENED" then bankOpen = true end
   if event == "GUILDBANKFRAME_OPENED" then guildBankOpen = true end
   returnBlockedCursorItem()
   self:OnNativeBagOpen()
   renderRows()
-  if event == "AUCTION_HOUSE_SHOW" then updateAuctionView() end
 end
 
 --- Forget the list-view pickup when the cursor no longer holds that item.
@@ -3932,17 +4093,25 @@ function module:OnBagInteractionClosed(event)
   end
   if event == "AUCTION_HOUSE_CLOSED" then
     auctionOpen = false
+    endAuctionMode()
     if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
+    if temporaryView then temporaryView = nil; sortColumn = nil; sortAscending = true end
+    updateViewControls()
   end
   if event == "BANKFRAME_CLOSED" then bankOpen = false end
   if event == "GUILDBANKFRAME_CLOSED" then guildBankOpen = false end
   renderRows()
 end
 
---- Install mail hooks if Blizzard's load-on-demand mail UI loads after this module.
+--- Update controls or install mail hooks when a relevant addon loads.
 ---@param _ string Event name.
 ---@param addonName string Loaded addon.
 function module:OnMailAddonLoaded(_, addonName)
+  if addonName == "Auctionator" then
+    if Self.ListviewBagAuction and Self.ListviewBagAuction.HasAuctionator() then Self.ListviewBagAuction.Cancel() end
+    updateViewControls()
+    return
+  end
   if addonName ~= "Blizzard_MailFrame" then return end
   installMailHooks()
   if mailOpen and MailFrame and SendMailFrame and SendMailFrame:IsShown() then

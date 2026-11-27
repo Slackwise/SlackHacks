@@ -7,6 +7,10 @@ local frames = {}
 local refreshes = 0
 SlackHacks = setmetatable({ db = { profile = { listviewBag = profile } } }, { __index = _G })
 SlackHacks.Self = SlackHacks
+local notices = {}
+--- Record user-facing warnings.
+---@param message string Warning message.
+function SlackHacks.prn(message) notices[#notices + 1] = message end
 Enum = { ItemClass = {}, ItemQuality = { Common = 1 }, BagIndex = { Backpack = 0 } }
 UIParent = {}
 C_AddOns = { LoadAddOn = function() end }
@@ -69,6 +73,19 @@ function CreateFrame(frameType, name, parent, template)
   --- Record visibility.
   ---@param shown boolean Whether the widget should be visible.
   function widget:SetShown(shown) self.shown = shown end
+  --- Return whether the widget is visible.
+  ---@return boolean shown Whether the widget is visible.
+  function widget:IsShown() return self.shown end
+  --- Record whether a control can be clicked.
+  ---@param enabled boolean Whether the control is enabled.
+  function widget:SetEnabled(enabled) self.enabled = enabled end
+  --- Return a mock disabled texture for icon buttons.
+  ---@return table texture Disabled texture.
+  function widget:GetDisabledTexture()
+    local texture = rawget(self, "disabledTexture")
+    if not texture then texture = CreateFrame("Texture"); self.disabledTexture = texture end
+    return texture
+  end
   --- Record the widget's drawing level.
   ---@param level number Drawing level.
   function widget:SetFrameLevel(level) self.frameLevel = level end
@@ -200,6 +217,15 @@ openModernFilters(filtersButton)
 assert(menuEntries[1].text == "Show All" and menuEntries[1].response == MenuResponse.Refresh)
 assert(not entry("Reagent Bag") and entry("Unflagged", "Flags").checked())
 assert(entry("Junk", "Flags").checked() and entry("Junk", "Categories").checked())
+assert(entry("Unbound", "Binding").checked() and entry("Soulbound", "Binding").checked()
+  and entry("Warbound", "Binding").checked(), "Retail must expose all binding filters")
+local bindingIndex, categoriesIndex
+for index, value in ipairs(menuEntries) do
+  if value.text == "Unbound" and value.section == "Binding" then bindingIndex = index end
+  if value.text == "Equipment" and value.section == "Categories" then categoriesIndex = index end
+end
+assert(bindingIndex and categoriesIndex and bindingIndex < categoriesIndex,
+  "Binding filters must follow Flags and precede Categories")
 profile.categoryFilters.special = false
 assert(not entry("Essentials", "Categories").checked(), "Renaming must retain the saved Special filter")
 profile.categoryFilters.special = true
@@ -218,7 +244,7 @@ assert(entry("Auction", "Flags").checked() and entry("Equipment", "Categories").
 for _, value in ipairs(menuEntries) do
   if value.checked then value.select() end
 end
-assert(filtersButton.label == "Filters (14)", "Count every visible unchecked filter")
+assert(filtersButton.label == "Filters (17)", "Count every visible unchecked filter")
 entry("Show All").select()
 assert(filtersButton.label == "Filters (None)", "Show All must clear the filter count")
 local updateFiltersLabel = upvalue(createFooter, "updateFiltersLabel")
@@ -316,6 +342,163 @@ profile.view = nil
 ITEM_MOD_AGILITY_SHORT = nil
 INVTYPE_HEAD = nil
 
+-- Auction interactions select Selling temporarily and only query after an explicit refresh.
+local auctionRefresh = frames.SlackHacksListviewBagAuctionRefresh
+local ahCheckbox = frames.SlackHacksListviewBagAHMode
+local selectView = upvalue(upvalue(createFooter, "openViewsMenu"), "selectView")
+local startAuction = upvalue(createFooter, "updateAuctionView")
+local bagWindow = CreateFrame("Frame")
+local previousFrame = upvalue(startAuction, "frame", bagWindow)
+local previousGroups = upvalue(startAuction, "collectGroups", function()
+  return { { hyperlink = "item:42", entries = { { bagID = 0, slot = 1 } } } }
+end)
+local scans, scannedItems, auctionator, cancellations = 0, nil, false, 0
+SlackHacks.ListviewBagAuction = {
+  Cancel = function() cancellations = cancellations + 1 end,
+  HasAuctionator = function() return auctionator end,
+  Start = function(items) scans = scans + 1; scannedItems = items end,
+}
+C_AuctionHouse = {
+  IsSellItemValid = function(location, displayError)
+    assert(displayError == false)
+    return location.slot ~= 2
+  end,
+}
+ItemLocation = {
+  CreateFromBagAndSlot = function(_, bag, slot)
+    return { bag = bag, slot = slot, IsValid = function() return slot ~= 3 end }
+  end,
+}
+local originalNativeBagOpen = SlackHacks.ListviewBag.OnNativeBagOpen
+SlackHacks.ListviewBag.OnNativeBagOpen = function() end
+profile.enabled = true
+selectView("gear")
+assert(not auctionRefresh.shown and not ahCheckbox.shown)
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(profile.view == "gear" and viewsButton.label == "Selling View" and scans == 0
+  and auctionRefresh.shown and auctionRefresh.enabled and ahCheckbox.shown and ahCheckbox.enabled and ahCheckbox.checked,
+  "Opening the auction house must temporarily select Selling without starting a scan")
+ahCheckbox:SetChecked(false)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+assert(not ahCheckbox.checked, "AH Mode must remain manually toggleable while the auction house is open")
+ahCheckbox:SetChecked(true)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+auctionRefresh.scripts.OnClick()
+assert(scans == 1 and #scannedItems == 1, "The refresh button must explicitly start the scan")
+assert(ahCheckbox.anchor[2] == auctionRefresh, "AH Mode must be positioned beside the refresh button")
+auctionator = true
+local previousCancellations = cancellations
+SlackHacks.ListviewBag:OnMailAddonLoaded("ADDON_LOADED", "Auctionator")
+assert(not auctionRefresh.shown and ahCheckbox.shown and ahCheckbox.anchor[2] == viewsButton
+  and cancellations == previousCancellations + 1,
+  "Loading Auctionator must stop scanning, hide refresh, and keep AH Mode next to Views")
+SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+assert(profile.view == "gear" and viewsButton.label == "Gear View" and not auctionRefresh.shown
+  and not auctionRefresh.enabled and not ahCheckbox.checked,
+  "Closing the auction house must restore the saved view and turn AH Mode off")
+selectView("selling")
+assert(not auctionRefresh.shown and ahCheckbox.shown and scans == 1,
+  "Auctionator must hide refresh even when the auction house is closed")
+auctionator = false
+selectView("selling")
+assert(auctionRefresh.shown and not auctionRefresh.enabled and ahCheckbox.shown and scans == 1,
+  "The refresh button must be disabled outside the auction house")
+local auctionApi = C_AuctionHouse
+C_AuctionHouse = nil
+selectView("selling")
+assert(not ahCheckbox.enabled, "AH Mode must be disabled if auction eligibility cannot be checked")
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(not ahCheckbox.checked and notices[#notices]:find("eligibility cannot be checked", 1, true),
+  "Automatic mode must report unavailable auction eligibility")
+SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+C_AuctionHouse = auctionApi
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+selectView("default")
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(viewsButton.label == "Default View", "Duplicate open events must not override a manually selected view")
+SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+assert(profile.view == "default" and viewsButton.label == "Default View",
+  "A manually selected view must remain saved after the auction house closes")
+
+selectView("selling")
+ahCheckbox:SetChecked(true)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+profile.autoAHMode = false
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(ahCheckbox.checked, "A removed automatic-mode preference must not prevent AH Mode")
+ahCheckbox:SetChecked(false)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+assert(not ahCheckbox.checked, "AH Mode must remain manually toggleable during the visit")
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(not ahCheckbox.checked, "Duplicate open events must not reset the temporary choice")
+SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+assert(ahCheckbox.checked, "Closing must restore AH Mode when it was enabled before the visit")
+ahCheckbox:SetChecked(false)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(ahCheckbox.checked, "Opening must enable AH Mode even when it was previously off")
+ahCheckbox:SetChecked(false)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+ahCheckbox:SetChecked(true)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+assert(not ahCheckbox.checked, "Closing must restore AH Mode when it was disabled before the visit")
+
+ahCheckbox:SetChecked(true)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+C_AuctionHouse = nil
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(not ahCheckbox.checked and not ahCheckbox.enabled, "Unavailable eligibility must not activate AH Mode")
+SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+assert(ahCheckbox.checked, "An unavailable temporary mode must still restore the prior choice")
+local scanGroups = upvalue(startAuction, "collectGroups", function()
+  return { { itemID = 301, quality = 1, classID = 15, statusKey = "301", sellPrice = 5,
+    entries = { { bagID = 0, slot = 1, count = 1 } } } }
+end)
+assert(#buildDisplayRows() == 1, "An unavailable eligibility API must not filter or crash after restoring AH Mode")
+upvalue(startAuction, "collectGroups", scanGroups)
+C_AuctionHouse = auctionApi
+ahCheckbox:SetChecked(false)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+
+-- AH Mode checks each stack and leaves the saved Filters settings alone.
+selectView("selling")
+local auctionGroups = {
+  { itemID = 301, quality = 1, classID = 15, statusKey = "301", sellPrice = 5, count = 6,
+    entries = { { bagID = 0, slot = 1, count = 2 }, { bagID = 0, slot = 2, count = 4 } } },
+  { itemID = 302, quality = 1, classID = 15, statusKey = "302", sellPrice = 5, isBound = true,
+    entries = { { bagID = 0, slot = 1, count = 1 } } },
+  { itemID = 303, quality = 1, classID = 15, statusKey = "303", sellPrice = 5, accountBound = true,
+    entries = { { bagID = 0, slot = 1, count = 1 } } },
+  { itemID = 304, quality = 1, classID = 15, statusKey = "304", sellPrice = 0,
+    entries = { { bagID = 0, slot = 1, count = 1 } } },
+  { itemID = 305, quality = 1, classID = 15, statusKey = "305", sellPrice = 5,
+    entries = { { bagID = 0, slot = 3, count = 1 } } },
+  { itemID = 306, quality = 1, classID = 15, statusKey = "306",
+    entries = { { bagID = 0, slot = 1, count = 1 } } },
+  { itemID = 307, quality = 1, classID = 15, statusKey = "307", sellPrice = 5,
+    entries = { { bagID = 0, slot = 1, count = 1 } } },
+}
+profile.protectedItems["307"] = {}
+upvalue(startAuction, "collectGroups", function() return auctionGroups end)
+ahCheckbox:SetChecked(true)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+local eligibleRows = buildDisplayRows()
+assert(#eligibleRows == 1 and eligibleRows[1].itemID == 301 and eligibleRows[1].count == 2
+  and #eligibleRows[1].entries == 1, "AH Mode must exclude bound, unpriced, and invalid items and stacks")
+assert(profile.bindingFilters.unbound ~= false and profile.bindingFilters.soulbound ~= false
+  and profile.bindingFilters.warbound ~= false, "AH Mode must not change saved binding filters")
+selectView("default")
+assert(#buildDisplayRows() == 7, "AH Mode must not filter other views")
+ahCheckbox:SetChecked(false)
+ahCheckbox.scripts.OnClick(ahCheckbox)
+upvalue(startAuction, "collectGroups", previousGroups)
+upvalue(startAuction, "frame", previousFrame or false)
+SlackHacks.ListviewBagAuction = nil
+SlackHacks.ListviewBag.OnNativeBagOpen = originalNativeBagOpen
+profile.protectedItems["307"] = nil
+profile.view, profile.enabled, profile.autoAHMode = nil, nil, nil
+
 local visited = {}
 C_Container = {
   GetContainerNumSlots = function(bagID) visited[#visited + 1] = bagID; return 0 end,
@@ -338,7 +521,8 @@ createFooter()
 filtersButton = frames.SlackHacksListviewBagFiltersButton
 assert(filtersButton.label == "Filters (None)", "A saved reagent-bag filter must not be counted")
 openModernFilters(filtersButton)
-assert(not entry("Reagent Bag"), "Forever must not offer a reagent-bag filter")
+assert(not entry("Reagent Bag") and entry("Unbound", "Binding") and entry("Soulbound", "Binding")
+  and not entry("Warbound", "Binding"), "Forever must offer binding filters without Warbound")
 
 forever = false
 assert(#bagIDs() == 5, "Classic must not include reagent bag")
@@ -375,6 +559,12 @@ for _, value in ipairs(legacy) do
     value.func()
     assert(not value.checked() and filtersButton.label == "Filters (1)")
   end
+  if value.text == "Unbound" then
+    assert(value.checked())
+    value.func()
+    assert(not value.checked() and filtersButton.label == "Filters (2)")
+  end
+  assert(value.text ~= "Warbound", "Forever's legacy menu must not offer Warbound")
 end
 assert(table.concat(categoryLabels, ",") == expectedCategories, "Legacy menu must use the requested category order")
 legacy[1].func()
@@ -396,6 +586,19 @@ local function makeItem(id, classID, equipLoc, quality, isReagent, bindType)
     isCraftingReagent = isReagent, bindType = bindType, sellPrice = 1, statusKey = tostring(id),
     entries = { { bagID = 0, slot = 1 } } }
 end
+retail = true
+local unbound, soulbound, warbound = makeItem(90, 15, "", 1), makeItem(91, 15, "", 1), makeItem(92, 15, "", 1)
+soulbound.isBound = true
+warbound.accountBound = true
+profile.bindingFilters.unbound = false
+assert(not matchesFilters(unbound) and matchesFilters(soulbound) and matchesFilters(warbound),
+  "Binding filters must distinguish unbound, soulbound, and warbound items")
+profile.bindingFilters.unbound, profile.bindingFilters.soulbound = true, false
+assert(matchesFilters(unbound) and not matchesFilters(soulbound) and matchesFilters(warbound))
+profile.bindingFilters.soulbound, profile.bindingFilters.warbound = true, false
+assert(matchesFilters(unbound) and matchesFilters(soulbound) and not matchesFilters(warbound))
+profile.bindingFilters.warbound = true
+retail = false
 local cases = {
   { "equipment", makeItem(1, 4, "INVTYPE_HEAD", 1) },
   { "consumables", makeItem(2, 0, "", 1) },
@@ -500,12 +703,44 @@ C_Item = {
   end,
   GetDetailedItemLevelInfo = function() return 10 end,
 }
+do
+  local bindInfo = upvalue(collectGroups, "getBindInfo")
+  ITEM_ACCOUNTBOUND_UNTIL_EQUIP = "Warbound until equipped"
+  local originalScan = upvalue(bindInfo, "scanBagItemLines", function() return { ITEM_ACCOUNTBOUND_UNTIL_EQUIP } end)
+  local label, _, accountBound = bindInfo(0, 1, "material-link")
+  assert(label == "Warbound" and accountBound, "Warbound-until-equipped tooltip text must count as Warbound")
+  upvalue(bindInfo, "scanBagItemLines", originalScan)
+  ITEM_ACCOUNTBOUND_UNTIL_EQUIP = nil
+end
 upvalue(collectGroups, "getBindInfo", function() return "", 0, false, false end)
 upvalue(collectGroups, "getUpgradeTrack", function() return nil end)
 local rows = buildDisplayRows()
 assert(#rows == 2)
 local material = rows[1].itemName == "Material" and rows[1] or rows[2]
 assert(material.itemName == "Material" and material.count == 2 and #material.entries == 2)
+do
+  local originalContainer = C_Container
+  local originalBind = upvalue(collectGroups, "getBindInfo", function(_, slot)
+    if slot == 2 then return "Soulbound", 0, false, true end
+    if slot == 3 then return "Warbound", 0, true, true end
+    return "", 0, false, false
+  end)
+  C_Container = {
+    GetContainerNumSlots = function(bagID) return bagID == 0 and 3 or 0 end,
+    GetContainerItemInfo = function(_, slot)
+      return { itemID = 30, itemName = "Material", hyperlink = "material-link", quality = 1,
+        stackCount = 1, isBound = slot > 1 }
+    end,
+  }
+  local differentBindings = collectGroups()
+  assert(#differentBindings == 3, "Copies of the same item with different bindings must not merge")
+  profile.bindingFilters.soulbound = false
+  local visible = buildDisplayRows()
+  assert(#visible == 2, "Binding filters must only hide the matching copies of a shared item")
+  profile.bindingFilters.soulbound = true
+  C_Container = originalContainer
+  upvalue(collectGroups, "getBindInfo", originalBind)
+end
 profile.showReagentBagContents = true
 rows = buildDisplayRows()
 assert(#rows == 2, "Old reagent-bag settings must not affect displayed items")

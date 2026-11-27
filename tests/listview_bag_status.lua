@@ -5,6 +5,19 @@ SlackHacks = setmetatable({ db = { profile = { listviewBag = profile } } }, { __
 SlackHacks.Self = SlackHacks
 Enum = { ItemClass = {}, ItemQuality = { Common = 1 } }
 UIParent = {}
+C_AuctionHouse = {}
+--- Allow auction eligibility checks in interaction tests.
+---@return boolean valid Whether the item can be auctioned.
+function C_AuctionHouse.IsSellItemValid() return true end
+ItemLocation = {}
+--- Supply a valid mock item location.
+---@return table location Item location.
+function ItemLocation:CreateFromBagAndSlot()
+  return {
+    ---@return boolean valid Whether the location is valid.
+    IsValid = function() return true end,
+  }
+end
 
 --- Supply the bag module.
 ---@return table module
@@ -38,6 +51,9 @@ local function widget()
   function object:GetNormalTexture() return rawget(self, "normalAtlasTexture") end
   function object:GetPushedTexture() return rawget(self, "pushedAtlasTexture") end
   function object:GetHighlightTexture() return rawget(self, "highlightAtlasTexture") end
+  --- Return the mock disabled texture.
+  ---@return table|nil texture Disabled texture.
+  function object:GetDisabledTexture() return rawget(self, "disabledTexture") end
   function object:GetRegions() return end
   function object:GetName() return self.name end
   function object:CreateTexture() return widget() end
@@ -67,6 +83,9 @@ local function widget()
   function object:SetAlpha(alpha) self.alpha = alpha end
   function object:SetTexture(texture) self.texture = texture; self.atlas = nil end
   function object:SetNormalTexture(texture) self.normalTexture = texture end
+  --- Record the disabled texture.
+  ---@param texture string Texture path.
+  function object:SetDisabledTexture(texture) self.disabledTexture = widget(); self.disabledTexture.texture = texture end
   function object:SetPushedTexture(texture) self.pushedTexture = texture end
   function object:SetNormalAtlas(atlas) self.normalAtlas = atlas; self.normalAtlasTexture = widget() end
   function object:SetPushedAtlas(atlas) self.pushedAtlas = atlas; self.pushedAtlasTexture = widget() end
@@ -95,6 +114,7 @@ function CreateFrame(_, name, parent, template)
     frame.Background = widget()
     frame.TopTileStreaks = widget()
   end
+  if template == "UICheckButtonTemplate" then frame.text = widget() end
   return frame
 end
 --- Capture the split-stack hook for testing.
@@ -701,6 +721,32 @@ assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must regist
 assert(registeredEvents.UNIT_INVENTORY_CHANGED == "OnSupplyInventoryChanged"
   and registeredEvents.UPDATE_INVENTORY_DURABILITY == "RefreshFooter",
   "Equipped ammunition and thrown durability must refresh")
+local beginAuctionMode = upvalue(module.OnEnable, "beginAuctionMode")
+AuctionHouseFrame = {}
+--- Simulate enabling the module while the auction house is already open.
+---@return boolean shown Whether the auction house is open.
+function AuctionHouseFrame:IsShown() return true end
+local openAuctionHouseFrame = AuctionHouseFrame
+upvalue(beginAuctionMode, "ahMode", false)
+module:OnEnable()
+assert(upvalue(beginAuctionMode, "ahMode"), "Enabling the module at an open auction house must turn on AH Mode")
+AuctionHouseFrame = nil
+module:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
+assert(not upvalue(beginAuctionMode, "ahMode"), "Closing must restore the prior AH Mode choice")
+AuctionHouseFrame = openAuctionHouseFrame
+module:OnEnable()
+local previousShowDefaultBags = upvalue(module.OnDisable, "showDefaultBags", function() end)
+local previousUpdateBindings = module.UpdateListViewBindings
+module.UpdateListViewBindings = function() end
+EventRegistry.UnregisterCallback = function() end
+module:OnDisable()
+assert(not upvalue(beginAuctionMode, "ahMode") and not upvalue(module.OnDisable, "temporaryView"),
+  "Disabling during an auction visit must restore AH Mode and clear the temporary view")
+AuctionHouseFrame = nil
+module:OnEnable()
+assert(not upvalue(beginAuctionMode, "ahMode"), "Re-enabling after the auction closes must retain the previous mode")
+upvalue(module.OnDisable, "showDefaultBags", previousShowDefaultBags)
+module.UpdateListViewBindings = previousUpdateBindings
 do
   local refreshes = 0
   local original = upvalue(module.OnSupplyInventoryChanged, "refreshFooter", function() refreshes = refreshes + 1 end)

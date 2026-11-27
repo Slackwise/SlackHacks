@@ -88,6 +88,9 @@ for index = 1, 6 do
 end
 assert(loadfile("Options.lua"))()
 local getOptions = upvalue(SlackHacks.registerOptions, "getOptions")
+local bagOptions = getOptions().args.inventory.args.listviewBag.args
+assert(not bagOptions.autoAHMode and SlackHacks.dbDefaults.profile.listviewBag.autoAHMode == nil,
+  "Automatic AH Mode must not have a saved option")
 profile.trashItems.old = { name = "Marked Item", quality = 2, itemLevel = 1 }
 profile.trashItems.uncached = { name = "Uncached" }
 profile.trashItems.clear = true
