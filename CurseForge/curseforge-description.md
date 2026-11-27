@@ -16,6 +16,7 @@ If you've used Plumber or Leatrix, this is similar, but I'm trying *very* hard t
 * **Lootable Object Sparkles (WoW Forever only):** Checkbox to enable the hidden feature that enables Classic WoW lootable object sparkles.
 * **TomTom `/way` Command:** Creates native Blizzard waypoints using TomTom-style `/way` commands, without needing TomTom or overriding it when installed.
 * **Show In-Game Navigation:** Toggles the in-world diamond pointing toward objectives on clients that support it.
+* **Add Search to Icon Picker:** Adds icon-name search to the Macro and Equipment Set icon pickers.
 
 ### Controls
 * **Camera Distance:** Unlocks maximum camera zoom distance (`cameraDistanceMaxZoomFactor = 4`).

@@ -2,6 +2,9 @@
 
 ## v34
 
+### Utilities
+- Optionally add icon-name search to the Macro and Equipment Set icon pickers.
+
 ### Mimimap
 - Fixed bug when switching off square mode
 
