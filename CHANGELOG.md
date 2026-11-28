@@ -2,6 +2,10 @@
 
 ## v35
 
+### Minimap
+- Avoid duplicate Addon Compartment entries and restore minimap icons when the option is disabled.
+- Fixed SlackHacks' native Addon Compartment entry not responding to clicks and throwing errors on hover.
+
 ### Mouse Ring
 - Added a Reset Appearance button for the scale, opacity, and color controls.
 

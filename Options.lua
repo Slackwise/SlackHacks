@@ -784,6 +784,79 @@ local function ensureMinimapBadge(button)
   return badge
 end
 
+--- Runs the shared minimap and compartment click action.
+---@param button Frame - Anchor for the quick toggle menu.
+---@param mouseButton string - Clicked mouse button.
+local function onMinimapIconClick(button, mouseButton)
+  if mouseButton == "RightButton" then
+    openMinimapContextMenu(button)
+  else
+    local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
+      or (errorLogTable and errorLogTable()) or {}
+    if #list > 0 and Self.Debug and Self.Debug.ShowWindow then
+      Self.Debug:ShowWindow()
+    else
+      openOptions()
+    end
+  end
+end
+
+--- Populates the shared minimap and compartment tooltip.
+---@param tooltip GameTooltip - Tooltip to populate.
+local function populateMinimapIconTooltip(tooltip)
+  local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
+    or (errorLogTable and errorLogTable()) or {}
+  local count = #list
+  tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
+  if count > 0 then
+    tooltip:AddLine(" ")
+    if count == 1 then
+      tooltip:AddLine("You have 1 un-reported error in SlackHacks.", 1, 0.3, 0.3, true)
+    else
+      tooltip:AddLine(("You have %d un-reported errors in SlackHacks."):format(count), 1, 0.3, 0.3, true)
+    end
+    tooltip:AddLine("Left-click: Open error report window", 0.8, 0.8, 0.8)
+  else
+    tooltip:AddLine("Left-click: Open options", 0.8, 0.8, 0.8)
+  end
+  tooltip:AddLine("Right-click: Quick toggle menu", 0.8, 0.8, 0.8)
+end
+
+--- Shows the shared tooltip on a minimap or compartment button.
+---@param button Frame - Hovered button.
+local function onMinimapIconEnter(button)
+  GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT")
+  populateMinimapIconTooltip(GameTooltip)
+  GameTooltip:Show()
+end
+
+--- Hides the shared minimap and compartment tooltip.
+local function onMinimapIconLeave()
+  GameTooltip:Hide()
+end
+
+--- Handles the global click callback named in the addon metadata.
+---@param addonName string - Addon name supplied by Blizzard.
+---@param mouseButton string - Clicked mouse button.
+function _G.SlackHacks_OnAddonCompartmentClick(addonName, mouseButton)
+  onMinimapIconClick(AddonCompartmentFrame, mouseButton)
+end
+
+--- Handles the global hover callback named in the addon metadata.
+---@param addonName string - Addon name supplied by Blizzard.
+---@param button Frame - Hovered compartment menu button.
+function _G.SlackHacks_OnAddonCompartmentEnter(addonName, button)
+  onMinimapIconEnter(button)
+end
+
+--- Handles the global leave callback named in the addon metadata.
+---@param addonName string - Addon name supplied by Blizzard.
+---@param button Frame - Compartment menu button being left.
+function _G.SlackHacks_OnAddonCompartmentLeave(addonName, button)
+  onMinimapIconLeave()
+end
+
+--- Registers the broker icon using the same actions as the native compartment entry.
 local function initMinimapIcon()
   local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
   local ldbi = LibStub and LibStub("LibDBIcon-1.0", true)
@@ -794,47 +867,10 @@ local function initMinimapIcon()
       type = "data source",
       text = ADDON_DISPLAY_NAME,
       icon = SLACKHACKS_ICON,
-      OnClick = function(clickedButton, mouseButton)
-        if mouseButton == "RightButton" then
-          openMinimapContextMenu(clickedButton)
-        else
-          local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
-            or (errorLogTable and errorLogTable()) or {}
-          if #list > 0 and Self.Debug and Self.Debug.ShowWindow then
-            Self.Debug:ShowWindow()
-          else
-            openOptions()
-          end
-        end
-      end,
-      OnTooltipShow = function(tooltip)
-        local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
-          or (errorLogTable and errorLogTable()) or {}
-        local count = #list
-        tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
-        if count > 0 then
-          tooltip:AddLine(" ")
-          if count == 1 then
-            tooltip:AddLine("You have 1 un-reported error in SlackHacks.", 1, 0.3, 0.3, true)
-          else
-            tooltip:AddLine(("You have %d un-reported errors in SlackHacks."):format(count), 1, 0.3, 0.3, true)
-          end
-          tooltip:AddLine("Left-click: Open error report window", 0.8, 0.8, 0.8)
-        else
-          tooltip:AddLine("Left-click: Open options", 0.8, 0.8, 0.8)
-        end
-        tooltip:AddLine("Right-click: Quick toggle menu", 0.8, 0.8, 0.8)
-      end,
-      OnEnter = function(button)
-        GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT")
-        if minimapLDBObj.OnTooltipShow then
-          minimapLDBObj.OnTooltipShow(GameTooltip)
-        end
-        GameTooltip:Show()
-      end,
-      OnLeave = function()
-        GameTooltip:Hide()
-      end,
+      OnClick = onMinimapIconClick,
+      OnTooltipShow = populateMinimapIconTooltip,
+      OnEnter = onMinimapIconEnter,
+      OnLeave = onMinimapIconLeave,
     })
   end
 

@@ -116,6 +116,8 @@ local registeredButtons = {}
 local registeredButtonsByFrame = {}
 local addonButtons = {}
 local addonButtonsByFrame = {}
+local compartmentHiddenButtons = {}
+local compartmentRestoreFrame
 local hoverContainerButtons = {}
 local origMinimapClusterLayout
 local origMinimapClusterWidth, origMinimapClusterHeight
@@ -1804,6 +1806,53 @@ local function getAddonButtonIcon(button)
   return 134400
 end
 
+--- Normalizes a compartment label for comparison without display formatting or a trailing version.
+---@param name string|nil - Addon or button label.
+---@return string|nil - Case-insensitive label, or nil when unavailable.
+local function normalizeAddonName(name)
+  if type(name) ~= "string" or name == "" then return nil end
+  if C_StringUtil and C_StringUtil.StripHyperlinks then
+    name = C_StringUtil.StripHyperlinks(name)
+  end
+  name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+  -- Some broker labels append a version while the native compartment uses the addon title.
+  name = name:gsub("%s+v%d[%d%.]*$", "")
+  if name == "" then return nil end
+  return name
+end
+
+--- Checks existing compartment labels against a button's data-object and library names.
+---@param button Frame - Addon minimap button.
+---@return boolean - Whether an existing entry already represents the button.
+local function hasAddonCompartmentEntry(button)
+  local names = {}
+  --- Adds a usable comparison label.
+  ---@param name string|nil - Candidate label.
+  local function addName(name)
+    name = normalizeAddonName(name)
+    if name then names[name] = true end
+  end
+  addName(getAddonButtonDisplayName(button))
+  if button.dataObject then
+    addName(button.dataObject.label)
+    addName(button.dataObject.text)
+  end
+  local frameName = button.GetName and button:GetName()
+  if frameName then
+    local addonName = frameName:match("^LibDBIcon%d*_(.+)$")
+    addName(addonName)
+    if addonName and C_AddOns and C_AddOns.GetAddOnInfo then
+      local _, title = C_AddOns.GetAddOnInfo(addonName)
+      addName(title)
+    end
+  end
+  for _, entry in ipairs(AddonCompartmentFrame.registeredAddons) do
+    local name = normalizeAddonName(entry.text)
+    if name and names[name] then return true end
+  end
+  return false
+end
+
 --- Removes synthetic SlackHacks entries from Blizzard's Addon Compartment.
 local function clearAddonCompartmentEntries()
   if not (AddonCompartmentFrame and AddonCompartmentFrame.registeredAddons) then return end
@@ -1900,7 +1949,7 @@ local function syncAddonCompartmentEntries()
   end
 
   for _, btn in ipairs(addonButtons) do
-    if not isBlizzardFrame(btn) then
+    if not isBlizzardFrame(btn) and not hasAddonCompartmentEntry(btn) then
       local displayName = getAddonButtonDisplayName(btn)
       local iconTex = getAddonButtonIcon(btn)
       local entry = {
@@ -2063,11 +2112,6 @@ local function layoutAddonButtonsOnBorder()
   if settings().shape ~= "square" then return end
 
   if settings().addonsInCompartment then
-    for _, btn in ipairs(addonButtons) do
-      if not isBlizzardFrame(btn) then
-        btn:Hide()
-      end
-    end
     return
   end
 
@@ -2079,7 +2123,7 @@ local function layoutAddonButtonsOnBorder()
       if button.db and button.db.hide ~= nil then
         shouldShow = not button.db.hide
       end
-      if shouldShow then
+      if shouldShow and not compartmentHiddenButtons[button] then
         saveButtonState(button)
         enableButtonStacking(button, true)
         enableAddonButtonDragging(button)
@@ -2106,28 +2150,57 @@ local function layoutAddonButtonsOnBorder()
   end
 end
 
---- Round-mode counterpart to `layoutAddonButtonsOnBorder`'s addonsInCompartment fold -- round mode never
---- repositions addon buttons (they stay in their native/library-driven spot), so folding is just a plain
---- Hide/Show, tracked per-button so we only ever restore a button that we ourselves hid.
----@return nil
-local function applyRoundAddonCompartment()
-  if not isModuleEnabled() then return end
-  syncAddonCompartmentEntries()
-  if settings().shape == "square" then return end
-
-  local fold = settings().addonsInCompartment
-  for _, btn in ipairs(addonButtons) do
-    if btn and not isBlizzardFrame(btn) then
-      if fold then
-        if not btn.slackHacksCompartmentFolded then
-          btn.slackHacksCompartmentFolded = true
-          setShownSafely(btn, false)
-        end
-      elseif btn.slackHacksCompartmentFolded then
-        btn.slackHacksCompartmentFolded = false
-        setShownSafely(btn, true)
-      end
+--- Restores only buttons hidden by the compartment feature, respecting current addon preferences.
+local function restoreCompartmentButtons()
+  if InCombatLockdown() then return end
+  for btn in pairs(compartmentHiddenButtons) do
+    compartmentHiddenButtons[btn] = nil
+    if not (btn.db and btn.db.hide) then
+      btn:Show()
     end
+  end
+end
+
+--- Synchronizes compartment entries and button visibility for either minimap shape.
+local function applyAddonCompartment()
+  syncAddonCompartmentEntries()
+  if InCombatLockdown() then return end
+  local fold = settings().addonsInCompartment
+    and AddonCompartmentFrame and AddonCompartmentFrame.RegisterAddon and AddonCompartmentFrame.registeredAddons
+  if not fold then
+    restoreCompartmentButtons()
+    return
+  end
+  for _, btn in ipairs(addonButtons) do
+    if not isBlizzardFrame(btn) and btn:IsShown() then
+      compartmentHiddenButtons[btn] = true
+      btn:Hide()
+    end
+  end
+end
+
+--- Reschedules mirroring when another addon registers a native compartment entry.
+---@param frame Frame - Addon Compartment frame.
+---@param entry table - Newly registered entry.
+local function onCompartmentAddonRegistered(frame, entry)
+  if isModuleEnabled() and settings().addonsInCompartment and entry and not entry.isSlackHacks then
+    scheduleTitleBarLayout()
+  end
+end
+
+--- Reschedules mirroring after Blizzard registers entries from addon metadata.
+local function onCompartmentAddonsRegistered()
+  if isModuleEnabled() and settings().addonsInCompartment then
+    scheduleTitleBarLayout()
+  end
+end
+
+--- Restores folded buttons after combat if the feature remains disabled.
+---@param frame Frame - One-shot event frame.
+local function onCompartmentRestoreAfterCombat(frame)
+  frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+  if not isModuleEnabled() or not settings().addonsInCompartment then
+    restoreCompartmentButtons()
   end
 end
 
@@ -2196,10 +2269,10 @@ local function getExistingAddonButtons()
     for name, button in pairs(ldbi.objects) do
       if button and not seen[button] and not isBlizzardFrame(button) then
         local shown = button:IsShown()
-        if button.db and button.db.hide ~= nil then
+        if button.db and button.db.hide ~= nil and not compartmentHiddenButtons[button] then
           shown = not button.db.hide
         end
-        if shown then
+        if shown or compartmentHiddenButtons[button] then
           table.insert(buttons, button)
           seen[button] = true
         end
@@ -2238,6 +2311,14 @@ local function getExistingAddonButtons()
     if btn and not seen[btn] and not isBlizzardFrame(btn) and btn:IsShown() then
       table.insert(buttons, btn)
       seen[btn] = true
+    end
+  end
+
+  -- Hidden buttons are absent from ordinary child scans but must remain registered until restored.
+  for button in pairs(compartmentHiddenButtons) do
+    if not seen[button] then
+      table.insert(buttons, button)
+      seen[button] = true
     end
   end
 
@@ -2690,6 +2771,7 @@ applyTitleBarLayout = function()
     if addonIconsContainer then addonIconsContainer:Hide() end
     cancelHoverLeaveCheck()
     disableAllStacking()
+    applyAddonCompartment()
     restoreRoundMinimapCluster()
     applyAddonCompartmentFontSize(nil)
     updateEditModeSelectionBounds()
@@ -2700,6 +2782,7 @@ applyTitleBarLayout = function()
     return
   end
 
+  applyAddonCompartment()
   applySquareMinimapCluster()
   if _G.Minimap.SetClipsChildren then
     _G.Minimap:SetClipsChildren(false)
@@ -2750,7 +2833,6 @@ function module:ApplyAll()
   applyExtraButtons()
   applyBorder()
   applyTitleBarLayout()
-  applyRoundAddonCompartment()
   applyAllAddonButtonBorders()
   updateHoverVisibility()
 
@@ -3204,6 +3286,15 @@ function module:OnEnable()
     self:SetEnabledState(false)
     return
   end
+  if AddonCompartmentFrame and hooksecurefunc and not AddonCompartmentFrame.slackHacksRegistrationHooked then
+    if AddonCompartmentFrame.RegisterAddon then
+      hooksecurefunc(AddonCompartmentFrame, "RegisterAddon", onCompartmentAddonRegistered)
+    end
+    if AddonCompartmentFrame.RegisterAddons then
+      hooksecurefunc(AddonCompartmentFrame, "RegisterAddons", onCompartmentAddonsRegistered)
+    end
+    AddonCompartmentFrame.slackHacksRegistrationHooked = true
+  end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED_INDOORS", "ApplyAll")
   self:RegisterEvent("ZONE_CHANGED", "ApplyAll")
@@ -3279,6 +3370,15 @@ end
 -- those frames after combat. This makes disabling the module reversible instead of leaving a hybrid UI.
 function module:OnDisable()
   self:UnregisterAllEvents()
+  if InCombatLockdown() and next(compartmentHiddenButtons) then
+    if not compartmentRestoreFrame then
+      compartmentRestoreFrame = CreateFrame("Frame")
+      compartmentRestoreFrame:SetScript("OnEvent", onCompartmentRestoreAfterCombat)
+    end
+    compartmentRestoreFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+  else
+    restoreCompartmentButtons()
+  end
   cancelHoverLeaveCheck()
   restoreMinimapRotation()
   restoreCoordinates()
@@ -3321,10 +3421,6 @@ function module:OnDisable()
     if AddonCompartmentFrame then AddonCompartmentFrame:SetAlpha(1) end
     for _, btn in ipairs(addonButtons) do
       if btn then
-        if btn.slackHacksCompartmentFolded then
-          btn.slackHacksCompartmentFolded = false
-          setShownSafely(btn, true)
-        end
         btn:SetAlpha(1)
       end
     end
