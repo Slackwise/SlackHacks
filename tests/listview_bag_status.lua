@@ -888,8 +888,9 @@ function CreateFrame(kind, name, parent, template)
   if name == "SlackHacksMailAmountPrompt" then
     amountPrompt, amountButtons, amountLabels = result, {}, {}
     result.Inset, result.Bg = widget(), widget()
-    function result:CreateFontString()
+    function result:CreateFontString(_, _, font)
       local label = widget()
+      label.font = font
       amountLabels[#amountLabels + 1] = label
       return label
     end
@@ -1082,14 +1083,18 @@ recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 assert(amountPrompt.shown and not picker.shown and profile.trashItems.stack and not profile.mailItems.stack)
 assert(amountLabels[1].text == "Queue Mail Item"
-  and amountLabels[2].text == "Send to: Alt"
-  and amountLabels[3].text == "Example-Realm"
-  and amountLabels[4].text == "Quantity:"
-  and amountLabels[5].text == "Added to the front of this item's mail queue."
+  and amountLabels[2].text == "Send to:"
+  and amountLabels[3].text == "|T123:24:24|t Alt"
+  and amountLabels[4].text == "Example-Realm"
+  and amountLabels[5].text == "Quantity:"
+  and amountLabels[6].text == "Added to the front of this item's mail queue."
   and amountButtons[1].text == "Enqueue" and #amountButtons == 1)
+assert(amountLabels[2].font == "GameFontHighlightSmall" and amountLabels[2].textColor[1] == 0.65
+  and amountLabels[3].font == "GameFontNormalLarge",
+  "The recipient nickname must be larger and visually distinct from the muted Send to label.")
 assert(amountPrompt.amount:GetText() == "1" and amountPrompt.amount.focused and amountPrompt.amount.highlighted,
   "The quantity must default to one and be focused and selected for immediate editing.")
-assert(amountPrompt.item.text.text == row.statusInfo.link
+assert(amountPrompt.item.text.text:find(":24:24|t " .. row.statusInfo.link, 1, true)
   and amountPrompt.points.TOPLEFT[1] == picker.points.TOPLEFT[1]
   and amountPrompt.points.TOPLEFT[2] == picker.points.TOPLEFT[2]
   and amountPrompt.points.TOPLEFT[3] == picker.points.TOPLEFT[3]
