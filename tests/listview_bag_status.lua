@@ -1645,7 +1645,7 @@ recipientRow.scripts.OnClick()
 drainMailTimers()
 assert(not attachments[1] and bagSlots[1].stackCount == 10 and not cursorType
   and profile.mailQueues[swordKey][1].remaining == 1
-  and messages[#messages]:find("make room in a compatible bag", 1, true),
+  and messages[#messages]:find("Make room in a compatible bag", 1, true),
   "A full bag must stop partial-stack preparation without moving or attaching the item")
 SendMailFrame.hooks.OnHide()
 

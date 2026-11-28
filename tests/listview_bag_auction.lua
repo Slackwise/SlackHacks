@@ -40,6 +40,8 @@ local function widget()
   end
   function object:CreateTexture() return widget() end
   function object:Show() self.shown = true end
+  function object:Enable() self.enabled = true end
+  function object:Disable() self.enabled = false end
   function object:Hide()
     local wasShown = self.shown
     self.shown = false
@@ -401,9 +403,11 @@ assert(postWindow and postWindow.template == "SimplePanelTemplate"
   and postWindow.title.text == "Posting Auction Items"
   and postWindow.barFrame.template == "ObjectiveTrackerProgressBarTemplate"
   and postWindow.cancel.template == "SharedButtonSmallTemplate"
+  and postWindow.post.template == "SharedButtonSmallTemplate" and postWindow.post.text == "Post Next"
   and postWindow.text.text == "0 / 2 items",
-  "Quick Sell must use a separate native-style cancellable progress window")
-assert(#commodityPosts == 0 and #itemPosts == 0 and timers[1] and timers[1].delay == 0.1,
+  "Quick Sell must use a separate native-style progress window with Post Next and Cancel")
+assert(#commodityPosts == 0 and #itemPosts == 0 and timers[1] and timers[1].delay == 0.1
+  and not postWindow.post.enabled,
   "Quick Sell must wait progressively while Blizzard's auction throttle is not ready")
 throttleReady = true
 --- Run the next queued asynchronous Quick Sell check.
@@ -415,20 +419,26 @@ local function runNextTimer()
   timer.callback()
 end
 runNextTimer()
+assert(#commodityPosts == 0 and postWindow.post.enabled and postWindow.note.text == "Next: item:100",
+  "Timers must only enable Post Next; posting requires a hardware event")
+postWindow.post.scripts.OnClick()
 assert(#commodityPosts == 1 and commodityPosts[1].quantity == 5
-  and commodityPosts[1].price == 3100 and commodityPosts[1].duration == 2,
+  and commodityPosts[1].price == 3100 and commodityPosts[1].duration == 2 and not postWindow.post.enabled,
   "Commodity auctions must use their full stack and Blizzard's rounded default price")
+postWindow.post.scripts.OnClick()
+assert(#commodityPosts == 1 and #itemPosts == 0, "Post Next must be ignored while a post is being verified")
 runNextTimer()
 assert(postWindow.bar.value == 1 and postWindow.text.text == "1 / 2 items",
   "Quick Sell progress must advance after inventory confirms a post")
 runNextTimer()
+assert(postWindow.post.enabled and #itemPosts == 0, "The next item must wait for another click")
+foreverAuction.QuickSell(quickSellItems, function() quickSellRefreshes = quickSellRefreshes + 1 end)
 assert(#itemPosts == 1 and itemPosts[1].quantity == 1 and itemPosts[1].bid == nil
   and itemPosts[1].price == 400 and confirmations == 1,
-  "Item auctions must use the native buyout default and automatically confirm the pending post")
+  "Clicking Quick Sell again must post the next item and confirm the pending post")
 runNextTimer()
-assert(postWindow.bar.value == 2 and postWindow.text.text == "2 / 2 items")
-runNextTimer()
-assert(not postWindow.shown and quickSellRefreshes == 1
+assert(postWindow.bar.value == 2 and postWindow.text.text == "2 / 2 items"
+  and not postWindow.shown and quickSellRefreshes == 1
   and warnings[#warnings]:find("posted 2 item stacks", 1, true),
   "Quick Sell must close and refresh after every post is verified")
 
@@ -443,9 +453,9 @@ postWindow.cancel.scripts.OnClick()
 local postedBeforeLateTimer = #commodityPosts + #itemPosts
 assert(not postWindow.shown and postedBeforeLateTimer == postCountBeforeCancel + 1
   and warnings[#warnings]:find("active auction request may still complete", 1, true),
-  "Cancel must stop queued items while clarifying that the active request may finish")
+  "Quick Sell must post the first item within its click, and Cancel must stop the remaining queue")
 runNextTimer()
-assert(#commodityPosts + #itemPosts == postedBeforeCancel + 1,
+assert(#commodityPosts + #itemPosts == postedBeforeLateTimer and #timers == 0,
   "A cancelled Quick Sell must ignore pending timer callbacks")
 
 -- A post must not be reported as successful unless inventory confirms its removal.

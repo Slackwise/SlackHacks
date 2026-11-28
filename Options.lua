@@ -1285,12 +1285,12 @@ local function customEssentialItemOptions()
         local items = essentialSearchResults()
         local item = id and items[id]
         if not item then
-          prn("the selected item is no longer in your bags; search again.")
+          prn("The selected item is no longer in your bags; search again.")
           essentialSearch.selected = nil
           return
         end
         if db.profile.listviewBag.customEssentialItems[id] then
-          prn("that item is already in the custom Essentials list.")
+          prn("That item is already in the custom Essentials list.")
           return
         end
         db.profile.listviewBag.customEssentialItems[id] = item

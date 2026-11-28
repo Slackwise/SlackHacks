@@ -286,7 +286,7 @@ function module:MigrateLegacyMailAmounts(bag)
       assignments[key], amounts[key] = nil, nil
     elseif not legacyMailWarnings[bag] then
       legacyMailWarnings[bag] = true
-      prn("a saved one-time mail assignment could not be migrated; its original data was retained.")
+      prn("A saved one-time mail assignment could not be migrated; its original data was retained.")
     end
   end
   if not next(amounts) then bag.mailAmounts = nil end
@@ -890,13 +890,13 @@ end
 function module:DepositBankFlaggedItems(bankType)
   if not isModuleEnabled() then return end
   if not C_Bank or not C_Container.UseContainerItem or not BankFrame or not BankFrame:IsShown() then
-    prn("the bank is not available for depositing items.")
+    prn("The bank is not available for depositing items.")
     return
   end
 
   bankType = bankType or (BankFrame.GetActiveBankType and BankFrame:GetActiveBankType())
   if bankType == nil or (C_Bank.CanUseBank and not C_Bank.CanUseBank(bankType)) then
-    prn("the selected bank is not available.")
+    prn("The selected bank is not available.")
     return
   end
   if bankDeposit.inProgress then return end
@@ -929,8 +929,8 @@ function module:DepositBankFlaggedItems(bankType)
   end
 
   if #targets == 0 then
-    prn(skipped > 0 and "some Bank-flagged items cannot be deposited into this bank."
-      or "no eligible Bank-flagged items were found in your bags.")
+    prn(skipped > 0 and "Some Bank-flagged items cannot be deposited into this bank."
+      or "No eligible Bank-flagged items were found in your bags.")
     return
   end
 
@@ -941,7 +941,7 @@ function module:DepositBankFlaggedItems(bankType)
     C_Container.UseContainerItem(target.bagID, target.slot, nil, bankType, false)
   end
   if skipped > 0 then
-    prn("some Bank-flagged items cannot be deposited into this bank.")
+    prn("Some Bank-flagged items cannot be deposited into this bank.")
   end
   bankDeposit.Verify(bag, pendingKeys)
 end
@@ -1295,52 +1295,52 @@ local refreshMailSendButton
 local function validateStatusContext(context, selected)
   if not context then
     if selected and selected.id == "auction" then
-      prn("the item location is unavailable; select it again.")
+      prn("The item location is unavailable; select it again.")
       return false
     end
     return true
   end
   if context.bag ~= settings() or not context.entries or #context.entries == 0 then
-    prn("the item or profile changed; select it again.")
+    prn("The item or profile changed; select it again.")
     return false
   end
   if context.eligible == nil
     and context.bag.auctionIneligibleOverrides[ineligibleStatusKey(context.baseKey, context.soulbound)] then
-    prn("auction eligibility is not yet available; select the item again when it can be checked.")
+    prn("Auction eligibility is not yet available; select the item again when it can be checked.")
     return false
   end
   for _, entry in ipairs(context.entries) do
     local info = C_Container.GetContainerItemInfo(entry.bagID, entry.slot)
     if not info or info.itemID ~= context.itemID or info.hyperlink ~= context.link then
-      prn("the item changed; select it again.")
+      prn("The item changed; select it again.")
       return false
     end
     local _, _, accountBound = getBindInfo(entry.bagID, entry.slot, info.hyperlink)
     if selected and selected.id == "mail" and info.isBound and not accountBound then
-      prn("soulbound items cannot be mailed.")
+      prn("Soulbound items cannot be mailed.")
       return false
     end
     if selected and selected.id == "vendor" then
       local sellPrice = select(11, C_Item.GetItemInfo(info.hyperlink))
       if info.hasNoValue or type(sellPrice) == "number" and sellPrice <= 0 then
-        prn("this item cannot be sold to a vendor.")
+        prn("This item cannot be sold to a vendor.")
         return false
       elseif type(sellPrice) ~= "number" then
-        prn("the item's vendor price is not yet available.")
+        prn("The item's vendor price is not yet available.")
         return false
       end
     end
     if (info.isBound and not accountBound or false) ~= context.soulbound then
-      prn("the item's binding changed; select it again.")
+      prn("The item's binding changed; select it again.")
       return false
     end
     local eligible = auctionFlagEligibility(entry.bagID, entry.slot, info, accountBound)
     if selected and selected.id == "auction" and eligible ~= true then
-      prn(eligible == false and "this item cannot be auctioned." or "auction eligibility is not yet available.")
+      prn(eligible == false and "This item cannot be auctioned." or "Auction eligibility is not yet available.")
       return false
     end
     if eligible ~= context.eligible then
-      prn("the item's auction eligibility changed; select it again.")
+      prn("The item's auction eligibility changed; select it again.")
       return false
     end
   end
@@ -1357,24 +1357,24 @@ end
 local function setItemStatus(key, statusInfo, selected, context, flagMode)
   if not isModuleEnabled() then return end
   if selected and (statusInfo.quality == nil or (statusInfo.quality == 0 and selected ~= PROTECT_STATUS)) then
-    prn(statusInfo.quality == 0 and "grey items can only be protected." or "item quality is not yet available.")
+    prn(statusInfo.quality == 0 and "Grey items can only be protected." or "Item quality is not yet available.")
     return
   end
   local variantKey = junk.variantKey(statusInfo.link, statusInfo.quality,
     statusInfo.itemLevel, statusInfo.upgradeTrack)
   if selected and (selected == ITEM_STATUSES[1] or flagMode == "once") and not variantKey then
-    prn("the item's exact variation is not available; try flagging it again when its link is loaded.")
+    prn("The item's exact variation is not available; try flagging it again when its link is loaded.")
     return
   end
   if selected == PROTECT_STATUS and statusInfo.quality == 0
     and (not statusInfo.name or statusInfo.itemLevel == nil) then
-    prn("item information is not yet available; try protecting it again.")
+    prn("Item information is not yet available; try protecting it again.")
     return
   end
   if not validateStatusContext(context, selected) then return end
   local listviewSettings = settings()
   if context and effectiveStatusKey(context.baseKey, context.eligible, listviewSettings, context.soulbound) ~= key then
-    prn("the item's flag changed; select it again.")
+    prn("The item's flag changed; select it again.")
     return
   end
   if context and context.eligible == false then
@@ -1477,10 +1477,10 @@ local function returnBlockedCursorItem()
     ClearCursor()
     local remainingType, _, remainingLink = GetCursorInfo()
     if remainingType == "item" and remainingLink == link then
-      prn("this item's flag prevents " .. action .. "; please return it to your bags.")
+      prn("This item's flag prevents " .. action .. "; please return it to your bags.")
     else
       trackedCursorItem = nil
-      prn("this item's flag prevents " .. action .. "; the item was returned to your bags.")
+      prn("This item's flag prevents " .. action .. "; the item was returned to your bags.")
     end
   end
 end
@@ -1557,7 +1557,7 @@ end
 refreshMailSendButton = function()
   if SendMailFrame and SendMailFrame:IsShown() and mailSelection then
     if hasStaleMailAttachments() then
-      prn("the mail queue changed; remove the affected attachments or prepare the draft again.")
+      prn("The mail queue changed; remove the affected attachments or prepare the draft again.")
     end
     SendMailFrame_CanSend()
   end
@@ -1747,13 +1747,13 @@ end
 ---@return boolean started Whether attachment confirmation is pending.
 local function attachMailCursor(job, item)
   if HasSendMailItem(job.index) then
-    stopMailJob("the mail attachment slot changed; return the item on your cursor to your bags.")
+    stopMailJob("The mail attachment slot changed; return the item on your cursor to your bags.")
     return false
   end
   ClickSendMailItemButton(job.index)
   if GetCursorInfo() then
     ClearCursor()
-    stopMailJob("unable to attach " .. (item.name or "the item") .. "; check whether it can be mailed.")
+    stopMailJob("Unable to attach " .. (item.name or "the item") .. "; check whether it can be mailed.")
     return false
   end
   job.waiting = { slot = job.index, item = item }
@@ -1766,7 +1766,7 @@ local function advanceMailJob(job)
   if mailJob ~= job then return end
   if not isModuleEnabled() or settings() ~= job.bag or not SendMailFrame:IsShown()
     or job.bag.mailRecipients[job.id] ~= job.recipient then
-    stopMailJob("mail preparation stopped because the recipient or mail window changed.")
+    stopMailJob("Mail preparation stopped because the recipient or mail window changed.")
     return
   end
   if job.waiting and job.waiting.split then
@@ -1776,19 +1776,19 @@ local function advanceMailJob(job)
     if SendMailNameEditBox:GetText() ~= job.recipient.character or GetCursorInfo()
       or recipient ~= job.id or amount ~= item.amount or getItemStatus(item.statusKey) ~= ITEM_STATUSES[5]
       or (current and (current.itemID ~= item.itemID or current.hyperlink ~= item.link)) then
-      stopMailJob("the split item, recipient, or mail queue changed; select the recipient again.")
+      stopMailJob("The split item, recipient, or mail queue changed; select the recipient again.")
       return
     end
     -- Cursor information has no quantity; verify the staged stack after the asynchronous split settles.
     if current and not current.isLocked and current.stackCount == item.sendCount then
       if isSoulboundBagItem(job.waiting.bagID, job.waiting.slot, current) then
-        stopMailJob("the item became soulbound; select the recipient again.")
+        stopMailJob("The item became soulbound; select the recipient again.")
         return
       end
       C_Container.PickupContainerItem(job.waiting.bagID, job.waiting.slot)
       local cursorType, _, cursorLink = GetCursorInfo()
       if cursorType ~= "item" or cursorLink ~= item.link then
-        stopMailJob("unable to pick up the confirmed split stack for mailing.")
+        stopMailJob("Unable to pick up the confirmed split stack for mailing.")
         return
       end
       job.attempts = 0
@@ -1796,7 +1796,7 @@ local function advanceMailJob(job)
       C_Timer.After(0.1, function() advanceMailJob(job) end)
     else
       if job.waiting.elapsed >= 3 then
-        stopMailJob("the item split did not finish; select the recipient again.")
+        stopMailJob("The item split did not finish; select the recipient again.")
         return
       end
       local delay = math.min(job.waiting.delay + 0.1, 3 - job.waiting.elapsed)
@@ -1814,7 +1814,7 @@ local function advanceMailJob(job)
           or GetSendMailItemLink(job.waiting.slot) ~= job.waiting.item.link then
           job.selection.invalidAttachments = job.selection.invalidAttachments or {}
           job.selection.invalidAttachments[job.waiting.slot] = true
-          stopMailJob("mail preparation stopped because an attachment changed; remove it before sending.")
+          stopMailJob("Mail preparation stopped because an attachment changed; remove it before sending.")
           return
         end
         local item = job.waiting.item
@@ -1835,7 +1835,7 @@ local function advanceMailJob(job)
           job.selection.invalidAttachments = job.selection.invalidAttachments or {}
           job.selection.invalidAttachments[job.waiting.slot] = true
         end
-        stopMailJob("mail preparation timed out; check the attachments and any confirmation dialogs.")
+        stopMailJob("Mail preparation timed out; check the attachments and any confirmation dialogs.")
         return
       end
       C_Timer.After(0.1, function() advanceMailJob(job) end)
@@ -1848,7 +1848,7 @@ local function advanceMailJob(job)
     for index = 1, job.index - 1 do
       if job.draft.attachments[index] then
         if current.attachments[index] then
-          stopMailJob("the mail attachments changed; select the recipient again.")
+          stopMailJob("The mail attachments changed; select the recipient again.")
           return
         end
         current.attachments[index] = job.draft.attachments[index]
@@ -1860,7 +1860,7 @@ local function advanceMailJob(job)
     end
     if job.index > 1 and allRemoved then current.cod = job.draft.cod end
     if not sameMailDraft(job.draft, current) then
-      stopMailJob("the mail draft changed; select the recipient again.")
+      stopMailJob("The mail draft changed; select the recipient again.")
       return
     end
     while job.index <= ATTACHMENTS_MAX_SEND and not job.draft.attachments[job.index] do
@@ -1878,7 +1878,7 @@ local function advanceMailJob(job)
   end
   if job.phase == "attaching" and not job.waiting then
     if SendMailNameEditBox:GetText() ~= job.recipient.character then
-      stopMailJob("the mail recipient changed; attachment preparation stopped.")
+      stopMailJob("The mail recipient changed; attachment preparation stopped.")
       return
     end
     local item = job.items[job.index]
@@ -1888,10 +1888,10 @@ local function advanceMailJob(job)
         if subject == "" or subject == SendMailFrame.previousItem then
           SendMailSubjectEditBox:SetText(mailSubject(job.attached))
         else
-          prn("the mail subject was changed, so it was left unchanged.")
+          prn("The mail subject was changed, so it was left unchanged.")
         end
       else
-        prn("no available items are marked for this recipient.")
+        prn("No available items are marked for this recipient.")
       end
       stopMailJob()
       return
@@ -1902,24 +1902,24 @@ local function advanceMailJob(job)
       or (current.stackCount or 1) ~= item.count or recipient ~= job.id or amount ~= item.amount
       or getItemStatus(item.statusKey) ~= ITEM_STATUSES[5] or GetCursorInfo()
       or isSoulboundBagItem(item.bagID, item.slot, current) then
-      stopMailJob("a bag item or the cursor changed; select the recipient again.")
+      stopMailJob("A bag item or the cursor changed; select the recipient again.")
       return
     end
     if item.sendCount < item.count then
       local splitBag, splitSlot = findMailSplitSlot(item.bagID)
       if not splitBag then
-        stopMailJob("make room in a compatible bag before preparing a partial stack for mail.")
+        stopMailJob("Make room in a compatible bag before preparing a partial stack for mail.")
         return
       end
       C_Container.SplitContainerItem(item.bagID, item.slot, item.sendCount)
       local cursorType, _, cursorLink = GetCursorInfo()
       if cursorType ~= "item" or cursorLink ~= item.link then
-        stopMailJob("unable to split " .. (item.name or "the item") .. " for mailing.")
+        stopMailJob("Unable to split " .. (item.name or "the item") .. " for mailing.")
         return
       end
       C_Container.PickupContainerItem(splitBag, splitSlot)
       if GetCursorInfo() then
-        stopMailJob("unable to place the split stack in a bag; return the item on your cursor to your bags.")
+        stopMailJob("Unable to place the split stack in a bag; return the item on your cursor to your bags.")
         return
       end
       job.waiting = { split = true, item = item, bagID = splitBag, slot = splitSlot, delay = 0.1, elapsed = 0.1 }
@@ -1927,7 +1927,7 @@ local function advanceMailJob(job)
       C_Container.PickupContainerItem(item.bagID, item.slot)
       local cursorType, _, cursorLink = GetCursorInfo()
       if cursorType ~= "item" or cursorLink ~= item.link then
-        stopMailJob("unable to pick up " .. (item.name or "the item") .. " for mailing.")
+        stopMailJob("Unable to pick up " .. (item.name or "the item") .. " for mailing.")
         return
       end
       if not attachMailCursor(job, item) then return end
@@ -1942,19 +1942,19 @@ end
 ---@param recipient table Recipient data.
 ---@param draft table Confirmed current draft.
 local function startRecipientMail(bag, id, recipient, draft)
-  if mailJob then prn("wait for the current mail preparation to finish."); return end
-  if mailSendPending then prn("wait for the current mail to finish sending."); return end
+  if mailJob then prn("Wait for the current mail preparation to finish."); return end
+  if mailSendPending then prn("Wait for the current mail to finish sending."); return end
   if not SendMailFrame:IsShown() or bag ~= settings() or bag.mailRecipients[id] ~= recipient then
-    prn("the mail window or recipient changed; select the recipient again.")
+    prn("The mail window or recipient changed; select the recipient again.")
     return
   end
-  if GetCursorInfo() then prn("put down the item on your cursor before preparing mail."); return end
+  if GetCursorInfo() then prn("Put down the item on your cursor before preparing mail."); return end
   if not sameMailDraft(draft, captureMailDraft()) then
-    prn("the mail draft changed; select the recipient again.")
+    prn("The mail draft changed; select the recipient again.")
     return
   end
   local items = unlockedMailItems(collectRecipientMailItems(bag)[id])
-  if #items == 0 then prn("no unlocked items are available for this recipient."); return end
+  if #items == 0 then prn("No unlocked items are available for this recipient."); return end
   mailSelection = { bag = bag, id = id, recipient = recipient, attachments = {} }
   mailJob = {
     bag = bag, id = id, recipient = recipient, draft = draft, items = items, attached = {},
@@ -1995,14 +1995,14 @@ local function applyMailChoice(picker, choice, amount)
     or (status and bag[status.field][key] ~= choice.previousValue)
     or bag.mailAssignments[key] ~= choice.previousRecipient
     or (bag.mailQueues[key] and bag.mailQueues[key][1]) ~= choice.previousHead then
-    prn("the item, recipient, or profile changed; select the recipient again.")
+    prn("The item, recipient, or profile changed; select the recipient again.")
     if mailAmountPrompt then mailAmountPrompt:Hide() end
     return
   end
   if not validateStatusContext(choice.context, ITEM_STATUSES[5]) then return end
   if choice.context and effectiveStatusKey(choice.context.baseKey, choice.context.eligible, bag,
     choice.context.soulbound) ~= key then
-    prn("the item's flag changed; select the recipient again.")
+    prn("The item's flag changed; select the recipient again.")
     return
   end
   if status == ITEM_STATUSES[5] and choice.context and choice.context.eligible == false
@@ -2079,7 +2079,7 @@ local function openMailAmountPrompt(picker, choice)
       local text = prompt.amount:GetText()
       local value = text:match("^%d+$") and tonumber(text)
       if not value or value < 1 or value > 9007199254740991 then
-        prn("enter a positive whole number for the mail amount.")
+        prn("Enter a positive whole number for the mail amount.")
         prompt.amount:SetFocus()
         return
       end
@@ -2216,14 +2216,14 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
         if picker.bag ~= settings() then picker:Hide(); return false end
         local character = controls.name:GetText():match("^%s*(.-)%s*$")
         if character == "" then
-          prn("enter a character name for the mail recipient.")
+          prn("Enter a character name for the mail recipient.")
           controls.name:SetFocus()
           return false
         end
         local editing = picker.editingRecipient
         if editing then
           if picker.bag.mailRecipients[editing.id] ~= editing.recipient then
-            prn("the mail recipient no longer exists; please reopen the recipient list.")
+            prn("The mail recipient no longer exists; please reopen the recipient list.")
             return false
           end
           editing.recipient.nickname = nickname
@@ -2246,7 +2246,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
       if mailAmountPrompt then mailAmountPrompt:Hide() end
       self.editingRecipient = nil
       if self.mailMode then
-        if mailJob then stopMailJob("mail preparation stopped because the recipient window was closed.") end
+        if mailJob then stopMailJob("Mail preparation stopped because the recipient window was closed.") end
       end
     end)
 
@@ -2345,7 +2345,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
       hideOnEscape = true,
       OnAccept = function(_, data)
         if not picker:IsShown() or not picker.mailMode or picker.bag ~= data.bag then
-          prn("the mail recipient window changed; select the recipient again.")
+          prn("The mail recipient window changed; select the recipient again.")
           return
         end
         startRecipientMail(data.bag, data.id, data.recipient, data.draft)
@@ -2406,7 +2406,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
       row.EditButton:SetScript("OnClick", function()
         if picker.bag ~= settings() then picker:Hide(); return end
         if picker.bag.mailRecipients[element.id] ~= element.recipient then
-          prn("the mail recipient no longer exists; please reopen the recipient list.")
+          prn("The mail recipient no longer exists; please reopen the recipient list.")
           refreshRecipients()
           return
         end
@@ -2424,23 +2424,23 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
         if picker.mailMode then
           if not element.enabled then return end
           if picker.bag.mailRecipients[element.id] ~= element.recipient then
-            prn("the mail recipient no longer exists; please reopen the recipient list.")
+            prn("The mail recipient no longer exists; please reopen the recipient list.")
             refreshRecipients()
             return
           end
-          if mailJob then prn("wait for the current mail preparation to finish."); return end
+          if mailJob then prn("Wait for the current mail preparation to finish."); return end
           local draft = captureMailDraft()
           if mailDraftOccupied(draft) then
             local dialog = StaticPopup_Show("SLACKHACKS_REPLACE_MAIL_DRAFT", nil, nil,
               { bag = picker.bag, id = element.id, recipient = element.recipient, draft = draft })
-            if not dialog then prn("unable to show the mail draft replacement confirmation.") end
+            if not dialog then prn("Unable to show the mail draft replacement confirmation.") end
           else
             startRecipientMail(picker.bag, element.id, element.recipient, draft)
           end
           return
         end
         if picker.bag.mailRecipients[element.id] ~= element.recipient then
-          prn("the mail recipient no longer exists; please reopen the recipient list.")
+          prn("The mail recipient no longer exists; please reopen the recipient list.")
           refreshRecipients()
         else
           local info = picker.statusInfo
@@ -2458,7 +2458,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
       row.DeleteButton:SetScript("OnClick", function()
         local dialog = StaticPopup_Show("SLACKHACKS_DELETE_MAIL_RECIPIENT", element.recipient.nickname, nil,
           { bag = picker.bag, id = element.id, recipient = element.recipient })
-        if not dialog then prn("unable to show the mail recipient deletion confirmation.") end
+        if not dialog then prn("Unable to show the mail recipient deletion confirmation.") end
       end)
     end)
     ScrollUtil.InitScrollBoxListWithScrollBar(scrollBox, scrollBar, view)
@@ -2784,22 +2784,22 @@ local function createRow(index)
   row.statusBtn:SetScript("OnClick", function(self, button)
     if not isModuleEnabled() then return end
     if row.statusInfo.quality == nil then
-      prn("item quality is not yet available.")
+      prn("Item quality is not yet available.")
       return
     end
     if button == "RightButton" then
       if row.statusInfo.quality == 0 then
-        prn("grey items can only be protected using the flag menu.")
+        prn("Grey items can only be protected using the flag menu.")
         return
       end
       local status = getItemStatus(row.statusKey, row.statusInfo.quality, row.statusInfo.link,
         row.statusInfo.itemLevel, row.statusInfo.upgradeTrack)
       if status == ITEM_STATUSES[1] then
-        prn("this item is already marked as Junk.")
+        prn("This item is already marked as Junk.")
       elseif not status then
         setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext, "once")
       else
-        prn("use the flag menu to change this item's " .. status.name .. " flag.")
+        prn("Use the flag menu to change this item's " .. status.name .. " flag.")
       end
     elseif button == "LeftButton" then
       openItemStatusMenu(self, row.statusKey, row.statusInfo, row.statusContext)
@@ -2870,7 +2870,7 @@ local function createRow(index)
   --- Explain why a click or drag is blocked.
   ---@param self table Interaction-blocking button.
   local function reportBlockedAction(self)
-    prn("this item's flag prevents " .. self.blockedAction .. ".")
+    prn("This item's flag prevents " .. self.blockedAction .. ".")
   end
   row.actionBlocker:SetScript("OnClick", reportBlockedAction)
   row.actionBlocker:SetScript("OnDragStart", reportBlockedAction)
@@ -4096,6 +4096,8 @@ local function createFooter()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText("Quick Sell")
     GameTooltip:AddLine("Auto-sell Auction flagged items for the default value the Auction House assigns it.", 1, 1, 1, true)
+    GameTooltip:AddLine("Blizzard requires a click for each posting; click again or use Post Next for each item.",
+      0.6, 0.6, 0.6, true)
     if not auctionOpen then
       GameTooltip:AddLine("Open the Auction House to use Quick Sell.", 1, 0.8, 0.2, true)
     end
@@ -4231,7 +4233,7 @@ function module:SetAutoSellJunk(enabled)
       hideOnEscape = true,
       OnAccept = function(_, data)
         if db.profile ~= data or data.listviewBag.autoSellMarkedItems then
-          prn("the profile or auto-sell setting changed; Auto-Sell ALL Grey Items was not changed.")
+          prn("The profile or auto-sell setting changed; Auto-Sell ALL Grey Items was not changed.")
           return
         end
         data.inventory.autoSellGreyItems = false
@@ -4701,7 +4703,7 @@ end
 junk.verifyOneTimeSales = function(bag, sales, attempt)
   local delays = { 0.1, 0.2, 0.4, 0.8, 1.6 }
   if type(C_Timer) ~= "table" or type(C_Timer.After) ~= "function" then
-    prn("one-time Junk sales could not be verified; their marks remain in the list.")
+    prn("One-time Junk sales could not be verified; their marks remain in the list.")
     return
   end
   C_Timer.After(delays[attempt], function()
@@ -4729,7 +4731,7 @@ junk.verifyOneTimeSales = function(bag, sales, attempt)
       if attempt < #delays then
         junk.verifyOneTimeSales(bag, remaining, attempt + 1)
       else
-        prn("some one-time Junk marks remain because the corresponding sales could not be verified.")
+        prn("Some one-time Junk marks remain because the corresponding sales could not be verified.")
       end
     end
   end)
@@ -4769,7 +4771,7 @@ sellMarkedTrashItems = function(includeGrey)
     if next(sales) then junk.verifyOneTimeSales(bag, sales, 1) end
   end
   if unavailable > 0 then
-    prn("some item details are not loaded, so those items could not be checked for sale. Try again when they are available.")
+    prn("Some item details are not loaded, so those items could not be checked for sale. Try again when they are available.")
   end
   updateMerchantJunkButton()
 end
@@ -4887,7 +4889,7 @@ function module:OnDisable()
   auctionOpen = false
   if temporaryView then temporaryView = nil; sortColumn = nil; sortAscending = true end
   if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
-  if mailJob then stopMailJob("mail preparation stopped because Listview Bag was disabled.") end
+  if mailJob then stopMailJob("Mail preparation stopped because Listview Bag was disabled.") end
   mailSelection = nil
   if not pendingMail then mailSendPending = false end
   if frame then frame:Hide() end
@@ -5031,13 +5033,13 @@ function module:OnMailSendSuccess()
     if registry then registry:NotifyChange("SlackHacks") end
   end
   if sent.uncertain then
-    prn("a one-time mail attachment changed; check the remaining amount before preparing more mail.")
+    prn("A one-time mail attachment changed; check the remaining amount before preparing more mail.")
     if recipientPicker and recipientPicker:IsShown() and recipientPicker.mailMode
       and recipientPicker.bag == selected.bag then recipientPicker.refreshRecipients() end
     return
   end
   if stale then
-    prn("a one-time mail flag or recipient changed; select the recipient again.")
+    prn("A one-time mail flag or recipient changed; select the recipient again.")
     if recipientPicker and recipientPicker:IsShown() and recipientPicker.mailMode
       and recipientPicker.bag == selected.bag then recipientPicker.refreshRecipients() end
     return
@@ -5058,14 +5060,14 @@ function module:OnMailSendSuccess()
       if attempts < 20 then
         C_Timer.After(0.1, function() prepareNextBatch(attempts + 1) end)
       else
-        prn("the remaining items are locked; select the recipient when they become available.")
+        prn("The remaining items are locked; select the recipient when they become available.")
         recipientPicker.refreshRecipients()
       end
       return
     end
     local draft = captureMailDraft()
     if mailDraftOccupied(draft) then
-      prn("the mail draft changed after sending; select the recipient to prepare the next batch.")
+      prn("The mail draft changed after sending; select the recipient to prepare the next batch.")
       recipientPicker.refreshRecipients()
       return
     end

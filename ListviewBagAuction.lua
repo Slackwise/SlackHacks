@@ -252,8 +252,8 @@ end
 local function progressWindow()
   if progress then return progress end
   progress = createProgressWindow("SlackHacksAuctionScanProgress", "Checking Auction Prices",
-    function() auction.Cancel("auction price scan cancelled.") end, function()
-      if scan then auction.Cancel("auction price scan cancelled.") end
+    function() auction.Cancel("Auction price scan cancelled.") end, function()
+      if scan then auction.Cancel("Auction price scan cancelled.") end
     end)
   return progress
 end
@@ -290,7 +290,7 @@ local function resumeSummary()
   if not active or not active.worker then return end
   local ok, minimum, average = coroutine.resume(active.worker)
   if not ok then
-    auction.Cancel("auction price scan stopped because result processing failed.")
+    auction.Cancel("Auction price scan stopped because result processing failed.")
     error(minimum)
   end
   if scan ~= active or coroutine.status(active.worker) ~= "dead" then return end
@@ -425,24 +425,132 @@ local function finishQuickSell(active, message)
   if active.refresh then active.refresh() end
 end
 
---- Resume the posting coroutine and schedule its next bounded wait.
+local postCurrentItem
+
+--- Wait progressively for Blizzard's auction throttle, then enable the next click-driven post.
 ---@param active table Active posting job.
-local function resumeQuickSell(active)
+---@param delay number|nil Next polling delay in seconds.
+---@param started number|nil Time the wait began.
+local function awaitNextPost(active, delay, started)
   if posting ~= active then return end
-  local ok, delay, reason = coroutine.resume(active.worker)
-  if not ok then
-    finishQuickSell(active, "Quick Sell stopped because an Auction House request failed.")
-    error(delay)
-  end
-  if coroutine.status(active.worker) == "dead" then
-    if delay then
-      finishQuickSell(active, ("Quick Sell posted %d item stacks."):format(active.completed))
-    else
-      finishQuickSell(active, reason or "Quick Sell stopped before all flagged items were posted.")
-    end
+  delay, started = delay or 0.1, started or GetTime()
+  if C_AuctionHouse.IsThrottledMessageSystemReady() then
+    active.ready = true
+    postProgress.note:SetText("Next: " .. (active.items[active.index].link or "item"))
+    postProgress.post:Enable()
     return
   end
-  C_Timer.After(delay, function() resumeQuickSell(active) end)
+  local elapsed = GetTime() - started
+  if elapsed >= 3 then
+    finishQuickSell(active, "Quick Sell stopped because the Auction House remained throttled.")
+    return
+  end
+  postProgress.note:SetText("Waiting for the Auction House...")
+  C_Timer.After(math.min(delay, 3 - elapsed), function()
+    awaitNextPost(active, math.min(delay + 0.1, 1), started)
+  end)
+end
+
+--- Confirm a posted stack left the bags, then advance to the next item.
+---@param active table Active posting job.
+---@param link string Posted item hyperlink.
+---@param expected number Maximum bag quantity once the post succeeds.
+---@param delay number Delay before this check in seconds.
+---@param started number Time verification began.
+local function verifyPost(active, link, expected, delay, started)
+  C_Timer.After(delay, function()
+    if posting ~= active then return end
+    if inventoryCount(link) <= expected then
+      active.completed = active.completed + 1
+      active.index = active.index + 1
+      postProgress.bar:SetValue(active.completed)
+      postProgress.text:SetText(("%d / %d items"):format(active.completed, #active.items))
+      if active.index > #active.items then
+        finishQuickSell(active, ("Quick Sell posted %d item stacks."):format(active.completed))
+      else
+        C_Timer.After(0.5, function() awaitNextPost(active) end)
+      end
+      return
+    end
+    local elapsed = GetTime() - started
+    if elapsed >= 3 then
+      finishQuickSell(active,
+        "Quick Sell stopped because the Auction House did not remove the posted item from your bags.")
+      return
+    end
+    verifyPost(active, link, expected, math.min(delay + 0.1, 3 - elapsed), started)
+  end)
+end
+
+--- Validate and post the current item. Must run inside a click handler.
+---@param active table Active posting job.
+postCurrentItem = function(active)
+  -- PostItem/PostCommodity require a hardware event, so each post runs directly from a click
+  -- rather than from a timer or coroutine; timers only wait for throttling and verification.
+  if posting ~= active then return end
+  active.ready = false
+  postProgress.post:Disable()
+  local api = C_AuctionHouse
+  if not api.IsThrottledMessageSystemReady() then
+    awaitNextPost(active)
+    return
+  end
+  local item, duration = active.items[active.index], active.duration
+  local function stop(reason) finishQuickSell(active, "Quick Sell stopped because " .. reason) end
+  if item.canPost and not item.canPost() then
+    return stop("an item's Auction flag or eligibility changed.")
+  end
+  local info = C_Container.GetContainerItemInfo(item.bagID, item.slot)
+  if not info or info.hyperlink ~= item.link or info.itemID ~= item.itemID
+    or info.isBound or info.isLocked or (info.stackCount or 1) ~= item.count then
+    return stop("an item moved or changed in your bags.")
+  end
+  local location = ItemLocation:CreateFromBagAndSlot(item.bagID, item.slot)
+  if not location:IsValid() or not api.IsSellItemValid(location, false) then
+    return stop("an item is no longer eligible for auction.")
+  end
+  local price = defaultAuctionPrice(item.link)
+  if not price or price <= 0 then
+    return stop("the Auction House could not determine a default price.")
+  end
+  local commodityStatus = api.GetItemCommodityStatus(location)
+  if commodityStatus ~= Enum.ItemCommodityStatus.Item
+    and commodityStatus ~= Enum.ItemCommodityStatus.Commodity then
+    return stop("an item's Auction House type could not be determined.")
+  end
+  local commodity = commodityStatus == Enum.ItemCommodityStatus.Commodity
+  local available = api.GetAvailablePostCount(location)
+  local quantity = math.min(item.count, type(available) == "number" and available or item.count)
+  if quantity < 1 then
+    return stop("an item has no available auction quantity.")
+  end
+  local deposit = commodity
+    and api.CalculateCommodityDeposit(item.itemID, duration, quantity)
+    or api.CalculateItemDeposit(location, duration, quantity)
+  if GetMoney() < deposit then
+    return stop("there is not enough money for an auction deposit.")
+  end
+  local before = inventoryCount(item.link)
+  if before < quantity then
+    return stop("an item's inventory quantity changed.")
+  end
+
+  if commodity then
+    if api.PostCommodity(location, duration, quantity, price) then
+      api.ConfirmPostCommodity(location, duration, quantity, price)
+    end
+  else
+    if api.PostItem(location, duration, quantity, nil, price) then
+      api.ConfirmPostItem(location, duration, quantity, nil, price)
+    end
+  end
+  postProgress.note:SetText("Confirming " .. item.link .. "...")
+  verifyPost(active, item.link, before - quantity, 0.1, GetTime())
+end
+
+--- Post the next queued Quick Sell item from a user click.
+function auction.PostNextQuickSell()
+  if posting and posting.ready then postCurrentItem(posting) end
 end
 
 --- Cancel Quick Sell without attempting to cancel a request already sent to Blizzard.
@@ -461,21 +569,42 @@ local function quickSellProgressWindow()
     function() auction.CancelQuickSell() end, function()
       if posting then auction.CancelQuickSell() end
     end)
+  postProgress:SetHeight(180)
   postProgress.note = postProgress:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-  postProgress.note:SetPoint("TOP", 0, -122)
-  postProgress.note:SetText("Cancel stops remaining items; the current request may still complete.")
+  postProgress.note:SetPoint("TOP", 0, -112)
+  postProgress.note:SetWidth(260)
+  postProgress.post = CreateFrame("Button", nil, postProgress, "SharedButtonSmallTemplate")
+  postProgress.post:SetSize(120, 22)
+  postProgress.post:SetPoint("BOTTOMRIGHT", postProgress, "BOTTOM", -4, 16)
+  postProgress.post:SetText("Post Next")
+  postProgress.post:SetScript("OnClick", auction.PostNextQuickSell)
+  postProgress.post:SetMotionScriptsWhileDisabled(true)
+  postProgress.post:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Post Next")
+    GameTooltip:AddLine("Blizzard requires a click for each auction posting.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  postProgress.post:SetScript("OnLeave", GameTooltip_Hide)
+  postProgress.cancel:SetSize(120, 22)
+  postProgress.cancel:ClearAllPoints()
+  postProgress.cancel:SetPoint("BOTTOMLEFT", postProgress, "BOTTOM", 4, 16)
   return postProgress
 end
 
---- Start a serialized, throttled sale of the provided auction-flagged bag stacks.
+--- Start a throttled sale of the provided auction-flagged bag stacks, posting one per click.
 ---@param items table Entries with link, itemID, bagID, slot, count, and optional canPost callback.
 ---@param refresh function Refresh callback after the job ends.
 function auction.QuickSell(items, refresh)
-  auction.Cancel()
   if posting then
-    prn("Quick Sell is already in progress.")
+    if posting.ready then
+      postCurrentItem(posting)
+    else
+      prn("Quick Sell is waiting for the Auction House before the next posting.")
+    end
     return
   end
+  auction.Cancel()
   if type(items) ~= "table" or #items == 0 then
     prn("There are no eligible Auction-flagged items to sell.")
     return
@@ -523,92 +652,16 @@ function auction.QuickSell(items, refresh)
     return
   end
 
-  local active = { items = items, refresh = refresh, duration = duration, completed = 0 }
-  active.worker = coroutine.create(function()
-    for _, item in ipairs(items) do
-      local throttleDelay, throttleStart = 0.1, GetTime()
-      while not api.IsThrottledMessageSystemReady() do
-        if GetTime() - throttleStart >= 3 then
-          return false, "Quick Sell stopped because the Auction House remained throttled."
-        end
-        coroutine.yield(math.min(throttleDelay, 3 - (GetTime() - throttleStart)))
-        throttleDelay = math.min(throttleDelay + 0.1, 1)
-      end
-
-      if item.canPost and not item.canPost() then
-        return false, "Quick Sell stopped because an item's Auction flag or eligibility changed."
-      end
-      local info = C_Container.GetContainerItemInfo(item.bagID, item.slot)
-      if not info or info.hyperlink ~= item.link or info.itemID ~= item.itemID
-        or info.isBound or info.isLocked or (info.stackCount or 1) ~= item.count then
-        return false, "Quick Sell stopped because an item moved or changed in your bags."
-      end
-      local location = ItemLocation:CreateFromBagAndSlot(item.bagID, item.slot)
-      if not location:IsValid() or not api.IsSellItemValid(location, false) then
-        return false, "Quick Sell stopped because an item is no longer eligible for auction."
-      end
-      local price = defaultAuctionPrice(item.link)
-      if not price or price <= 0 then
-        return false, "Quick Sell stopped because the Auction House could not determine a default price."
-      end
-      local commodityStatus = api.GetItemCommodityStatus(location)
-      if commodityStatus ~= Enum.ItemCommodityStatus.Item
-        and commodityStatus ~= Enum.ItemCommodityStatus.Commodity then
-        return false, "Quick Sell stopped because an item's Auction House type could not be determined."
-      end
-      local commodity = commodityStatus == Enum.ItemCommodityStatus.Commodity
-      local available = api.GetAvailablePostCount(location)
-      local quantity = math.min(item.count, type(available) == "number" and available or item.count)
-      if quantity < 1 then
-        return false, "Quick Sell stopped because an item has no available auction quantity."
-      end
-      local deposit = commodity
-        and api.CalculateCommodityDeposit(item.itemID, duration, quantity)
-        or api.CalculateItemDeposit(location, duration, quantity)
-      if GetMoney() < deposit then
-        return false, "Quick Sell stopped because there is not enough money for an auction deposit."
-      end
-
-      local before = inventoryCount(item.link)
-      if before < quantity then
-        return false, "Quick Sell stopped because an item's inventory quantity changed."
-      end
-      local confirmation
-      if commodity then
-        confirmation = api.PostCommodity(location, duration, quantity, price)
-        if confirmation then api.ConfirmPostCommodity(location, duration, quantity, price) end
-      else
-        confirmation = api.PostItem(location, duration, quantity, nil, price)
-        if confirmation then api.ConfirmPostItem(location, duration, quantity, nil, price) end
-      end
-
-      local verifyDelay, verifyStart = 0.1, GetTime()
-      while true do
-        coroutine.yield(verifyDelay)
-        if inventoryCount(item.link) <= before - quantity then
-          active.completed = active.completed + 1
-          postProgress.bar:SetValue(active.completed)
-          postProgress.text:SetText(("%d / %d items"):format(active.completed, #items))
-          break
-        end
-        local elapsed = GetTime() - verifyStart
-        if elapsed >= 3 then
-          return false, "Quick Sell stopped because the Auction House did not remove the posted item from your bags."
-        end
-        verifyDelay = math.min(verifyDelay + 0.1, 3 - elapsed)
-      end
-      coroutine.yield(0.5)
-    end
-    return true
-  end)
-
+  local active = { items = items, refresh = refresh, duration = duration, completed = 0, index = 1 }
   posting = active
   postProgress = quickSellProgressWindow()
+  postProgress.post:Disable()
   postProgress.bar:SetMinMaxValues(0, #items)
   postProgress.bar:SetValue(0)
   postProgress.text:SetText(("0 / %d items"):format(#items))
   postProgress:Show()
-  resumeQuickSell(active)
+  -- The Quick Sell click is a hardware event, so the first item posts immediately.
+  postCurrentItem(active)
 end
 
 --- Start a throttled scan for the provided bag items when no pricing addon is active.
@@ -621,7 +674,7 @@ function auction.Start(items, refresh)
   if not C_AuctionHouse or not C_AuctionHouse.SendSearchQuery or not C_Timer or not C_Timer.NewTicker
     or not ItemLocation or not ItemLocation.CreateFromBagAndSlot
     or not C_Container or not C_Container.GetContainerItemInfo then
-    prn("auction price queries are unavailable on this client.")
+    prn("Auction price queries are unavailable on this client.")
     return
   end
   for _, name in ipairs({ "GetItemKeyFromItem", "IsThrottledMessageSystemReady",
@@ -629,7 +682,7 @@ function auction.Start(items, refresh)
     "GetCommoditySearchResultInfo", "GetNumItemSearchResults", "GetItemSearchResultInfo",
     "RequestMoreCommoditySearchResults", "RequestMoreItemSearchResults" }) do
     if type(C_AuctionHouse[name]) ~= "function" then
-      prn("auction price queries are unavailable: missing " .. name .. ".")
+      prn("Auction price queries are unavailable: missing " .. name .. ".")
       return
     end
   end
@@ -638,7 +691,7 @@ function auction.Start(items, refresh)
       "RequestMoreItemSearchResults", "RequestMoreCommoditySearchResults" }) do
       if type(C_AuctionHouse[method]) == "function" then
         hooksecurefunc(C_AuctionHouse, method, function()
-          if scan and not sending then auction.Cancel("auction price scan stopped because another search started.") end
+          if scan and not sending then auction.Cancel("Auction price scan stopped because another search started.") end
         end)
       end
     end
