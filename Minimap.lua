@@ -108,6 +108,7 @@ local hoverLeaveTimer
 local applyTitleBarLayout
 local setFrameStrataSafe
 local setFrameLevelRecursive
+local positionAddonButtonOnBorder
 local updateHoverVisibility
 local isButtonShown
 local isBlizzardFrame
@@ -1628,26 +1629,35 @@ end
 ---@param y number|nil - Vertical offset.
 local function buttonSaveSetPoint(self, point, relativeTo, relativePoint, x, y)
   if not self.slackHacksSaved then return end
+  -- SetPoint also accepts (point, x, y) and (point, relativeFrame, x, y).
+  if type(relativeTo) == "number" then
+    x, y, relativeTo, relativePoint = relativeTo, relativePoint, nil, nil
+  elseif type(relativePoint) == "number" then
+    x, y, relativePoint = relativePoint, x, nil
+  end
   self.slackHacksSaved.anchors[point] = {
     relativeTo = relativeTo, relativePoint = relativePoint, x = x, y = y,
   }
 
   -- In square mode, if this is an addon button anchored to Minimap, snap to square border
-  if settings().shape == "square" and not settings().addonsInCompartment and addonButtonsByFrame[self] and not isBlizzardFrame(self) then
-    if not self.isDraggingOnSquareBorder and type(x) == "number" and type(y) == "number" then
-      local angle = math.deg(math.atan2(y, x)) % 360
-      self.slackHacksAngle = angle
-      local target, radiusX, radiusY = getSquareBorderDimensions()
-      local sqX, sqY = getSquarePositionForAngle(angle, radiusX, radiusY)
-      if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
-        self.slackHacksRealClearAllPoints(self)
-        self.slackHacksRealSetPoint(self, "CENTER", target, "CENTER", sqX, sqY)
-        setFrameStrataSafe(self, "DIALOG")
-        setFrameLevelRecursive(self, 525)
-        if self.Raise then self:Raise() end
-      end
+  if not self.isDraggingOnSquareBorder and addonButtonsByFrame[self] then
+    local relativeFrame = relativeTo or self.slackHacksSaved.parent
+    if type(relativeFrame) == "string" then relativeFrame = _G[relativeFrame] end
+    if point == "CENTER" and (relativePoint == nil or relativePoint == "CENTER") and relativeFrame == _G.Minimap
+      and type(x) == "number" and type(y) == "number" and (x ~= 0 or y ~= 0) then
+      self.slackHacksAngle = math.deg(math.atan2(y, x)) % 360
     end
+    positionAddonButtonOnBorder(self)
   end
+end
+
+--- Saves an addon's requested parent while retaining the square-border parent.
+---@param self Frame - Hooked addon button.
+---@param parent Frame - Requested native parent.
+local function buttonSaveSetParent(self, parent)
+  if not self.slackHacksSaved then return end
+  self.slackHacksSaved.parent = parent
+  positionAddonButtonOnBorder(self)
 end
 
 --- Records that a stacked button has no anchors after ClearAllPoints.
@@ -1663,6 +1673,7 @@ end
 local function buttonSaveSetFrameStrata(self, strata)
   if not self.slackHacksSaved then return end
   self.slackHacksSaved.strata = strata
+  if addonButtonsByFrame[self] then positionAddonButtonOnBorder(self) end
 end
 
 --- Records a requested frame level while a button is temporarily stacked.
@@ -1671,6 +1682,7 @@ end
 local function buttonSaveSetFrameLevel(self, level)
   if not self.slackHacksSaved then return end
   self.slackHacksSaved.level = level
+  if addonButtonsByFrame[self] then positionAddonButtonOnBorder(self) end
 end
 
 --- Coalesces repeated layout requests into one next-tick title-bar rebuild.
@@ -1709,6 +1721,10 @@ local function enableButtonStacking(button, enable)
       button.ClearAllPoints = buttonSaveClearAllPoints
       button.SetFrameStrata = buttonSaveSetFrameStrata
       button.SetFrameLevel = buttonSaveSetFrameLevel
+      if addonButtonsByFrame[button] then
+        button.slackHacksRealSetParent = button.SetParent
+        button.SetParent = buttonSaveSetParent
+      end
 
       if not button.slackHacksHooksInstalled then
         button:HookScript("OnHide", onButtonVisibilityChanged)
@@ -1729,6 +1745,12 @@ local function enableButtonStacking(button, enable)
       button.slackHacksRealSetFrameStrata = nil
       button.slackHacksRealSetFrameLevel = nil
       button.slackHacksStackingActive = false
+      button.isDraggingOnSquareBorder = nil
+      button.slackHacksAngle = nil
+      if button.slackHacksRealSetParent then
+        button.SetParent = button.slackHacksRealSetParent
+        button.slackHacksRealSetParent = nil
+      end
 
       restoreButtonState(button)
     end
@@ -1991,23 +2013,25 @@ local function syncAddonCompartmentEntries()
   end
 end
 
---- Determines an addon button's saved radial position or calculates one from its current center.
+--- Uses the addon's current saved angle before cached placement or the button's current center.
 ---@param button Frame - Addon button.
 ---@return number - Position angle in degrees.
 local function getButtonAngle(button)
-  if button.slackHacksAngle then
-    return button.slackHacksAngle
-  end
   if button.db and button.db.minimapPos then
     return button.db.minimapPos
   end
   if button.minimapPos then
     return button.minimapPos
   end
+  if button.slackHacksAngle then
+    return button.slackHacksAngle
+  end
   local bx, by = button:GetCenter()
   local target = (settings().shape == "square" and getSquareBorderTargetFrame()) or _G.Minimap
   local mx, my = target:GetCenter()
   if bx and by and mx and my then
+    local relativeScale = button:GetEffectiveScale() / target:GetEffectiveScale()
+    bx, by = bx * relativeScale, by * relativeScale
     return math.deg(math.atan2(by - my, bx - mx)) % 360
   end
   return 225
@@ -2016,7 +2040,9 @@ end
 --- Updates a dragged addon button's angle and clamps it to the square border edge.
 ---@param self Frame - Dragged addon button.
 local function onAddonButtonDragUpdate(self)
-  local target, radiusX, radiusY = getSquareBorderDimensions()
+  if not self.isDraggingOnSquareBorder or not isModuleEnabled()
+    or settings().shape ~= "square" or settings().addonsInCompartment then return end
+  local target = getSquareBorderTargetFrame()
   local mx, my = target:GetCenter()
   local px, py = GetCursorPosition()
   local scale = target:GetEffectiveScale()
@@ -2028,35 +2054,26 @@ local function onAddonButtonDragUpdate(self)
   self.minimapPos = angle
   self.slackHacksAngle = angle
 
-  local x, y = getSquarePositionForAngle(angle, radiusX, radiusY)
-
-  if self.slackHacksRealClearAllPoints and self.slackHacksRealSetPoint then
-    self.slackHacksRealClearAllPoints(self)
-    self.slackHacksRealSetPoint(self, "CENTER", target, "CENTER", x, y)
-  else
-    self:ClearAllPoints()
-    self:SetPoint("CENTER", target, "CENTER", x, y)
-  end
+  positionAddonButtonOnBorder(self)
 end
 
 --- Begins square-border dragging without replacing the button's click behavior.
 ---@param self Frame - Dragged addon button.
 local function onAddonButtonDragStart(self)
-  if settings().shape ~= "square" or settings().addonsInCompartment then return end
+  if not self.slackHacksStackingActive or not isModuleEnabled()
+    or settings().shape ~= "square" or settings().addonsInCompartment then return end
   self.isDraggingOnSquareBorder = true
   if self.LockHighlight then self:LockHighlight() end
-  setFrameStrataSafe(self, "DIALOG")
-  setFrameLevelRecursive(self, 525)
-  if self.Raise then self:Raise() end
-  self:SetScript("OnUpdate", onAddonButtonDragUpdate)
+  positionAddonButtonOnBorder(self)
   if GameTooltip then GameTooltip:Hide() end
 end
 
---- Ends square-border dragging and removes the per-frame cursor update.
+--- Ends square-border dragging while leaving the addon's own update cleanup intact.
 ---@param self Frame - Dragged addon button.
 local function onAddonButtonDragStop(self)
+  if not self.isDraggingOnSquareBorder then return end
   self.isDraggingOnSquareBorder = nil
-  self:SetScript("OnUpdate", nil)
+  positionAddonButtonOnBorder(self)
   if self.UnlockHighlight then self:UnlockHighlight() end
 end
 
@@ -2068,6 +2085,8 @@ local function enableAddonButtonDragging(button)
     button:RegisterForDrag("LeftButton")
     button:HookScript("OnDragStart", onAddonButtonDragStart)
     button:HookScript("OnDragStop", onAddonButtonDragStop)
+    -- Run after the addon's own drag updater so its saved position and cleanup remain intact.
+    button:HookScript("OnUpdate", onAddonButtonDragUpdate)
   end
 end
 
@@ -2089,7 +2108,6 @@ end
 setFrameLevelRecursive = function(frame, level)
   local oldLevel = frame:GetFrameLevel()
   local offset = level - oldLevel
-  if offset == 0 then return end
 
   if frame.slackHacksRealSetFrameLevel then
     frame.slackHacksRealSetFrameLevel(frame, level)
@@ -2101,10 +2119,35 @@ setFrameLevelRecursive = function(frame, level)
   if ok and children then
     for _, child in ipairs(children) do
       local childLevel = child:GetFrameLevel() + offset
-      if childLevel < 1 then childLevel = 1 end
+      childLevel = math.max(level + 1, childLevel)
       setFrameLevelRecursive(child, childLevel)
     end
   end
+end
+
+--- Places a managed addon button on the square edge above the border and its child textures.
+---@param button Frame - Addon minimap button.
+positionAddonButtonOnBorder = function(button)
+  if not isModuleEnabled() or settings().shape ~= "square" or settings().addonsInCompartment
+    or not button.slackHacksRealSetPoint or not button.slackHacksRealSetParent then return end
+  local target, radiusX, radiusY = getSquareBorderDimensions()
+  if button:GetParent() ~= target then
+    button.slackHacksRealSetParent(button, target)
+  end
+  local angle = getButtonAngle(button)
+  button.slackHacksAngle = angle
+  local x, y = getSquarePositionForAngle(angle, radiusX, radiusY)
+  -- SetPoint offsets use the button's scale; convert the border's coordinates for scaled icons.
+  local offsetScale = target:GetEffectiveScale() / button:GetEffectiveScale()
+  button.slackHacksRealClearAllPoints(button)
+  button.slackHacksRealSetPoint(button, "CENTER", target, "CENTER", x * offsetScale, y * offsetScale)
+  local strata = target:GetFrameStrata()
+  if strata ~= "FULLSCREEN" and strata ~= "FULLSCREEN_DIALOG" and strata ~= "TOOLTIP" then
+    strata = "DIALOG"
+  end
+  setFrameStrataSafe(button, strata)
+  setFrameLevelRecursive(button, math.max(525, target:GetFrameLevel() + 10))
+  if button.Raise then button:Raise() end
 end
 
 --- Lays out visible addon buttons around the square edge, or folds them into Addon Compartment.
@@ -2114,8 +2157,6 @@ local function layoutAddonButtonsOnBorder()
   if settings().addonsInCompartment then
     return
   end
-
-  local target, radiusX, radiusY = getSquareBorderDimensions()
 
   for _, button in ipairs(addonButtons) do
     if button and not isBlizzardFrame(button) then
@@ -2128,22 +2169,7 @@ local function layoutAddonButtonsOnBorder()
         enableButtonStacking(button, true)
         enableAddonButtonDragging(button)
 
-        button:SetParent(target)
-        setFrameStrataSafe(button, "DIALOG")
-        setFrameLevelRecursive(button, 525)
-        if button.Raise then button:Raise() end
-
-        local angle = getButtonAngle(button)
-        button.slackHacksAngle = angle
-        local x, y = getSquarePositionForAngle(angle, radiusX, radiusY)
-
-        if button.slackHacksRealClearAllPoints and button.slackHacksRealSetPoint then
-          button.slackHacksRealClearAllPoints(button)
-          button.slackHacksRealSetPoint(button, "CENTER", target, "CENTER", x, y)
-        else
-          button:ClearAllPoints()
-          button:SetPoint("CENTER", target, "CENTER", x, y)
-        end
+        positionAddonButtonOnBorder(button)
         button:Show()
       end
     end
@@ -2322,14 +2348,22 @@ local function getExistingAddonButtons()
     end
   end
 
+  -- Reparented legacy icons are no longer Minimap children; keep their layout hooks registered.
+  for _, button in ipairs(addonButtons) do
+    if not seen[button] and button.slackHacksStackingActive then
+      table.insert(buttons, button)
+      seen[button] = true
+    end
+  end
+
   return buttons
 end
 
 --- Refreshes the discovered addon-button registry and applies Forever border art when relevant.
 local function discoverAddonButtons()
+  local found = getExistingAddonButtons()
   wipe(addonButtons)
   wipe(addonButtonsByFrame)
-  local found = getExistingAddonButtons()
   for _, btn in ipairs(found) do
     registerAddonButton(btn)
     if isForever() then

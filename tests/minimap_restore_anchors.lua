@@ -54,12 +54,42 @@ local registeredButtonsByFrame = upvalue(disableAllStacking, "registeredButtonsB
 --- Ignore unrelated Blizzard border updates in this anchor test.
 replaceUpvalue(disableAllStacking, "applyBlizzardIconBorders", function() end)
 
+local frames = {}
 --- Create a mock frame that rejects circular anchor dependencies.
 ---@param name string
 ---@return table
 local function frame(name)
-  local result = { name = name, points = {}, scale = 1, strata = "MEDIUM", level = 1 }
+  local result = { name = name, points = {}, scale = 1, strata = "MEDIUM", level = 1, shown = true, scripts = {}, hooks = {} }
+  table.insert(frames, result)
 
+  --- Return the frame name.
+  ---@return string
+  function result:GetName() return self.name end
+  --- Identify named icon frames as buttons.
+  ---@return string
+  function result:GetObjectType() return "Button" end
+  --- Return the frame's local visibility.
+  ---@return boolean
+  function result:IsShown() return self.shown end
+  --- Show the frame.
+  function result:Show() self.shown = true end
+  --- Return the frame's center.
+  ---@return number, number
+  function result:GetCenter() return 0, 0 end
+  --- Return its inherited scale.
+  ---@return number
+  function result:GetEffectiveScale()
+    return self.scale * (self.parent and self.parent:GetEffectiveScale() or 1)
+  end
+  --- Return immediate child frames.
+  ---@return Frame...
+  function result:GetChildren()
+    local children = {}
+    for _, child in ipairs(frames) do
+      if child.parent == self then table.insert(children, child) end
+    end
+    return unpack(children)
+  end
   --- Return the frame's parent.
   ---@return table|nil
   function result:GetParent() return self.parent end
@@ -86,10 +116,10 @@ local function frame(name)
   function result:SetFrameLevel(level) self.level = level end
   --- Return the frame's width.
   ---@return number
-  function result:GetWidth() return 20 end
+  function result:GetWidth() return self.width or 20 end
   --- Return the frame's height.
   ---@return number
-  function result:GetHeight() return 10 end
+  function result:GetHeight() return self.height or 10 end
   --- Set the frame's width.
   ---@param width number
   function result:SetWidth(width) self.width = width end
@@ -105,8 +135,19 @@ local function frame(name)
   function result:GetPoint(index) return unpack(self.points[index]) end
   --- Return no decorative regions.
   function result:GetRegions() end
-  --- Accept a visibility hook.
-  function result:HookScript() end
+  --- Retain additive hooks without replacing the original script.
+  ---@param event string
+  ---@param hook function
+  function result:HookScript(event, hook)
+    self.hooks[event] = self.hooks[event] or {}
+    table.insert(self.hooks[event], hook)
+  end
+  --- Set an original addon script.
+  ---@param event string
+  ---@param script function|nil
+  function result:SetScript(event, script) self.scripts[event] = script end
+  --- Accept native drag registration.
+  function result:RegisterForDrag() end
   --- Clear the actual anchors.
   function result:ClearAllPoints() self.points = {}; self.clears = (self.clears or 0) + 1 end
   --- Set an anchor, rejecting direct or indirect cycles.
@@ -183,4 +224,132 @@ end
 
 testRestore(true)
 testRestore(false)
+
+SlackHacks.db = { profile = { minimap = { enabled = true, shape = "square" } } }
+--- Report the enabled minimap module.
+---@return boolean
+function module:IsEnabled() return true end
+--- Disable Forever border reskinning for the layout tests.
+---@return boolean
+function SlackHacks.isForever() return false end
+--- Report that protected layout can run.
+---@return boolean
+function InCombatLockdown() return false end
+C_Timer = {
+  --- Ignore unrelated deferred title-bar work.
+  After = function() end,
+}
+Minimap = frame("Minimap")
+Minimap.width, Minimap.height = 200, 200
+MinimapCluster = nil
+local border = frame("SlackHacksMinimapSquareBorder")
+border.width, border.height, border.scale, border.level = 220, 246, 1.5, 600
+local applyTitleBarLayout = upvalue(module.ApplyAll, "applyTitleBarLayout")
+local layoutIcons = upvalue(applyTitleBarLayout, "layoutTitleBarIcons")
+local layoutAddons = upvalue(layoutIcons, "layoutAddonButtonsOnBorder")
+local position = upvalue(layoutAddons, "positionAddonButtonOnBorder")
+local dimensions = upvalue(position, "getSquareBorderDimensions")
+local target = upvalue(dimensions, "getSquareBorderTargetFrame")
+replaceUpvalue(target, "squareBorderFrame", border)
+local discover = upvalue(applyTitleBarLayout, "discoverAddonButtons")
+local addonButtons = upvalue(discover, "addonButtons")
+local addonButtonsByFrame = upvalue(discover, "addonButtonsByFrame")
+local legacy = frame("LegacyAddonButton")
+legacy.parent, legacy.width, legacy.height = Minimap, 32, 32
+legacy:SetPoint("CENTER", Minimap, "CENTER", 50, -50)
+local child = frame("LegacyAddonTextureFrame")
+child.parent = legacy
+
+discover()
+assert(addonButtonsByFrame[legacy])
+layoutAddons()
+assert(legacy.parent == border and legacy.level > border.level and child.level > legacy.level)
+discover()
+assert(addonButtonsByFrame[legacy] and #addonButtons == 1,
+  "Reparented legacy buttons must remain discoverable")
+
+--- Verify a button lies exactly on the rectangular border path.
+---@param button Frame
+local function assertOnBorder(button)
+  local point = button.points[1]
+  assert(#button.points == 1 and point[1] == "CENTER" and point[2] == border)
+  local scale = button:GetEffectiveScale() / border:GetEffectiveScale()
+  local x, y = point[4] * scale, point[5] * scale
+  assert(math.abs(x) <= 112.000001 and math.abs(y) <= 125.000001)
+  assert(math.abs(math.abs(x) - 112) < 0.000001 or math.abs(math.abs(y) - 125) < 0.000001)
+end
+
+for angle = 0, 359, 15 do
+  legacy:SetPoint("CENTER", Minimap, math.cos(math.rad(angle)) * 80, math.sin(math.rad(angle)) * 80)
+  assertOnBorder(legacy)
+  assert(math.abs(legacy.slackHacksAngle - angle) < 0.000001)
+end
+legacy:SetPoint("CENTER", 0, 80)
+assertOnBorder(legacy)
+assert(legacy.points[1][5] == 125)
+legacy.scale = 0.5
+layoutAddons()
+assertOnBorder(legacy)
+assert(legacy.points[1][5] == 250 and legacy.scale == 0.5,
+  "Scaled icons must land on the visible border without changing their native size")
+legacy.scale = 1
+layoutAddons()
+legacy:SetPoint("TOPRIGHT", Minimap, "TOPRIGHT", -2, -3)
+assert(legacy.slackHacksAngle == 90, "Non-center anchors must not be interpreted as radial offsets")
+local alternateParent = frame("AlternateParent")
+legacy:SetParent(alternateParent)
+assert(legacy.parent == border and legacy.slackHacksSaved.parent == alternateParent)
+assertOnBorder(legacy)
+child.level = 1
+legacy:SetFrameLevel(8)
+assert(legacy.level > border.level and child.level > legacy.level)
+legacy.db = { minimapPos = 180 }
+legacy:SetPoint("CENTER", Minimap, "CENTER", 80, 0)
+assert(math.abs(legacy.points[1][4] + 112) < 0.000001,
+  "Library redraws must use the current saved angle, not a stale cached angle")
+border.width, border.height, border.strata = 400, 300, "FULLSCREEN"
+layoutAddons()
+assert(math.abs(legacy.points[1][4] + 202) < 0.000001 and legacy.strata == "FULLSCREEN",
+  "Resizing and raising the minimap must retain icons on its new visible border")
+border.width, border.height, border.strata = 220, 246, "MEDIUM"
+layoutAddons()
+
+local updates, stopped = 0, false
+--- Run a native script before its additive hooks.
+---@param button Frame
+---@param event string
+local function runScript(button, event)
+  if button.scripts[event] then button.scripts[event](button) end
+  for _, hook in ipairs(button.hooks[event] or {}) do hook(button) end
+end
+--- Emulate an addon's own position persistence and redraw during dragging.
+---@param self Frame
+local function nativeUpdate(self)
+  updates = updates + 1
+  self.db.minimapPos = 0
+  self:ClearAllPoints()
+  self:SetPoint("CENTER", Minimap, "CENTER", 80, 0)
+end
+legacy:SetScript("OnDragStart", function(self) self:SetScript("OnUpdate", nativeUpdate) end)
+legacy:SetScript("OnDragStop", function(self) stopped = true; self:SetScript("OnUpdate", nil) end)
+--- Return a cursor position scaled relative to the square border.
+---@return number, number
+function GetCursorPosition() return 300, 450 end
+runScript(legacy, "OnDragStart")
+runScript(legacy, "OnUpdate")
+assert(updates == 1 and legacy.scripts.OnUpdate == nativeUpdate)
+assertOnBorder(legacy)
+assert(math.abs(legacy.db.minimapPos - math.deg(math.atan2(300, 200))) < 0.000001)
+runScript(legacy, "OnDragStop")
+assert(stopped and legacy.scripts.OnUpdate == nil and not legacy.isDraggingOnSquareBorder)
+assertOnBorder(legacy)
+
+SlackHacks.db.profile.minimap.shape = "circle"
+enableButtonStacking(legacy, false)
+assert(legacy.parent == alternateParent and not legacy.slackHacksRealSetParent)
+assert(legacy.points[1][2] == Minimap and legacy.points[1][4] == 80)
+runScript(legacy, "OnDragStart")
+assert(legacy.scripts.OnUpdate == nativeUpdate and not legacy.isDraggingOnSquareBorder,
+  "Round-mode dragging must remain owned by the addon")
+runScript(legacy, "OnDragStop")
 print("Minimap anchor restoration tests passed")
