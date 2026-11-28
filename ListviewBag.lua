@@ -44,7 +44,7 @@ local COLUMN_DEFS = {
 }
 local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
 local VIEWS = {
-  { id = "default", name = "Default View" },
+  { id = "default", name = "General View" },
   { id = "selling", name = "Selling View" },
   { id = "gear", name = "Gear View" },
 }
@@ -4101,7 +4101,7 @@ local function createFooter()
 
   if MenuUtil and MenuUtil.CreateContextMenu then
     footer.viewsButton = CreateFrame("DropdownButton", "SlackHacksListviewBagViewsButton", content, "WowStyle1DropdownTemplate")
-    footer.viewsButton:SetWidth(110)
+    footer.viewsButton:SetWidth(115)
     footer.viewsButton:SetupMenu(openViewsMenu)
     footer.gearFiltersButton = CreateFrame("DropdownButton", "SlackHacksListviewBagGearFiltersButton", content, "WowStyle1DropdownTemplate")
     footer.gearFiltersButton:SetWidth(110)
@@ -4110,7 +4110,7 @@ local function createFooter()
   else
     footer.viewsButton = CreateFrame("Frame", "SlackHacksListviewBagViewsButton", content, "UIDropDownMenuTemplate")
     footer.viewsButton.legacy = true
-    UIDropDownMenu_SetWidth(footer.viewsButton, 110)
+    UIDropDownMenu_SetWidth(footer.viewsButton, 115)
     _G[footer.viewsButton:GetName() .. "Button"]:SetScript("OnClick", function() openViewsMenu(footer.viewsButton) end)
     footer.gearFiltersButton = CreateFrame("Frame", "SlackHacksListviewBagGearFiltersButton", content, "UIDropDownMenuTemplate")
     footer.gearFiltersButton.legacy = true

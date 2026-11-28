@@ -271,9 +271,9 @@ assert(filtersButton.label == "Filters (None)")
 local viewsButton = frames.SlackHacksListviewBagViewsButton
 local gearButton = frames.SlackHacksListviewBagGearFiltersButton
 assert(viewsButton.anchor[2] == filtersButton and gearButton.anchor[2] == viewsButton)
-assert(viewsButton.label == "Default View" and not gearButton.shown)
+assert(viewsButton.label == "General View" and not gearButton.shown)
 openModernFilters(viewsButton)
-assert(entry("Default View").checked() and entry("Selling View") and entry("Gear View"))
+assert(entry("General View").checked() and entry("Selling View") and entry("Gear View"))
 local activeColumns = upvalue(upvalue(renderRows, "layoutHeaders"), "computeLayout")
 activeColumns = upvalue(activeColumns, "activeColumns")
 profile.columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
@@ -484,8 +484,8 @@ do
     and legacyGear[6].menuList[1].checked())
 end
 openModernFilters(viewsButton)
-entry("Default View").select()
-assert(not gearButton.shown and viewsButton.label == "Default View")
+entry("General View").select()
+assert(not gearButton.shown and viewsButton.label == "General View")
 profile.view = nil
 ITEM_MOD_AGILITY_SHORT = nil
 INVTYPE_HEAD = nil
@@ -535,7 +535,7 @@ assert(profile.view == "gear" and viewsButton.label == "Selling View" and scans 
   and auctionRefresh.shown and auctionRefresh.enabled and quickSell.shown and quickSell.enabled,
   "Opening the auction house must lock Selling View without starting a scan")
 openModernFilters(viewsButton)
-assert(entry("Default View").enabled == false and entry("Gear View").enabled == false
+assert(entry("General View").enabled == false and entry("Gear View").enabled == false
   and entry("Selling View").enabled == true, "Other views must be disabled while the auction house is open")
 entry("Gear View").select()
 entry("Selling View").select()
@@ -576,7 +576,7 @@ selectView("gear")
 SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
 assert(viewsButton.label == "Selling View", "The view lock must reject selection changes during the visit")
 SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
-assert(profile.view == "default" and viewsButton.label == "Default View",
+assert(profile.view == "default" and viewsButton.label == "General View",
   "A manually selected view must remain saved after the auction house closes")
 
 C_AuctionHouse = nil
