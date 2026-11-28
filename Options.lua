@@ -59,9 +59,12 @@ dbDefaults = {
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
+      trashItemsOnce = {},
       auctionItems = {},
+      auctionItemsOnce = {},
       auctionIneligibleOverrides = {},
       bankItems = {},
+      bankItemsOnce = {},
       mailItems = {},
       autoDepositBankItems = false,
       mailRecipients = {},
@@ -1057,25 +1060,35 @@ local function removableItemRow(item, remove, description, order)
 end
 
 --- Build the marked-item controls from the current profile.
+---@param itemsField string Saved Listview Bag field containing flagged items.
+---@param flagName string User-facing flag name.
+---@param oneTime boolean Whether these marks are temporary.
 ---@return table args AceConfig controls for clearing or removing marked items.
-local function listviewVendorItemOptions()
+local function listviewFlagItemOptions(itemsField, flagName, oneTime)
+  local items = db.profile.listviewBag[itemsField] or {}
+  local listName = oneTime and "one-time " .. flagName .. " list" or flagName .. " list"
   local args = {
     clear = {
       type = "execute",
-      name = "Clear List",
-      desc = "Remove all items from the auto-vendor list.",
+      name = oneTime and "Clear One-Time List" or "Clear List",
+      desc = "Remove all items from the " .. listName .. ".",
       confirm = true,
-      confirmText = "Remove all items from the auto-vendor list?",
-      disabled = function() return not next(db.profile.listviewBag.trashItems or {}) end,
+      confirmText = "Remove all items from the " .. listName .. "?",
+      disabled = function() return not next(db.profile.listviewBag[itemsField] or {}) end,
       func = function()
-        wipe(db.profile.listviewBag.trashItems)
+        local target = db.profile.listviewBag[itemsField]
+        if type(target) ~= "table" then
+          target = {}
+          db.profile.listviewBag[itemsField] = target
+        end
+        wipe(target)
         if Self.ListviewBag then Self.ListviewBag:Refresh() end
       end,
       width = "full",
       order = 0,
     },
   }
-  for key, item in pairs(db.profile.listviewBag.trashItems or {}) do
+  for key, item in pairs(items) do
     local entry = item
     local itemKey = key
     local link, itemIcon
@@ -1101,14 +1114,17 @@ local function listviewVendorItemOptions()
       name = (type(entry) == "table" and entry.name) or tostring(itemKey),
       link = link,
       icon = itemIcon,
-      suffix = tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
+      suffix = (oneTime and "(one-time)" or nil)
+        or tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
         or tostring(itemKey):find("\031auction-ineligible", 1, true) and "(not auctionable)" or nil,
       desc = type(entry) == "table" and not entry.link
         and "Older entries show the base item until the exact item is seen in your bags." or nil,
     }, function()
-      db.profile.listviewBag.trashItems[itemKey] = nil
+      local target = db.profile.listviewBag[itemsField]
+      if type(target) == "table" then target[itemKey] = nil end
       if Self.ListviewBag then Self.ListviewBag:Refresh() end
-    end, "Remove this item from the Junk list.", 1)
+    end, oneTime and "Remove this one-time " .. flagName .. " mark."
+      or "Remove this item from the " .. flagName .. " list.", 1)
   end
   return args
 end
@@ -1365,7 +1381,14 @@ end
 --- Refresh dynamic bag-item controls whenever AceConfig requests the options table.
 ---@return table options The shared addon options table.
 local function getOptions()
-  options.args.inventory.args.listviewBag.args.autoVendorItems.args = listviewVendorItemOptions()
+  options.args.inventory.args.listviewBag.args.autoVendorItems.args =
+    listviewFlagItemOptions("trashItems", "Junk", false)
+  options.args.inventory.args.listviewBag.args.autoVendorItemsOnce.args =
+    listviewFlagItemOptions("trashItemsOnce", "Junk", true)
+  options.args.inventory.args.listviewBag.args.autoAuctionItems.args =
+    listviewFlagItemOptions("auctionItems", "Auction", false)
+  options.args.inventory.args.listviewBag.args.autoBankItems.args =
+    listviewFlagItemOptions("bankItems", "Bank", false)
   options.args.inventory.args.listviewBag.args.essentials.args = essentialItemOptions()
   return options
 end
@@ -2057,7 +2080,7 @@ options = {
               name = "\"Essentials\" Filter Items",
               inline = true,
               args = {},
-              order = 5
+              order = 8
             },
             autoDepositBankItems = {
               name = "Auto-Deposit Bank Flagged Items",
@@ -2088,11 +2111,35 @@ options = {
             },
             autoVendorItems = {
               name = "Junk Items",
-              desc = "Remove an item from the Junk list.",
+              desc = "Items marked Always are remembered by exact variant.",
               type = "group",
               inline = true,
               args = {},
               order = 4
+            },
+            autoAuctionItems = {
+              name = "Auction Items",
+              desc = "Items marked Always are remembered for auctioning.",
+              type = "group",
+              inline = true,
+              args = {},
+              order = 5
+            },
+            autoBankItems = {
+              name = "Bank Items",
+              desc = "Items marked Always are remembered for depositing into the bank.",
+              type = "group",
+              inline = true,
+              args = {},
+              order = 6
+            },
+            autoVendorItemsOnce = {
+              name = "One-Time Junk Items",
+              desc = "These exact item variants are forgotten when they leave your bags.",
+              type = "group",
+              inline = true,
+              args = {},
+              order = 7
             }
           }
         },

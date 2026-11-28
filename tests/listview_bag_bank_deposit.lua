@@ -1,6 +1,8 @@
 -- Run with Lua 5.1 from the addon root: lua tests/listview_bag_bank_deposit.lua
 
-local profile = { enabled = true, bankItems = {}, protectedItems = {}, trashItems = {} }
+local profile = {
+  enabled = true, bankItems = {}, bankItemsOnce = {}, protectedItems = {}, trashItems = {},
+}
 SlackHacks = setmetatable({ db = { profile = { listviewBag = profile } } }, { __index = _G })
 SlackHacks.Self = SlackHacks
 Enum = { ItemClass = {}, ItemQuality = { Common = 1 }, BankType = { Character = 1, Account = 2 } }
@@ -113,16 +115,22 @@ assert(#deposits == 1 and deposits[1].bagID == 0 and deposits[1].slot == 1
   "Only flagged items should deposit, and the flag clears after the item leaves the bags")
 
 slots[1] = { itemID = 105, itemName = "Bank Item", hyperlink = bankLink, iconFileID = 1050, quality = 3 }
+profile.bankItemsOnce[key] = { name = "Bank Item", link = bankLink, quality = 3, itemLevel = 10 }
+module:DepositBankFlaggedItems()
+assert(#deposits == 2 and profile.bankItemsOnce[key] == nil,
+  "A one-time Bank mark must deposit its item and clear after it leaves the bags.")
+
+slots[1] = { itemID = 105, itemName = "Bank Item", hyperlink = bankLink, iconFileID = 1050, quality = 3 }
 profile.bankItems[key] = { name = "Bank Item" }
 C_Bank.IsItemAllowedInBankType = function() return false end
 module:DepositBankFlaggedItems()
-assert(#deposits == 1 and profile.bankItems[key],
+assert(#deposits == 2 and profile.bankItems[key],
   "Items disallowed by the selected bank must remain flagged")
 
 C_Bank.IsItemAllowedInBankType = function() return true end
 C_Item.CanBeRefunded = function() return true end
 module:DepositBankFlaggedItems(Enum.BankType.Account)
-assert(#deposits == 1 and profile.bankItems[key],
+assert(#deposits == 2 and profile.bankItems[key],
   "Refundable items must remain flagged rather than bypass Blizzard's account-bank confirmation")
 
 C_Item.CanBeRefunded = nil
@@ -130,7 +138,7 @@ C_Container.UseContainerItem = function(bagID, slot, _, bankType)
   deposits[#deposits + 1] = { bagID = bagID, slot = slot, bankType = bankType }
 end
 module:DepositBankFlaggedItems()
-assert(#deposits == 2 and profile.bankItems[key],
+assert(#deposits == 3 and profile.bankItems[key],
   "A Bank flag must remain when the attempted deposit is not reflected in inventory")
 
 print("Listview bag bank deposit tests passed")

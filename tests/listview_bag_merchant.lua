@@ -236,4 +236,56 @@ do
   assert(count == 0 and unavailable == 1,
     "An unvalidated copy must not be sold when its separate flag might protect it")
 end
+
+-- One-time Junk is scoped to the complete hyperlink variant and cleared only after bag verification.
+do
+  local junk = upvalue(upvalue(visitSlots, "isTrashItem"), "junk")
+  local firstLink = "|cff0070dd|Hitem:100:111:0:0:0:0:0:0|h[Same Item]|h|r"
+  local secondLink = "|cff0070dd|Hitem:100:222:0:0:0:0:0:0|h[Same Item]|h|r"
+  local firstKey = junk.variantKey(firstLink, 1, 10, nil)
+  local secondKey = junk.variantKey(secondLink, 1, 10, nil)
+  profile.trashItems, profile.trashItemsOnce = {}, { [firstKey] = { link = firstLink } }
+  profile.protectedItems, profile.bankItems, profile.auctionItems, profile.mailItems = {}, {}, {}, {}
+  profile.auctionIneligibleOverrides = {}
+  slots = {
+    { itemID = 100, itemName = "Same Item", hyperlink = firstLink, quality = 1, stackCount = 1 },
+    { itemID = 100, itemName = "Same Item", hyperlink = secondLink, quality = 1, stackCount = 1 },
+  }
+  local visited = {}
+  visitSlots(function(_, slot, key, once)
+    visited[#visited + 1] = { slot = slot, key = key, once = once }
+  end)
+  assert(#visited == 1 and visited[1].slot == 1 and visited[1].key == firstKey and visited[1].once,
+    "A one-time Junk mark must not match another enchant or link variation.")
+  assert(firstKey ~= secondKey)
+
+  local timers = {}
+  C_Timer = { After = function(delay, callback) timers[#timers + 1] = { delay = delay, callback = callback } end }
+  slots = { { itemID = 100, itemName = "Same Item", hyperlink = firstLink, quality = 1, stackCount = 1 } }
+  C_Container.UseContainerItem = function(_, slot) slots[slot] = nil end
+  module.IsEnabled = function() return true end
+  profile.enabled = true
+  sellMarked()
+  assert(profile.trashItemsOnce[firstKey] and timers[1].delay == 0.1,
+    "A one-time mark must remain until delayed inventory verification.")
+  timers[1].callback()
+  assert(not profile.trashItemsOnce[firstKey],
+    "A one-time mark must be removed after the item is confirmed sold.")
+
+  local failedKey = junk.variantKey(firstLink, 1, 10, nil)
+  profile.trashItemsOnce[failedKey] = { link = firstLink }
+  slots = { { itemID = 100, itemName = "Same Item", hyperlink = firstLink, quality = 1, stackCount = 1 } }
+  C_Container.UseContainerItem = function() end
+  timers = {}
+  sellMarked()
+  local index = 1
+  while timers[index] do
+    timers[index].callback()
+    index = index + 1
+  end
+  assert(profile.trashItemsOnce[failedKey] and #timers == 5
+    and timers[1].delay < timers[2].delay and timers[2].delay < timers[3].delay
+    and timers[3].delay < timers[4].delay and timers[4].delay < timers[5].delay,
+    "Unconfirmed sales must keep their one-time mark after progressively delayed checks.")
+end
 print("Listview bag merchant tests passed")

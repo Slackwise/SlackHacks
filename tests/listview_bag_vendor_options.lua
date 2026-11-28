@@ -2,7 +2,8 @@
 
 local profile = {
   enabled = true, showReagentBagContents = true, autoDepositBankItems = false,
-  protectedItems = {}, trashItems = {}, bankItems = {},
+  protectedItems = {}, trashItems = {}, trashItemsOnce = {},
+  auctionItems = {}, auctionItemsOnce = {}, bankItems = {}, bankItemsOnce = {},
 }
 SlackHacks = setmetatable({ db = { profile = { listviewBag = profile } } }, { __index = _G })
 SlackHacks.Self = SlackHacks
@@ -48,6 +49,7 @@ local renderRows = upvalue(module.MERCHANT_SHOW, "renderRows")
 local buildDisplayRows = upvalue(renderRows, "buildDisplayRows")
 local collectGroups = upvalue(buildDisplayRows, "collectGroups")
 local statusKey = upvalue(collectGroups, "itemStatusKey")
+local junkVariantKey = upvalue(collectGroups, "junk").variantKey
 upvalue(collectGroups, "getUpgradeTrack", function() return nil end)
 upvalue(collectGroups, "getBindInfo", function() return "", nil, false, false end)
 
@@ -68,11 +70,14 @@ C_Item = {
 }
 
 local key = statusKey("Marked Item", 3, 10, nil)
+local exactKey = junkVariantKey(link, 3, 10, nil)
 local legacy = { name = "Marked Item", quality = 3, itemLevel = 10 }
 profile.trashItems[key] = legacy
 local groups = collectGroups()
 assert(groups[1].statusInfo.link == link and groups[1].statusInfo.icon == 123)
 assert(legacy.link == link and legacy.icon == 123, "Matching legacy entries must recover the exact item")
+assert(profile.trashItems[exactKey] == legacy and not profile.trashItems[key],
+  "Recovered Junk marks must be moved to their exact item-variant key.")
 assert(legacy.quality == 3 and legacy.itemLevel == 10, "Recovery must preserve the selling rule")
 
 local refreshes = 0
@@ -93,12 +98,13 @@ assert(loadfile("Options.lua"))()
 local getOptions = upvalue(SlackHacks.registerOptions, "getOptions")
 local bagOptions = getOptions().args.inventory.args.listviewBag.args
 assert(not bagOptions.autoAHMode and SlackHacks.dbDefaults.profile.listviewBag.autoAHMode == nil,
-  "Automatic AH Mode must not have a saved option")
+  "Selling View's Auction House behavior must not require a saved mode option")
 profile.trashItems.old = { name = "Marked Item", quality = 2, itemLevel = 1 }
 profile.trashItems.uncached = { name = "Uncached" }
 profile.trashItems.clear = true
-local variant = key .. "\031auction-ineligible\031soulbound"
-profile.trashItems[variant] = { name = "Marked Item", link = link, icon = 123 }
+local variantLink = "|cff0070dd|Hitem:42:123:0:0|h[Marked Item]|h|r"
+local variant = junkVariantKey(variantLink, 3, 10, nil)
+profile.trashItems[variant] = { name = "Marked Item", link = variantLink, icon = 123 }
 profile.protectedItems.keep = true
 
 local group = getOptions().args.inventory.args.listviewBag.args.autoVendorItems
@@ -110,7 +116,7 @@ local function optionKey(value)
   return "item:" .. value:gsub(".", function(char) return ("%02x"):format(char:byte()) end)
 end
 assert(group.inline and args.clear.confirm and not args.clear.disabled())
-local row = args[optionKey(key)]
+local row = args[optionKey(exactKey)]
 assert(row.type == "group" and row.inline and row.name == "")
 assert(row.args.item.type == "description" and row.args.item.dialogControl == "InteractiveLabel"
   and row.args.item.name == "|T123:18:18|t " .. link and row.args.item.tooltipHyperlink == link)
@@ -125,11 +131,11 @@ assert(args[optionKey("old")].args.item.name == "|T123:18:18|t " .. baseLink
 assert(args[optionKey("uncached")].args.item.name == "Uncached"
   and not args[optionKey("uncached")].args.item.tooltipHyperlink)
 assert(args[optionKey("clear")].args.item.name == "clear", "Legacy keys must not collide with the clear button")
-assert(args[optionKey(variant)].args.item.name == "|T123:18:18|t " .. link .. " (soulbound)"
-  and args[optionKey(variant)].args.item.tooltipHyperlink == link,
-  "Separately flagged copies must remain distinguishable without changing their item tooltip")
+assert(args[optionKey(variant)].args.item.name == "|T123:18:18|t " .. variantLink
+  and args[optionKey(variant)].args.item.tooltipHyperlink == variantLink,
+  "Distinct item-link modifiers must have separate Junk entries.")
 args[optionKey(variant)].args.remove.func()
-assert(not profile.trashItems[variant] and profile.trashItems[key],
+assert(not profile.trashItems[variant] and profile.trashItems[exactKey],
   "Removing one copy's flag must not remove the other")
 refreshes = 0
 assert(loadfile("Libs/Ace3/LibStub/LibStub.lua"))()
@@ -147,10 +153,10 @@ assert(otherArgs[optionKey("other")] and not otherArgs[optionKey(key)], "Options
 SlackHacks.db.profile.listviewBag = profile
 args = registry:GetOptionsTable("VendorItems", "dialog", "Test-1.0").args
 args[optionKey("old")].args.remove.func()
-assert(not profile.trashItems.old and profile.trashItems[key] == legacy and refreshes == 1)
+assert(not profile.trashItems.old and profile.trashItems[exactKey] == legacy and refreshes == 1)
 assert(not getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args[optionKey("old")],
   "Deleting an item must remove its row from the options")
-args[optionKey(key)].args.remove.func()
+args[optionKey(exactKey)].args.remove.func()
 assert(not profile.trashItems[key] and profile.trashItems.uncached and profile.protectedItems.keep and refreshes == 2,
   "Deleting a linked item must leave other items and protection flags untouched")
 
@@ -158,6 +164,39 @@ local list = profile.trashItems
 args.clear.func()
 assert(next(list) == nil and profile.trashItems == list and profile.protectedItems.keep)
 assert(refreshes == 3 and getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args.clear.disabled())
+local onceKey = junkVariantKey(link, 3, 10, nil)
+profile.trashItemsOnce[onceKey] = { name = "Marked Item", link = link, icon = 123 }
+local onceArgs = getOptions().args.inventory.args.listviewBag.args.autoVendorItemsOnce.args
+assert(onceArgs.clear.confirm and onceArgs[optionKey(onceKey)].args.item.name == "|T123:18:18|t " .. link .. " (one-time)")
+onceArgs[optionKey(onceKey)].args.remove.func()
+assert(not profile.trashItemsOnce[onceKey] and refreshes == 4,
+  "One-time Junk entries must be removable from their separate options list.")
+
+local auctionKey = "Auction Item\0313\03110\031"
+local auctionLink = "|cff0070dd|Hitem:43:0:0:0|h[Auction Item]|h|r"
+profile.auctionItems[auctionKey] = {
+  name = "Auction Item", link = auctionLink, icon = 124,
+}
+local auctionGroup = getOptions().args.inventory.args.listviewBag.args.autoAuctionItems
+local auctionArgs = auctionGroup.args
+assert(auctionGroup.inline and auctionArgs.clear.confirm
+  and auctionArgs[optionKey(auctionKey)].args.item.tooltipHyperlink == auctionLink,
+  "Auction Always marks must appear in their own options group.")
+auctionArgs[optionKey(auctionKey)].args.remove.func()
+assert(not profile.auctionItems[auctionKey] and refreshes == 5,
+  "Auction Always marks must be removable from Options.")
+
+local bankKey = "Bank Item\0313\03110\031"
+local bankLink = "|cff0070dd|Hitem:44:0:0:0|h[Bank Item]|h|r"
+profile.bankItems[bankKey] = { name = "Bank Item", link = bankLink, icon = 125 }
+local bankGroup = getOptions().args.inventory.args.listviewBag.args.autoBankItems
+local bankArgs = bankGroup.args
+assert(bankGroup.inline and bankArgs.clear.confirm
+  and bankArgs[optionKey(bankKey)].args.item.tooltipHyperlink == bankLink,
+  "Bank Always marks must appear in their own options group.")
+bankArgs.clear.func()
+assert(not next(profile.bankItems) and refreshes == 6,
+  "The Bank Always list must support clearing from Options.")
 
 -- Essentials settings preserve the existing defaults and allow inventory-backed custom items.
 local bagOptions = getOptions().args.inventory.args.listviewBag.args
@@ -169,7 +208,7 @@ assert(profile.autoDepositBankItems)
 autoDeposit.set(nil, false)
 local essentials = bagOptions.essentials
 assert(essentials.inline and essentials.name == '"Essentials" Filter Items'
-  and essentials.order > bagOptions.autoVendorItems.order)
+  and essentials.order > bagOptions.autoVendorItemsOnce.order)
 assert(essentials.args.description.name == "These items are common to all players but you usually don't interact with them directly.")
 for _, item in ipairs(module.ESSENTIAL_ITEMS) do
   assert(essentials.args["item:" .. item.id].get(), item.name .. " must be checked by default")

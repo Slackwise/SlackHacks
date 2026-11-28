@@ -6,6 +6,7 @@ local forever = false
 function SlackHacks.isForever() return forever end
 local warnings, frames, ticker = {}, {}, nil
 local now, profileTime, resultCost, resultReads = 100, 0, 0, 0
+local timers = {}
 function SlackHacks.prn(text) warnings[#warnings + 1] = text end
 function GetNormalizedRealmName() return "TestRealm" end
 function UnitFactionGroup() return "Alliance" end
@@ -76,6 +77,7 @@ C_Timer = {
     function ticker:Cancel() self.cancelled = true end
     return ticker
   end,
+  After = function(delay, callback) timers[#timers + 1] = { delay = delay, callback = callback } end,
 }
 local hooks = {}
 function hooksecurefunc(object, name, callback) hooks[name] = callback end
@@ -334,4 +336,145 @@ assert(foreverWindow.bar.value == 0 and foreverWindow.bar.maximum == 1 and forev
   "A new Forever scan must reset the native bar")
 foreverWindow.CloseButton.scripts.OnClick()
 assert(ticker.cancelled and not foreverWindow.shown)
+
+-- Quick Sell uses Blizzard's default vendor-multiplier price and serializes auction requests.
+local inventory = {
+  [1] = { itemID = 100, hyperlink = "item:100", stackCount = 5, isBound = false },
+  [2] = { itemID = 200, hyperlink = "item:200", stackCount = 1, isBound = false },
+}
+local commodityPosts, itemPosts, confirmations, deposits = {}, {}, 0, 0
+local throttleReady = false
+C_Container = {
+  GetContainerNumSlots = function(bagID) return bagID == 0 and 2 or 0 end,
+  GetContainerItemInfo = function(bagID, slot) return bagID == 0 and inventory[slot] or nil end,
+}
+ItemLocation = {
+  CreateFromBagAndSlot = function(_, bagID, slot)
+    return { bag = bagID, slot = slot, IsValid = function() return true end }
+  end,
+}
+C_Item = {
+  GetItemInfo = function(link)
+    local vendorPrice = link == "item:100" and 1000 or 100
+    return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, vendorPrice
+  end,
+}
+Enum.ItemCommodityStatus = { Item = 1, Commodity = 2 }
+Constants = { AuctionConstants = { DEFAULT_AUCTION_PRICE_MULTIPLIER = 3 } }
+COPPER_PER_SILVER = 100
+GetCVar = function(name) assert(name == "auctionHouseDurationDropdown"); return "2" end
+GetMoney = function() return 100000 end
+C_AuctionHouse = {
+  IsThrottledMessageSystemReady = function() return throttleReady end,
+  IsSellItemValid = function() return true end,
+  GetItemCommodityStatus = function(location) return location.slot == 1 and 2 or 1 end,
+  GetAvailablePostCount = function(location) return location.slot == 1 and 5 or 1 end,
+  CalculateCommodityDeposit = function(_, _, quantity) deposits = deposits + 1; return quantity end,
+  CalculateItemDeposit = function(_, _, quantity) deposits = deposits + 1; return quantity end,
+  ShouldAutoPopulatePrice = function() return true end,
+  PostCommodity = function(location, duration, quantity, price)
+    commodityPosts[#commodityPosts + 1] = { location = location, duration = duration, quantity = quantity, price = price }
+    inventory[location.slot] = nil
+    return false
+  end,
+  ConfirmPostCommodity = function() error("Unexpected commodity confirmation") end,
+  PostItem = function(location, duration, quantity, bid, price)
+    itemPosts[#itemPosts + 1] = { location = location, duration = duration, quantity = quantity, bid = bid, price = price }
+    return true
+  end,
+  ConfirmPostItem = function(location)
+    confirmations = confirmations + 1
+    inventory[location.slot] = nil
+  end,
+}
+local quickSellRefreshes = 0
+local quickSellItems = {
+  { itemID = 100, link = "item:100", bagID = 0, slot = 1, count = 5 },
+  { itemID = 200, link = "item:200", bagID = 0, slot = 2, count = 1 },
+}
+foreverAuction.QuickSell(quickSellItems, function() quickSellRefreshes = quickSellRefreshes + 1 end)
+local postWindow
+for _, frame in ipairs(frames) do
+  if frame.name == "SlackHacksAuctionPostProgress" then postWindow = frame end
+end
+assert(postWindow and postWindow.template == "SimplePanelTemplate"
+  and postWindow.title.text == "Posting Auction Items"
+  and postWindow.barFrame.template == "ObjectiveTrackerProgressBarTemplate"
+  and postWindow.cancel.template == "SharedButtonSmallTemplate"
+  and postWindow.text.text == "0 / 2 items",
+  "Quick Sell must use a separate native-style cancellable progress window")
+assert(#commodityPosts == 0 and #itemPosts == 0 and timers[1] and timers[1].delay == 0.1,
+  "Quick Sell must wait progressively while Blizzard's auction throttle is not ready")
+throttleReady = true
+--- Run the next queued asynchronous Quick Sell check.
+---@return table timer Executed timer entry.
+local function runNextTimer()
+  local timer = table.remove(timers, 1)
+  assert(timer, "Expected a scheduled Quick Sell check")
+  now = now + timer.delay
+  timer.callback()
+end
+runNextTimer()
+assert(#commodityPosts == 1 and commodityPosts[1].quantity == 5
+  and commodityPosts[1].price == 3100 and commodityPosts[1].duration == 2,
+  "Commodity auctions must use their full stack and Blizzard's rounded default price")
+runNextTimer()
+assert(postWindow.bar.value == 1 and postWindow.text.text == "1 / 2 items",
+  "Quick Sell progress must advance after inventory confirms a post")
+runNextTimer()
+assert(#itemPosts == 1 and itemPosts[1].quantity == 1 and itemPosts[1].bid == nil
+  and itemPosts[1].price == 400 and confirmations == 1,
+  "Item auctions must use the native buyout default and automatically confirm the pending post")
+runNextTimer()
+assert(postWindow.bar.value == 2 and postWindow.text.text == "2 / 2 items")
+runNextTimer()
+assert(not postWindow.shown and quickSellRefreshes == 1
+  and warnings[#warnings]:find("posted 2 item stacks", 1, true),
+  "Quick Sell must close and refresh after every post is verified")
+
+-- Cancelling stops the remaining queue but reports that an already-sent request may complete.
+inventory = {
+  [1] = { itemID = 100, hyperlink = "item:100", stackCount = 5, isBound = false },
+  [2] = { itemID = 200, hyperlink = "item:200", stackCount = 1, isBound = false },
+}
+local postCountBeforeCancel = #commodityPosts + #itemPosts
+foreverAuction.QuickSell(quickSellItems, function() quickSellRefreshes = quickSellRefreshes + 1 end)
+postWindow.cancel.scripts.OnClick()
+local postedBeforeLateTimer = #commodityPosts + #itemPosts
+assert(not postWindow.shown and postedBeforeLateTimer == postCountBeforeCancel + 1
+  and warnings[#warnings]:find("active auction request may still complete", 1, true),
+  "Cancel must stop queued items while clarifying that the active request may finish")
+runNextTimer()
+assert(#commodityPosts + #itemPosts == postedBeforeCancel + 1,
+  "A cancelled Quick Sell must ignore pending timer callbacks")
+
+-- A post must not be reported as successful unless inventory confirms its removal.
+inventory = { [1] = { itemID = 100, hyperlink = "item:100", stackCount = 5, isBound = false } }
+local originalPostCommodity = C_AuctionHouse.PostCommodity
+C_AuctionHouse.PostCommodity = function(location, duration, quantity, price)
+  commodityPosts[#commodityPosts + 1] = { location = location, duration = duration, quantity = quantity, price = price }
+  return false
+end
+local failureStartedAt = now
+foreverAuction.QuickSell({ quickSellItems[1] }, function() quickSellRefreshes = quickSellRefreshes + 1 end)
+local verificationChecks = 0
+while #timers > 0 and verificationChecks < 20 do
+  runNextTimer()
+  verificationChecks = verificationChecks + 1
+end
+assert(not postWindow.shown and quickSellRefreshes == 3
+  and warnings[#warnings]:find("did not remove the posted item", 1, true)
+  and now - failureStartedAt >= 3 and now - failureStartedAt <= 3.1,
+  "Quick Sell must stop and report failure after a bounded progressive inventory check")
+C_AuctionHouse.PostCommodity = originalPostCommodity
+
+local shouldAutoPopulate = C_AuctionHouse.ShouldAutoPopulatePrice
+C_AuctionHouse.ShouldAutoPopulatePrice = function() return false end
+local postCountBeforeNoDefault = #commodityPosts + #itemPosts
+foreverAuction.QuickSell({ quickSellItems[1] }, function() end)
+assert(#commodityPosts + #itemPosts == postCountBeforeNoDefault
+  and warnings[#warnings]:find("automatic default pricing", 1, true),
+  "Quick Sell must not invent a price when native auto-pricing is disabled")
+C_AuctionHouse.ShouldAutoPopulatePrice = shouldAutoPopulate
+
 print("Listview Bag auction tests passed")

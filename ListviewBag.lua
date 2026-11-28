@@ -67,8 +67,7 @@ local MANA_CLASSES = {
 local sortColumn
 local sortAscending = true
 local temporaryView
-local ahMode = false
-local ahModeBeforeAuction
+local auctionOpen = false
 
 local function sortValueBefore(left, right)
   if left == right then return nil end
@@ -79,10 +78,10 @@ end
 local PROTECT_ICON_ATLAS = "ui-castingbar-shield"
 local PROTECT_STATUS = { id = "protect", name = "Protect", field = "protectedItems", atlas = PROTECT_ICON_ATLAS, sortOrder = 5 }
 local ITEM_STATUSES = {
-  { id = "vendor", name = "Junk", field = "trashItems", atlas = "bags-junkcoin", sortOrder = 1 },
-  { id = "auction", name = "Auction", field = "auctionItems", icon = "Interface\\Minimap\\Tracking\\Auctioneer", sortOrder = 2 },
+  { id = "vendor", name = "Junk", field = "trashItems", onceField = "trashItemsOnce", atlas = "bags-junkcoin", sortOrder = 1 },
+  { id = "auction", name = "Auction", field = "auctionItems", onceField = "auctionItemsOnce", icon = "Interface\\Minimap\\Tracking\\Auctioneer", sortOrder = 2 },
   PROTECT_STATUS,
-  { id = "bank", name = "Bank", field = "bankItems", icon = "Interface\\Minimap\\Tracking\\Banker", sortOrder = 4 },
+  { id = "bank", name = "Bank", field = "bankItems", onceField = "bankItemsOnce", icon = "Interface\\Minimap\\Tracking\\Banker", sortOrder = 4 },
   { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Minimap\\Tracking\\Mailbox", sortOrder = 3 },
 }
 local ITEM_CATEGORIES = {
@@ -293,6 +292,7 @@ local function settings()
   local listviewSettings = db.profile.listviewBag
   for _, status in ipairs(ITEM_STATUSES) do
     listviewSettings[status.field] = listviewSettings[status.field] or {}
+    if status.onceField then listviewSettings[status.onceField] = listviewSettings[status.onceField] or {} end
   end
   listviewSettings.flagFilters = listviewSettings.flagFilters or {}
   listviewSettings.bindingFilters = listviewSettings.bindingFilters or {}
@@ -343,19 +343,32 @@ local function activeColumns()
   return columns
 end
 
+local junk = {}
+
 --- Return the item's selected status, prioritizing non-junk flags for older overlapping marks.
 ---@param key string Item status key.
 ---@param quality number|nil Item quality, if known.
+---@param link string|nil Item hyperlink.
+---@param itemLevel number|nil Item level.
+---@param upgradeTrack string|nil Item upgrade track.
 ---@return table|nil status Selected status definition.
-local function getItemStatus(key, quality)
+local function getItemStatus(key, quality, link, itemLevel, upgradeTrack)
   local listviewSettings = settings()
   if listviewSettings.protectedItems[key] ~= nil then return PROTECT_STATUS end
   if quality == 0 then return nil end
   for index = 2, #ITEM_STATUSES do
     local status = ITEM_STATUSES[index]
-    if listviewSettings[status.field][key] ~= nil then return status end
+    if listviewSettings[status.field][key] ~= nil
+      or status.onceField and listviewSettings[status.onceField][key] ~= nil then
+      return status
+    end
   end
-  if listviewSettings.trashItems[key] ~= nil then return ITEM_STATUSES[1] end
+  local variantKey = junk.variantKey(link, quality, itemLevel, upgradeTrack)
+  local oneTimeTrash = listviewSettings.trashItemsOnce or {}
+  if variantKey and (listviewSettings.trashItems[variantKey] ~= nil or oneTimeTrash[variantKey] ~= nil)
+    or listviewSettings.trashItems[key] ~= nil then
+    return ITEM_STATUSES[1]
+  end
 end
 
 --- Check both the saved setting and the actual Ace module state.
@@ -364,8 +377,66 @@ local function isModuleEnabled()
   return settings().enabled and module:IsEnabled()
 end
 
+--- Build the shared status key used by non-Junk flags.
+---@param itemName string|nil Item name.
+---@param quality number|nil Item quality.
+---@param itemLevel number|nil Item level.
+---@param upgradeTrack string|nil Item upgrade track.
+---@return string key Shared item status key.
 local function itemStatusKey(itemName, quality, itemLevel, upgradeTrack)
   return table.concat({ itemName or "", quality or 0, itemLevel or 0, upgradeTrack or "" }, "\031")
+end
+
+--- Extract the item's modifier payload without its localized display name.
+---@param link string|nil Item hyperlink.
+---@return string|nil identity Stable link identity.
+junk.identity = function(link)
+  if type(link) ~= "string" or link == "" then return nil end
+  return link:match("|Hitem:([^|]+)|h") or link
+end
+
+--- Build a stable Junk key that distinguishes hyperlink modifiers and item metadata.
+---@param link string|nil Item hyperlink.
+---@param quality number|nil Item quality.
+---@param itemLevel number|nil Item level.
+---@param upgradeTrack string|nil Item upgrade track.
+---@return string|nil key Exact item-variant key, or nil when no link is available.
+junk.variantKey = function(link, quality, itemLevel, upgradeTrack)
+  if type(link) ~= "string" or link == "" then return nil end
+  local identity = junk.identity(link)
+  return table.concat({ "item", identity, quality or 0, itemLevel or 0, upgradeTrack or "" }, "\031")
+end
+
+--- Move legacy Junk entries to their exact item-variant keys when saved links are available.
+---@param listviewSettings table Saved Listview Bag settings.
+function module:MigrateLegacyJunkFlags(listviewSettings)
+  if type(listviewSettings) ~= "table" then return end
+  if type(listviewSettings.trashItems) ~= "table" then listviewSettings.trashItems = {} end
+  if type(listviewSettings.trashItemsOnce) ~= "table" then listviewSettings.trashItemsOnce = {} end
+  local migrations = {}
+  for key, entry in pairs(listviewSettings.trashItems) do
+    if type(entry) == "table" and entry.link then
+      local keyQuality, keyLevel, keyTrack
+      if type(key) == "string" then
+        keyQuality, keyLevel, keyTrack = key:match("^[^\031]*\031(%d+)\031(%d+)\031([^\031]*)")
+      end
+      local quality = entry.quality or tonumber(keyQuality)
+      local itemLevel = entry.itemLevel or tonumber(keyLevel)
+      local upgradeTrack = entry.upgradeTrack
+      if upgradeTrack == nil then upgradeTrack = keyTrack end
+      local variantKey = quality ~= nil and itemLevel ~= nil
+        and junk.variantKey(entry.link, quality, itemLevel, upgradeTrack)
+      if variantKey and key ~= variantKey then
+        migrations[#migrations + 1] = { oldKey = key, newKey = variantKey, entry = entry }
+      end
+    end
+  end
+  for _, migration in ipairs(migrations) do
+    if listviewSettings.trashItems[migration.newKey] == nil then
+      listviewSettings.trashItems[migration.newKey] = migration.entry
+    end
+    listviewSettings.trashItems[migration.oldKey] = nil
+  end
 end
 
 --- Build a separate key for an auction-ineligible copy.
@@ -389,15 +460,16 @@ local function effectiveStatusKey(key, eligible, bag, soulbound)
     return key .. "\031auction-unknown"
   end
   local sharedMail = soulbound and bag.mailItems[key] ~= nil and bag.protectedItems[key] == nil
-    and bag.bankItems[key] == nil
+    and bag.bankItems[key] == nil and bag.bankItemsOnce[key] == nil
   if eligible == false and bag.auctionItems[key] ~= nil and not bag.auctionIneligibleOverrides[variant]
-    and (bag.protectedItems[key] ~= nil or bag.bankItems[key] ~= nil) then
+    and (bag.protectedItems[key] ~= nil or bag.bankItems[key] ~= nil or bag.bankItemsOnce[key] ~= nil) then
     -- Older profiles may have overlapping flags; do not drop their protection on ineligible copies.
     bag.protectedItems[variant] = bag.protectedItems[key]
     bag.bankItems[variant] = bag.bankItems[key]
     bag.auctionIneligibleOverrides[variant] = true
   end
-  if eligible == false and (bag.auctionIneligibleOverrides[variant] or bag.auctionItems[key] ~= nil or sharedMail) then
+  if eligible == false and (bag.auctionIneligibleOverrides[variant] or bag.auctionItems[key] ~= nil
+    or bag.auctionItemsOnce[key] ~= nil or sharedMail) then
     return variant
   end
   return key
@@ -409,11 +481,19 @@ end
 local function isProtectedItem(key)
   local listviewSettings = settings()
   return listviewSettings.protectedItems[key] ~= nil or listviewSettings.bankItems[key] ~= nil
-    or listviewSettings.auctionItems[key] ~= nil or listviewSettings.mailItems[key] ~= nil
+    or listviewSettings.bankItemsOnce[key] ~= nil or listviewSettings.auctionItems[key] ~= nil
+    or listviewSettings.auctionItemsOnce[key] ~= nil or listviewSettings.mailItems[key] ~= nil
 end
 
-local function isTrashItem(key)
-  return settings().trashItems[key] ~= nil
+local function isTrashItem(key, link, quality, itemLevel, upgradeTrack)
+  local bag = settings()
+  local variantKey = junk.variantKey(link, quality, itemLevel, upgradeTrack)
+  if variantKey then
+    if (bag.trashItemsOnce or {})[variantKey] ~= nil then return true, variantKey, true end
+    if bag.trashItems[variantKey] ~= nil then return true, variantKey, false end
+  end
+  if bag.trashItems[key] ~= nil then return true, key, false end
+  return false
 end
 
 --=====================================================================
@@ -620,7 +700,8 @@ local function collectGroups(includeAllItems)
       itemID = group.itemID, link = group.hyperlink, bag = settings(), soulbound = group.soulbound,
     }
     if sortColumn == "flag" then
-      local status = getItemStatus(group.statusKey, group.quality)
+      local status = getItemStatus(group.statusKey, group.quality, group.hyperlink,
+        group.itemLevel, group.upgradeTrack)
       group.flagSortOrder = status and status.sortOrder or 0
     end
     group.statusInfo = {
@@ -636,6 +717,15 @@ local function collectGroups(includeAllItems)
     if type(savedTrash) == "table" and not savedTrash.link and group.hyperlink then
       savedTrash.link = group.hyperlink
       savedTrash.icon = group.icon
+      savedTrash.quality = savedTrash.quality or group.quality
+      savedTrash.itemLevel = savedTrash.itemLevel or group.itemLevel
+      savedTrash.upgradeTrack = savedTrash.upgradeTrack or group.upgradeTrack
+      local variantKey = junk.variantKey(group.hyperlink, group.quality, group.itemLevel,
+        group.upgradeTrack)
+      if variantKey then
+        settings().trashItems[variantKey] = savedTrash
+        settings().trashItems[group.statusKey] = nil
+      end
     end
   end
 
@@ -679,6 +769,44 @@ local function collectGroups(includeAllItems)
   return order
 end
 
+--- Remove one-time marks when no matching item variant remains in the player's bags.
+---@param bag table Current Listview Bag settings.
+---@return boolean removed Whether one-time entries were removed.
+junk.reconcileOneTimeFlags = function(bag)
+  local present, complete = {}, true
+  for _, status in ipairs(ITEM_STATUSES) do
+    if status.onceField then present[status.onceField] = {} end
+  end
+  for _, group in ipairs(collectGroups(true)) do
+    if group.hyperlink and group.quality ~= nil and group.itemLevel ~= nil then
+      local variantKey = junk.variantKey(group.hyperlink, group.quality, group.itemLevel, group.upgradeTrack)
+      if variantKey then
+        for field in pairs(present) do present[field][variantKey] = true end
+      else
+        complete = false
+      end
+    else
+      complete = false
+    end
+  end
+  if not complete then return false end
+
+  local removed = false
+  for _, status in ipairs(ITEM_STATUSES) do
+    if status.onceField then
+      for key, entry in pairs(bag[status.onceField]) do
+        local variantKey = type(entry) == "table" and junk.variantKey(
+          entry.link, entry.quality, entry.itemLevel, entry.upgradeTrack)
+        if variantKey and not present[status.onceField][variantKey] then
+          bag[status.onceField][key] = nil
+          removed = true
+        end
+      end
+    end
+  end
+  return removed
+end
+
 --=====================================================================
 -- Frame construction (declared up front, built lazily the first time the module is enabled)
 --=====================================================================
@@ -697,7 +825,6 @@ local sellMarkedTrashItems, updateMerchantJunkButton
 -- frame may not have shown/hidden yet when our handler for the same event runs.
 local merchantOpen = false
 local mailOpen = false
-local auctionOpen = false
 local bankOpen = false
 local guildBankOpen = false
 local trackedCursorItem
@@ -729,8 +856,9 @@ function bankDeposit.Verify(bag, pendingKeys)
       for identity in pairs(identities) do
         if present[identity] then remaining = true; break end
       end
-      if not remaining and bag.bankItems[key] ~= nil then
+      if not remaining then
         bag.bankItems[key] = nil
+        bag.bankItemsOnce[key] = nil
         pendingKeys[key] = nil
       end
     end
@@ -771,7 +899,7 @@ function module:DepositBankFlaggedItems(bankType)
   local targets, pendingKeys, skipped = {}, {}, 0
   for _, group in ipairs(collectGroups(true)) do
     local key = group.statusKey
-    if bag.bankItems[key] ~= nil then
+    if bag.bankItems[key] ~= nil or bag.bankItemsOnce[key] ~= nil then
       for _, entry in ipairs(group.entries) do
         local info = C_Container.GetContainerItemInfo(entry.bagID, entry.slot)
         if info and not info.isLocked then
@@ -1058,7 +1186,8 @@ end
 ---@return boolean matches Whether the item is visible.
 local function matchesFilters(group)
   local bag = settings()
-  local status = getItemStatus(group.statusKey, group.quality)
+  local status = getItemStatus(group.statusKey, group.quality, group.hyperlink,
+    group.itemLevel, group.upgradeTrack)
   if bag.flagFilters[status and status.id or "unflagged"] == false then return false end
   local binding = group.binding or (group.accountBound and isRetail() and "warbound")
     or (group.isBound or group.accountBound) and "soulbound" or "unbound"
@@ -1077,7 +1206,7 @@ end
 ---@return boolean blocked Whether an auction is blocked.
 local function isAuctionBlocked(key, quality, bag)
   return bag.protectedItems[key] ~= nil
-    or quality ~= 0 and (bag.bankItems[key] ~= nil or bag.mailItems[key] ~= nil)
+    or quality ~= 0 and (bag.bankItems[key] ~= nil or bag.bankItemsOnce[key] ~= nil or bag.mailItems[key] ~= nil)
 end
 
 --- Keep only bag slots that Blizzard considers eligible for auction.
@@ -1217,11 +1346,18 @@ end
 ---@param statusInfo table Item metadata to save.
 ---@param selected table|nil Status definition, or nil to clear.
 ---@param context table|nil Captured row and bag slots.
+---@param flagMode string|nil "once" for temporary flags; otherwise remember the flag.
 ---@return string|nil key Saved key, or nil if validation failed.
-local function setItemStatus(key, statusInfo, selected, context)
+local function setItemStatus(key, statusInfo, selected, context, flagMode)
   if not isModuleEnabled() then return end
   if selected and (statusInfo.quality == nil or (statusInfo.quality == 0 and selected ~= PROTECT_STATUS)) then
     prn(statusInfo.quality == 0 and "grey items can only be protected." or "item quality is not yet available.")
+    return
+  end
+  local variantKey = junk.variantKey(statusInfo.link, statusInfo.quality,
+    statusInfo.itemLevel, statusInfo.upgradeTrack)
+  if selected and (selected == ITEM_STATUSES[1] or flagMode == "once") and not variantKey then
+    prn("the item's exact variation is not available; try flagging it again when its link is loaded.")
     return
   end
   if selected == PROTECT_STATUS and statusInfo.quality == 0
@@ -1258,12 +1394,24 @@ local function setItemStatus(key, statusInfo, selected, context)
   end
   for _, status in ipairs(ITEM_STATUSES) do
     listviewSettings[status.field][key] = nil
+    if status.onceField then listviewSettings[status.onceField][key] = nil end
+  end
+  if variantKey then
+    listviewSettings.trashItems[variantKey] = nil
+    listviewSettings.trashItemsOnce[variantKey] = nil
   end
   listviewSettings.mailAssignments[key] = nil
   listviewSettings.mailQueues[key] = nil
   local legacy = rawget(listviewSettings, "mailAmounts")
   if type(legacy) == "table" then legacy[key] = nil end
-  if selected then listviewSettings[selected.field][key] = statusInfo end
+  if selected and selected.onceField and flagMode == "once" then
+    local flagKey = selected == ITEM_STATUSES[1] and variantKey or key
+    listviewSettings[selected.onceField][flagKey] = statusInfo
+  elseif selected == ITEM_STATUSES[1] then
+    listviewSettings.trashItems[variantKey] = statusInfo
+  elseif selected then
+    listviewSettings[selected.field][key] = statusInfo
+  end
   if refreshMailSendButton then refreshMailSendButton() end
   renderRows()
   updateMerchantJunkButton()
@@ -1279,8 +1427,9 @@ end
 local function blockedItemAction(key, quality)
   if not isModuleEnabled() then return nil end
   local bag = settings()
-  local protected = bag.protectedItems[key] ~= nil or (quality ~= 0 and bag.bankItems[key] ~= nil)
-  local auction = quality ~= 0 and bag.auctionItems[key] ~= nil
+  local protected = bag.protectedItems[key] ~= nil
+    or quality ~= 0 and (bag.bankItems[key] ~= nil or bag.bankItemsOnce[key] ~= nil)
+  local auction = quality ~= 0 and (bag.auctionItems[key] ~= nil or bag.auctionItemsOnce[key] ~= nil)
   local mail = quality ~= 0 and bag.mailItems[key] ~= nil
   if merchantOpen and (protected or auction or mail) then
     return "vendoring"
@@ -2386,13 +2535,37 @@ end
 ---@param statusInfo table Item metadata.
 ---@param status table Selected flag.
 ---@param context table|nil Captured row and bag slots.
-local function selectItemStatus(anchor, key, statusInfo, status, context)
+--- Return whether a flag is currently marked Once or Always.
+---@param status table Flag definition.
+---@param key string Item status key.
+---@param statusInfo table Item metadata.
+---@return string|nil mode Current duration, if flagged.
+junk.flagMode = function(status, key, statusInfo)
+  local bag = settings()
+  local flagKey = status == ITEM_STATUSES[1]
+    and junk.variantKey(statusInfo.link, statusInfo.quality, statusInfo.itemLevel, statusInfo.upgradeTrack)
+    or key
+  if status.onceField and flagKey and bag[status.onceField][flagKey] ~= nil then return "once" end
+  if flagKey and bag[status.field][flagKey] ~= nil then return "always" end
+  if status == ITEM_STATUSES[1] and bag.trashItems[key] ~= nil then return "always" end
+end
+
+--- Select a flag, requesting a recipient before applying Mail.
+---@param anchor table Flag button.
+---@param key string Item status key.
+---@param statusInfo table Item metadata.
+---@param status table Selected flag.
+---@param context table|nil Captured row and bag slots.
+---@param flagMode string|nil "once" or "always" for flags with duration choices.
+local function selectItemStatus(anchor, key, statusInfo, status, context, flagMode)
   if status.id == "mail" then
     if statusInfo.quality == nil or statusInfo.quality == 0 then
       setItemStatus(key, statusInfo, status, context)
     elseif validateStatusContext(context, status) then
       openMailRecipientPicker(anchor, key, statusInfo, nil, context)
     end
+  elseif status.onceField then
+    setItemStatus(key, statusInfo, status, context, flagMode)
   else
     setItemStatus(key, statusInfo, status, context)
   end
@@ -2408,31 +2581,80 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateTitle("Flag item for:")
-      root:CreateRadio("None", function() return not getItemStatus(key, statusInfo.quality) end,
+      root:CreateRadio("None", function()
+        return not getItemStatus(key, statusInfo.quality, statusInfo.link,
+          statusInfo.itemLevel, statusInfo.upgradeTrack)
+      end,
         function() setItemStatus(key, statusInfo, nil, context) end)
       for _, entry in ipairs(ITEM_STATUSES) do
         local status = entry
         if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
           local label = statusMenuLabel(status)
-          root:CreateRadio(label, function() return getItemStatus(key, statusInfo.quality) == status end,
-            function() selectItemStatus(anchor, key, statusInfo, status, context) end)
+          if status.onceField then
+            local submenu = root:CreateButton(label)
+            for _, mode in ipairs({ "once", "always" }) do
+              local flagMode = mode
+              local modeLabel = flagMode == "once" and "One time" or "Always"
+              submenu:CreateRadio(modeLabel,
+                function()
+                  return getItemStatus(key, statusInfo.quality, statusInfo.link,
+                    statusInfo.itemLevel, statusInfo.upgradeTrack) == status
+                    and junk.flagMode(status, key, statusInfo) == flagMode
+                end,
+                function() selectItemStatus(anchor, key, statusInfo, status, context, flagMode) end)
+            end
+          else
+            root:CreateRadio(label, function()
+              return getItemStatus(key, statusInfo.quality, statusInfo.link,
+                statusInfo.itemLevel, statusInfo.upgradeTrack) == status
+            end,
+              function() selectItemStatus(anchor, key, statusInfo, status, context) end)
+          end
         end
       end
     end)
   else
     local menu = {
       { text = "Flag item for:", isTitle = true, notCheckable = true },
-      { text = "None", checked = function() return not getItemStatus(key, statusInfo.quality) end,
+      { text = "None", checked = function()
+        return not getItemStatus(key, statusInfo.quality, statusInfo.link,
+          statusInfo.itemLevel, statusInfo.upgradeTrack)
+      end,
         func = function() setItemStatus(key, statusInfo, nil, context) end },
     }
     for _, entry in ipairs(ITEM_STATUSES) do
       local status = entry
       if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
-        menu[#menu + 1] = {
-          text = statusMenuLabel(status),
-          checked = function() return getItemStatus(key, statusInfo.quality) == status end,
-          func = function() selectItemStatus(anchor, key, statusInfo, status, context) end,
-        }
+        if status.onceField then
+          local submenu = {}
+          for _, mode in ipairs({ "once", "always" }) do
+            local flagMode = mode
+            submenu[#submenu + 1] = {
+              text = flagMode == "once" and "One time" or "Always",
+              checked = function()
+                return getItemStatus(key, statusInfo.quality, statusInfo.link,
+                  statusInfo.itemLevel, statusInfo.upgradeTrack) == status
+                  and junk.flagMode(status, key, statusInfo) == flagMode
+              end,
+              func = function() selectItemStatus(anchor, key, statusInfo, status, context, flagMode) end,
+            }
+          end
+          menu[#menu + 1] = {
+            text = statusMenuLabel(status),
+            notCheckable = true,
+            hasArrow = true,
+            menuList = submenu,
+          }
+        else
+          menu[#menu + 1] = {
+            text = statusMenuLabel(status),
+            checked = function()
+              return getItemStatus(key, statusInfo.quality, statusInfo.link,
+                statusInfo.itemLevel, statusInfo.upgradeTrack) == status
+            end,
+            func = function() selectItemStatus(anchor, key, statusInfo, status, context) end,
+          }
+        end
       end
     end
     if not module.statusMenu then
@@ -2564,11 +2786,12 @@ local function createRow(index)
         prn("grey items can only be protected using the flag menu.")
         return
       end
-      local status = getItemStatus(row.statusKey, row.statusInfo.quality)
+      local status = getItemStatus(row.statusKey, row.statusInfo.quality, row.statusInfo.link,
+        row.statusInfo.itemLevel, row.statusInfo.upgradeTrack)
       if status == ITEM_STATUSES[1] then
-        setItemStatus(row.statusKey, row.statusInfo, nil, row.statusContext)
+        prn("this item is already marked as Junk.")
       elseif not status then
-        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext)
+        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext, "once")
       else
         prn("use the flag menu to change this item's " .. status.name .. " flag.")
       end
@@ -2578,7 +2801,8 @@ local function createRow(index)
   end)
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    local status = getItemStatus(row.statusKey, row.statusInfo.quality)
+    local status = getItemStatus(row.statusKey, row.statusInfo.quality, row.statusInfo.link,
+      row.statusInfo.itemLevel, row.statusInfo.upgradeTrack)
     if row.statusInfo.quality == nil then
       GameTooltip:SetText("Item quality is not yet available.")
     else
@@ -2609,7 +2833,7 @@ local function createRow(index)
       end
       local rightClick = row.statusInfo.quality == 0 and "Grey items can only be protected."
         or status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
-        or "Right-click to quick mark as Junk."
+        or "Right-click to quick-flag as Junk this one time."
       local instructionColor = status and status.id == "mail" and 0.6 or 1
       GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick,
         instructionColor, instructionColor, instructionColor, true)
@@ -2777,7 +3001,7 @@ local function buildDisplayRows()
   local groups = collectGroups()
   local rows = {}
   local view = selectedView()
-  local filterAuction = view == "selling" and ahMode and auctionEligibilityAvailable()
+  local filterAuction = view == "selling" and auctionOpen and auctionEligibilityAvailable()
   for _, group in ipairs(groups) do
     if (view ~= "selling" or type(group.sellPrice) == "number" and group.sellPrice > 0)
       and matchesFilters(group) and (view ~= "gear" or matchesGearFilters(group))
@@ -2863,7 +3087,8 @@ renderRows = function()
       row.collapseBtn:Hide()
     end
 
-    updateStatusButton(row.statusBtn, getItemStatus(data.statusKey, data.quality))
+    updateStatusButton(row.statusBtn, getItemStatus(data.statusKey, data.quality,
+      data.hyperlink, data.itemLevel, data.upgradeTrack))
 
     row.icon:SetTexture(data.icon)
     local qualityColor = ITEM_QUALITY_COLORS[data.quality or 1] or ITEM_QUALITY_COLORS[1]
@@ -3574,25 +3799,6 @@ local function openFiltersMenu(anchor, root)
   end
 end
 
---- Temporarily enable AH Mode without changing the user's previous choice.
-local function beginAuctionMode()
-  if ahModeBeforeAuction ~= nil then return end
-  ahModeBeforeAuction = ahMode
-  if not auctionEligibilityAvailable() then
-    ahMode = false
-    prn("AH Mode is unavailable because auction eligibility cannot be checked.")
-    return
-  end
-  ahMode = true
-end
-
---- Restore the AH Mode choice from before the auction house opened.
-local function endAuctionMode()
-  if ahModeBeforeAuction == nil then return end
-  ahMode = ahModeBeforeAuction
-  ahModeBeforeAuction = nil
-end
-
 --- Update view controls and the space available to the search box.
 local function updateViewControls()
   if not footer then return end
@@ -3608,12 +3814,10 @@ local function updateViewControls()
     and not (Self.ListviewBagAuction and Self.ListviewBagAuction.HasAuctionator())
   footer.auctionRefresh:SetShown(showAuctionRefresh)
   footer.auctionRefresh:SetEnabled(auctionOpen)
-  footer.ahMode:SetShown(view == "selling")
-  footer.ahMode:ClearAllPoints()
-  footer.ahMode:SetPoint("RIGHT", showAuctionRefresh and footer.auctionRefresh or footer.viewsButton,
-    "LEFT", showAuctionRefresh and -60 or -64, 0)
-  footer.ahMode:SetChecked(ahMode)
-  footer.ahMode:SetEnabled(auctionEligibilityAvailable())
+  footer.quickSell:SetShown(view == "selling")
+  footer.quickSell:SetEnabled(auctionOpen)
+  footer.quickSell:ClearAllPoints()
+  footer.quickSell:SetPoint("RIGHT", showAuctionRefresh and footer.auctionRefresh or footer.viewsButton, "LEFT", -4, 0)
   if searchBox then searchBox:SetWidth(view == "gear" and 90 or 180) end
 end
 
@@ -3621,6 +3825,7 @@ end
 ---@param view string View identifier.
 ---@param temporary boolean|nil Whether to leave the saved view unchanged.
 local function selectView(view, temporary)
+  if auctionOpen and (view ~= "selling" or not temporary) then return end
   if temporary then temporaryView = view else temporaryView = nil; settings().view = view end
   sortColumn = nil
   sortAscending = true
@@ -3636,15 +3841,16 @@ local function openViewsMenu(anchor, root)
   if root then
     for _, entry in ipairs(VIEWS) do
       local view = entry
-      root:CreateRadio(view.name, function() return selectedView() == view.id end,
+      local radio = root:CreateRadio(view.name, function() return selectedView() == view.id end,
         function() selectView(view.id) end)
+      if radio and radio.SetEnabled then radio:SetEnabled(not auctionOpen or view.id == "selling") end
     end
   else
     local menu = {}
     for _, entry in ipairs(VIEWS) do
       local view = entry
       menu[#menu + 1] = { text = view.name, checked = function() return selectedView() == view.id end,
-        func = function() selectView(view.id) end }
+        func = function() selectView(view.id) end, disabled = auctionOpen and view.id ~= "selling" }
     end
     if not module.viewsMenu then
       module.viewsMenu = CreateFrame("Frame", "SlackHacksListviewBagViewsMenu", UIParent, "UIDropDownMenuTemplate")
@@ -3745,6 +3951,33 @@ updateAuctionView = function()
   prices.Start(items, renderRows)
 end
 
+--- Start Quick Sell for every currently flagged, eligible Auction stack.
+local function quickSellAuctionItems()
+  local prices = Self.ListviewBagAuction
+  if not prices or selectedView() ~= "selling" or not auctionOpen or not frame or not frame:IsShown() then return end
+  local bag = settings()
+  local items = {}
+  for _, group in ipairs(collectGroups()) do
+    local key = group.statusKey
+    local flagged = bag.auctionItems[key] ~= nil or bag.auctionItemsOnce[key] ~= nil
+    if flagged and filterAuctionEntries(group) then
+      for _, entry in ipairs(group.entries) do
+        local itemKey, itemQuality = key, group.quality
+        items[#items + 1] = {
+          link = group.hyperlink, itemID = group.itemID, name = group.itemName,
+          bagID = entry.bagID, slot = entry.slot, count = entry.count,
+          canPost = function()
+            local current = settings()
+            return (current.auctionItems[itemKey] ~= nil or current.auctionItemsOnce[itemKey] ~= nil)
+              and not isAuctionBlocked(itemKey, itemQuality, current)
+          end,
+        }
+      end
+    end
+  end
+  prices.QuickSell(items, renderRows)
+end
+
 --- Create the window footer and its filter controls.
 local function createFooter()
   footer = CreateFrame("Frame", nil, content)
@@ -3842,25 +4075,25 @@ local function createFooter()
     GameTooltip:Show()
   end)
   footer.auctionRefresh:SetScript("OnLeave", GameTooltip_Hide)
-  footer.ahMode = CreateFrame("CheckButton", "SlackHacksListviewBagAHMode", content, "UICheckButtonTemplate")
-  footer.ahMode:SetSize(20, 20)
-  footer.ahMode:SetPoint("RIGHT", footer.auctionRefresh, "LEFT", -60, 0)
-  footer.ahMode.text:SetText("AH Mode")
-  footer.ahMode:SetMotionScriptsWhileDisabled(true)
-  footer.ahMode:SetScript("OnClick", function(self)
-    ahMode = not not self:GetChecked()
-    renderRows()
-  end)
-  footer.ahMode:SetScript("OnEnter", function(self)
+  footer.quickSell = CreateFrame("Button", "SlackHacksListviewBagQuickSell", content)
+  footer.quickSell:SetSize(16, 16)
+  footer.quickSell:SetNormalTexture("Interface\\Minimap\\Tracking\\Auctioneer")
+  footer.quickSell:SetDisabledTexture("Interface\\Minimap\\Tracking\\Auctioneer")
+  footer.quickSell:GetDisabledTexture():SetDesaturated(true)
+  footer.quickSell:GetDisabledTexture():SetVertexColor(0.5, 0.5, 0.5)
+  footer.quickSell:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  footer.quickSell:SetMotionScriptsWhileDisabled(true)
+  footer.quickSell:SetScript("OnClick", quickSellAuctionItems)
+  footer.quickSell:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText("AH Mode")
-    GameTooltip:AddLine("Show only items eligible for auction that have a vendor price and aren't blocked by flags.", 1, 1, 1, true)
-    if not auctionEligibilityAvailable() then
-      GameTooltip:AddLine("Auction eligibility is unavailable on this client.", 1, 0.2, 0.2, true)
+    GameTooltip:SetText("Quick Sell")
+    GameTooltip:AddLine("Auto-sell Auction flagged items for the default value the Auction House assigns it.", 1, 1, 1, true)
+    if not auctionOpen then
+      GameTooltip:AddLine("Open the Auction House to use Quick Sell.", 1, 0.8, 0.2, true)
     end
     GameTooltip:Show()
   end)
-  footer.ahMode:SetScript("OnLeave", GameTooltip_Hide)
+  footer.quickSell:SetScript("OnLeave", GameTooltip_Hide)
   updateViewControls()
 
   if C_AddOns and C_AddOns.LoadAddOn then
@@ -4393,10 +4626,15 @@ local function forEachSellableTrashSlot(callback, includeGrey)
           else
             local key = effectiveStatusKey(baseKey, eligible, bag, soulbound)
             local grey = itemQuality == 0 and includeGrey and bag.protectedItems[key] == nil
-            local marked = itemQuality ~= 0 and isTrashItem(key) and not isProtectedItem(key)
+            local marked, junkKey, oneTime
+            if itemQuality ~= 0 then
+              marked, junkKey, oneTime =
+                isTrashItem(key, info.hyperlink, itemQuality, level, upgradeTrack)
+            end
+            marked = marked and not isProtectedItem(key)
             if grey or marked then
               count = count + 1
-              if callback then callback(bagID, slot) end
+              if callback then callback(bagID, slot, junkKey, oneTime) end
             end
           end
         else
@@ -4406,6 +4644,87 @@ local function forEachSellableTrashSlot(callback, includeGrey)
     end
   end
   return count, unavailable
+end
+
+--- Count copies of one exact Junk variant and report whether matching slots were fully resolved.
+---@param variantKey string Exact item-variant key.
+---@return number count Item quantity in the player's bags.
+---@return boolean complete Whether all matching items had enough data to identify their variant.
+junk.countVariantInBags = function(variantKey)
+  local targetIdentity = variantKey:match("^[^\031]+\031([^\031]*)")
+  local count, complete = 0, true
+  for _, bagID in ipairs(bagIDs()) do
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.hyperlink and junk.identity(info.hyperlink) == targetIdentity then
+        local itemName, _, quality, itemLevel = C_Item.GetItemInfo(info.hyperlink)
+        quality = info.quality or quality
+        local level = C_Item.GetDetailedItemLevelInfo(info.hyperlink) or itemLevel
+        if itemName and quality ~= nil and level ~= nil then
+          local track = getUpgradeTrack(bagID, slot)
+          if junk.variantKey(info.hyperlink, quality, level, track) == variantKey then
+            local baseKey = itemStatusKey(itemName, quality, level, track)
+            local _, _, accountBound = getBindInfo(bagID, slot, info.hyperlink)
+            local soulbound = info.isBound and not accountBound
+            local eligible = auctionFlagEligibility(bagID, slot, info, accountBound)
+            local bag = settings()
+            if eligible == nil and bag.auctionIneligibleOverrides[ineligibleStatusKey(baseKey, soulbound)] then
+              complete = false
+            else
+              local key = effectiveStatusKey(baseKey, eligible, bag, soulbound)
+              if not isProtectedItem(key) then
+                count = count + (info.stackCount or 1)
+              end
+            end
+          end
+        else
+          complete = false
+        end
+      end
+    end
+  end
+  return count, complete
+end
+
+--- Retry bag verification after the merchant has had time to update inventory.
+---@param bag table Profile whose one-time Junk entries are being verified.
+---@param sales table Variant keys mapped to their pre-sale quantities.
+---@param attempt number Current retry index.
+junk.verifyOneTimeSales = function(bag, sales, attempt)
+  local delays = { 0.1, 0.2, 0.4, 0.8, 1.6 }
+  if type(C_Timer) ~= "table" or type(C_Timer.After) ~= "function" then
+    prn("one-time Junk sales could not be verified; their marks remain in the list.")
+    return
+  end
+  C_Timer.After(delays[attempt], function()
+    if settings() ~= bag then return end
+    local once = bag.trashItemsOnce or {}
+    local remaining, removed = {}, false
+    for key, before in pairs(sales) do
+      if once[key] ~= nil then
+        local after, complete = junk.countVariantInBags(key)
+        if complete and before ~= nil and after == 0 then
+          once[key] = nil
+          removed = true
+        else
+          remaining[key] = before
+        end
+      end
+    end
+    if removed then
+      renderRows()
+      updateMerchantJunkButton()
+      local registry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+      if registry then registry:NotifyChange("SlackHacks") end
+    end
+    if next(remaining) then
+      if attempt < #delays then
+        junk.verifyOneTimeSales(bag, remaining, attempt + 1)
+      else
+        prn("some one-time Junk marks remain because the corresponding sales could not be verified.")
+      end
+    end
+  end)
 end
 
 --- Extend the native junk button's enabled state to include sellable marked items.
@@ -4421,35 +4740,54 @@ end
 ---@param includeGrey boolean|nil Whether to sell unprotected grey items too.
 sellMarkedTrashItems = function(includeGrey)
   if not isModuleEnabled() then return end
-  local _, unavailable = forEachSellableTrashSlot(C_Container.UseContainerItem, includeGrey)
+  local bag, sales = settings(), {}
+  --- Sell a slot and capture the starting quantity for any one-time Junk mark.
+  ---@param bagID number Container ID.
+  ---@param slot number Container slot.
+  ---@param junkKey string|nil Exact Junk key.
+  ---@param oneTime boolean|nil Whether this mark should be cleared after sale.
+  local function sellSlot(bagID, slot, junkKey, oneTime)
+    if oneTime and sales[junkKey] == nil then
+      local before, complete = junk.countVariantInBags(junkKey)
+      sales[junkKey] = complete and before or false
+    end
+    C_Container.UseContainerItem(bagID, slot)
+  end
+  local _, unavailable = forEachSellableTrashSlot(sellSlot, includeGrey)
+  if next(sales) then
+    for key, before in pairs(sales) do
+      if before == false then sales[key] = nil end
+    end
+    if next(sales) then junk.verifyOneTimeSales(bag, sales, 1) end
+  end
   if unavailable > 0 then
     prn("some item details are not loaded, so those items could not be checked for sale. Try again when they are available.")
   end
   updateMerchantJunkButton()
 end
 
-local merchantJunkHooked = false
-local sellingNativeGreys = false
+junk.merchantHooked = false
+junk.sellingNativeGreys = false
 
 --- Invoke Blizzard's grey-only sale without adding Listview Bag's marked items.
 function module:SellBlizzardGreyItems()
-  sellingNativeGreys = true
+  junk.sellingNativeGreys = true
   local ok, message = pcall(C_MerchantFrame.SellAllJunkItems)
-  sellingNativeGreys = false
+  junk.sellingNativeGreys = false
   if not ok then error(message, 0) end
 end
 
 --- Hook Blizzard's merchant updates and its actual sale, including the stored confirmation callback.
 local function hookMerchantJunkButton()
-  if merchantJunkHooked or not _G.MerchantFrame_Update or not _G.MerchantSellAllJunkButton
+  if junk.merchantHooked or not _G.MerchantFrame_Update or not _G.MerchantSellAllJunkButton
     or not C_MerchantFrame or not C_MerchantFrame.SellAllJunkItems
     or not C_MerchantFrame.GetNumJunkItems then return end
-  merchantJunkHooked = true
+  junk.merchantHooked = true
   hooksecurefunc("MerchantFrame_Update", updateMerchantJunkButton)
   -- Blizzard stores the original confirmation function in popup data, so hooking its global name
   -- misses confirmation. Hook the API it calls instead, after Blizzard has started its sale.
   hooksecurefunc(C_MerchantFrame, "SellAllJunkItems", function()
-    if merchantOpen and isModuleEnabled() and not sellingNativeGreys then
+    if merchantOpen and isModuleEnabled() and not junk.sellingNativeGreys then
       sellMarkedTrashItems()
     end
   end)
@@ -4479,7 +4817,9 @@ function module:OnEnable()
   auctionOpen = (AuctionHouseFrame and AuctionHouseFrame:IsShown())
     or (AuctionFrame and AuctionFrame:IsShown()) or false
   if auctionOpen then
-    beginAuctionMode()
+    if not auctionEligibilityAvailable() then
+      prn("Auction eligibility is unavailable; Selling View cannot apply its Auction House filter.")
+    end
     selectView("selling", true)
   else
     updateViewControls()
@@ -4498,9 +4838,9 @@ function module:OnEnable()
   updateMerchantJunkButton()
   self:RegisterEvent("BAG_OPEN", "OnNativeBagOpen")
   self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateListViewBindings")
-  self:RegisterEvent("BAG_UPDATE_DELAYED", "Refresh")
+  self:RegisterEvent("BAG_UPDATE_DELAYED", "OnBagUpdateDelayed")
   self:RegisterEvent("INVENTORY_SEARCH_UPDATE", "Refresh")
-  self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
+  self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "OnBagUpdateDelayed")
   self:RegisterEvent("ITEM_DATA_LOAD_RESULT", "OnSlotItemDataLoaded")
   self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
   self:RegisterEvent("UNIT_INVENTORY_CHANGED", "OnSupplyInventoryChanged")
@@ -4532,8 +4872,10 @@ function module:OnDisable()
   slotItemLoads = {}
   trackedCursorItem = nil
   if bankDeposit.button then bankDeposit.button:Hide() end
+  if Self.ListviewBagAuction and Self.ListviewBagAuction.CancelQuickSell then
+    Self.ListviewBagAuction.CancelQuickSell("Quick Sell cancelled because Listview Bag was disabled.")
+  end
   if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
-  endAuctionMode()
   auctionOpen = false
   if temporaryView then temporaryView = nil; sortColumn = nil; sortAscending = true end
   if recipientPicker and recipientPicker.mailMode then recipientPicker:Hide() end
@@ -4581,7 +4923,9 @@ function module:OnBagInteractionOpen(event)
   end
   if event == "AUCTION_HOUSE_SHOW" and not auctionOpen then
     auctionOpen = true
-    beginAuctionMode()
+    if not auctionEligibilityAvailable() then
+      prn("Auction eligibility is unavailable; Selling View cannot apply its Auction House filter.")
+    end
     selectView("selling", true)
   end
   if event == "BANKFRAME_OPENED" then
@@ -4613,7 +4957,9 @@ function module:OnBagInteractionClosed(event)
   end
   if event == "AUCTION_HOUSE_CLOSED" then
     auctionOpen = false
-    endAuctionMode()
+    if Self.ListviewBagAuction and Self.ListviewBagAuction.CancelQuickSell then
+      Self.ListviewBagAuction.CancelQuickSell("Quick Sell cancelled because the Auction House closed.")
+    end
     if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
     if temporaryView then temporaryView = nil; sortColumn = nil; sortAscending = true end
     updateViewControls()
@@ -4759,6 +5105,18 @@ function module:OnSlotItemDataLoaded(event, itemID, success)
   if not slotItemLoads[itemID] then return end
   if success then slotItemLoads[itemID] = nil else slotItemLoads[itemID] = "failed" end
   refreshFooter()
+end
+
+--- Clear one-time flags after their matching item variants leave the bags.
+---@return nil
+function module:OnBagUpdateDelayed()
+  if not isModuleEnabled() then return end
+  local removed = junk.reconcileOneTimeFlags(settings())
+  self:Refresh()
+  if removed then
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange("SlackHacks") end
+  end
 end
 
 --- Refresh equipped ammunition when the player's inventory changes.
