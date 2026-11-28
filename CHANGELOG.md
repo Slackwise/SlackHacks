@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v36
+
+### ListviewBag
+- Removed needless "One-Time Junk Items" Options list.
+
 ## v35
 
 ### Inventory
