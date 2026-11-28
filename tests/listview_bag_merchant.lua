@@ -176,31 +176,57 @@ assert(#actions == 10 and actions[10] == "native", "A disabled Ace module must n
 function CreateAtlasMarkup() return "" end
 assert(loadfile("Core.lua"))()
 SlackHacks.db.profile.inventory = { autoSellGreyItems = true, autoRepair = false }
+local vendorContext = false
+local originalUseItem, originalSellJunk = C_Container.UseContainerItem, C_MerchantFrame.SellAllJunkItems
+SlackHacks.InventoryLog = {}
+--- Capture vendor context before either automatic seller invokes a protected sale.
+---@param event string Merchant-open event.
+function SlackHacks.InventoryLog:OnInteraction(event)
+  assert(event == "MERCHANT_SHOW")
+  vendorContext = true
+end
+--- Require the Listview Bag seller to announce merchant context before selling a slot.
+---@param bagID number Container identifier.
+---@param slot number Container slot.
+function C_Container.UseContainerItem(bagID, slot)
+  assert(vendorContext, "Automatic marked sales must establish Inventory Log merchant context first")
+  originalUseItem(bagID, slot)
+end
+--- Require the independent grey seller to announce merchant context before the native sale.
+function C_MerchantFrame.SellAllJunkItems()
+  assert(vendorContext, "Automatic native grey sales must establish Inventory Log merchant context first")
+  originalSellJunk()
+end
 module.IsEnabled = function() return true end
 slots[1].isLocked, slots[8].isLocked = false, false
 actions = {}
 profile.autoSellMarkedItems = true
-SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
 module:MERCHANT_SHOW()
+SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
 assert(table.concat(actions, ",") == "Marked,Grey", "Auto-Sell Junk must override Blizzard's grey sale")
 slots[1].isLocked, slots[8].isLocked = false, false
 actions = {}
+vendorContext = false
 profile.autoSellMarkedItems = false
 SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
 module:MERCHANT_SHOW()
 assert(table.concat(actions, ",") == "native", "Auto-Sell ALL Grey Items alone must use only Blizzard's sale")
 actions = {}
+vendorContext = false
 SlackHacks.db.profile.inventory.autoSellGreyItems = false
 SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
 module:MERCHANT_SHOW()
 assert(#actions == 0, "Neither option enabled must not sell automatically")
 actions = {}
+vendorContext = false
 SlackHacks.db.profile.inventory.autoSellGreyItems = true
 profile.autoSellMarkedItems = true
 module.IsEnabled = function() return false end
 SlackHacks:MERCHANT_SHOW("MERCHANT_SHOW")
 module:MERCHANT_SHOW()
 assert(table.concat(actions, ",") == "native", "The independent grey option must work when the bag module is disabled")
+C_Container.UseContainerItem, C_MerchantFrame.SellAllJunkItems = originalUseItem, originalSellJunk
+SlackHacks.InventoryLog = nil
 
 -- A separately protected soulbound copy must not be sold with an identical marked copy.
 do

@@ -5126,8 +5126,10 @@ function module:OnDisable()
   if merchantOpen and merchantJunkHooked then MerchantFrame_Update() end
 end
 
+--- Open the merchant view and announce vendor context before automatically selling junk.
 function module:MERCHANT_SHOW()
   if not isModuleEnabled() then return end
+  if Self.InventoryLog then Self.InventoryLog:OnInteraction("MERCHANT_SHOW") end
   merchantOpen = true
   returnBlockedCursorItem()
   hookMerchantJunkButton()

@@ -13,7 +13,7 @@ local ROW_HEIGHT = 23
 local PAPER_ICON = "Interface\\Icons\\INV_Scroll_03"
 local snapshot, pending, metadataCache = nil, {}, {}
 local auctionRequests = {}
-local bankOpen, guildBankOpen, tradeOpen = false, false, false
+local merchantOpen, bankOpen, guildBankOpen, tradeOpen = false, false, false, false
 local loot, questRewards, tradeItems, outgoingMail = {}, {}, {}, {}
 local inbox = {}
 local questChoice, legacyAuctionLink, legacyAuctionRequest, outgoingMailRecipient
@@ -324,6 +324,7 @@ function module:ResetTracking()
   inbox = {}
   questChoice, legacyAuctionLink, legacyAuctionRequest, outgoingMailRecipient = nil, nil, nil, nil
   lastCursorLink, gatheringUntil, gatheringKind = nil, nil, nil
+  merchantOpen = MerchantFrame and MerchantFrame:IsShown() or false
   bankOpen = BankFrame and BankFrame:IsShown() or false
   guildBankOpen = GuildBankFrame and GuildBankFrame:IsShown() or false
   tradeOpen = TradeFrame and TradeFrame:IsShown() or false
@@ -483,9 +484,10 @@ function module:OnLootOpened(event)
     if link then
       local count = select(3, GetLootSlotInfo(slot))
       local sources = { GetLootSourceInfo(slot) }
-      local action
+      local action, skinning, gatheringNode, fishing
       if IsFishingLoot and IsFishingLoot() then
         action = "Gathered"
+        fishing = true
       elseif #sources > 0 then
         local corpses = true
         local nodes = true
@@ -496,14 +498,18 @@ function module:OnLootOpened(event)
         if gatheringUntil and gatheringUntil >= GetTime()
           and ((gatheringKind == 8613 and corpses) or (gatheringKind ~= 8613 and nodes)) then
           action = "Gathered"
+          skinning = gatheringKind == 8613 and corpses
+          gatheringNode = nodes and (gatheringKind == 2575 or gatheringKind == 2366)
+          fishing = gatheringKind == 7620 and nodes
         elseif corpses then
           action = "Looted"
         end
       end
+      local creatureLoot = action == "Looted" or skinning
       loot[slot] = { link = link, count = count, action = action,
-        sources = action == "Looted" and sources or nil,
-        lootSource = action == "Looted" and lootSourceName(sources) or nil,
-        lootLocation = action == "Looted" and lootLocation() or nil }
+        sources = creatureLoot and sources or nil,
+        lootSource = creatureLoot and lootSourceName(sources) or nil,
+        lootLocation = (creatureLoot or gatheringNode or fishing) and lootLocation() or nil }
     end
   end
   gatheringUntil, gatheringKind = nil, nil
@@ -515,7 +521,7 @@ end
 function module:OnLootSlotCleared(event, slot)
   local item = loot[slot]
   if item then
-    if item.action == "Looted" and not item.lootSource then
+    if item.sources and not item.lootSource then
       item.lootSource = lootSourceName(item.sources)
     end
     if item.action then self:Expect(item.action, item.link, item.count, 1, nil, item) end
@@ -668,11 +674,16 @@ function module:OnInboxUpdate(event)
   end
 end
 
---- Refresh accessible bank/trade holdings at native interaction boundaries.
+--- Track merchant context and refresh accessible bank/trade holdings at native interaction boundaries.
 ---@param event string Native open/close event.
 function module:OnInteraction(event)
   if not self:IsLoggingEnabled() then return end
-  if event == "BANKFRAME_OPENED" or event == "GUILDBANKFRAME_OPENED" then
+  if event == "MERCHANT_SHOW" then
+    -- Automatic sales can run during this event before Blizzard shows MerchantFrame.
+    merchantOpen = true
+  elseif event == "MERCHANT_CLOSED" then
+    merchantOpen = false
+  elseif event == "BANKFRAME_OPENED" or event == "GUILDBANKFRAME_OPENED" then
     if event == "BANKFRAME_OPENED" then bankOpen = true else guildBankOpen = true end
     -- Opening a bank must not make all of its pre-existing contents look like new deposits.
     if snapshot then snapshot.bank = readInventory().bank end
@@ -709,7 +720,8 @@ function module:InstallHooks()
   ---@param slot number Slot identifier.
   ---@param onSelf boolean|nil True when explicitly using rather than selling the item.
   local function sold(bag, slot, onSelf)
-    if onSelf or not module:IsLoggingEnabled() or not (MerchantFrame and MerchantFrame:IsShown()) then return end
+    if onSelf or not module:IsLoggingEnabled()
+      or not (merchantOpen or (MerchantFrame and MerchantFrame:IsShown())) then return end
     local item = snapshot and snapshot.slots[bag .. ":" .. slot]
     if item then module:Expect("Sold", item.link, item.count, -1, item.item) end
   end
@@ -740,7 +752,8 @@ function module:InstallHooks()
   if C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
     --- Observe Blizzard's bulk sale without bypassing its own eligibility checks.
     hooksecurefunc(C_MerchantFrame, "SellAllJunkItems", function()
-      if not module:IsLoggingEnabled() or not snapshot or not (MerchantFrame and MerchantFrame:IsShown()) then return end
+      if not module:IsLoggingEnabled() or not snapshot
+        or not (merchantOpen or (MerchantFrame and MerchantFrame:IsShown())) then return end
       for _, item in pairs(snapshot.items) do
         if item.quality == 0 then module:Expect("Sold", item.link, item.count, -1) end
       end
@@ -870,7 +883,9 @@ function module:OnEnable()
     self:RegisterEvent(event, event:match("^TRADE_") and "OnTradeUpdated" or "QueueReconcile")
   end
   for _, event in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "GUILDBANKFRAME_OPENED",
-    "GUILDBANKFRAME_CLOSED", "TRADE_SHOW", "TRADE_CLOSED" }) do self:RegisterEvent(event, "OnInteraction") end
+    "GUILDBANKFRAME_CLOSED", "TRADE_SHOW", "TRADE_CLOSED", "MERCHANT_SHOW", "MERCHANT_CLOSED" }) do
+    self:RegisterEvent(event, "OnInteraction")
+  end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "ResetTracking")
   self:RegisterEvent("BAG_UPDATE", "OnAcquiredBagUpdate")
   self:RegisterEvent("CHAT_MSG_LOOT", "OnItemCreated")
@@ -899,6 +914,7 @@ end
 function module:OnDisable()
   -- AceAddon preserves a child's desired enabledState when its parent shuts down.
   observing = false
+  merchantOpen = false
   self:UnregisterAllEvents()
   self:CancelAllTimers()
   reconcileTimer, snapshot, inbox = nil, nil, {}
@@ -1008,8 +1024,11 @@ local function renderViewport()
             or (entry.direction < 0 and "Traded to: " or "Traded from: ")
           GameTooltip:AddLine(label .. entry.counterparty, 1, 1, 1, true)
         end
-        if entry.action == "Looted" then
-          if entry.lootSource then GameTooltip:AddLine("Looted from: " .. entry.lootSource, 1, 1, 1, true) end
+        if entry.action == "Looted" or entry.action == "Gathered" then
+          if entry.lootSource then
+            local label = entry.action == "Gathered" and "Skinned from: " or "Looted from: "
+            GameTooltip:AddLine(label .. entry.lootSource, 1, 1, 1, true)
+          end
           if entry.lootLocation then GameTooltip:AddLine("Location: " .. entry.lootLocation, 1, 1, 1, true) end
         end
         GameTooltip:Show()
@@ -1046,11 +1065,12 @@ local function renderViewport()
         row.item:SetText(entry.link)
         local counterparty = entry.action == "Mailed" and entry.direction == 1 and "(Received)"
           or (entry.action == "Mailed" or entry.action == "Traded") and entry.counterparty
-        local source = entry.action == "Looted" and entry.lootSource
-        local location = entry.action == "Looted" and entry.lootLocation
+        local creatureLoot = entry.action == "Looted" or entry.action == "Gathered"
+        local source = creatureLoot and entry.lootSource
+        local location = creatureLoot and entry.lootLocation
         local hasLootDetails = source or location
         row.action:ClearAllPoints()
-        row.action:SetPoint("LEFT", 208, hasLootDetails and 7.5 or counterparty and 5 or 0)
+        row.action:SetPoint("LEFT", 208, hasLootDetails and (source and 7.5 or 5) or counterparty and 5 or 0)
         row.action:SetFont(font, hasLootDetails and 7 or 9)
         row.action:SetHeight(hasLootDetails and 8 or 12)
         row.action:SetText(entry.action)
@@ -1061,6 +1081,8 @@ local function renderViewport()
         local detail = source or counterparty
         row.counterparty:SetText(detail or "")
         row.counterparty:SetShown(detail ~= nil and detail ~= false)
+        row.lootLocation:ClearAllPoints()
+        row.lootLocation:SetPoint("LEFT", 208, source and -8 or -6)
         row.lootLocation:SetText(location or "")
         row.lootLocation:SetShown(location ~= nil and location ~= false)
       end

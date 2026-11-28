@@ -659,6 +659,42 @@ bags[0][1].stackCount = 3
 log:Reconcile()
 check(1, "Sold", 2, -1)
 reset(5)
+log:OnInteraction("MERCHANT_SHOW")
+assert(not MerchantFrame:IsShown(), "Automatic-sale coverage must run before the merchant frame is shown")
+hooks[C_Container].UseContainerItem(0, 1)
+log:Reconcile()
+assert(#data.entries == 0, "An automatic sale request without an inventory loss must not log success")
+bags[0][1].stackCount = 3
+log:Reconcile()
+check(1, "Sold", 2, -1)
+log:OnInteraction("MERCHANT_SHOW")
+log:Reconcile()
+assert(#data.entries == 1, "Repeated merchant-open notifications must not duplicate an automatic sale")
+reset(5)
+log:OnInteraction("MERCHANT_SHOW")
+log:OnInteraction("MERCHANT_CLOSED")
+hooks[C_Container].UseContainerItem(0, 1)
+bags[0][1].stackCount = 4
+log:Reconcile()
+assert(#data.entries == 0, "Using an item after the merchant closes must not be recorded as Sold")
+
+reset(5)
+bags[0][1].quality = 0
+log:ResetTracking()
+log:OnInteraction("MERCHANT_SHOW")
+hooks[C_MerchantFrame].SellAllJunkItems()
+bags[0] = {}
+log:Reconcile()
+check(1, "Sold", 5, -1)
+
+reset(5)
+log:OnInteraction("MERCHANT_SHOW")
+hooks[C_Container].UseContainerItem(0, 1, true)
+bags[0][1].stackCount = 4
+log:Reconcile()
+assert(#data.entries == 0, "Explicit item use must not be recorded as an automatic sale")
+
+reset(5)
 bags[0][1].isBound = true
 bags[0][2] = stack(link, 2)
 log:ResetTracking()
@@ -875,15 +911,21 @@ log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
 bags[0][1].stackCount = 7
 log:Reconcile()
 check(1, "Looted", 2, 1)
-reset(5)
-lootSources = { "GameObject-0-1-2-3-4-5" }
-log:OnSpellSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 2575)
-log:OnLootOpened("LOOT_READY")
-log:OnLootOpened("LOOT_OPENED")
-log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
-bags[0][1].stackCount = 7
-log:Reconcile()
-check(1, "Gathered", 2, 1)
+for _, professionID in ipairs({ 2575, 2366 }) do
+  reset(5)
+  lootSources = { "GameObject-0-1-2-3-4-5" }
+  zone, subzone = "Elwynn Forest", "Goldshire"
+  log:OnSpellSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", professionID)
+  log:OnLootOpened("LOOT_READY")
+  log:OnLootOpened("LOOT_OPENED")
+  zone, subzone = "Another Zone", "Another Subzone"
+  log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+  bags[0][1].stackCount = 7
+  log:Reconcile()
+  check(1, "Gathered", 2, 1)
+  assert(not data.entries[1].lootSource and data.entries[1].lootLocation == "Goldshire, Elwynn Forest",
+    "Mining and herbalism must capture the location at loot time without inventing a mob source")
+end
 reset(5)
 lootItems = { { link = link, count = 2 }, { link = other, count = 1 } }
 lootSources = { "GameObject-0-1-2-3-4-5", "GameObject-0-1-2-3-4-5" }
@@ -905,6 +947,53 @@ assert(#data.entries == 0, "Unidentified object loot must not be labeled or reco
 
 reset(5)
 local corpseGUID = "Creature-0-1-2-3-4-5"
+lootItems, lootSources = { { link = link, count = 2 } }, { corpseGUID }
+lootUnits.target = { guid = corpseGUID, name = "Skinnable Forest Wolf" }
+zone, subzone = "Elwynn Forest", "Goldshire"
+log:OnSpellSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "skin-cast", 8613)
+log:OnLootOpened("LOOT_READY")
+lootUnits.target, zone, subzone = nil, "Another Zone", "Another Subzone"
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 7
+log:Reconcile()
+check(1, "Gathered", 2, 1)
+assert(data.entries[1].lootSource == "Skinnable Forest Wolf"
+  and data.entries[1].lootLocation == "Goldshire, Elwynn Forest",
+  "Skinning must keep Gathered as its action and preserve the corpse and location captured at loot time")
+
+reset(5)
+lootItems, lootSources = { { link = link, count = 2 } }, { corpseGUID }
+lootUnits.target = { guid = corpseGUID, name = "Not a Skinned Mob" }
+zone, subzone = "Elwynn Forest", "Goldshire"
+local originalFishingLoot = IsFishingLoot
+--- Supply an explicit fishing loot window, overriding any preceding gathering cast.
+---@return boolean fishing Whether the loot is from fishing.
+function IsFishingLoot() return true end
+log:OnSpellSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "recent-skin-cast", 8613)
+log:OnLootOpened("LOOT_READY")
+zone, subzone = "Another Zone", "Another Subzone"
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+IsFishingLoot = originalFishingLoot
+bags[0][1].stackCount = 7
+log:Reconcile()
+check(1, "Gathered", 2, 1)
+assert(not data.entries[1].lootSource and data.entries[1].lootLocation == "Goldshire, Elwynn Forest",
+  "Fishing must capture its location without inheriting skinning details or guessing a pool name")
+local fishingEntry = data.entries[1]
+
+reset(5)
+lootItems, lootSources = { { link = link, count = 2 } }, { "GameObject-0-1-2-3-4-5" }
+zone, subzone = "Elwynn Forest", ""
+log:OnSpellSucceeded("UNIT_SPELLCAST_SUCCEEDED", "player", "fishing-cast", 7620)
+log:OnLootOpened("LOOT_READY")
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 7
+log:Reconcile()
+check(1, "Gathered", 2, 1)
+assert(data.entries[1].lootLocation == "Elwynn Forest" and not data.entries[1].lootSource,
+  "Cast-confirmed fishing must also capture its location without requiring the native fishing-loot API")
+
+reset(5)
 lootItems, lootSources = { { link = link, count = 2 } }, { corpseGUID }
 lootUnits.target = { guid = corpseGUID, name = "Forest Wolf" }
 zone, subzone = "Elwynn Forest", "Goldshire"
@@ -1511,6 +1600,42 @@ log:Record({ link = link }, "Looted", 1, 1, nil, { lootLocation = lootPlace })
 log:Refresh()
 assert(not lootRow.counterparty.shown and lootRow.lootLocation.shown,
   "A known location must not require an invented mob name")
+local previousGatheredSetting = log:GetSettings().actionsToLog.Gathered
+log:GetSettings().actionsToLog.Gathered = true
+log:Record({ link = link }, "Gathered", 2, 1, nil, { lootSource = mobName, lootLocation = lootPlace })
+log:Refresh()
+assert(lootRow.action.text == "Gathered" and lootRow.action.fontSize < 9
+  and lootRow.counterparty.text == mobName and lootRow.lootLocation.text == lootPlace
+  and lootRow.counterparty.shown and lootRow.lootLocation.shown,
+  "Skinning's Gathered rows must use the same compact mob and location layout as Looted")
+lootRow.scripts.OnEnter(lootRow)
+assert(GameTooltip.lines[2] == "Skinned from: " .. mobName and GameTooltip.lines[3] == "Location: " .. lootPlace,
+  "Skinning tooltips must retain the full creature and location details")
+log:Record({ link = link }, "Gathered", 1, 1, nil, { lootLocation = lootPlace })
+log:Refresh()
+assert(lootRow.action.text == "Gathered" and not lootRow.counterparty.shown
+  and lootRow.lootLocation.shown and lootRow.lootLocation.text == lootPlace
+  and lootRow.lootLocation.points.LEFT[2] < lootRow.action.points.LEFT[2]
+  and lootRow.lootLocation.points.LEFT[2] > -8,
+  "Mining and herb locations must appear directly beneath Gathered without an empty mob-name line")
+lootRow.scripts.OnEnter(lootRow)
+assert(#GameTooltip.lines == 2 and GameTooltip.lines[2] == "Location: " .. lootPlace,
+  "Node gathering tooltips must show the full location without stale skinning attribution")
+log:Record({ link = fishingEntry.link }, fishingEntry.action, fishingEntry.quantity,
+  fishingEntry.direction, nil, fishingEntry)
+log:Refresh()
+assert(lootRow.action.text == "Gathered" and lootRow.action.fontSize < 9
+  and not lootRow.counterparty.shown and lootRow.lootLocation.shown
+  and lootRow.lootLocation.text == "Goldshire, Elwynn Forest",
+  "Captured fishing locations must appear beneath the compact Gathered action without a guessed pool name")
+lootRow.scripts.OnEnter(lootRow)
+assert(#GameTooltip.lines == 2 and GameTooltip.lines[2] == "Location: Goldshire, Elwynn Forest",
+  "Fishing tooltips must show the captured location without stale skinning attribution")
+log:Record({ link = link }, "Gathered", 1, 1)
+log:Refresh()
+assert(lootRow.action.fontSize == 9 and not lootRow.counterparty.shown and not lootRow.lootLocation.shown,
+  "Other gathering and older Gathered entries must keep their normal layout without stale skinning details")
+log:GetSettings().actionsToLog.Gathered = previousGatheredSetting
 log:Record({ link = link }, "Traded", 1, -1, "Trade Partner-Realm")
 log:Refresh()
 assert(lootRow.action.fontSize == 9 and lootRow.action:GetHeight() == 12

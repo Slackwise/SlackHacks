@@ -112,6 +112,7 @@ end
 --- Repair and perform the selected automatic grey-item sale when a merchant opens.
 ---@param eventName string Event name.
 function Self:MERCHANT_SHOW(eventName)
+  if Self.InventoryLog then Self.InventoryLog:OnInteraction("MERCHANT_SHOW") end
   if db.profile.inventory.autoRepair then
     repairAllItems()
   end
