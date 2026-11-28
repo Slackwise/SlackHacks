@@ -6,6 +6,8 @@ Self.ListviewBagAuction = auction
 local scan
 local scannerFrame
 local progress
+local posting
+local postProgress
 local sending = false
 local hooksInstalled = false
 local databaseKeys = {}
@@ -160,7 +162,7 @@ function auction.Summarize(itemKey, commodity)
   return summarize(itemKey, commodity, false)
 end
 
---- Hide the progress UI and stop the active scan.
+--- Hide the progress UI and stop the active price scan.
 ---@param reason string|nil Reason to report to the user.
 function auction.Cancel(reason)
   if not scan then return end
@@ -176,71 +178,83 @@ function auction.Cancel(reason)
   if refresh then refresh() end
 end
 
---- Construct the native-style progress window on first use.
+--- Create a native-style progress window for an auction task.
+---@param name string Global frame name.
+---@param title string Window title.
+---@param cancel function Cancellation callback.
+---@param onHide function Callback when the window is hidden.
+---@return table window Progress window.
+local function createProgressWindow(name, title, cancel, onHide)
+  local window = CreateFrame("Frame", name, UIParent, "SimplePanelTemplate")
+  window:SetSize(300, 160)
+  window:SetPoint("CENTER")
+  window:SetFrameStrata("DIALOG")
+  window:SetToplevel(true)
+  window:SetClampedToScreen(true)
+  window:SetMovable(true)
+  window:SetDontSavePosition(true)
+  window:EnableMouse(true)
+  window:RegisterForDrag("LeftButton")
+  window:SetScript("OnDragStart", window.StartMoving)
+  window:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+  window:Hide()
+  window.Inset:Hide()
+  window.Bg:ClearAllPoints()
+  window.Bg:SetPoint("TOPLEFT", 0, -6)
+  window.Bg:SetPoint("BOTTOMRIGHT", -4, 3)
+
+  window.headline = window:CreateTexture(nil, "BACKGROUND")
+  window.headline:SetTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
+  window.headline:SetBlendMode("ADD")
+  window.headline:SetVertexColor(0.1, 0.1, 0.1, 1)
+  window.headline:SetHeight(26)
+  window.headline:SetPoint("TOPLEFT", 40, -21)
+  window.headline:SetPoint("TOPRIGHT", -40, -21)
+  window.title = window:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+  window.title:SetHeight(26)
+  window.title:SetPoint("TOPLEFT", 12, -21)
+  window.title:SetPoint("TOPRIGHT", -14, -21)
+  window.title:SetJustifyH("CENTER")
+  window.title:SetText(title)
+  window.text = window:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+  window.text:SetPoint("TOP", 0, -54)
+  window.barFrame = CreateFrame("Frame", nil, window, "ObjectiveTrackerProgressBarTemplate")
+  window.bar = window.barFrame.Bar
+  local barWidth, heightScale = window:GetWidth() * 0.8, 1.5
+  window.bar.BorderLeft:SetHeight(window.bar.BorderLeft:GetHeight() * heightScale)
+  window.bar.BorderRight:SetHeight(window.bar.BorderRight:GetHeight() * heightScale)
+  window.bar:SetSize(barWidth, window.bar:GetHeight() * heightScale)
+  -- The tracker template is hidden and offsets its bar for the quest list.
+  window.barFrame:ClearAllPoints()
+  window.barFrame:SetSize(barWidth, window.bar.BorderLeft:GetHeight())
+  window.barFrame:SetPoint("TOP", 0, -70)
+  window.bar:ClearAllPoints()
+  window.bar:SetPoint("CENTER")
+  window.bar:EnableMouse(false)
+  window.barFrame:Show()
+  window.cancel = CreateFrame("Button", nil, window, "SharedButtonSmallTemplate")
+  window.cancel:SetSize(140, 22)
+  window.cancel:SetPoint("BOTTOM", 0, 16)
+  window.cancel:SetText("Cancel")
+  window.cancel:SetScript("OnClick", cancel)
+  window:SetScript("OnHide", onHide)
+  window.CloseButton = CreateFrame("Button", nil, window, "UIPanelCloseButtonDefaultAnchors")
+  window.CloseButton:SetScript("OnClick", cancel)
+  window.addonLabel = window:CreateFontString(nil, "ARTWORK", "GameFontDarkGraySmall")
+  window.addonLabel:SetPoint("BOTTOMRIGHT", -7, 5)
+  window.addonLabel:SetTextColor(0.4, 0.4, 0.4)
+  window.addonLabel:SetText(addonName)
+  return window
+end
+
+--- Construct the native-style price-scan progress window on first use.
 ---@return table window Progress window.
 local function progressWindow()
   if progress then return progress end
-  progress = CreateFrame("Frame", "SlackHacksAuctionScanProgress", UIParent, "SimplePanelTemplate")
-  progress:SetSize(300, 160)
-  progress:SetPoint("CENTER")
-  progress:SetFrameStrata("DIALOG")
-  progress:SetToplevel(true)
-  progress:SetClampedToScreen(true)
-  progress:SetMovable(true)
-  progress:SetDontSavePosition(true)
-  progress:EnableMouse(true)
-  progress:RegisterForDrag("LeftButton")
-  progress:SetScript("OnDragStart", progress.StartMoving)
-  progress:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-  progress:Hide()
-  progress.Inset:Hide()
-  progress.Bg:ClearAllPoints()
-  progress.Bg:SetPoint("TOPLEFT", 0, -6)
-  progress.Bg:SetPoint("BOTTOMRIGHT", -4, 3)
-
-  progress.headline = progress:CreateTexture(nil, "BACKGROUND")
-  progress.headline:SetTexture("Interface\\QuestFrame\\UI-QuestLogTitleHighlight")
-  progress.headline:SetBlendMode("ADD")
-  progress.headline:SetVertexColor(0.1, 0.1, 0.1, 1)
-  progress.headline:SetHeight(26)
-  progress.headline:SetPoint("TOPLEFT", 40, -21)
-  progress.headline:SetPoint("TOPRIGHT", -40, -21)
-  progress.title = progress:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-  progress.title:SetHeight(26)
-  progress.title:SetPoint("TOPLEFT", 12, -21)
-  progress.title:SetPoint("TOPRIGHT", -14, -21)
-  progress.title:SetJustifyH("CENTER")
-  progress.title:SetText("Checking Auction Prices")
-  progress.text = progress:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  progress.text:SetPoint("TOP", 0, -54)
-  progress.barFrame = CreateFrame("Frame", nil, progress, "ObjectiveTrackerProgressBarTemplate")
-  progress.bar = progress.barFrame.Bar
-  local barWidth, heightScale = progress:GetWidth() * 0.8, 1.5
-  progress.bar.BorderLeft:SetHeight(progress.bar.BorderLeft:GetHeight() * heightScale)
-  progress.bar.BorderRight:SetHeight(progress.bar.BorderRight:GetHeight() * heightScale)
-  progress.bar:SetSize(barWidth, progress.bar:GetHeight() * heightScale)
-  -- The tracker template is hidden and offsets its bar for the quest list.
-  progress.barFrame:ClearAllPoints()
-  progress.barFrame:SetSize(barWidth, progress.bar.BorderLeft:GetHeight())
-  progress.barFrame:SetPoint("TOP", 0, -70)
-  progress.bar:ClearAllPoints()
-  progress.bar:SetPoint("CENTER")
-  progress.bar:EnableMouse(false)
-  progress.barFrame:Show()
-  progress.cancel = CreateFrame("Button", nil, progress, "SharedButtonSmallTemplate")
-  progress.cancel:SetSize(140, 22)
-  progress.cancel:SetPoint("BOTTOM", 0, 16)
-  progress.cancel:SetText("Cancel")
-  progress.cancel:SetScript("OnClick", function() auction.Cancel("auction price scan cancelled.") end)
-  progress:SetScript("OnHide", function()
-    if scan then auction.Cancel("auction price scan cancelled.") end
-  end)
-  progress.CloseButton = CreateFrame("Button", nil, progress, "UIPanelCloseButtonDefaultAnchors")
-  progress.CloseButton:SetScript("OnClick", function() auction.Cancel("auction price scan cancelled.") end)
-  progress.addonLabel = progress:CreateFontString(nil, "ARTWORK", "GameFontDarkGraySmall")
-  progress.addonLabel:SetPoint("BOTTOMRIGHT", -7, 5)
-  progress.addonLabel:SetTextColor(0.4, 0.4, 0.4)
-  progress.addonLabel:SetText(addonName)
+  progress = createProgressWindow("SlackHacksAuctionScanProgress", "Checking Auction Prices",
+    function() auction.Cancel("Auction price scan cancelled.") end, function()
+      if scan then auction.Cancel("Auction price scan cancelled.") end
+    end)
   return progress
 end
 
@@ -276,7 +290,7 @@ local function resumeSummary()
   if not active or not active.worker then return end
   local ok, minimum, average = coroutine.resume(active.worker)
   if not ok then
-    auction.Cancel("auction price scan stopped because result processing failed.")
+    auction.Cancel("Auction price scan stopped because result processing failed.")
     error(minimum)
   end
   if scan ~= active or coroutine.status(active.worker) ~= "dead" then return end
@@ -370,16 +384,297 @@ local function tick()
   scan.pendingMore = false
 end
 
+--- Count copies of a hyperlink across the player's bags and reagent bag.
+---@param link string Item hyperlink.
+---@return number count Current inventory quantity.
+local function inventoryCount(link)
+  local count = 0
+  -- Count by link across bags so a slot change does not look like a successful post.
+  for bagID = 0, 5 do
+    for slot = 1, C_Container.GetContainerNumSlots(bagID) do
+      local info = C_Container.GetContainerItemInfo(bagID, slot)
+      if info and info.hyperlink == link then count = count + (info.stackCount or 1) end
+    end
+  end
+  return count
+end
+
+--- Calculate the native Auction House's auto-populated buyout value.
+---@param link string Item hyperlink.
+---@return number|nil price Default price, or nil when the native default is unavailable.
+local function defaultAuctionPrice(link)
+  local api = C_AuctionHouse
+  local multiplier = Constants and Constants.AuctionConstants
+    and Constants.AuctionConstants.DEFAULT_AUCTION_PRICE_MULTIPLIER
+  if not api.ShouldAutoPopulatePrice() or type(multiplier) ~= "number" then return nil end
+  local vendorPrice = select(11, C_Item.GetItemInfo(link))
+  local price = type(vendorPrice) == "number" and vendorPrice * multiplier or COPPER_PER_SILVER
+  -- Match FrameXML's rounding exactly; it advances to the next silver even on an exact amount.
+  price = price + (COPPER_PER_SILVER - (price % COPPER_PER_SILVER))
+  return math.max(price, COPPER_PER_SILVER)
+end
+
+--- Finish a Quick Sell job and refresh the bag view.
+---@param active table Active posting job.
+---@param message string|nil Optional user-facing result.
+local function finishQuickSell(active, message)
+  if posting ~= active then return end
+  posting = nil
+  if postProgress then postProgress:Hide() end
+  if message then prn(message) end
+  if active.refresh then active.refresh() end
+end
+
+local postCurrentItem
+
+--- Wait progressively for Blizzard's auction throttle, then enable the next click-driven post.
+---@param active table Active posting job.
+---@param delay number|nil Next polling delay in seconds.
+---@param started number|nil Time the wait began.
+local function awaitNextPost(active, delay, started)
+  if posting ~= active then return end
+  delay, started = delay or 0.1, started or GetTime()
+  if C_AuctionHouse.IsThrottledMessageSystemReady() then
+    active.ready = true
+    postProgress.note:SetText("Next: " .. (active.items[active.index].link or "item"))
+    postProgress.post:Enable()
+    return
+  end
+  local elapsed = GetTime() - started
+  if elapsed >= 3 then
+    finishQuickSell(active, "Quick Sell stopped because the Auction House remained throttled.")
+    return
+  end
+  postProgress.note:SetText("Waiting for the Auction House...")
+  C_Timer.After(math.min(delay, 3 - elapsed), function()
+    awaitNextPost(active, math.min(delay + 0.1, 1), started)
+  end)
+end
+
+--- Confirm a posted stack left the bags, then advance to the next item.
+---@param active table Active posting job.
+---@param link string Posted item hyperlink.
+---@param expected number Maximum bag quantity once the post succeeds.
+---@param delay number Delay before this check in seconds.
+---@param started number Time verification began.
+local function verifyPost(active, link, expected, delay, started)
+  C_Timer.After(delay, function()
+    if posting ~= active then return end
+    if inventoryCount(link) <= expected then
+      active.completed = active.completed + 1
+      active.index = active.index + 1
+      postProgress.bar:SetValue(active.completed)
+      postProgress.text:SetText(("%d / %d items"):format(active.completed, #active.items))
+      if active.index > #active.items then
+        finishQuickSell(active, ("Quick Sell posted %d item stacks."):format(active.completed))
+      else
+        C_Timer.After(0.5, function() awaitNextPost(active) end)
+      end
+      return
+    end
+    local elapsed = GetTime() - started
+    if elapsed >= 3 then
+      finishQuickSell(active,
+        "Quick Sell stopped because the Auction House did not remove the posted item from your bags.")
+      return
+    end
+    verifyPost(active, link, expected, math.min(delay + 0.1, 3 - elapsed), started)
+  end)
+end
+
+--- Validate and post the current item. Must run inside a click handler.
+---@param active table Active posting job.
+postCurrentItem = function(active)
+  -- PostItem/PostCommodity require a hardware event, so each post runs directly from a click
+  -- rather than from a timer or coroutine; timers only wait for throttling and verification.
+  if posting ~= active then return end
+  active.ready = false
+  postProgress.post:Disable()
+  local api = C_AuctionHouse
+  if not api.IsThrottledMessageSystemReady() then
+    awaitNextPost(active)
+    return
+  end
+  local item, duration = active.items[active.index], active.duration
+  local function stop(reason) finishQuickSell(active, "Quick Sell stopped because " .. reason) end
+  if item.canPost and not item.canPost() then
+    return stop("an item's Auction flag or eligibility changed.")
+  end
+  local info = C_Container.GetContainerItemInfo(item.bagID, item.slot)
+  if not info or info.hyperlink ~= item.link or info.itemID ~= item.itemID
+    or info.isBound or info.isLocked or (info.stackCount or 1) ~= item.count then
+    return stop("an item moved or changed in your bags.")
+  end
+  local location = ItemLocation:CreateFromBagAndSlot(item.bagID, item.slot)
+  if not location:IsValid() or not api.IsSellItemValid(location, false) then
+    return stop("an item is no longer eligible for auction.")
+  end
+  local price = defaultAuctionPrice(item.link)
+  if not price or price <= 0 then
+    return stop("the Auction House could not determine a default price.")
+  end
+  local commodityStatus = api.GetItemCommodityStatus(location)
+  if commodityStatus ~= Enum.ItemCommodityStatus.Item
+    and commodityStatus ~= Enum.ItemCommodityStatus.Commodity then
+    return stop("an item's Auction House type could not be determined.")
+  end
+  local commodity = commodityStatus == Enum.ItemCommodityStatus.Commodity
+  local available = api.GetAvailablePostCount(location)
+  local quantity = math.min(item.count, type(available) == "number" and available or item.count)
+  if quantity < 1 then
+    return stop("an item has no available auction quantity.")
+  end
+  local deposit = commodity
+    and api.CalculateCommodityDeposit(item.itemID, duration, quantity)
+    or api.CalculateItemDeposit(location, duration, quantity)
+  if GetMoney() < deposit then
+    return stop("there is not enough money for an auction deposit.")
+  end
+  local before = inventoryCount(item.link)
+  if before < quantity then
+    return stop("an item's inventory quantity changed.")
+  end
+
+  if commodity then
+    if api.PostCommodity(location, duration, quantity, price) then
+      api.ConfirmPostCommodity(location, duration, quantity, price)
+    end
+  else
+    if api.PostItem(location, duration, quantity, nil, price) then
+      api.ConfirmPostItem(location, duration, quantity, nil, price)
+    end
+  end
+  postProgress.note:SetText("Confirming " .. item.link .. "...")
+  verifyPost(active, item.link, before - quantity, 0.1, GetTime())
+end
+
+--- Post the next queued Quick Sell item from a user click.
+function auction.PostNextQuickSell()
+  if posting and posting.ready then postCurrentItem(posting) end
+end
+
+--- Cancel Quick Sell without attempting to cancel a request already sent to Blizzard.
+---@param reason string|nil Reason to report to the user.
+function auction.CancelQuickSell(reason)
+  if not posting then return end
+  local active = posting
+  finishQuickSell(active, reason or "Quick Sell cancelled. The active auction request may still complete.")
+end
+
+--- Create the dedicated Quick Sell progress window on first use.
+---@return table window Progress window.
+local function quickSellProgressWindow()
+  if postProgress then return postProgress end
+  postProgress = createProgressWindow("SlackHacksAuctionPostProgress", "Posting Auction Items",
+    function() auction.CancelQuickSell() end, function()
+      if posting then auction.CancelQuickSell() end
+    end)
+  postProgress:SetHeight(180)
+  postProgress.note = postProgress:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  postProgress.note:SetPoint("TOP", 0, -112)
+  postProgress.note:SetWidth(260)
+  postProgress.post = CreateFrame("Button", nil, postProgress, "SharedButtonSmallTemplate")
+  postProgress.post:SetSize(120, 22)
+  postProgress.post:SetPoint("BOTTOMRIGHT", postProgress, "BOTTOM", -4, 16)
+  postProgress.post:SetText("Post Next")
+  postProgress.post:SetScript("OnClick", auction.PostNextQuickSell)
+  postProgress.post:SetMotionScriptsWhileDisabled(true)
+  postProgress.post:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Post Next")
+    GameTooltip:AddLine("Blizzard requires a click for each auction posting.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  postProgress.post:SetScript("OnLeave", GameTooltip_Hide)
+  postProgress.cancel:SetSize(120, 22)
+  postProgress.cancel:ClearAllPoints()
+  postProgress.cancel:SetPoint("BOTTOMLEFT", postProgress, "BOTTOM", 4, 16)
+  return postProgress
+end
+
+--- Start a throttled sale of the provided auction-flagged bag stacks, posting one per click.
+---@param items table Entries with link, itemID, bagID, slot, count, and optional canPost callback.
+---@param refresh function Refresh callback after the job ends.
+function auction.QuickSell(items, refresh)
+  if posting then
+    if posting.ready then
+      postCurrentItem(posting)
+    else
+      prn("Quick Sell is waiting for the Auction House before the next posting.")
+    end
+    return
+  end
+  auction.Cancel()
+  if type(items) ~= "table" or #items == 0 then
+    prn("There are no eligible Auction-flagged items to sell.")
+    return
+  end
+  local api = C_AuctionHouse
+  local required = {
+    "IsThrottledMessageSystemReady", "IsSellItemValid", "GetItemCommodityStatus",
+    "GetAvailablePostCount", "PostItem", "ConfirmPostItem", "PostCommodity", "ConfirmPostCommodity",
+    "CalculateItemDeposit", "CalculateCommodityDeposit", "ShouldAutoPopulatePrice",
+  }
+  for _, name in ipairs(required) do
+    if not api or type(api[name]) ~= "function" then
+      prn("Quick Sell is unavailable: missing Auction House API " .. name .. ".")
+      return
+    end
+  end
+  if not C_Container or type(C_Container.GetContainerItemInfo) ~= "function"
+    or type(C_Container.GetContainerNumSlots) ~= "function"
+    or not ItemLocation or type(ItemLocation.CreateFromBagAndSlot) ~= "function"
+    or not C_Item or type(C_Item.GetItemInfo) ~= "function"
+    or not C_Timer or type(C_Timer.After) ~= "function" or type(GetCVar) ~= "function"
+    or type(GetMoney) ~= "function" or type(GetTime) ~= "function" then
+    prn("Quick Sell is unavailable because required inventory or pricing APIs are missing.")
+    return
+  end
+  if not (Enum and Enum.ItemCommodityStatus and Enum.ItemCommodityStatus.Item
+    and Enum.ItemCommodityStatus.Commodity)
+    or type(COPPER_PER_SILVER) ~= "number" then
+    prn("Quick Sell is unavailable because this client does not expose Auction House item types.")
+    return
+  end
+  if not api.ShouldAutoPopulatePrice() then
+    prn("Quick Sell requires the Auction House's automatic default pricing to be enabled.")
+    return
+  end
+  local duration = tonumber(GetCVar("auctionHouseDurationDropdown"))
+  if not duration or duration < 1 or duration > 3 then
+    prn("Quick Sell could not read the Auction House listing duration.")
+    return
+  end
+  local multiplier = Constants and Constants.AuctionConstants
+    and Constants.AuctionConstants.DEFAULT_AUCTION_PRICE_MULTIPLIER
+  if type(multiplier) ~= "number" then
+    prn("Quick Sell could not read the Auction House's default price multiplier.")
+    return
+  end
+
+  local active = { items = items, refresh = refresh, duration = duration, completed = 0, index = 1 }
+  posting = active
+  postProgress = quickSellProgressWindow()
+  postProgress.post:Disable()
+  postProgress.bar:SetMinMaxValues(0, #items)
+  postProgress.bar:SetValue(0)
+  postProgress.text:SetText(("0 / %d items"):format(#items))
+  postProgress:Show()
+  -- The Quick Sell click is a hardware event, so the first item posts immediately.
+  postCurrentItem(active)
+end
+
 --- Start a throttled scan for the provided bag items when no pricing addon is active.
 ---@param items table Items with links and bag locations.
 ---@param refresh function Refresh callback after prices change.
 function auction.Start(items, refresh)
   auction.Cancel()
+  if posting then auction.CancelQuickSell("Quick Sell stopped because auction price scanning started.") end
   if auction.HasAuctionator() or #items == 0 then return end
   if not C_AuctionHouse or not C_AuctionHouse.SendSearchQuery or not C_Timer or not C_Timer.NewTicker
     or not ItemLocation or not ItemLocation.CreateFromBagAndSlot
     or not C_Container or not C_Container.GetContainerItemInfo then
-    prn("auction price queries are unavailable on this client.")
+    prn("Auction price queries are unavailable on this client.")
     return
   end
   for _, name in ipairs({ "GetItemKeyFromItem", "IsThrottledMessageSystemReady",
@@ -387,7 +682,7 @@ function auction.Start(items, refresh)
     "GetCommoditySearchResultInfo", "GetNumItemSearchResults", "GetItemSearchResultInfo",
     "RequestMoreCommoditySearchResults", "RequestMoreItemSearchResults" }) do
     if type(C_AuctionHouse[name]) ~= "function" then
-      prn("auction price queries are unavailable: missing " .. name .. ".")
+      prn("Auction price queries are unavailable: missing " .. name .. ".")
       return
     end
   end
@@ -396,7 +691,7 @@ function auction.Start(items, refresh)
       "RequestMoreItemSearchResults", "RequestMoreCommoditySearchResults" }) do
       if type(C_AuctionHouse[method]) == "function" then
         hooksecurefunc(C_AuctionHouse, method, function()
-          if scan and not sending then auction.Cancel("auction price scan stopped because another search started.") end
+          if scan and not sending then auction.Cancel("Auction price scan stopped because another search started.") end
         end)
       end
     end

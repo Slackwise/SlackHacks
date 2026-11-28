@@ -114,6 +114,7 @@ end
 function CreateFrame(_, name, parent, template)
   local frame = widget()
   frame.name = name
+  frame.template = template
   if template == "ColumnDisplayTemplate" then
     frame.Background = widget()
     frame.TopTileStreaks = widget()
@@ -243,16 +244,27 @@ assert(row.upgradeText.fontSize == 8, "Upgrade text must use a smaller font than
 assert(row.vendorText.justifyH == "RIGHT" and row.auctionText.justifyH == "RIGHT",
   "Vendor and auction prices must be right aligned")
 row.statusKey = "item"
-row.statusInfo = { name = "Item", quality = 1 }
+row.statusInfo = { name = "Item", quality = 1, itemLevel = 10, link = "|Hitem:1:0:0:0|h[Item]|h" }
+local junk = upvalue(setStatus, "junk")
+local junkVariantKey = junk.variantKey
+local junkKey = junkVariantKey(row.statusInfo.link, 1, 10, nil)
+local visitSlots = upvalue(upvalue(module.MERCHANT_SHOW, "sellMarkedTrashItems"), "forEachSellableTrashSlot")
+local protected = upvalue(visitSlots, "isProtectedItem")
+local entries = {}
+local function chooseFlag(index, choice)
+  local submenu = entries[index].subentries
+  assert(submenu and #submenu == 2 and submenu[1].label == "Once" and submenu[2].label == "Always",
+    "Junk, Auction, and Bank must expose Once and Always submenu choices.")
+  submenu[choice == "once" and 1 or 2].selectStatus()
+end
 local button = row.statusBtn
 assert(button.clicks[1] == "LeftButtonUp" and button.clicks[2] == "RightButtonUp")
 updateStatusButton(button, getStatus("item"))
 assert(button.text.shown and button.text.text == "..." and not button.icon.shown)
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Click to Flag:" and #GameTooltip.lines == 1
-  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick mark as Junk.")
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick-flag as Junk this once.")
 
-local entries = {}
 local menuTitle
 MenuUtil = {
   CreateContextMenu = function(_, build)
@@ -261,6 +273,16 @@ MenuUtil = {
       CreateTitle = function(_, title) menuTitle = title end,
       CreateRadio = function(_, label, checked, selectStatus)
         entries[#entries + 1] = { label = label, checked = checked, selectStatus = selectStatus }
+      end,
+      CreateButton = function(_, label)
+        local entry = { label = label, subentries = {} }
+        function entry:CreateRadio(childLabel, checked, selectStatus)
+          self.subentries[#self.subentries + 1] = {
+            label = childLabel, checked = checked, selectStatus = selectStatus,
+          }
+        end
+        entries[#entries + 1] = entry
+        return entry
       end,
     }
     build(button, root)
@@ -271,32 +293,48 @@ assert(menuTitle == "Flag item for:" and #entries == 6 and entries[1].checked())
 for index, expected in ipairs({
   { "Junk", "|A:bags-junkcoin:" },
   { "Auction", "|TInterface\\Minimap\\Tracking\\Auctioneer:" },
-  { "Protect", "|A:ui-castingbar-shield:" },
   { "Bank", "|TInterface\\Minimap\\Tracking\\Banker:" },
   { "Mail", "|TInterface\\Minimap\\Tracking\\Mailbox:" },
+  { "Protect", "|A:ui-castingbar-shield:" },
 }) do
   local label = entries[index + 1].label
   assert(label:find(expected[1], 1, true) and label:find(expected[2], 1, true))
 end
-entries[2].selectStatus()
-assert(profile.trashItems.item == row.statusInfo and entries[2].checked())
-updateStatusButton(button, getStatus("item"))
+chooseFlag(2, "always")
+assert(profile.trashItems[junkKey] == row.statusInfo and entries[2].subentries[2].checked())
+updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.shown and button.icon.atlas == "bags-junkcoin" and not button.text.shown)
 button.scripts.OnClick(button, "RightButton")
-assert(not getStatus("item"), "Right-click must clear a vendor mark")
+assert(getStatus("item", 1, row.statusInfo.link, 10, nil).id == "vendor",
+  "Right-click must not remove a remembered Junk mark.")
+entries[1].selectStatus()
+assert(not getStatus("item", 1, row.statusInfo.link, 10, nil), "The menu must clear a Junk mark.")
 button.scripts.OnClick(button, "RightButton")
-assert(getStatus("item").id == "vendor", "Right-click must mark an unmarked item for vendor")
+assert(getStatus("item", 1, row.statusInfo.link, 10, nil).id == "vendor"
+  and profile.trashItemsOnce[junkKey] == row.statusInfo,
+  "Right-click must create a one-time Junk mark.")
+assert(not getStatus("item", 1, "|Hitem:1:99:0:0|h[Item]|h", 10, nil),
+  "A Junk mark must not match another item-link variation.")
+chooseFlag(2, "once")
+assert(profile.trashItemsOnce[junkKey] == row.statusInfo and not profile.trashItems[junkKey],
+  "The Junk submenu's Once choice must store a temporary mark.")
+entries[1].selectStatus()
 
 for _, case in ipairs({
   { index = 3, field = "auctionItems" },
-  { index = 4, field = "protectedItems" },
-  { index = 5, field = "bankItems" },
-  { index = 6, field = "mailItems" },
+  { index = 4, field = "bankItems" },
+  { index = 5, field = "mailItems" },
+  { index = 6, field = "protectedItems" },
 }) do
-  entries[case.index].selectStatus()
+  if case.index == 3 or case.index == 4 then
+    chooseFlag(case.index, "always")
+  else
+    entries[case.index].selectStatus()
+  end
   local previousMessages, previousNotifications = #messages, notifications
   button.scripts.OnClick(button, "RightButton")
-  assert(profile[case.field].item == row.statusInfo and not profile.trashItems.item,
+  assert(profile[case.field].item == row.statusInfo and not profile.trashItems.item
+    and not profile.trashItems[junkKey] and not profile.trashItemsOnce[junkKey],
     "Right-click must preserve " .. case.field)
   assert(#messages == previousMessages + 1 and notifications == previousNotifications)
   button.scripts.OnEnter(button)
@@ -306,38 +344,81 @@ for _, case in ipairs({
   assert(profile[case.field].item == row.statusInfo and profile.trashItems.item == row.statusInfo,
     "Right-click must preserve overlapping non-junk marks")
 end
-entries[2].selectStatus()
-assert(profile.trashItems.item and not profile.mailItems.item, "The menu must still allow changing a flag to Junk")
+chooseFlag(2, "always")
+assert(profile.trashItems[junkKey] and not profile.mailItems.item,
+  "The menu must still allow changing a flag to remembered Junk.")
 
-entries[4].selectStatus()
-assert(profile.protectedItems.item and not profile.trashItems.item)
-updateStatusButton(button, getStatus("item"))
+entries[6].selectStatus()
+assert(profile.protectedItems.item and not profile.trashItems[junkKey])
+updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.atlas == "ui-castingbar-shield")
-entries[3].selectStatus()
-assert(profile.auctionItems.item and not profile.protectedItems.item and not profile.trashItems.item)
-updateStatusButton(button, getStatus("item"))
+chooseFlag(3, "always")
+assert(profile.auctionItems.item and not profile.protectedItems.item and not profile.trashItems[junkKey])
+updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Auctioneer"
   and table.concat(button.icon.texCoord, ",") == "0,1,0,1")
-entries[5].selectStatus()
+chooseFlag(4, "always")
 assert(profile.bankItems.item and not profile.auctionItems.item)
-updateStatusButton(button, getStatus("item"))
+updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Banker")
-local visitSlots = upvalue(upvalue(module.MERCHANT_SHOW, "sellMarkedTrashItems"), "forEachSellableTrashSlot")
-local protected = upvalue(visitSlots, "isProtectedItem")
 assert(protected("item"), "Bank marks must use existing protection")
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flagged for: Bank" and #GameTooltip.lines == 1
+assert(GameTooltip.text == "Flagged for: Bank (Always)" and #GameTooltip.lines == 1
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
 assert(GameTooltip.lineColors[1][1] == 1 and GameTooltip.lineColors[1][2] == 1
   and GameTooltip.lineColors[1][3] == 1, "Other flag instructions should remain white")
+local originalCollectGroups = upvalue(junk.reconcileOneTimeFlags, "collectGroups")
+local function matchingGroup()
+  return { {
+    hyperlink = row.statusInfo.link,
+    quality = row.statusInfo.quality,
+    itemLevel = row.statusInfo.itemLevel,
+    upgradeTrack = row.statusInfo.upgradeTrack,
+  } }
+end
+chooseFlag(3, "once")
+assert(profile.auctionItemsOnce.item and not profile.auctionItems.item
+  and getStatus("item", 1, row.statusInfo.link, 10, nil).id == "auction" and protected("item"),
+  "One-time Auction must display as flagged and prevent vendor sales.")
+local originalMerchantOpen = upvalue(blockedItemAction, "merchantOpen")
+upvalue(blockedItemAction, "merchantOpen", true)
+assert(blockedItemAction("item", 1) == "vendoring",
+  "One-time Auction must block vendor interactions.")
+upvalue(blockedItemAction, "merchantOpen", originalMerchantOpen)
+upvalue(junk.reconcileOneTimeFlags, "collectGroups", matchingGroup)
+assert(not junk.reconcileOneTimeFlags(profile), "One-time Auction must remain while its variant is in bags.")
+upvalue(junk.reconcileOneTimeFlags, "collectGroups", function() return {} end)
+assert(junk.reconcileOneTimeFlags(profile) and not profile.auctionItemsOnce.item,
+  "One-time Auction must be removed after its item leaves the bags.")
+chooseFlag(4, "once")
+assert(profile.bankItemsOnce.item and not profile.bankItems.item
+  and getStatus("item", 1, row.statusInfo.link, 10, nil).id == "bank" and protected("item"),
+  "One-time Bank must display as flagged and prevent vendor sales.")
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flagged for: Bank (Once)", "One-time flags must be labeled in the tooltip.")
+local originalAuctionOpen = upvalue(blockedItemAction, "auctionOpen")
+upvalue(blockedItemAction, "auctionOpen", true)
+assert(blockedItemAction("item", 1) == "auctioning",
+  "One-time Bank must block auctioning.")
+upvalue(blockedItemAction, "auctionOpen", originalAuctionOpen)
+upvalue(junk.reconcileOneTimeFlags, "collectGroups", matchingGroup)
+assert(not junk.reconcileOneTimeFlags(profile), "One-time Bank must remain while its variant is in bags.")
+upvalue(junk.reconcileOneTimeFlags, "collectGroups", function() return {} end)
+assert(junk.reconcileOneTimeFlags(profile) and not profile.bankItemsOnce.item,
+  "One-time Bank must be removed after its item leaves the bags.")
+upvalue(junk.reconcileOneTimeFlags, "collectGroups", originalCollectGroups)
+chooseFlag(4, "always")
+assert(profile.bankItems.item, "The Bank Always choice must be remembered separately.")
+
 button.scripts.OnClick(button, "RightButton")
-assert(not profile.trashItems.item and profile.bankItems.item and protected("item"))
+assert(not profile.trashItems.item and not profile.trashItems[junkKey]
+  and profile.bankItems.item and protected("item"))
 chooseRecipient = false
-entries[6].selectStatus()
+entries[5].selectStatus()
 assert(profile.bankItems.item and not profile.mailItems.item, "Canceling recipient selection must preserve the flag")
 chooseRecipient = true
-entries[6].selectStatus()
-assert(profile.mailItems.item and not profile.trashItems.item)
+entries[5].selectStatus()
+assert(profile.mailItems.item and not profile.trashItems.item and not profile.trashItems[junkKey])
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
   and GameTooltip.lines[2] == "  - Bank Alt (default)")
@@ -352,15 +433,15 @@ assert(profile.mailItems.item and not profile.mailAssignments.item, "Deleting a 
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[2] == "  None")
 profile.mailRecipients[1] = { nickname = "Bank Alt", character = "Example" }
-entries[6].selectStatus()
-updateStatusButton(button, getStatus("item"))
+entries[5].selectStatus()
+updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Mailbox")
 entries[1].selectStatus()
 assert(not getStatus("item") and not profile.mailAssignments.item)
 assert(notifications == merchantUpdates and notifications > 0)
 
 -- Grey items can only be protected, including against stale menu selections.
-local selectJunk = entries[2].selectStatus
+local selectJunk = entries[2].subentries[2].selectStatus
 row.statusInfo.quality = 0
 row.statusInfo.itemLevel = 10
 button.scripts.OnClick(button, "LeftButton")
@@ -514,7 +595,7 @@ profile.protectedItems.item = nil
 -- A menu must act on the original item even if the row is recycled before selection.
 button.scripts.OnClick(button, "LeftButton")
 row.statusKey = "other"
-entries[5].selectStatus()
+chooseFlag(4, "always")
 assert(profile.bankItems.item and not profile.bankItems.other)
 
 -- The legacy dropdown exposes the same selectable statuses.
@@ -523,10 +604,14 @@ local legacy
 function EasyMenu(menu) legacy = menu end
 button.scripts.OnClick(button, "LeftButton")
 assert(#legacy == 7 and legacy[1].text == "Flag item for:" and legacy[3].text:find("Junk", 1, true))
-assert(legacy[4].text:find("Auction", 1, true) and legacy[5].text:find("Protect", 1, true))
+assert(legacy[4].text:find("Auction", 1, true) and legacy[7].text:find("Protect", 1, true))
 assert(legacy[3].text:find("|A:bags-junkcoin:", 1, true)
-  and legacy[6].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))
-legacy[7].func()
+  and legacy[5].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))
+assert(legacy[3].menuList[1].text == "Once" and legacy[3].menuList[2].text == "Always"
+  and legacy[4].menuList[1].text == "Once" and legacy[4].menuList[2].text == "Always"
+  and legacy[5].menuList[1].text == "Once" and legacy[5].menuList[2].text == "Always",
+  "The legacy menu must expose duration submenus for Junk, Auction, and Bank.")
+legacy[6].func()
 assert(profile.mailItems.other and not profile.trashItems.other)
 assert(openedPicker > 0 and profile.mailAssignments.other == 1)
 legacy[2].func()
@@ -735,18 +820,19 @@ assert(registeredEvents.CURSOR_CHANGED == "OnCursorChanged", "Enable must regist
 assert(registeredEvents.UNIT_INVENTORY_CHANGED == "OnSupplyInventoryChanged"
   and registeredEvents.UPDATE_INVENTORY_DURABILITY == "RefreshFooter",
   "Equipped ammunition and thrown durability must refresh")
-local beginAuctionMode = upvalue(module.OnEnable, "beginAuctionMode")
 AuctionHouseFrame = {}
 --- Simulate enabling the module while the auction house is already open.
 ---@return boolean shown Whether the auction house is open.
 function AuctionHouseFrame:IsShown() return true end
 local openAuctionHouseFrame = AuctionHouseFrame
-upvalue(beginAuctionMode, "ahMode", false)
+local savedView = profile.view
 module:OnEnable()
-assert(upvalue(beginAuctionMode, "ahMode"), "Enabling the module at an open auction house must turn on AH Mode")
+assert(upvalue(module.OnEnable, "auctionOpen") and upvalue(module.OnBagInteractionClosed, "temporaryView") == "selling"
+  and profile.view == savedView, "Enabling at an open auction house must temporarily select Selling View")
 AuctionHouseFrame = nil
 module:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
-assert(not upvalue(beginAuctionMode, "ahMode"), "Closing must restore the prior AH Mode choice")
+assert(not upvalue(module.OnEnable, "auctionOpen") and not upvalue(module.OnBagInteractionClosed, "temporaryView")
+  and profile.view == savedView, "Closing must restore the saved view")
 AuctionHouseFrame = openAuctionHouseFrame
 module:OnEnable()
 local previousShowDefaultBags = upvalue(module.OnDisable, "showDefaultBags", function() end)
@@ -754,16 +840,17 @@ local previousUpdateBindings = module.UpdateListViewBindings
 module.UpdateListViewBindings = function() end
 EventRegistry.UnregisterCallback = function() end
 module:OnDisable()
-assert(not upvalue(beginAuctionMode, "ahMode") and not upvalue(module.OnDisable, "temporaryView"),
-  "Disabling during an auction visit must restore AH Mode and clear the temporary view")
+assert(not upvalue(module.OnDisable, "auctionOpen") and not upvalue(module.OnDisable, "temporaryView"),
+  "Disabling during an auction visit must clear the temporary view")
 AuctionHouseFrame = nil
 module:OnEnable()
-assert(not upvalue(beginAuctionMode, "ahMode"), "Re-enabling after the auction closes must retain the previous mode")
+assert(not upvalue(module.OnEnable, "auctionOpen"), "Re-enabling after the auction closes must retain a closed-house state")
 upvalue(module.OnDisable, "showDefaultBags", previousShowDefaultBags)
 module.UpdateListViewBindings = previousUpdateBindings
 do
   local refreshes = 0
-  local original = upvalue(module.OnSupplyInventoryChanged, "refreshFooter", function() refreshes = refreshes + 1 end)
+  local original = upvalue(module.OnSupplyInventoryChanged, "refreshFooter",
+    function() refreshes = refreshes + 1 end)
   module:OnSupplyInventoryChanged("UNIT_INVENTORY_CHANGED", "target")
   module:OnSupplyInventoryChanged("UNIT_INVENTORY_CHANGED", "player")
   assert(refreshes == 1, "Only the player's inventory changes should refresh supplies")
@@ -1558,7 +1645,7 @@ recipientRow.scripts.OnClick()
 drainMailTimers()
 assert(not attachments[1] and bagSlots[1].stackCount == 10 and not cursorType
   and profile.mailQueues[swordKey][1].remaining == 1
-  and messages[#messages]:find("make room in a compatible bag", 1, true),
+  and messages[#messages]:find("Make room in a compatible bag", 1, true),
   "A full bag must stop partial-stack preparation without moving or attaching the item")
 SendMailFrame.hooks.OnHide()
 
@@ -1944,21 +2031,32 @@ do
   MenuUtil = {
     CreateContextMenu = function(_, build)
       entries = {}
-      build(button, {
+      local root = {
         CreateTitle = function() end,
         CreateRadio = function(_, label, checked, select)
           entries[#entries + 1] = { label = label, checked = checked, selectStatus = select }
         end,
-      })
+        CreateButton = function(_, label)
+          local entry = { label = label, subentries = {} }
+          function entry:CreateRadio(childLabel, checked, select)
+            self.subentries[#self.subentries + 1] = {
+              label = childLabel, checked = checked, selectStatus = select,
+            }
+          end
+          entries[#entries + 1] = entry
+          return entry
+        end,
+      }
+      build(button, root)
     end,
   }
   button.scripts.OnClick(button, "LeftButton")
-  entries[3].selectStatus()
+  entries[3].subentries[2].selectStatus()
   assert(profile.protectedItems[base] and not profile.auctionItems[base],
     "A soulbound Auction choice must leave the existing flag untouched")
   MenuUtil = nil
   button.scripts.OnClick(button, "LeftButton")
-  legacy[4].func()
+  legacy[4].menuList[2].func()
   assert(profile.protectedItems[base] and not profile.auctionItems[base],
     "The legacy menu must reject soulbound Auction choices too")
   assert(not setStatus(base, info, statuses[5], bound) and profile.protectedItems[base],
@@ -2007,7 +2105,7 @@ do
   row.statusKey, row.statusContext = base, unbound
   button.scripts.OnClick(button, "LeftButton")
   bagSlots[2].isBound = true
-  legacy[4].func()
+  legacy[4].menuList[2].func()
   assert(profile.auctionItems[base] and profile.mailQueues[variant][1].remaining == 3,
     "A stale menu must not replace flags or queues after binding changes")
   bagSlots[2].isBound = nil

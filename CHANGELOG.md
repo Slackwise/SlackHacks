@@ -1,5 +1,22 @@
 # SlackHacks Changelog
 
+## v35
+
+### Inventory
+- Junk, Auction, and Bank flags can be set Once or Always; one-time flags clear when the item leaves your bags, and remembered Auction and Bank items get their own Options lists.
+- Junk flags now distinguish item variants such as item level, quality, upgrade track, and enchants.
+- Added a Deposit Bank Flagged Items button to the bank and an optional Auto-Deposit Bank Flagged Items setting.
+- Opening the Auction House now locks the Selling View and hides items that can't be auctioned, replacing AH Mode.
+- Added Quick Sell to post Auction-flagged items at the Auction House's default price, one click per item.
+
+### Minimap
+- Avoid duplicate Addon Compartment entries and restore minimap icons when the option is disabled.
+- Fixed SlackHacks' native Addon Compartment entry not responding to clicks and throwing errors on hover.
+- Keep addon icons on the square border through redraws and dragging, without losing legacy icons or their native drag behavior.
+
+### Mouse Ring
+- Added a Reset Appearance button for the scale, opacity, and color controls.
+
 ## v34
 
 ### Utilities

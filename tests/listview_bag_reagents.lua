@@ -83,6 +83,9 @@ function CreateFrame(frameType, name, parent, template)
   ---@param width number Width.
   ---@param height number Height.
   function widget:SetSize(width, height) self.width, self.height = width, height end
+  --- Record a button's normal icon.
+  ---@param texture string Icon texture path.
+  function widget:SetNormalTexture(texture) self.normalTexture = texture end
   --- Return a mock disabled texture for icon buttons.
   ---@return table texture Disabled texture.
   function widget:GetDisabledTexture()
@@ -203,7 +206,12 @@ local function openModernFilters(dropdown)
       menuEntries[#menuEntries + 1] = { text = text, section = section, checked = checked, select = select }
     end,
     CreateRadio = function(_, text, checked, select)
-      menuEntries[#menuEntries + 1] = { text = text, checked = checked, select = select }
+      local radio = { text = text, checked = checked, select = select }
+      --- Record whether a mock menu radio can be selected.
+      ---@param enabled boolean Whether the menu choice is enabled.
+      function radio:SetEnabled(enabled) self.enabled = enabled end
+      menuEntries[#menuEntries + 1] = radio
+      return radio
     end,
   }
   dropdown.menuGenerator(dropdown, root)
@@ -484,9 +492,14 @@ INVTYPE_HEAD = nil
 
 -- Auction interactions select Selling temporarily and only query after an explicit refresh.
 local auctionRefresh = frames.SlackHacksListviewBagAuctionRefresh
-local ahCheckbox = frames.SlackHacksListviewBagAHMode
+local quickSell = frames.SlackHacksListviewBagQuickSell
 assert(auctionRefresh.width == 14 and auctionRefresh.height == 14,
   "The auction refresh button must use the reduced icon size")
+assert(quickSell.normalTexture == "Interface\\Minimap\\Tracking\\Auctioneer"
+  and quickSell.template == nil and not quickSell.enabled,
+  "Quick Sell must use the Auction flag icon and start disabled")
+assert(quickSell.scripts.OnEnter and quickSell.scripts.OnClick,
+  "Quick Sell must provide an action and explanatory tooltip")
 local selectView = upvalue(upvalue(createFooter, "openViewsMenu"), "selectView")
 local startAuction = upvalue(createFooter, "updateAuctionView")
 local bagWindow = CreateFrame("Frame")
@@ -494,9 +507,10 @@ local previousFrame = upvalue(startAuction, "frame", bagWindow)
 local previousGroups = upvalue(startAuction, "collectGroups", function()
   return { { hyperlink = "item:42", entries = { { bagID = 0, slot = 1 } } } }
 end)
-local scans, scannedItems, auctionator, cancellations = 0, nil, false, 0
+local scans, scannedItems, auctionator, cancellations, quickSells = 0, nil, false, 0, 0
 SlackHacks.ListviewBagAuction = {
   Cancel = function() cancellations = cancellations + 1 end,
+  QuickSell = function(items) quickSells = quickSells + 1; scannedItems = items end,
   HasAuctionator = function() return auctionator end,
   Start = function(items) scans = scans + 1; scannedItems = items end,
 }
@@ -515,95 +529,68 @@ local originalNativeBagOpen = SlackHacks.ListviewBag.OnNativeBagOpen
 SlackHacks.ListviewBag.OnNativeBagOpen = function() end
 profile.enabled = true
 selectView("gear")
-assert(not auctionRefresh.shown and not ahCheckbox.shown)
+assert(not auctionRefresh.shown and not quickSell.shown and not quickSell.enabled)
 SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
 assert(profile.view == "gear" and viewsButton.label == "Selling View" and scans == 0
-  and auctionRefresh.shown and auctionRefresh.enabled and ahCheckbox.shown and ahCheckbox.enabled and ahCheckbox.checked,
-  "Opening the auction house must temporarily select Selling without starting a scan")
-ahCheckbox:SetChecked(false)
-ahCheckbox.scripts.OnClick(ahCheckbox)
-assert(not ahCheckbox.checked, "AH Mode must remain manually toggleable while the auction house is open")
-ahCheckbox:SetChecked(true)
-ahCheckbox.scripts.OnClick(ahCheckbox)
+  and auctionRefresh.shown and auctionRefresh.enabled and quickSell.shown and quickSell.enabled,
+  "Opening the auction house must lock Selling View without starting a scan")
+openModernFilters(viewsButton)
+assert(entry("Default View").enabled == false and entry("Gear View").enabled == false
+  and entry("Selling View").enabled == true, "Other views must be disabled while the auction house is open")
+entry("Gear View").select()
+entry("Selling View").select()
+assert(viewsButton.label == "Selling View" and profile.view == "gear",
+  "The view-selection guard must keep Selling View active without saving it over the prior view")
 auctionRefresh.scripts.OnClick()
 assert(scans == 1 and #scannedItems == 1, "The refresh button must explicitly start the scan")
-assert(ahCheckbox.anchor[2] == auctionRefresh, "AH Mode must be positioned beside the refresh button")
+assert(quickSell.anchor[2] == auctionRefresh and quickSell.width == 16,
+  "Quick Sell must be positioned beside the refresh control")
 auctionator = true
 local previousCancellations = cancellations
 SlackHacks.ListviewBag:OnMailAddonLoaded("ADDON_LOADED", "Auctionator")
-assert(not auctionRefresh.shown and ahCheckbox.shown and ahCheckbox.anchor[2] == viewsButton
+assert(not auctionRefresh.shown and quickSell.shown and quickSell.enabled and quickSell.anchor[2] == viewsButton
   and cancellations == previousCancellations + 1,
-  "Loading Auctionator must stop scanning, hide refresh, and keep AH Mode next to Views")
+  "Loading Auctionator must stop scanning while keeping Quick Sell available")
 SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
 assert(profile.view == "gear" and viewsButton.label == "Gear View" and not auctionRefresh.shown
-  and not auctionRefresh.enabled and not ahCheckbox.checked,
-  "Closing the auction house must restore the saved view and turn AH Mode off")
+  and not auctionRefresh.enabled and not quickSell.shown and not quickSell.enabled,
+  "Closing the auction house must restore the saved view and disable Quick Sell")
 selectView("selling")
-assert(not auctionRefresh.shown and ahCheckbox.shown and scans == 1,
-  "Auctionator must hide refresh even when the auction house is closed")
+assert(not auctionRefresh.shown and quickSell.shown and not quickSell.enabled and scans == 1,
+  "Auctionator must hide refresh while Quick Sell stays disabled outside the auction house")
 auctionator = false
 selectView("selling")
-assert(auctionRefresh.shown and not auctionRefresh.enabled and ahCheckbox.shown and scans == 1,
-  "The refresh button must be disabled outside the auction house")
+assert(auctionRefresh.shown and not auctionRefresh.enabled and quickSell.shown
+  and not quickSell.enabled and scans == 1, "Both auction actions must be disabled outside the auction house")
 local auctionApi = C_AuctionHouse
 C_AuctionHouse = nil
 selectView("selling")
-assert(not ahCheckbox.enabled, "AH Mode must be disabled if auction eligibility cannot be checked")
 SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
-assert(not ahCheckbox.checked and notices[#notices]:find("eligibility cannot be checked", 1, true),
-  "Automatic mode must report unavailable auction eligibility")
+assert(quickSell.enabled and notices[#notices]:find("eligibility is unavailable", 1, true),
+  "Quick Sell state must follow the Auction House while unavailable filtering is reported")
 SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
 C_AuctionHouse = auctionApi
-SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
 selectView("default")
 SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
-assert(viewsButton.label == "Default View", "Duplicate open events must not override a manually selected view")
+selectView("gear")
+SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
+assert(viewsButton.label == "Selling View", "The view lock must reject selection changes during the visit")
 SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
 assert(profile.view == "default" and viewsButton.label == "Default View",
   "A manually selected view must remain saved after the auction house closes")
 
-selectView("selling")
-ahCheckbox:SetChecked(true)
-ahCheckbox.scripts.OnClick(ahCheckbox)
-profile.autoAHMode = false
-SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
-assert(ahCheckbox.checked, "A removed automatic-mode preference must not prevent AH Mode")
-ahCheckbox:SetChecked(false)
-ahCheckbox.scripts.OnClick(ahCheckbox)
-assert(not ahCheckbox.checked, "AH Mode must remain manually toggleable during the visit")
-SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
-assert(not ahCheckbox.checked, "Duplicate open events must not reset the temporary choice")
-SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
-assert(ahCheckbox.checked, "Closing must restore AH Mode when it was enabled before the visit")
-ahCheckbox:SetChecked(false)
-ahCheckbox.scripts.OnClick(ahCheckbox)
-SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
-assert(ahCheckbox.checked, "Opening must enable AH Mode even when it was previously off")
-ahCheckbox:SetChecked(false)
-ahCheckbox.scripts.OnClick(ahCheckbox)
-ahCheckbox:SetChecked(true)
-ahCheckbox.scripts.OnClick(ahCheckbox)
-SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
-assert(not ahCheckbox.checked, "Closing must restore AH Mode when it was disabled before the visit")
-
-ahCheckbox:SetChecked(true)
-ahCheckbox.scripts.OnClick(ahCheckbox)
 C_AuctionHouse = nil
 SlackHacks.ListviewBag:OnBagInteractionOpen("AUCTION_HOUSE_SHOW")
-assert(not ahCheckbox.checked and not ahCheckbox.enabled, "Unavailable eligibility must not activate AH Mode")
 SlackHacks.ListviewBag:OnBagInteractionClosed("AUCTION_HOUSE_CLOSED")
-assert(ahCheckbox.checked, "An unavailable temporary mode must still restore the prior choice")
 local scanGroups = upvalue(startAuction, "collectGroups", function()
   return { { itemID = 301, quality = 1, classID = 15, statusKey = "301", sellPrice = 5,
     entries = { { bagID = 0, slot = 1, count = 1 } } } }
 end)
-assert(#buildDisplayRows() == 1, "An unavailable eligibility API must not filter or crash after restoring AH Mode")
+assert(#buildDisplayRows() == 1, "An unavailable eligibility API must not filter or crash")
 upvalue(startAuction, "collectGroups", scanGroups)
 C_AuctionHouse = auctionApi
-ahCheckbox:SetChecked(false)
-ahCheckbox.scripts.OnClick(ahCheckbox)
 
--- AH Mode checks each stack and leaves the saved Filters settings alone.
+-- Auction House eligibility filtering activates only during an Auction House visit.
 selectView("selling")
 local auctionGroups = {
   { itemID = 301, quality = 1, classID = 15, statusKey = "301", sellPrice = 5, count = 6,
@@ -626,24 +613,30 @@ upvalue(startAuction, "collectGroups", function() return auctionGroups end)
 local vendorRows = buildDisplayRows()
 assert(#vendorRows == 5 and vendorRows[2].isBound and vendorRows[3].accountBound
   and vendorRows[4].itemID == 305 and vendorRows[5].itemID == 307,
-  "Selling View without AH Mode must retain vendor-sellable bound, auction-ineligible, and protected items")
-ahCheckbox:SetChecked(true)
-ahCheckbox.scripts.OnClick(ahCheckbox)
+  "Selling View outside the Auction House must retain vendor-sellable bound, auction-ineligible, and protected items")
+upvalue(buildDisplayRows, "auctionOpen", true)
 local eligibleRows = buildDisplayRows()
 assert(#eligibleRows == 1 and eligibleRows[1].itemID == 301 and eligibleRows[1].count == 2
-  and #eligibleRows[1].entries == 1, "AH Mode must exclude bound, unpriced, and invalid items and stacks")
+  and #eligibleRows[1].entries == 1, "Selling View must exclude bound, unpriced, and invalid items while the Auction House is open")
 assert(profile.bindingFilters.unbound ~= false and profile.bindingFilters.soulbound ~= false
-  and profile.bindingFilters.warbound ~= false, "AH Mode must not change saved binding filters")
+  and profile.bindingFilters.warbound ~= false, "Auction filtering must not change saved binding filters")
+profile.auctionItems["301"] = {}
+local quickSellCallback = quickSell.scripts.OnClick
+upvalue(quickSellCallback, "collectGroups", function() return auctionGroups end)
+quickSellCallback()
+assert(quickSells == 1 and #scannedItems == 1 and scannedItems[1].bagID == 0
+  and scannedItems[1].slot == 1 and scannedItems[1].count == 2,
+  "Quick Sell must include only Auction-flagged stacks that pass live eligibility checks")
+profile.auctionItems["301"] = nil
+upvalue(buildDisplayRows, "auctionOpen", false)
 selectView("default")
-assert(#buildDisplayRows() == 7, "AH Mode must not filter other views")
-ahCheckbox:SetChecked(false)
-ahCheckbox.scripts.OnClick(ahCheckbox)
+assert(#buildDisplayRows() == 7, "Selling eligibility must not filter other views")
 upvalue(startAuction, "collectGroups", previousGroups)
 upvalue(startAuction, "frame", previousFrame or false)
 SlackHacks.ListviewBagAuction = nil
 SlackHacks.ListviewBag.OnNativeBagOpen = originalNativeBagOpen
 profile.protectedItems["307"] = nil
-profile.view, profile.enabled, profile.autoAHMode = nil, nil, nil
+profile.view, profile.enabled = nil, nil
 
 local visited = {}
 C_Container = {

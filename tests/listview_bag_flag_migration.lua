@@ -71,7 +71,7 @@ local function checkProfile(profile)
   end
 end
 
-assert(addon.CONFIG_VERSION == 16 and addon.CONFIG_VERSION_RELEASES[16] == 34)
+assert(addon.CONFIG_VERSION == 17 and addon.CONFIG_VERSION_RELEASES[17] == 35)
 for _, version in ipairs({ 0, 15 }) do
   local active, other, detached = makeProfile(), makeProfile(), makeProfile()
   addon.db = {
@@ -80,11 +80,11 @@ for _, version in ipairs({ 0, 15 }) do
     profile = detached,
   }
   addon.migrateConfig()
-  -- Profiles written by an earlier v16 development build are converted on access.
+  -- Profiles written by an earlier development build are converted on access.
   for _, profile in ipairs({ active, other, detached }) do
     addon.ListviewBag:MigrateLegacyMailAmounts(profile.listviewBag)
   end
-  assert(addon.db.global.configVersion == 16)
+  assert(addon.db.global.configVersion == 17)
   checkProfile(active)
   checkProfile(other)
   checkProfile(detached)
@@ -105,6 +105,21 @@ addon.ListviewBag:MigrateLegacyMailAmounts(alreadyCurrent.listviewBag)
 assert(alreadyCurrent.listviewBag.mailAssignments[common] == 3
   and alreadyCurrent.listviewBag.mailQueues[pending][1].remaining == 17
   and not alreadyCurrent.listviewBag.mailAssignments[pending])
+assert(type(alreadyCurrent.listviewBag.trashItemsOnce) == "table",
+  "Config v17 must initialize the one-time Junk list.")
+assert(type(alreadyCurrent.listviewBag.auctionItemsOnce) == "table"
+  and type(alreadyCurrent.listviewBag.bankItemsOnce) == "table",
+  "Config v17 must initialize the one-time Auction and Bank lists.")
+local legacyVariantKey = "Marked\0312\03130\031Champion"
+local variantLink = "|cff0070dd|Hitem:42:123:4:5:6:7|h[Marked]|h|r"
+alreadyCurrent.listviewBag.trashItems[legacyVariantKey] = {
+  name = "Marked", link = variantLink, quality = 2, itemLevel = 30, upgradeTrack = "Champion",
+}
+addon.ListviewBag:MigrateLegacyJunkFlags(alreadyCurrent.listviewBag)
+local migratedVariantKey = table.concat({ "item", "42:123:4:5:6:7", 2, 30, "Champion" }, "\031")
+assert(alreadyCurrent.listviewBag.trashItems[migratedVariantKey]
+  and not alreadyCurrent.listviewBag.trashItems[legacyVariantKey],
+  "Remembered Junk marks with saved links must migrate to exact variant keys.")
 local warnings = 0
 --- Count migration warnings without discarding malformed saved data.
 function addon.prn() warnings = warnings + 1 end

@@ -59,10 +59,14 @@ dbDefaults = {
       columnOrder = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" },
       protectedItems = {},
       trashItems = {},
+      trashItemsOnce = {},
       auctionItems = {},
+      auctionItemsOnce = {},
       auctionIneligibleOverrides = {},
       bankItems = {},
+      bankItemsOnce = {},
       mailItems = {},
+      autoDepositBankItems = false,
       mailRecipients = {},
       mailAssignments = {},
       mailQueues = {},
@@ -784,6 +788,79 @@ local function ensureMinimapBadge(button)
   return badge
 end
 
+--- Runs the shared minimap and compartment click action.
+---@param button Frame - Anchor for the quick toggle menu.
+---@param mouseButton string - Clicked mouse button.
+local function onMinimapIconClick(button, mouseButton)
+  if mouseButton == "RightButton" then
+    openMinimapContextMenu(button)
+  else
+    local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
+      or (errorLogTable and errorLogTable()) or {}
+    if #list > 0 and Self.Debug and Self.Debug.ShowWindow then
+      Self.Debug:ShowWindow()
+    else
+      openOptions()
+    end
+  end
+end
+
+--- Populates the shared minimap and compartment tooltip.
+---@param tooltip GameTooltip - Tooltip to populate.
+local function populateMinimapIconTooltip(tooltip)
+  local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
+    or (errorLogTable and errorLogTable()) or {}
+  local count = #list
+  tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
+  if count > 0 then
+    tooltip:AddLine(" ")
+    if count == 1 then
+      tooltip:AddLine("You have 1 un-reported error in SlackHacks.", 1, 0.3, 0.3, true)
+    else
+      tooltip:AddLine(("You have %d un-reported errors in SlackHacks."):format(count), 1, 0.3, 0.3, true)
+    end
+    tooltip:AddLine("Left-click: Open error report window", 0.8, 0.8, 0.8)
+  else
+    tooltip:AddLine("Left-click: Open options", 0.8, 0.8, 0.8)
+  end
+  tooltip:AddLine("Right-click: Quick toggle menu", 0.8, 0.8, 0.8)
+end
+
+--- Shows the shared tooltip on a minimap or compartment button.
+---@param button Frame - Hovered button.
+local function onMinimapIconEnter(button)
+  GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT")
+  populateMinimapIconTooltip(GameTooltip)
+  GameTooltip:Show()
+end
+
+--- Hides the shared minimap and compartment tooltip.
+local function onMinimapIconLeave()
+  GameTooltip:Hide()
+end
+
+--- Handles the global click callback named in the addon metadata.
+---@param addonName string - Addon name supplied by Blizzard.
+---@param mouseButton string - Clicked mouse button.
+function _G.SlackHacks_OnAddonCompartmentClick(addonName, mouseButton)
+  onMinimapIconClick(AddonCompartmentFrame, mouseButton)
+end
+
+--- Handles the global hover callback named in the addon metadata.
+---@param addonName string - Addon name supplied by Blizzard.
+---@param button Frame - Hovered compartment menu button.
+function _G.SlackHacks_OnAddonCompartmentEnter(addonName, button)
+  onMinimapIconEnter(button)
+end
+
+--- Handles the global leave callback named in the addon metadata.
+---@param addonName string - Addon name supplied by Blizzard.
+---@param button Frame - Compartment menu button being left.
+function _G.SlackHacks_OnAddonCompartmentLeave(addonName, button)
+  onMinimapIconLeave()
+end
+
+--- Registers the broker icon using the same actions as the native compartment entry.
 local function initMinimapIcon()
   local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
   local ldbi = LibStub and LibStub("LibDBIcon-1.0", true)
@@ -794,47 +871,10 @@ local function initMinimapIcon()
       type = "data source",
       text = ADDON_DISPLAY_NAME,
       icon = SLACKHACKS_ICON,
-      OnClick = function(clickedButton, mouseButton)
-        if mouseButton == "RightButton" then
-          openMinimapContextMenu(clickedButton)
-        else
-          local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
-            or (errorLogTable and errorLogTable()) or {}
-          if #list > 0 and Self.Debug and Self.Debug.ShowWindow then
-            Self.Debug:ShowWindow()
-          else
-            openOptions()
-          end
-        end
-      end,
-      OnTooltipShow = function(tooltip)
-        local list = (Self.Debug and Self.Debug.GetErrorLog and Self.Debug:GetErrorLog())
-          or (errorLogTable and errorLogTable()) or {}
-        local count = #list
-        tooltip:AddLine(ADDON_DISPLAY_NAME, 1, 0.82, 0)
-        if count > 0 then
-          tooltip:AddLine(" ")
-          if count == 1 then
-            tooltip:AddLine("You have 1 un-reported error in SlackHacks.", 1, 0.3, 0.3, true)
-          else
-            tooltip:AddLine(("You have %d un-reported errors in SlackHacks."):format(count), 1, 0.3, 0.3, true)
-          end
-          tooltip:AddLine("Left-click: Open error report window", 0.8, 0.8, 0.8)
-        else
-          tooltip:AddLine("Left-click: Open options", 0.8, 0.8, 0.8)
-        end
-        tooltip:AddLine("Right-click: Quick toggle menu", 0.8, 0.8, 0.8)
-      end,
-      OnEnter = function(button)
-        GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT")
-        if minimapLDBObj.OnTooltipShow then
-          minimapLDBObj.OnTooltipShow(GameTooltip)
-        end
-        GameTooltip:Show()
-      end,
-      OnLeave = function()
-        GameTooltip:Hide()
-      end,
+      OnClick = onMinimapIconClick,
+      OnTooltipShow = populateMinimapIconTooltip,
+      OnEnter = onMinimapIconEnter,
+      OnLeave = onMinimapIconLeave,
     })
   end
 
@@ -1020,25 +1060,35 @@ local function removableItemRow(item, remove, description, order)
 end
 
 --- Build the marked-item controls from the current profile.
+---@param itemsField string Saved Listview Bag field containing flagged items.
+---@param flagName string User-facing flag name.
+---@param oneTime boolean Whether these marks are temporary.
 ---@return table args AceConfig controls for clearing or removing marked items.
-local function listviewVendorItemOptions()
+local function listviewFlagItemOptions(itemsField, flagName, oneTime)
+  local items = db.profile.listviewBag[itemsField] or {}
+  local listName = oneTime and "one-time " .. flagName .. " list" or flagName .. " list"
   local args = {
     clear = {
       type = "execute",
-      name = "Clear List",
-      desc = "Remove all items from the auto-vendor list.",
+      name = oneTime and "Clear One-Time List" or "Clear List",
+      desc = "Remove all items from the " .. listName .. ".",
       confirm = true,
-      confirmText = "Remove all items from the auto-vendor list?",
-      disabled = function() return not next(db.profile.listviewBag.trashItems or {}) end,
+      confirmText = "Remove all items from the " .. listName .. "?",
+      disabled = function() return not next(db.profile.listviewBag[itemsField] or {}) end,
       func = function()
-        wipe(db.profile.listviewBag.trashItems)
+        local target = db.profile.listviewBag[itemsField]
+        if type(target) ~= "table" then
+          target = {}
+          db.profile.listviewBag[itemsField] = target
+        end
+        wipe(target)
         if Self.ListviewBag then Self.ListviewBag:Refresh() end
       end,
       width = "full",
       order = 0,
     },
   }
-  for key, item in pairs(db.profile.listviewBag.trashItems or {}) do
+  for key, item in pairs(items) do
     local entry = item
     local itemKey = key
     local link, itemIcon
@@ -1064,14 +1114,17 @@ local function listviewVendorItemOptions()
       name = (type(entry) == "table" and entry.name) or tostring(itemKey),
       link = link,
       icon = itemIcon,
-      suffix = tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
+      suffix = (oneTime and "(one-time)" or nil)
+        or tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
         or tostring(itemKey):find("\031auction-ineligible", 1, true) and "(not auctionable)" or nil,
       desc = type(entry) == "table" and not entry.link
         and "Older entries show the base item until the exact item is seen in your bags." or nil,
     }, function()
-      db.profile.listviewBag.trashItems[itemKey] = nil
+      local target = db.profile.listviewBag[itemsField]
+      if type(target) == "table" then target[itemKey] = nil end
       if Self.ListviewBag then Self.ListviewBag:Refresh() end
-    end, "Remove this item from the Junk list.", 1)
+    end, oneTime and "Remove this one-time " .. flagName .. " mark."
+      or "Remove this item from the " .. flagName .. " list.", 1)
   end
   return args
 end
@@ -1232,12 +1285,12 @@ local function customEssentialItemOptions()
         local items = essentialSearchResults()
         local item = id and items[id]
         if not item then
-          prn("the selected item is no longer in your bags; search again.")
+          prn("The selected item is no longer in your bags; search again.")
           essentialSearch.selected = nil
           return
         end
         if db.profile.listviewBag.customEssentialItems[id] then
-          prn("that item is already in the custom Essentials list.")
+          prn("That item is already in the custom Essentials list.")
           return
         end
         db.profile.listviewBag.customEssentialItems[id] = item
@@ -1328,9 +1381,26 @@ end
 --- Refresh dynamic bag-item controls whenever AceConfig requests the options table.
 ---@return table options The shared addon options table.
 local function getOptions()
-  options.args.inventory.args.listviewBag.args.autoVendorItems.args = listviewVendorItemOptions()
+  options.args.inventory.args.listviewBag.args.autoVendorItems.args =
+    listviewFlagItemOptions("trashItems", "Junk", false)
+  options.args.inventory.args.listviewBag.args.autoVendorItemsOnce.args =
+    listviewFlagItemOptions("trashItemsOnce", "Junk", true)
+  options.args.inventory.args.listviewBag.args.autoAuctionItems.args =
+    listviewFlagItemOptions("auctionItems", "Auction", false)
+  options.args.inventory.args.listviewBag.args.autoBankItems.args =
+    listviewFlagItemOptions("bankItems", "Bank", false)
   options.args.inventory.args.listviewBag.args.essentials.args = essentialItemOptions()
   return options
+end
+
+--- Restore the Mouse Ring's scale, opacity, and color to their profile defaults.
+local function resetMouseRingAppearance()
+  local defaults = dbDefaults.profile.mouseRing
+  local settings = db.profile.mouseRing
+  settings.scale = defaults.scale
+  settings.opacity = defaults.opacity
+  settings.color = { r = defaults.color.r, g = defaults.color.g, b = defaults.color.b }
+  Self.MouseRing:Refresh()
 end
 
 local function selfVendorModeOptions()
@@ -2010,7 +2080,23 @@ options = {
               name = "\"Essentials\" Filter Items",
               inline = true,
               args = {},
-              order = 2.75,
+              order = 8
+            },
+            autoDepositBankItems = {
+              name = "Auto-Deposit Bank Flagged Items",
+              desc = "Automatically deposit eligible items flagged for Bank when opening the bank. Items that cannot be deposited remain flagged.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.listviewBag.autoDepositBankItems end,
+              set = function(_, value)
+                db.profile.listviewBag.autoDepositBankItems = value
+                if value and BankFrame and BankFrame:IsShown() then
+                  Self.ListviewBag:DepositBankFlaggedItems()
+                end
+              end,
+              disabled = function() return not db.profile.listviewBag.enabled end,
+              order = 2.75
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Junk",
@@ -2025,11 +2111,35 @@ options = {
             },
             autoVendorItems = {
               name = "Junk Items",
-              desc = "Remove an item from the Junk list.",
+              desc = "Items marked Always are remembered by exact variant.",
               type = "group",
               inline = true,
               args = {},
               order = 4
+            },
+            autoAuctionItems = {
+              name = "Auction Items",
+              desc = "Items marked Always are remembered for auctioning.",
+              type = "group",
+              inline = true,
+              args = {},
+              order = 5
+            },
+            autoBankItems = {
+              name = "Bank Items",
+              desc = "Items marked Always are remembered for depositing into the bank.",
+              type = "group",
+              inline = true,
+              args = {},
+              order = 6
+            },
+            autoVendorItemsOnce = {
+              name = "One-Time Junk Items",
+              desc = "These exact item variants are forgotten when they leave your bags.",
+              type = "group",
+              inline = true,
+              args = {},
+              order = 7
             }
           }
         },
@@ -2692,6 +2802,14 @@ options = {
             Self.MouseRing:Refresh()
           end,
           order = 4
+        },
+        resetAppearance = {
+          name = "Reset Appearance",
+          desc = "Restore Scale, Opacity, and Color to their defaults.",
+          type = "execute",
+          disabled = function() return not db.profile.mouseRing.enabled end,
+          func = resetMouseRingAppearance,
+          order = 5
         }
       }
     },

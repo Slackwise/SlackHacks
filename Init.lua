@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 16
+CONFIG_VERSION = 17
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -41,6 +41,7 @@ CONFIG_VERSION_RELEASES = {
   [14] = 28,
   [15] = 30,
   [16] = 34,
+  [17] = 35,
 }
 
 function getAddonVersion()
@@ -715,6 +716,36 @@ CONFIG_MIGRATIONS = {
       end
     end
 
+    local migrated = {}
+    for _, p in pairs(Self.db.profiles or {}) do
+      migrateProfile(p)
+      migrated[p] = true
+    end
+    if Self.db.profile and not migrated[Self.db.profile] then
+      migrateProfile(Self.db.profile)
+    end
+  end,
+  -- Config v17, ships in addon v35.
+  --- Move remembered Junk marks to exact item-variant keys and initialize temporary flag lists.
+  [17] = function()
+    --- Migrate a profile's Listview Bag Junk lists.
+    ---@param p table|nil Saved profile.
+    local function migrateProfile(p)
+      local bag = type(p) == "table" and rawget(p, "listviewBag")
+      if type(bag) ~= "table" then return end
+      if type(rawget(bag, "trashItemsOnce")) ~= "table" then bag.trashItemsOnce = {} end
+      if type(rawget(bag, "auctionItemsOnce")) ~= "table" then bag.auctionItemsOnce = {} end
+      if type(rawget(bag, "bankItemsOnce")) ~= "table" then bag.bankItemsOnce = {} end
+      if not Self.ListviewBag or type(Self.ListviewBag.MigrateLegacyJunkFlags) ~= "function" then
+        for _, item in pairs(rawget(bag, "trashItems") or {}) do
+          if type(item) == "table" and item.link then
+            error("Listview Bag Junk migration is unavailable.")
+          end
+        end
+        return
+      end
+      Self.ListviewBag:MigrateLegacyJunkFlags(bag)
+    end
     local migrated = {}
     for _, p in pairs(Self.db.profiles or {}) do
       migrateProfile(p)
