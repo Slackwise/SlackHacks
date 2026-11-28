@@ -877,6 +877,8 @@ function CreateFrame(kind, name, parent, template)
   local result = originalCreateFrame(kind, name, parent, template)
   result.points = {}
   function result:GetText() return self.text or "" end
+  function result:SetFocus() self.focused = true end
+  function result:HighlightText() self.highlighted = true end
   function result:IsShown() return self.shown end
   function result:SetSize(width, height) self.width, self.height = width, height end
   function result:SetPoint(point, ...) self.points[point] = { ... } end
@@ -1079,10 +1081,14 @@ openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 assert(amountPrompt.shown and not picker.shown and profile.trashItems.stack and not profile.mailItems.stack)
-assert(amountLabels[1].text == "Mail Queue Quantity"
-  and amountLabels[2].text == "Send to: Alt (Example-Realm)"
-  and amountLabels[3].text == "How many of this item should be added to the front of the Mail Queue?"
+assert(amountLabels[1].text == "Queue Mail Item"
+  and amountLabels[2].text == "Send to: Alt"
+  and amountLabels[3].text == "Example-Realm"
+  and amountLabels[4].text == "Quantity:"
+  and amountLabels[5].text == "Added to the front of this item's mail queue."
   and amountButtons[1].text == "Enqueue" and #amountButtons == 1)
+assert(amountPrompt.amount:GetText() == "1" and amountPrompt.amount.focused and amountPrompt.amount.highlighted,
+  "The quantity must default to one and be focused and selected for immediate editing.")
 assert(amountPrompt.item.text.text == row.statusInfo.link
   and amountPrompt.points.TOPLEFT[1] == picker.points.TOPLEFT[1]
   and amountPrompt.points.TOPLEFT[2] == picker.points.TOPLEFT[2]
@@ -1101,7 +1107,7 @@ openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 amountPrompt.amount:SetText("25")
-amountButtons[1].scripts.OnClick()
+amountPrompt.amount.scripts.OnEnterPressed()
 assert(profile.mailItems.stack and not profile.mailAssignments.stack
   and profile.mailQueues.stack[1].recipient == 1 and profile.mailQueues.stack[1].remaining == 25)
 row.statusKey = "stack"
