@@ -101,6 +101,10 @@ local ITEM_CATEGORIES = {
   { id = "special", name = "Essentials" },
   { id = "other", name = "Other" },
 }
+local INVENTORY_LOG_CATEGORIES = {}
+for _, category in ipairs(ITEM_CATEGORIES) do
+  if category.id ~= "special" then INVENTORY_LOG_CATEGORIES[#INVENTORY_LOG_CATEGORIES + 1] = category end
+end
 local BINDING_FILTERS = {
   { id = "unbound", name = "Unbound" },
   { id = "soulbound", name = "Soulbound" },
@@ -143,7 +147,6 @@ module.ESSENTIAL_ITEMS = {
   { id = 5956, name = "Blacksmith Hammer" },
   { id = 6219, name = "Arclight Spanner" },
   { id = 10498, name = "Gyromatic Micro-Adjustor" },
-  { id = 4471, name = "Flint and Tinder" },
   { id = 6256, name = "Fishing Pole" },
   { id = 20815, name = "Jeweler's Toolset" },
   { id = 20824, name = "Simple Grinder" },
@@ -1164,17 +1167,21 @@ end
 --- Classify an item for the bag filters and mail summaries.
 ---@param group table Collected item and its metadata.
 ---@param bag table|nil Current bag settings, if already available.
+---@param ignoreEssentials boolean|nil Use normal item categories without Listview Bag overrides.
 ---@return string category Item category identifier.
-local function itemCategory(group, bag)
+local function itemCategory(group, bag, ignoreEssentials)
   -- The game does not expose its sorter classification. Resolve overlapping item properties
   -- in priority order, independently of which filters are enabled.
-  bag = bag or settings()
-  if bag.customEssentialItems[group.itemID]
-    or (ESSENTIAL_ITEM_IDS[group.itemID] and bag.essentialItems[group.itemID] ~= false)
-    or (group.itemID == SOUL_SHARD_ITEM_ID and bag.essentialItems.soulShards)
-    or (group.classID == PROJECTILE_CLASS_ID and group.subclassID == ARROW_SUBCLASS_ID and bag.essentialItems.arrows) then
-    return "special"
-  elseif (FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID]
+  if not ignoreEssentials then
+    bag = bag or settings()
+    if bag.customEssentialItems[group.itemID]
+      or (ESSENTIAL_ITEM_IDS[group.itemID] and bag.essentialItems[group.itemID] ~= false)
+      or (group.itemID == SOUL_SHARD_ITEM_ID and bag.essentialItems.soulShards)
+      or (group.classID == PROJECTILE_CLASS_ID and group.subclassID == ARROW_SUBCLASS_ID and bag.essentialItems.arrows) then
+      return "special"
+    end
+  end
+  if (FOREVER_EDIBLE_RAW_FISH_IDS[group.itemID]
     or (group.classID == PROJECTILE_CLASS_ID and group.subclassID == ARROW_SUBCLASS_ID)) and isForever() then
     return "consumables"
   elseif group.classID == 12 or group.bindType == 4 then
@@ -1193,13 +1200,13 @@ local function itemCategory(group, bag)
   return "other"
 end
 
---- Capture ledger metadata using the bag's existing binding and category classification.
+--- Capture ledger metadata using native item categories without Listview Bag Essentials overrides.
 ---@param bagID number|nil Container identifier; nil for equipped or cached items.
 ---@param slot number|nil Container slot.
 ---@param info table Container item information or a cached hyperlink.
 ---@return table item Serializable metadata for a ledger entry.
 function module:GetInventoryLogMetadata(bagID, slot, info)
-  local name, _, quality, _, _, _, _, _, equipLoc, icon, sellPrice, classID, subclassID,
+  local name, _, quality, _, _, _, _, stackSize, equipLoc, icon, sellPrice, classID, subclassID,
     bindType, _, _, isCraftingReagent = C_Item.GetItemInfo(info.hyperlink)
   local accountBound, bound = false, info.isBound
   if bagID ~= nil then
@@ -1209,20 +1216,20 @@ function module:GetInventoryLogMetadata(bagID, slot, info)
   end
   local item = { link = info.hyperlink, name = name,
     itemID = info.itemID or tonumber(info.hyperlink:match("item:(%d+)")),
-    quality = info.quality or quality, equipLoc = equipLoc, icon = info.iconFileID or icon,
+    quality = info.quality or quality, stackSize = stackSize, equipLoc = equipLoc, icon = info.iconFileID or icon,
     sellPrice = sellPrice, classID = classID, subclassID = subclassID, bindType = bindType,
     isCraftingReagent = isCraftingReagent }
   item.binding = accountBound and isRetail() and "warbound"
     or (bound or accountBound) and "soulbound" or "unbound"
-  if name then item.category = itemCategory(item) end
+  if name then item.category = itemCategory(item, nil, true) end
   return item
 end
 
---- Reclassify cached item metadata at the time of an action, including changed Essentials preferences.
+--- Classify cached ledger metadata independently of Listview Bag Essentials preferences.
 ---@param item table Cached static item metadata.
 ---@return string category Current item category identifier.
 function module:GetInventoryLogCategory(item)
-  return itemCategory(item)
+  return itemCategory(item, nil, true)
 end
 
 --- Check an item against the selected flag, binding, and item-category filters.
@@ -3373,7 +3380,7 @@ local function updateFiltersLabel(button, log)
   for _, binding in ipairs(BINDING_FILTERS) do
     if (not binding.retailOnly or isRetail()) and bag.bindingFilters[binding.id] == false then count = count + 1 end
   end
-  for _, category in ipairs(ITEM_CATEGORIES) do
+  for _, category in ipairs(log and INVENTORY_LOG_CATEGORIES or ITEM_CATEGORIES) do
     if bag.categoryFilters[category.id] == false then count = count + 1 end
   end
   local label = ("Filters (%s)"):format(count == 0 and "None" or count)
@@ -3857,7 +3864,9 @@ local function openFiltersMenu(anchor, root, log)
     for _, binding in ipairs(BINDING_FILTERS) do
       if not binding.retailOnly or isRetail() then bag.bindingFilters[binding.id] = true end
     end
-    for _, category in ipairs(ITEM_CATEGORIES) do bag.categoryFilters[category.id] = true end
+    for _, category in ipairs(log and INVENTORY_LOG_CATEGORIES or ITEM_CATEGORIES) do
+      bag.categoryFilters[category.id] = true
+    end
     refresh()
   end
   --- Toggle a filter and refresh the displayed rows.
@@ -3891,7 +3900,7 @@ local function openFiltersMenu(anchor, root, log)
     end
     root:CreateDivider()
     root:CreateTitle("Categories")
-    for _, entry in ipairs(ITEM_CATEGORIES) do
+    for _, entry in ipairs(log and INVENTORY_LOG_CATEGORIES or ITEM_CATEGORIES) do
       local category = entry
       root:CreateCheckbox(category.name, function() return bag.categoryFilters[category.id] ~= false end,
         function() toggle(bag.categoryFilters, category.id) end)
@@ -3922,7 +3931,7 @@ local function openFiltersMenu(anchor, root, log)
       end
     end
     menu[#menu + 1] = { text = "Categories", isTitle = true, notCheckable = true }
-    for _, entry in ipairs(ITEM_CATEGORIES) do
+    for _, entry in ipairs(log and INVENTORY_LOG_CATEGORIES or ITEM_CATEGORIES) do
       local category = entry
       menu[#menu + 1] = { text = category.name, isNotRadio = true, keepShownOnClick = true,
         checked = function() return bag.categoryFilters[category.id] ~= false end,

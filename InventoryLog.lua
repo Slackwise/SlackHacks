@@ -3,12 +3,13 @@ local module = Self:NewModule("InventoryLog", "AceEvent-3.0", "AceTimer-3.0")
 Self.InventoryLog = module
 
 module.ACTIONS = {}
-for _, action in ipairs({ "Quest", "Looted", "Gathered", "Sold", "Auctioned", "Destroyed",
-  "Banked", "Mailed", "Traded", "Unknown" }) do
+for _, action in ipairs({ "Quest", "Looted", "Gathered", "Created", "Purchased", "Sold", "Auctioned", "Destroyed",
+  "Banked", "Mailed", "Traded" }) do
   module.ACTIONS[#module.ACTIONS + 1] = { id = action, name = action }
 end
 
 local CORRELATION_SECONDS = 5
+local ROW_HEIGHT = 28
 local PAPER_ICON = "Interface\\Icons\\INV_Scroll_03"
 local snapshot, pending, metadataCache = nil, {}, {}
 local auctionRequests = {}
@@ -30,6 +31,23 @@ function module:MigrateProfileSettings(profile)
   if type(inventory) == "table" then inventory.inventoryLogEnabled = nil end
   if config.entriesToKeep == nil then config.entriesToKeep = 3000 end
   if config.actionsToLog == nil then config.actionsToLog = {} end
+  config.actionsToLog.Unknown, config.actionsToLog.Used = nil, nil
+end
+
+--- Remove retired ledger filters while preserving history and unrelated filter choices.
+---@param character table Saved character data, including earlier v38 development builds.
+function module:MigrateCharacterSettings(character)
+  character.inventoryLog = character.inventoryLog or {}
+  local data = character.inventoryLog
+  for _, field in ipairs({ "entries", "actions", "bindings", "categories" }) do
+    data[field] = data[field] or {}
+  end
+  data.categories.special = nil
+  data.actions.Unknown, data.actions.Used = nil, nil
+  -- Resolve former Essentials through item metadata when the cache becomes available.
+  for _, entry in ipairs(data.entries) do
+    if entry.category == "special" then entry.category = nil end
+  end
 end
 
 --- Return module settings, preserving choices made before the standalone section existed.
@@ -193,11 +211,13 @@ end
 ---@param counterparty string|nil Mail recipient or trade partner captured before confirmation.
 function module:Record(item, action, count, direction, counterparty)
   if not observing or not self:IsLoggingEnabled() then return end
-  -- Suppress records, not action correlation: disabled actions must not become Unknown deltas.
+  -- Retired actions remain readable in saved history, but must never create new records.
+  if action == "Unknown" or action == "Used" then return end
+  -- Suppress records, not action correlation, so later changes still use the correct baseline.
   if self:GetSettings().actionsToLog[action] == false then return end
   local category = item.classID and Self.ListviewBag:GetInventoryLogCategory(item) or item.category
   local entry = { timestamp = time(), link = item.link, itemID = item.itemID, icon = item.icon,
-    name = item.name, binding = item.binding, category = category,
+    name = item.name, binding = item.binding, category = category, stackSize = item.stackSize,
     action = action, quantity = count, direction = direction, counterparty = counterparty }
   table.insert(ledger().entries, entry)
 end
@@ -219,7 +239,7 @@ function module:ConfirmTransfers(action, items, direction, counterparty)
   end
 end
 
---- Compare stable inventories, consuming bounded action candidates and labeling the rest Unknown.
+--- Record confirmed transactions and advance the baseline without logging unmatched changes.
 function module:Reconcile()
   if reconcileTimer then self:CancelTimer(reconcileTimer, true) end
   reconcileTimer = nil
@@ -253,14 +273,15 @@ function module:Reconcile()
             remaining = remaining - count
           end
         end
-        if remaining > 0 then self:Record(item, "Unknown", remaining, direction) end
       end
     end
   end
   snapshot = current
   lastCursorLink = nil
-  for i = #pending, 1, -1 do
-    if pending[i].remaining == 0 or pending[i].expires < GetTime() then table.remove(pending, i) end
+  for index = #pending, 1, -1 do
+    if pending[index].remaining == 0 or pending[index].expires < GetTime() then
+      table.remove(pending, index)
+    end
   end
   self:Refresh()
 end
@@ -269,6 +290,24 @@ end
 function module:QueueReconcile()
   if observing and self:IsLoggingEnabled() and not reconcileTimer then
     reconcileTimer = self:ScheduleTimer("Reconcile", 0.3)
+  end
+end
+
+--- Capture purchases and creations before immediate consumption or resale can hide a net-zero delta.
+function module:OnAcquiredBagUpdate()
+  if not observing or not self:IsLoggingEnabled() or not snapshot then return end
+  local current
+  for _, candidate in ipairs(pending) do
+    if (candidate.action == "Purchased" or candidate.action == "Created")
+      and candidate.remaining > 0 and candidate.expires >= GetTime() then
+      current = current or readInventory()
+      local before, after = snapshot.items[candidate.link], current.items[candidate.link]
+      -- Leave unrelated updates coalesced so their loot, mail, and equipment notifications can settle.
+      if after and after.count > (before and before.count or 0) then
+        self:Reconcile()
+        return
+      end
+    end
   end
 end
 
@@ -404,7 +443,7 @@ function module:OnLootOpened(event)
     if link then
       local count = select(3, GetLootSlotInfo(slot))
       local sources = { GetLootSourceInfo(slot) }
-      local action = "Unknown"
+      local action
       if IsFishingLoot and IsFishingLoot() then
         action = "Gathered"
       elseif #sources > 0 then
@@ -432,17 +471,20 @@ end
 ---@param slot number Cleared loot slot.
 function module:OnLootSlotCleared(event, slot)
   local item = loot[slot]
-  if item then self:Expect(item.action, item.link, item.count, 1); loot[slot] = nil end
+  if item then
+    if item.action then self:Expect(item.action, item.link, item.count, 1) end
+    loot[slot] = nil
+  end
   self:QueueReconcile()
 end
 
---- Recognize localized gathering casts rather than guessing that every chest is a resource node.
+--- Recognize localized gathering casts without logging spell reagent or item consumption.
 ---@param event string Native event.
 ---@param unit string Casting unit.
 ---@param castGUID string Cast identity.
 ---@param spellID number Completed spell.
 function module:OnSpellSucceeded(event, unit, castGUID, spellID)
-  if unit ~= "player" or not self:IsLoggingEnabled() then return end
+  if not observing or unit ~= "player" or not self:IsLoggingEnabled() then return end
   local getName = C_Spell and C_Spell.GetSpellName or GetSpellInfo
   local name = getName(spellID)
   for _, id in ipairs({ 2575, 2366, 8613, 7620 }) do
@@ -453,6 +495,27 @@ function module:OnSpellSucceeded(event, unit, castGUID, spellID)
       return
     end
   end
+end
+
+--- Correlate Blizzard's localized self-creation messages with confirmed inventory gains.
+---@param event string Chat event.
+---@param message string Native item creation or loot message.
+function module:OnItemCreated(event, message)
+  if not observing or not self:IsLoggingEnabled() then return end
+  local link = message:match("(|c%x+|Hitem:[^|]+|h.-|h|r)")
+    or message:match("(|Hitem:[^|]+|h.-|h)")
+  if not link then return end
+  local quantity
+  if message == LOOT_ITEM_CREATED_SELF:format(link) then
+    quantity = 1
+  else
+    -- Parse counts outside the hyperlink so digits in item IDs and item names cannot become quantities.
+    local first, last = message:find(link, 1, true)
+    quantity = tonumber((message:sub(1, first - 1) .. message:sub(last + 1)):match("%d+"))
+    if not quantity or quantity < 1 or message ~= LOOT_ITEM_CREATED_SELF_MULTIPLE:format(link, quantity) then return end
+  end
+  self:Expect("Created", link, quantity, 1)
+  self:OnAcquiredBagUpdate()
 end
 
 --- Capture guaranteed and selectable quest rewards while their native item links are available.
@@ -579,6 +642,29 @@ function module:InstallHooks()
     if item then module:Expect("Sold", item.link, item.count, -1, item.item) end
   end
   hooksecurefunc(C_Container, "UseContainerItem", sold)
+  if BuyMerchantItem then
+    --- Attribute only confirmed gains, using the requested units or the vendor's default bundle.
+    ---@param index number Merchant item index.
+    ---@param quantity number|nil Explicit units; nil buys the displayed bundle.
+    hooksecurefunc("BuyMerchantItem", function(index, quantity)
+      if not observing or not module:IsLoggingEnabled() then return end
+      local link = GetMerchantItemLink(index)
+      if quantity == nil then
+        if C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+          local info = C_MerchantFrame.GetItemInfo(index)
+          quantity = info and info.stackCount
+        elseif GetMerchantItemInfo then
+          quantity = select(4, GetMerchantItemInfo(index))
+        end
+      end
+      if not link or not quantity or quantity <= 0 then
+        prn("Could not identify the requested vendor purchase; its inventory change will remain unattributed.")
+        return
+      end
+      module:Expect("Purchased", link, quantity, 1)
+      module:OnAcquiredBagUpdate()
+    end)
+  end
   if C_MerchantFrame and C_MerchantFrame.SellAllJunkItems then
     --- Observe Blizzard's bulk sale without bypassing its own eligibility checks.
     hooksecurefunc(C_MerchantFrame, "SellAllJunkItems", function()
@@ -670,6 +756,7 @@ end
 
 --- Keep profile callbacks available even while the logging module is disabled.
 function module:OnInitialize()
+  self:MigrateCharacterSettings(Self.db.char)
   Self.db.RegisterCallback(self, "OnProfileChanged", "SyncProfile")
   Self.db.RegisterCallback(self, "OnProfileCopied", "SyncProfile")
   Self.db.RegisterCallback(self, "OnProfileReset", "SyncProfile")
@@ -687,6 +774,8 @@ function module:OnEnable()
   for _, event in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "GUILDBANKFRAME_OPENED",
     "GUILDBANKFRAME_CLOSED", "TRADE_SHOW", "TRADE_CLOSED" }) do self:RegisterEvent(event, "OnInteraction") end
   self:RegisterEvent("PLAYER_ENTERING_WORLD", "ResetTracking")
+  self:RegisterEvent("BAG_UPDATE", "OnAcquiredBagUpdate")
+  self:RegisterEvent("CHAT_MSG_LOOT", "OnItemCreated")
   self:RegisterEvent("CURSOR_CHANGED", "OnCursorChanged")
   self:RegisterEvent("LOOT_READY", "OnLootOpened")
   self:RegisterEvent("LOOT_OPENED", "OnLootOpened")
@@ -715,7 +804,7 @@ function module:OnDisable()
   if window then window:Hide() end
 end
 
---- Select newest-first entries using the same binding/category identifiers as the bag.
+--- Select newest-first entries using the ledger's action, binding, and normal item-category filters.
 ---@param query string Search text.
 ---@return table entries Matching saved entries, newest first.
 function module:GetFilteredEntries(query)
@@ -732,55 +821,79 @@ function module:GetFilteredEntries(query)
   return entries
 end
 
+--- Format a known quantity without guessing missing counts or displaying redundant singleton counts.
+---@param entry table Saved ledger entry.
+---@param includeSingle boolean|nil Include nonstackable singletons in detailed tooltips.
+---@return string text Quantity, or empty when unknown or redundant.
+local function quantityText(entry, includeSingle)
+  local count = entry.quantity
+  if type(count) ~= "number" or count < 1 or count >= math.huge or count ~= math.floor(count) then return "" end
+  if not includeSingle and count == 1 and entry.stackSize == 1 then return "" end
+  -- Historical Unknown entries keep their original gain/loss direction.
+  local sign = entry.action == "Unknown" and (entry.direction == 1 and "+" or entry.direction == -1 and "-") or ""
+  return (sign or "") .. count
+end
+
 --- Populate only viewport rows; thousands of saved records do not create thousands of widgets.
 local function renderViewport()
-  local first = math.floor(window.scroll:GetVerticalScroll() / 36) + 1
-  local count = math.ceil(window.scroll:GetHeight() / 36) + 1
+  local first = math.floor(window.scroll:GetVerticalScroll() / ROW_HEIGHT) + 1
+  local count = math.ceil(window.scroll:GetHeight() / ROW_HEIGHT) + 1
   for index = 1, math.max(count, #window.rows) do
     local row = window.rows[index]
     if not row and index <= count then
       row = CreateFrame("Button", nil, window.scrollChild)
       window.rows[index] = row
-      row:SetHeight(36)
+      row:SetHeight(ROW_HEIGHT)
       -- Inherit Send Mail's dark parchment text color, keeping the ledger's compact font sizes.
       local font = MailTextFontNormal:GetFont()
       row.shade = row:CreateTexture(nil, "BACKGROUND")
-      row.shade:SetAllPoints()
-      row.shade:SetColorTexture(0, 0, 0, 0.08)
+      row.shade:SetPoint("TOPLEFT", 0, -1)
+      row.shade:SetPoint("BOTTOMRIGHT", 0, 1)
+      row.shade:SetColorTexture(1, 1, 1, 1)
+      row.shade:SetGradient("HORIZONTAL", CreateColor(0.5, 0.5, 0.5, 0.16), CreateColor(0.5, 0.5, 0.5, 0.04))
       row.quantity = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
-      row.quantity:SetFont(font, 10)
+      row.quantity:SetFont(font, 9)
       row.quantity:SetPoint("LEFT", 0, 0)
       row.quantity:SetWidth(12)
       row.quantity:SetWordWrap(false)
       row.quantity:SetJustifyH("RIGHT")
       row.timestamp = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
-      row.timestamp:SetFont(font, 8)
-      row.timestamp:SetWidth(94)
+      row.timestamp:SetFont(font, 7)
+      row.timestamp:SetWidth(59)
       row.timestamp:SetPoint("RIGHT", 0, 0)
+      row.timestamp:SetWordWrap(false)
       row.timestamp:SetJustifyH("LEFT")
       row.icon = row:CreateTexture(nil, "ARTWORK")
       row.icon:SetSize(16, 16)
       row.icon:SetPoint("LEFT", 18, 0)
       row.item = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
-      row.item:SetFont(font, 10)
+      row.item:SetFont(font, 9)
       row.item:SetPoint("LEFT", 38, 0)
-      row.item:SetPoint("RIGHT", -164, 0)
-      row.item:SetHeight(34)
+      row.item:SetPoint("RIGHT", -140, 0)
+      row.item:SetHeight(ROW_HEIGHT - 2)
       row.item:SetJustifyH("LEFT")
       row.action = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
-      row.action:SetFont(font, 10)
+      row.action:SetFont(font, 9)
       row.action:SetPoint("LEFT", 208, 0)
-      row.action:SetWidth(58)
-      row.action:SetHeight(34)
+      row.action:SetWidth(69)
+      row.action:SetHeight(12)
       row.action:SetWordWrap(false)
       row.action:SetJustifyH("LEFT")
+      row.counterparty = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
+      row.counterparty:SetFont(font, 7)
+      row.counterparty:SetPoint("LEFT", 208, -6)
+      row.counterparty:SetWidth(69)
+      row.counterparty:SetHeight(10)
+      row.counterparty:SetWordWrap(false)
+      row.counterparty:SetJustifyH("LEFT")
       --- Show full quantities and item details, including items no longer in any bag.
       ---@param button table Visible ledger row.
       row:SetScript("OnEnter", function(button)
         local entry = button.entry
         GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
         GameTooltip:SetHyperlink(entry.link)
-        GameTooltip:AddLine("Quantity: " .. button.quantity:GetText(), 1, 1, 1)
+        local quantity = quantityText(entry, true)
+        if quantity ~= "" then GameTooltip:AddLine("Quantity: " .. quantity, 1, 1, 1) end
         if entry.counterparty then
           local label = entry.action == "Mailed" and "Mailed to: "
             or (entry.direction < 0 and "Traded to: " or "Traded from: ")
@@ -800,15 +913,21 @@ local function renderViewport()
       if entry then
         row.entry = entry
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", window.scrollChild, "TOPLEFT", 0, -(first + index - 2) * 36)
-        row:SetPoint("TOPRIGHT", window.scrollChild, "TOPRIGHT", 0, -(first + index - 2) * 36)
-        row.shade:SetShown((first + index) % 2 == 0)
-        row.quantity:SetText((entry.action == "Unknown" and (entry.direction > 0 and "+" or "-") or "")
-          .. entry.quantity)
-        row.timestamp:SetText(date("%Y-%m-%d %I:%M %p", entry.timestamp))
+        row:SetPoint("TOPLEFT", window.scrollChild, "TOPLEFT", 0, -(first + index - 2) * ROW_HEIGHT)
+        row:SetPoint("TOPRIGHT", window.scrollChild, "TOPRIGHT", 0, -(first + index - 2) * ROW_HEIGHT)
+        row.shade:Show()
+        row.quantity:SetText(quantityText(entry))
+        -- A deliberately narrow Qty. column must not turn larger known counts into misleading ellipses.
+        if row.quantity:GetStringWidth() > row.quantity:GetWidth() then row.quantity:SetText("") end
+        row.timestamp:SetText(date("%m/%d %I:%M%p", entry.timestamp):lower())
         row.icon:SetTexture(entry.icon or PAPER_ICON)
         row.item:SetText(entry.link)
-        row.action:SetText(entry.action .. (entry.counterparty and "\n" .. entry.counterparty or ""))
+        local counterparty = (entry.action == "Mailed" or entry.action == "Traded") and entry.counterparty
+        row.action:ClearAllPoints()
+        row.action:SetPoint("LEFT", 208, counterparty and 5 or 0)
+        row.action:SetText(entry.action)
+        row.counterparty:SetText(counterparty or "")
+        row.counterparty:SetShown(counterparty ~= nil and counterparty ~= false)
       end
     end
   end
@@ -818,16 +937,18 @@ end
 function module:Refresh()
   if not window or not window:IsShown() then return end
   for _, entry in ipairs(ledger().entries) do
-    if not entry.name or not entry.category then
+    if not entry.name or not entry.category or not entry.stackSize then
       local item = Self.ListviewBag:GetInventoryLogMetadata(nil, nil,
         { hyperlink = entry.link, isBound = entry.binding == "soulbound" })
-      entry.name, entry.icon, entry.category = item.name, entry.icon or item.icon, item.category
+      entry.name, entry.icon, entry.category = entry.name or item.name, entry.icon or item.icon,
+        entry.category or item.category
+      entry.stackSize = item.stackSize
     end
   end
   window.filtered = self:GetFilteredEntries(window.search:GetText() or "")
   Self.ListviewBag:UpdateInventoryLogFiltersLabel(window.filters, self)
-  window.scrollChild:SetHeight(math.max(1, #window.filtered * 36))
-  local maximum = math.max(0, #window.filtered * 36 - window.scroll:GetHeight())
+  window.scrollChild:SetHeight(math.max(1, #window.filtered * ROW_HEIGHT))
+  local maximum = math.max(0, #window.filtered * ROW_HEIGHT - window.scroll:GetHeight())
   window.scroll:SetVerticalScroll(math.min(window.scroll:GetVerticalScroll(), maximum))
   renderViewport()
   window.empty:SetShown(#window.filtered == 0)
@@ -906,7 +1027,7 @@ local function createWindow()
   window.columns:SetPoint("TOPRIGHT", -32, -64)
   window.columns:SetHeight(16)
   -- Align Item with its link text, leaving the icon's header space for the wider Qty. label.
-  local positions = { 0, 38, 208, 272 }
+  local positions = { 0, 38, 208, 283 }
   for index, label in ipairs({ "Qty.", "Item", "Action", "Timestamp" }) do
     local heading = window.columns:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     heading:SetPoint("BOTTOMLEFT", positions[index], 0)
@@ -929,7 +1050,8 @@ local function createWindow()
   window.stationeryRight:SetPoint("TOPLEFT", window.stationeryLeft, "TOPRIGHT")
   window.stationeryRight:SetPoint("BOTTOMRIGHT")
   window.scrollChild = CreateFrame("Frame", nil, window.scroll)
-  window.scrollChild:SetSize(366, 1)
+  -- The stationery's transparent right edge is not usable paper; keep row shading and text inside it.
+  window.scrollChild:SetSize(366 - 24, 1)
   window.scroll:SetScrollChild(window.scrollChild)
   window.rows, window.filtered = {}, {}
   window.scroll:HookScript("OnVerticalScroll", renderViewport)
@@ -955,23 +1077,43 @@ function module:Open()
   self:Refresh()
 end
 
---- Add both enable/disable and open actions to modern or legacy bag menus.
+--- Open saved history and offer to enable logging when the menu is used while disabled.
+function module:RequestOpen()
+  self:Open()
+  if self:IsLoggingEnabled() then return end
+  local id = "SLACKHACKS_ENABLE_INVENTORY_LOG"
+  StaticPopupDialogs[id] = {
+    text = "Inventory logging is disabled. Enable Inventory Log?",
+    button1 = YES,
+    button2 = NO,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    --- Enable only the profile for which the offer was shown.
+    ---@param _ table Confirmation dialog.
+    ---@param data table Captured profile.
+    OnAccept = function(_, data)
+      if Self.db.profile ~= data.profile then
+        prn("The profile changed; Inventory Log was not enabled.")
+        return
+      end
+      if not module:IsLoggingEnabled() then module:SetLoggingEnabled(true) end
+    end,
+  }
+  if not StaticPopup_Show(id, nil, nil, { profile = Self.db.profile }) then
+    prn("The Inventory Log enable confirmation could not be shown; logging remains disabled.")
+  end
+end
+
+--- Add the open action to shared modern or legacy bag menus.
 ---@param root table|nil Modern menu root.
 ---@param menu table|nil Legacy menu entries.
 function module:AddMenu(root, menu)
-  --- Read the logging preference for the menu checkmark.
-  ---@return boolean enabled Logging preference.
-  local function checked() return module:IsLoggingEnabled() end
-  --- Toggle observation without deleting saved entries.
-  local function toggle() module:SetLoggingEnabled(not checked()) end
-  --- Open this character's ledger.
-  local function open() module:Open() end
+  --- Open this character's ledger and offer to enable disabled logging.
+  local function open() module:RequestOpen() end
   if root then
-    root:CreateCheckbox("Inventory Log", checked, toggle)
     root:CreateButton("Open Inventory Log", open)
   else
-    menu[#menu + 1] = { text = "Inventory Log", isNotRadio = true, keepShownOnClick = true,
-      checked = checked, func = toggle }
     menu[#menu + 1] = { text = "Open Inventory Log", notCheckable = true, func = open }
   end
 end
@@ -987,7 +1129,8 @@ function module:ConfigureButton(button)
     GameTooltip:SetText("Inventory Log")
     GameTooltip:AddLine("View recent item activity.", 1, 1, 1)
     if not module:IsLoggingEnabled() then
-      GameTooltip:AddLine("Logging is disabled. Enable it in the bag menu or Inventory settings.", 1, 0.82, 0, true)
+      GameTooltip:AddLine("Logging is disabled. Use Open Inventory Log in the bag menu or enable it in Inventory settings.",
+        1, 0.82, 0, true)
     end
     GameTooltip:Show()
   end)

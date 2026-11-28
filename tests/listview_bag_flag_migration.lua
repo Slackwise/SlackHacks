@@ -112,11 +112,17 @@ assert(alreadyCurrent.listviewBag.mailAssignments[common] == 3
 assert(type(alreadyCurrent.listviewBag.trashItemsOnce) == "table",
   "Config v17 must initialize the one-time Junk list.")
 
-local history = { { link = "item:101", action = "Sold", quantity = 2 } }
-local activeCharacter = { inventoryLog = { entries = history, actions = { Sold = false } } }
+local history = { { link = "item:101", action = "Sold", quantity = 2, category = "special" },
+  { link = "item:102", action = "Looted", quantity = 1, category = "equipment" },
+  { link = "item:103", action = "Unknown", quantity = 3 },
+  { link = "item:104", action = "Used", quantity = 1 } }
+local activeCharacter = { inventoryLog = { entries = history, actions = { Sold = false },
+  categories = { special = false, consumables = false } } }
+activeCharacter.inventoryLog.actions.Unknown, activeCharacter.inventoryLog.actions.Used = false, false
 local otherCharacter = { reminders = { keep = true } }
 local oldProfile = { inventory = { autoRepair = true, autoSellGreyItems = true } }
-local optedIn = { inventory = { inventoryLogEnabled = true } }
+local optedIn = { inventory = { inventoryLogEnabled = true },
+  inventoryLog = { actionsToLog = { Unknown = true, Used = false, Sold = false } } }
 addon.db = { global = { configVersion = 17 }, char = activeCharacter, profile = oldProfile,
   profiles = { Default = oldProfile, Other = optedIn }, sv = { char = { One = activeCharacter, Two = otherCharacter } } }
 addon.migrateConfig()
@@ -127,6 +133,15 @@ assert(addon.db.global.configVersion == 18 and oldProfile.inventoryLog.enabled =
 assert(activeCharacter.inventoryLog.entries == history and activeCharacter.inventoryLog.actions.Sold == false
   and type(activeCharacter.inventoryLog.bindings) == "table" and #otherCharacter.inventoryLog.entries == 0
   and otherCharacter.reminders.keep, "Ledger initialization must preserve every character's existing data")
+assert(history[1].category == nil and history[2].category == "equipment"
+  and activeCharacter.inventoryLog.categories.special == nil
+  and activeCharacter.inventoryLog.categories.consumables == false,
+  "Migration must retire only the ledger's Essentials category and preserve unrelated categories and selections")
+assert(activeCharacter.inventoryLog.actions.Unknown == nil and activeCharacter.inventoryLog.actions.Used == nil
+  and optedIn.inventoryLog.actionsToLog.Unknown == nil and optedIn.inventoryLog.actionsToLog.Used == nil
+  and optedIn.inventoryLog.actionsToLog.Sold == false
+  and #history == 4 and history[3].action == "Unknown" and history[4].action == "Used",
+  "Retiring actions must preserve historical entries and unrelated recording preferences")
 local developmentProfile = {
   inventory = { inventoryLogEnabled = true, autoRepair = true },
   inventoryLog = setmetatable({}, { __index = { enabled = false, entriesToKeep = 3000 } }),
@@ -134,6 +149,13 @@ local developmentProfile = {
 addon.db.profile, addon.db.global.configVersion = developmentProfile, 18
 addon.migrateConfig()
 assert(developmentProfile.inventory.inventoryLogEnabled, "An already-current config does not rerun migration 18")
+history[1].category, activeCharacter.inventoryLog.categories.special = "special", false
+activeCharacter.inventoryLog.actions.Unknown, activeCharacter.inventoryLog.actions.Used = false, false
+addon.InventoryLog:MigrateCharacterSettings(activeCharacter)
+assert(history[1].category == nil and activeCharacter.inventoryLog.categories.special == nil
+  and activeCharacter.inventoryLog.categories.consumables == false
+  and activeCharacter.inventoryLog.actions.Unknown == nil and activeCharacter.inventoryLog.actions.Used == nil,
+  "Already-current development characters must also retire the ledger-only Essentials filter")
 assert(addon.InventoryLog:GetSettings().enabled and developmentProfile.inventory.inventoryLogEnabled == nil
   and developmentProfile.inventory.autoRepair,
   "Runtime migration must preserve v18 opt-in even when AceDB inherits a disabled default")

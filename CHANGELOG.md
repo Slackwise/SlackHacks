@@ -7,7 +7,9 @@
 
 ### ListviewBag
 - Renamed "Default View" to "General View" and expanded the width to fit the text.
-- Added an Inventory Log module with configurable retention and recorded actions, confirmed log clearing, and a searchable, mail-styled quantity/item/action/timestamp ledger accessible from either bag interface. Mail and trade entries include the recipient or trade partner.
+- Removed Flint and Tinder from built-in Essentials; optional arrows and Soul Shards remain disabled by default.
+- Inventory Log records only identified transactions, including crafted or created items as Created; unmatched changes, spell reagents, and item consumption are not recorded.
+- Added an Inventory Log module with configurable retention and recorded actions, vendor purchase tracking, confirmed log clearing, and a searchable, mail-styled quantity/item/action/timestamp ledger accessible from either bag interface. Compact, shaded rows stay within the parchment and show `MM/DD HH:MMam` timestamps and mail/trade recipients.
 
 ## v37
 

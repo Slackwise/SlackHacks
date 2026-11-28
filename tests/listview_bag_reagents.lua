@@ -754,7 +754,7 @@ local cases = {
   { "special", makeItem(2901, 2, "INVTYPE_WEAPONMAINHAND", 1) },
   { "special", makeItem(7005, 2, "INVTYPE_WEAPON", 1) },
   { "special", makeItem(5956, 2, "INVTYPE_WEAPONMAINHAND", 1) },
-  { "special", makeItem(4471, 7, "", 1) },
+  { "professionGoods", makeItem(4471, 7, "", 1) },
   { "special", makeItem(6218, 15, "", 1) },
   { "special", makeItem(16207, 15, "", 1) },
   { "special", makeItem(7005, 12, "INVTYPE_WEAPON", 0, true, 4) },
@@ -765,6 +765,10 @@ local cases = {
 }
 local categoryNames = { "equipment", "consumables", "special", "reagents", "professionGoods", "junk", "quest", "other" }
 local classify = upvalue(matchesFilters, "itemCategory")
+profile.essentialItems[4471] = true
+assert(classify(makeItem(4471, 0, "", 1)) == "consumables",
+  "An older built-in preference must not keep Flint and Tinder in Essentials")
+profile.essentialItems[4471] = nil
 for _, item in ipairs(SlackHacks.ListviewBag.ESSENTIAL_ITEMS) do
   assert(classify(makeItem(item.id, 15, "", 1)) == "special",
     item.name .. " must remain an Essential by default")
@@ -777,7 +781,15 @@ local shard = makeItem(6265, 7, "", 1, true)
 assert(classify(shard) == "reagents", "Soul Shards must not be Essentials by default")
 profile.essentialItems.soulShards = true
 assert(classify(shard) == "special", "Opted-in Soul Shards must be Essentials")
+assert(SlackHacks.ListviewBag:GetInventoryLogCategory(shard) == "reagents",
+  "Opted-in Soul Shards must still use their normal Inventory Log category")
 profile.essentialItems.soulShards = false
+local arrow = makeItem(39, 6, "", 1)
+arrow.subclassID = 2
+forever, profile.essentialItems.arrows = true, true
+assert(classify(arrow) == "special" and SlackHacks.ListviewBag:GetInventoryLogCategory(arrow) == "consumables",
+  "Opted-in Forever arrows must remain consumables in Inventory Log while remaining Essentials in the bag")
+forever, profile.essentialItems.arrows = false, false
 for _, case in ipairs(cases) do
   for _, selected in ipairs(categoryNames) do
     for _, name in ipairs(categoryNames) do

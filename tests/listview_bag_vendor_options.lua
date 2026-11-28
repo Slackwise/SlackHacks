@@ -98,6 +98,10 @@ end
 assert(loadfile("Options.lua"))()
 local getOptions = upvalue(SlackHacks.registerOptions, "getOptions")
 local bagOptions = getOptions().args.inventory.args.listviewBag.args
+assert(not bagOptions.essentials.args["item:4471"]
+  and not SlackHacks.dbDefaults.profile.listviewBag.essentialItems.arrows
+  and not SlackHacks.dbDefaults.profile.listviewBag.essentialItems.soulShards,
+  "Built-in Essentials must omit Flint and Tinder and keep consumed exceptions disabled by default")
 assert(not bagOptions.autoAHMode and SlackHacks.dbDefaults.profile.listviewBag.autoAHMode == nil,
   "Selling View's Auction House behavior must not require a saved mode option")
 local inventoryOptions = getOptions().args.inventory.args
@@ -112,6 +116,10 @@ assert(logGroup.args.entriesToKeep.get() == "3000" and logGroup.args.entriesToKe
 for _, action in ipairs(SlackHacks.InventoryLog.ACTIONS) do
   assert(logGroup.args.actionsToLog.args[action.id].get())
 end
+assert(logGroup.args.actionsToLog.args.Purchased.get(), "Vendor purchases must be selectable and enabled by default")
+assert(not logGroup.args.actionsToLog.args.Used and not logGroup.args.actionsToLog.args.Unknown
+  and logGroup.args.actionsToLog.args.Created.get(),
+  "Used and Unknown must not be recording options; Created must remain enabled by default")
 logGroup.args.actionsToLog.args.Sold.set(nil, false)
 assert(not logGroup.args.actionsToLog.args.Sold.get() and logGroup.args.actionsToLog.args.Looted.get(),
   "Recording checkboxes must capture independent action keys")
@@ -521,18 +529,18 @@ function EasyMenu(entries) legacy = entries end
 openBagSettings({})
 assert(legacy[1].text == "Switch back to default bags"
   and legacy[2].text == "Auto-Deposit Bank Items"
-  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Inventory Log"
-  and legacy[5].text == "Open Inventory Log" and legacy[6].text == "Open Settings" and not legacy[7])
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Inventory Log"
+  and legacy[5].text == "Open Settings" and not legacy[6])
 assert(legacy[2].isNotRadio and legacy[2].keepShownOnClick and not legacy[2].checked())
 legacy[2].func()
 assert(profile.autoDepositBankItems and autoDeposit.get(),
   "The legacy menu must toggle the same auto-deposit setting.")
 openedGroup = nil
-legacy[6].func()
+legacy[5].func()
 assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 profile.enabled = false
 openedGroup = nil
-legacy[6].func()
+legacy[5].func()
 legacy[2].func()
 assert(not openedGroup, "A disabled module must not open settings from a stale menu")
 assert(profile.autoDepositBankItems, "A disabled module must not toggle auto-deposit from a stale menu")
@@ -542,8 +550,8 @@ SlackHacks.openOptions = originalOpenOptions
 SlackHacks.isRetail = function() return false end
 openBagSettings({})
 assert(legacy[2].text == "Auto-Deposit Bank Items"
-  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Inventory Log"
-  and legacy[5].text == "Open Inventory Log" and legacy[6].text == "Open Settings",
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Inventory Log"
+  and legacy[5].text == "Open Settings",
   "Other clients must not offer the removed footer choice")
 assert(profile.trackCrestCurrencies, "Removing the footer choice must not alter saved preferences")
 
@@ -556,7 +564,7 @@ for _, tag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }
   local root = {
     CreateDivider = function() end,
     CreateTitle = function(_, text) assert(text == "|cffffd100SlackHacks|r") end,
-    CreateCheckbox = function(_, text) assert(text == "Inventory Log") end,
+    CreateCheckbox = function() error("The Inventory Log menu must not add a checkbox") end,
     CreateButton = function(_, text) if text ~= "Open Inventory Log" then label = text end end,
   }
   nativeMenus[tag](nil, root)
@@ -682,7 +690,8 @@ assert(SlackHacks.InventoryLog:IsLoggingEnabled() and SlackHacks.db.profile.inve
 SlackHacks.db:SetProfile("Explicit")
 assert(not SlackHacks.InventoryLog:IsLoggingEnabled() and SlackHacks.InventoryLog:GetSettings().entriesToKeep == 17
   and SlackHacks.InventoryLog:GetSettings().actionsToLog.Sold == false
-  and SlackHacks.InventoryLog:GetSettings().actionsToLog.Looted == true,
+  and SlackHacks.InventoryLog:GetSettings().actionsToLog.Looted == true
+  and SlackHacks.InventoryLog:GetSettings().actionsToLog.Purchased == true,
   "Explicit new settings and wildcard action defaults must survive startup")
 SlackHacks.db:SetProfile("Other")
 assert(SlackHacks.InventoryLog:IsLoggingEnabled(), "Inactive profiles must also preserve legacy opt-in")

@@ -757,7 +757,7 @@ CONFIG_MIGRATIONS = {
     end
   end,
   -- Config v18, ships in addon v38.
-  --- Initialize the opt-in inventory ledger without changing existing inventory preferences.
+  --- Initialize the opt-in ledger and retire removed filters without losing history.
   [18] = function()
     --- Preserve the former Inventory checkbox when moving to standalone module settings.
     ---@param profile table Saved profile.
@@ -766,13 +766,10 @@ CONFIG_MIGRATIONS = {
     end
     for _, profile in pairs(Self.db.profiles or {}) do migrateProfile(profile) end
     migrateProfile(Self.db.profile)
-    --- Add empty ledger fields without overwriting any existing character history.
+    --- Preserve character history while retiring obsolete ledger filters.
     ---@param character table Saved character data.
     local function migrateCharacter(character)
-      character.inventoryLog = character.inventoryLog or {}
-      for _, field in ipairs({ "entries", "actions", "bindings", "categories" }) do
-        character.inventoryLog[field] = character.inventoryLog[field] or {}
-      end
+      Self.InventoryLog:MigrateCharacterSettings(character)
     end
     for _, character in pairs(Self.db.sv and Self.db.sv.char or {}) do migrateCharacter(character) end
     migrateCharacter(Self.db.char)
