@@ -313,10 +313,14 @@ assert(GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot c
   "Remembered Junk must not advertise a one-time toggle")
 entries[1].selectStatus()
 assert(not getStatus("item", 1, row.statusInfo.link, 10, nil), "The menu must clear a Junk mark.")
+local savedQueue = { { recipient = 1, remaining = 3 } }
+profile.mailAssignments.item, profile.mailQueues.item = 1, savedQueue
 button.scripts.OnClick(button, "RightButton")
 assert(getStatus("item", 1, row.statusInfo.link, 10, nil).id == "vendor"
   and profile.trashItemsOnce[junkKey] == row.statusInfo,
   "Right-click must create a one-time Junk mark.")
+assert(profile.mailAssignments.item == 1 and profile.mailQueues.item == savedQueue,
+  "Enabling Junk (Once) must not clear saved mail assignments or queues")
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Junk (Once)"
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to toggle Junk (Once) flag.")
@@ -324,11 +328,20 @@ button.scripts.OnClick(button, "RightButton")
 assert(not getStatus("item", 1, row.statusInfo.link, 10, nil)
   and not profile.trashItemsOnce[junkKey] and not profile.trashItems[junkKey],
   "A second right-click must clear the one-time Junk flag")
+assert(profile.mailAssignments.item == 1 and profile.mailQueues.item == savedQueue,
+  "Removing Junk (Once) must not clear saved mail assignments or queues")
+profile.mailAssignments.item, profile.mailQueues.item = nil, nil
 button.scripts.OnClick(button, "RightButton")
 assert(profile.trashItemsOnce[junkKey] == row.statusInfo and not profile.trashItems[junkKey],
   "Right-click must be able to enable the one-time Junk flag again")
 assert(not getStatus("item", 1, "|Hitem:1:99:0:0|h[Item]|h", 10, nil),
   "A Junk mark must not match another item-link variation.")
+profile.trashItems[junkKey], profile.trashItems.item = row.statusInfo, row.statusInfo
+button.scripts.OnClick(button, "RightButton")
+assert(not profile.trashItemsOnce[junkKey]
+  and profile.trashItems[junkKey] == row.statusInfo and profile.trashItems.item == row.statusInfo,
+  "Removing an overlapping Junk (Once) mark must preserve both variant and legacy remembered Junk marks")
+profile.trashItems[junkKey], profile.trashItems.item = nil, nil
 chooseFlag(2, "once")
 assert(profile.trashItemsOnce[junkKey] == row.statusInfo and not profile.trashItems[junkKey],
   "The Junk submenu's Once choice must store a temporary mark.")
@@ -354,8 +367,10 @@ for _, case in ipairs({
   button.scripts.OnEnter(button)
   assert(GameTooltip.lines[#GameTooltip.lines] == "Left-click to choose flag.\nRight-click cannot change this flag.")
   profile.trashItems.item = row.statusInfo
+  profile.trashItemsOnce[junkKey] = row.statusInfo
   button.scripts.OnClick(button, "RightButton")
-  assert(profile[case.field].item == row.statusInfo and profile.trashItems.item == row.statusInfo,
+  assert(profile[case.field].item == row.statusInfo and profile.trashItems.item == row.statusInfo
+    and profile.trashItemsOnce[junkKey] == row.statusInfo,
     "Right-click must preserve overlapping non-junk marks")
 end
 chooseFlag(2, "always")

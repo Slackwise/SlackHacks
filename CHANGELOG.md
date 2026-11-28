@@ -11,6 +11,7 @@
 - Switching to a disabled Listview Bag or opening a disabled Inventory Log asks before enabling the module; the Inventory Log window opens only after acceptance.
 - Inventory Log's Qty. column keeps signed single-digit quantities visible with wider native fonts, using green for gains and red for losses.
 - Claimed mail attachments are logged as Mailed with "(Received)" beneath the action; sent mail keeps the recipient name.
+- Looted entries show available mob names and loot locations beneath a smaller action label, with full details on hover.
 - Essentials includes reusable Flint and Tinder; optional arrows and Soul Shards remain disabled by default.
 - Inventory Log records only identified transactions, including crafted or created items as Created; unmatched changes, spell reagents, and item consumption are not recorded.
 - Added an Inventory Log module with configurable retention and recorded actions, vendor purchase tracking, confirmed log clearing, and a searchable, mail-styled quantity/item/action/timestamp ledger accessible from either bag interface. Compact rows have darker, alternating gradient backgrounds within the parchment and show signed quantities, `MM/DD HH:MMam` timestamps, and mail/trade recipients.

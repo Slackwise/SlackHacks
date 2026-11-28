@@ -1393,22 +1393,27 @@ local function validateStatusContext(context, selected)
   return true
 end
 
---- Replace an item's status while retaining the metadata used by vendor matching.
+--- Set an item's status while retaining metadata and optionally limiting writes to Junk (Once).
 ---@param key string Item status key.
 ---@param statusInfo table Item metadata to save.
 ---@param selected table|nil Status definition, or nil to clear.
 ---@param context table|nil Captured row and bag slots.
 ---@param flagMode string|nil "once" for temporary flags; otherwise remember the flag.
+---@param onlyJunkOnce boolean|nil Update only the exact variant's one-time Junk flag.
 ---@return string|nil key Saved key, or nil if validation failed.
-local function setItemStatus(key, statusInfo, selected, context, flagMode)
+local function setItemStatus(key, statusInfo, selected, context, flagMode, onlyJunkOnce)
   if not isModuleEnabled() then return end
+  if onlyJunkOnce and selected and selected ~= ITEM_STATUSES[1] then
+    prn("Right-click can only toggle the Junk (Once) flag.")
+    return
+  end
   if selected and (statusInfo.quality == nil or (statusInfo.quality == 0 and selected ~= PROTECT_STATUS)) then
     prn(statusInfo.quality == 0 and "Grey items can only be protected." or "Item quality is not yet available.")
     return
   end
   local variantKey = junk.variantKey(statusInfo.link, statusInfo.quality,
     statusInfo.itemLevel, statusInfo.upgradeTrack)
-  if selected and (selected == ITEM_STATUSES[1] or flagMode == "once") and not variantKey then
+  if (onlyJunkOnce or selected and (selected == ITEM_STATUSES[1] or flagMode == "once")) and not variantKey then
     prn("The item's exact variation is not available; try flagging it again when its link is loaded.")
     return
   end
@@ -1422,6 +1427,19 @@ local function setItemStatus(key, statusInfo, selected, context, flagMode)
   if context and effectiveStatusKey(context.baseKey, context.eligible, listviewSettings, context.soulbound) ~= key then
     prn("The item's flag changed; select it again.")
     return
+  end
+  --- Refresh the affected bag, merchant, mail, and settings controls after either kind of flag write.
+  local function refresh()
+    if refreshMailSendButton then refreshMailSendButton() end
+    renderRows()
+    updateMerchantJunkButton()
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange("SlackHacks") end
+  end
+  if onlyJunkOnce then
+    listviewSettings.trashItemsOnce[variantKey] = selected and statusInfo or nil
+    refresh()
+    return key
   end
   if context and context.eligible == false then
     key = ineligibleStatusKey(context.baseKey, context.soulbound)
@@ -1464,11 +1482,7 @@ local function setItemStatus(key, statusInfo, selected, context, flagMode)
   elseif selected then
     listviewSettings[selected.field][key] = statusInfo
   end
-  if refreshMailSendButton then refreshMailSendButton() end
-  renderRows()
-  updateMerchantJunkButton()
-  local registry = LibStub("AceConfigRegistry-3.0", true)
-  if registry then registry:NotifyChange("SlackHacks") end
+  refresh()
   return key
 end
 
@@ -2913,12 +2927,12 @@ local function createRow(index)
         row.statusInfo.itemLevel, row.statusInfo.upgradeTrack)
       if status == ITEM_STATUSES[1] then
         if junk.flagMode(status, row.statusKey, row.statusInfo) == "once" then
-          setItemStatus(row.statusKey, row.statusInfo, nil, row.statusContext)
+          setItemStatus(row.statusKey, row.statusInfo, nil, row.statusContext, "once", true)
         else
           prn("This item is already marked as Junk.")
         end
       elseif not status then
-        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext, "once")
+        setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext, "once", true)
       else
         prn("Use the flag menu to change this item's " .. status.name .. " flag.")
       end

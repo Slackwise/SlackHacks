@@ -2,6 +2,7 @@
 
 local now, bags, equipped, mail, offered, received, hooks = 100, {}, {}, {}, {}, {}, {}
 local inbox = {}
+local lootUnits, guidTokens, zone, subzone = {}, {}, nil, nil
 local cursor, lootItems, lootSources, rewards, choices = nil, {}, {}, {}, {}
 local frames, callbacks, modules = {}, {}, {}
 local popup, notices = nil, {}
@@ -405,8 +406,35 @@ function GetNumLootItems() return #lootItems end
 function GetLootSlotLink(slot) return lootItems[slot].link end
 --- Supply loot quantities.
 function GetLootSlotInfo(slot) return "icon", "name", lootItems[slot].count end
---- Supply corpse/node source GUIDs.
-function GetLootSourceInfo(slot) return lootSources[slot], lootItems[slot].count end
+--- Supply corpse/node source GUID and quantity pairs.
+---@param slot number Loot slot index.
+---@return string|nil guid First source identity.
+---@return number|nil count Quantity from the first source.
+function GetLootSourceInfo(slot)
+  if type(lootSources[slot]) == "table" then return unpack(lootSources[slot]) end
+  return lootSources[slot], lootItems[slot].count
+end
+--- Resolve native unit GUIDs available while looting.
+---@param unit string Unit token.
+---@return string|nil guid Unit identity.
+function UnitGUID(unit) return lootUnits[unit] and lootUnits[unit].guid end
+--- Resolve native names without substituting an unrelated target.
+---@param unit string Unit token.
+---@return string|nil name Unit name.
+function UnitName(unit) return lootUnits[unit] and lootUnits[unit].name end
+--- Supply modern GUID-to-token lookups when a source is still available.
+---@param guid string Unit identity.
+---@return string|nil unit Native unit token.
+function UnitTokenFromGUID(guid) return guidTokens[guid] end
+--- Supply the current native zone.
+---@return string|nil zone Zone name.
+function GetRealZoneText() return zone end
+--- Supply the legacy zone fallback.
+---@return string|nil zone Zone name.
+function GetZoneText() return zone end
+--- Supply the current native subzone.
+---@return string|nil subzone Subzone name.
+function GetSubZoneText() return subzone end
 C_Spell = {}
 --- Supply localized native gathering spell names.
 function C_Spell.GetSpellName(spellID) return tostring(spellID) end
@@ -441,6 +469,7 @@ end
 local function reset(count)
   bags, equipped, mail, offered, received = { [0] = { stack(link, count) } }, {}, {}, {}, {}
   inbox = {}
+  lootUnits, guidTokens, zone, subzone = {}, {}, nil, nil
   if MailFrame then MailFrame:Hide() end
   cursor = nil
   tradePartner = "Trade Partner-Realm"
@@ -873,6 +902,66 @@ log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
 bags[0][1].stackCount = 7
 log:Reconcile()
 assert(#data.entries == 0, "Unidentified object loot must not be labeled or recorded speculatively")
+
+reset(5)
+local corpseGUID = "Creature-0-1-2-3-4-5"
+lootItems, lootSources = { { link = link, count = 2 } }, { corpseGUID }
+lootUnits.target = { guid = corpseGUID, name = "Forest Wolf" }
+zone, subzone = "Elwynn Forest", "Goldshire"
+log:OnLootOpened("LOOT_READY")
+lootUnits.target = { guid = "Creature-0-9-9-9-9-9", name = "Unrelated Target" }
+zone, subzone = "Another Zone", "Another Subzone"
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 7
+log:Reconcile()
+check(1, "Looted", 2, 1)
+assert(data.entries[1].lootSource == "Forest Wolf" and data.entries[1].lootLocation == "Goldshire, Elwynn Forest",
+  "Loot source and location must be captured before the corpse or current location changes")
+
+reset(5)
+lootItems, lootSources = { { link = link, count = 1 } }, { corpseGUID }
+lootUnits.target = { guid = "Creature-0-9-9-9-9-9", name = "Unrelated Target" }
+zone, subzone = "Elwynn Forest", ""
+log:OnLootOpened("LOOT_READY")
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 6
+log:Reconcile()
+assert(data.entries[1].lootSource == nil and data.entries[1].lootLocation == "Elwynn Forest",
+  "An unrelated target must not become the loot source, and unavailable subzones must be omitted")
+
+reset(5)
+lootItems, lootSources = { { link = link, count = 1 } }, { corpseGUID }
+log:OnLootOpened("LOOT_READY")
+lootUnits.mouseover = { guid = corpseGUID, name = "Late Available Wolf" }
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 6
+log:Reconcile()
+assert(data.entries[1].lootSource == "Late Available Wolf",
+  "A source that becomes available by slot clearing must be resolved using its captured GUID")
+
+reset(5)
+local secondCorpse = "Creature-0-1-2-3-6-7"
+lootItems, lootSources = { { link = link, count = 3 } }, { { corpseGUID, 2, secondCorpse, 1 } }
+guidTokens[corpseGUID], guidTokens[secondCorpse] = "nameplate1", "nameplate2"
+lootUnits.nameplate1, lootUnits.nameplate2 = { guid = corpseGUID, name = "Forest Wolf" },
+  { guid = secondCorpse, name = "Forest Boar" }
+log:OnLootOpened("LOOT_READY")
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 8
+log:Reconcile()
+assert(#data.entries == 1 and data.entries[1].quantity == 3
+  and data.entries[1].lootSource == "Forest Wolf, Forest Boar" and not data.entries[1].lootLocation,
+  "Area loot must retain its aggregate quantity while listing only verified source names")
+
+reset(5)
+lootItems, lootSources = { { link = link, count = 3 } }, { { corpseGUID, 2, secondCorpse, 1 } }
+lootUnits.mouseover = { guid = corpseGUID, name = "Forest Wolf" }
+log:OnLootOpened("LOOT_READY")
+log:OnLootSlotCleared("LOOT_SLOT_CLEARED", 1)
+bags[0][1].stackCount = 8
+log:Reconcile()
+assert(data.entries[1].lootSource == nil,
+  "Partially identified area loot must not falsely attribute the entire stack to one known mob")
 
 reset(5)
 rewards = { { link = link, count = 2 } }
@@ -1396,8 +1485,43 @@ assert(panel.rows[1].counterparty.text == "(Received)" and panel.rows[1].counter
 log:Record({ link = other }, "Looted", 1, 1)
 log:Refresh()
 assert(panel.rows[1].entry.stackSize == 1 and panel.rows[1].quantity.text == ""
-  and not panel.rows[1].counterparty.shown,
-  "Nonstackable singletons must not show 1 or a recycled transfer recipient")
+  and not panel.rows[1].counterparty.shown and not panel.rows[1].lootLocation.shown,
+  "Nonstackable singletons and older loot entries must not show redundant quantities or invented details")
+local mobName, lootPlace = "A Very Long Forest Wolf Name", "Goldshire, Elwynn Forest"
+log:Record({ link = link }, "Looted", 2, 1, nil, { lootSource = mobName, lootLocation = lootPlace })
+log:Refresh()
+local lootRow = panel.rows[1]
+assert(lootRow.action.text == "Looted" and lootRow.counterparty.text == mobName
+  and lootRow.lootLocation.text == lootPlace and lootRow.counterparty.shown and lootRow.lootLocation.shown
+  and lootRow.action.fontSize < 9 and lootRow.counterparty.fontSize < 7 and lootRow.lootLocation.fontSize < 7
+  and lootRow.action.points.LEFT[2] > lootRow.counterparty.points.LEFT[2]
+  and lootRow.counterparty.points.LEFT[2] > lootRow.lootLocation.points.LEFT[2],
+  "Looted must show a smaller action label, then the mob and location in very small text")
+assert(lootRow.action.points.LEFT[2] + lootRow.action:GetHeight() / 2 <= lootRow:GetHeight() / 2
+  and lootRow.action.points.LEFT[2] - lootRow.action:GetHeight() / 2
+    >= lootRow.counterparty.points.LEFT[2] + lootRow.counterparty:GetHeight() / 2
+  and lootRow.counterparty.points.LEFT[2] - lootRow.counterparty:GetHeight() / 2
+    >= lootRow.lootLocation.points.LEFT[2] + lootRow.lootLocation:GetHeight() / 2
+  and lootRow.lootLocation.points.LEFT[2] - lootRow.lootLocation:GetHeight() / 2 >= -lootRow:GetHeight() / 2,
+  "All three loot-detail lines must fit without overlap inside the unchanged row height")
+lootRow.scripts.OnEnter(lootRow)
+assert(GameTooltip.lines[2] == "Looted from: " .. mobName and GameTooltip.lines[3] == "Location: " .. lootPlace,
+  "Tooltips must retain full loot details when the narrow action column truncates them")
+log:Record({ link = link }, "Looted", 1, 1, nil, { lootLocation = lootPlace })
+log:Refresh()
+assert(not lootRow.counterparty.shown and lootRow.lootLocation.shown,
+  "A known location must not require an invented mob name")
+log:Record({ link = link }, "Traded", 1, -1, "Trade Partner-Realm")
+log:Refresh()
+assert(lootRow.action.fontSize == 9 and lootRow.action:GetHeight() == 12
+  and lootRow.counterparty.fontSize == 7 and lootRow.counterparty:GetHeight() == 10
+  and lootRow.counterparty.text == "Trade Partner-Realm" and not lootRow.lootLocation.shown
+  and lootRow.lootLocation.text == "",
+  "Recycling a loot row for a transfer must restore its normal fonts and clear loot-only details")
+log:Record({ link = link }, "Looted", 1, 1)
+log:Refresh()
+assert(lootRow.action.fontSize == 9 and not lootRow.counterparty.shown and not lootRow.lootLocation.shown,
+  "Older loot entries without captured metadata must keep their normal single-line layout")
 log:Record({ link = link, stackSize = 20 }, "Looted", 1, 1)
 log:Refresh()
 assert(panel.rows[1].quantity.text == "+1", "A single unit of a stackable item must retain its signed count")

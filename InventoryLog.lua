@@ -194,11 +194,12 @@ end
 ---@param count number Maximum quantity attributable to this action.
 ---@param direction number 1 for incoming items, -1 for outgoing items.
 ---@param item table|nil Metadata of the exact source slot when known.
+---@param details table|nil Loot source and location captured before the slot disappears.
 ---@return table|nil candidate Pending correlation, if logging is enabled.
-function module:Expect(action, link, count, direction, item)
+function module:Expect(action, link, count, direction, item, details)
   if not observing or not self:IsLoggingEnabled() or not link or count <= 0 then return end
   local candidate = { action = action, link = link, remaining = count,
-    direction = direction, item = item, expires = GetTime() + CORRELATION_SECONDS }
+    direction = direction, item = item, details = details, expires = GetTime() + CORRELATION_SECONDS }
   pending[#pending + 1] = candidate
   self:QueueReconcile()
   return candidate
@@ -210,7 +211,8 @@ end
 ---@param count number Changed quantity.
 ---@param direction number Sign of the inventory change.
 ---@param counterparty string|nil Mail recipient or trade partner captured before confirmation.
-function module:Record(item, action, count, direction, counterparty)
+---@param details table|nil Captured loot source and location; absent on older history.
+function module:Record(item, action, count, direction, counterparty, details)
   if not observing or not self:IsLoggingEnabled() then return end
   -- Retired actions remain readable in saved history, but must never create new records.
   if action == "Unknown" or action == "Used" then return end
@@ -219,7 +221,8 @@ function module:Record(item, action, count, direction, counterparty)
   local category = item.classID and Self.ListviewBag:GetInventoryLogCategory(item) or item.category
   local entry = { timestamp = time(), link = item.link, itemID = item.itemID, icon = item.icon,
     name = item.name, binding = item.binding, category = category, stackSize = item.stackSize,
-    action = action, quantity = count, direction = direction, counterparty = counterparty }
+    action = action, quantity = count, direction = direction, counterparty = counterparty,
+    lootSource = details and details.lootSource, lootLocation = details and details.lootLocation }
   table.insert(ledger().entries, entry)
 end
 
@@ -269,7 +272,7 @@ function module:Reconcile()
           if candidate.expires >= GetTime() and candidate.link == link
             and candidate.direction == direction and candidate.remaining > 0 then
             local count = math.min(remaining, candidate.remaining)
-            self:Record(candidate.item or item, candidate.action, count, direction)
+            self:Record(candidate.item or item, candidate.action, count, direction, nil, candidate.details)
             candidate.remaining = candidate.remaining - count
             remaining = remaining - count
           end
@@ -436,7 +439,40 @@ function module:OnCursorChanged()
   self:QueueReconcile()
 end
 
---- Capture loot identities and source types before cleared slots disappear.
+--- Resolve actual corpse GUIDs to available native unit names without guessing from the current target.
+---@param sources table Alternating source GUIDs and quantities from GetLootSourceInfo.
+---@return string|nil name Source names, or nil when any source cannot be identified.
+local function lootSourceName(sources)
+  local names, seen = {}, {}
+  for index = 1, #sources, 2 do
+    local guid, name = sources[index]
+    local unit = UnitTokenFromGUID and UnitTokenFromGUID(guid)
+    if unit and UnitGUID(unit) == guid then name = UnitName(unit) end
+    if not name or name == "" then
+      for _, token in ipairs({ "target", "mouseover", "focus" }) do
+        if UnitGUID(token) == guid then
+          name = UnitName(token)
+          if name and name ~= "" then break end
+        end
+      end
+    end
+    if not name or name == "" then return nil end
+    if not seen[name] then names[#names + 1], seen[name] = name, true end
+  end
+  return #names > 0 and table.concat(names, ", ") or nil
+end
+
+--- Capture the native subzone and zone at loot time, omitting unavailable or duplicate names.
+---@return string|nil location Loot location.
+local function lootLocation()
+  local zone = GetRealZoneText and GetRealZoneText() or ""
+  if zone == "" and GetZoneText then zone = GetZoneText() or "" end
+  local subzone = GetSubZoneText and GetSubZoneText() or ""
+  if subzone ~= "" and zone ~= "" and subzone ~= zone then return subzone .. ", " .. zone end
+  return subzone ~= "" and subzone or zone ~= "" and zone or nil
+end
+
+--- Capture loot identities, source names, and location before cleared slots disappear.
 ---@param event string Native loot-ready/open event.
 function module:OnLootOpened(event)
   if not self:IsLoggingEnabled() then return end
@@ -464,7 +500,10 @@ function module:OnLootOpened(event)
           action = "Looted"
         end
       end
-      loot[slot] = { link = link, count = count, action = action }
+      loot[slot] = { link = link, count = count, action = action,
+        sources = action == "Looted" and sources or nil,
+        lootSource = action == "Looted" and lootSourceName(sources) or nil,
+        lootLocation = action == "Looted" and lootLocation() or nil }
     end
   end
   gatheringUntil, gatheringKind = nil, nil
@@ -476,7 +515,10 @@ end
 function module:OnLootSlotCleared(event, slot)
   local item = loot[slot]
   if item then
-    if item.action then self:Expect(item.action, item.link, item.count, 1) end
+    if item.action == "Looted" and not item.lootSource then
+      item.lootSource = lootSourceName(item.sources)
+    end
+    if item.action then self:Expect(item.action, item.link, item.count, 1, nil, item) end
     loot[slot] = nil
   end
   self:QueueReconcile()
@@ -896,6 +938,8 @@ end
 local function renderViewport()
   local first = math.floor(window.scroll:GetVerticalScroll() / ROW_HEIGHT) + 1
   local count = math.ceil(window.scroll:GetHeight() / ROW_HEIGHT) + 1
+  -- Inherit Send Mail's dark parchment text color, keeping the ledger's compact font sizes.
+  local font = MailTextFontNormal:GetFont()
   for index = 1, math.max(count, #window.rows) do
     local row = window.rows[index]
     if not row and index <= count then
@@ -906,8 +950,6 @@ local function renderViewport()
       row.shade:SetPoint("TOPLEFT", 0, -1)
       row.shade:SetPoint("BOTTOMRIGHT", 0, 1)
       row.shade:SetColorTexture(1, 1, 1, 1)
-      -- Inherit Send Mail's dark parchment text color, keeping the ledger's compact font sizes.
-      local font = MailTextFontNormal:GetFont()
       row.quantity = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
       row.quantity:SetFont(font, 9)
       row.quantity:SetPoint("LEFT", 0, 0)
@@ -944,6 +986,13 @@ local function renderViewport()
       row.counterparty:SetHeight(10)
       row.counterparty:SetWordWrap(false)
       row.counterparty:SetJustifyH("LEFT")
+      row.lootLocation = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
+      row.lootLocation:SetFont(font, 6)
+      row.lootLocation:SetPoint("LEFT", 208, -8)
+      row.lootLocation:SetWidth(69)
+      row.lootLocation:SetHeight(7)
+      row.lootLocation:SetWordWrap(false)
+      row.lootLocation:SetJustifyH("LEFT")
       --- Show full quantities and item details, including items no longer in any bag.
       ---@param button table Visible ledger row.
       row:SetScript("OnEnter", function(button)
@@ -958,6 +1007,10 @@ local function renderViewport()
           local label = entry.action == "Mailed" and "Mailed to: "
             or (entry.direction < 0 and "Traded to: " or "Traded from: ")
           GameTooltip:AddLine(label .. entry.counterparty, 1, 1, 1, true)
+        end
+        if entry.action == "Looted" then
+          if entry.lootSource then GameTooltip:AddLine("Looted from: " .. entry.lootSource, 1, 1, 1, true) end
+          if entry.lootLocation then GameTooltip:AddLine("Location: " .. entry.lootLocation, 1, 1, 1, true) end
         end
         GameTooltip:Show()
       end)
@@ -993,11 +1046,23 @@ local function renderViewport()
         row.item:SetText(entry.link)
         local counterparty = entry.action == "Mailed" and entry.direction == 1 and "(Received)"
           or (entry.action == "Mailed" or entry.action == "Traded") and entry.counterparty
+        local source = entry.action == "Looted" and entry.lootSource
+        local location = entry.action == "Looted" and entry.lootLocation
+        local hasLootDetails = source or location
         row.action:ClearAllPoints()
-        row.action:SetPoint("LEFT", 208, counterparty and 5 or 0)
+        row.action:SetPoint("LEFT", 208, hasLootDetails and 7.5 or counterparty and 5 or 0)
+        row.action:SetFont(font, hasLootDetails and 7 or 9)
+        row.action:SetHeight(hasLootDetails and 8 or 12)
         row.action:SetText(entry.action)
-        row.counterparty:SetText(counterparty or "")
-        row.counterparty:SetShown(counterparty ~= nil and counterparty ~= false)
+        row.counterparty:ClearAllPoints()
+        row.counterparty:SetPoint("LEFT", 208, hasLootDetails and 0 or -6)
+        row.counterparty:SetFont(font, hasLootDetails and 6 or 7)
+        row.counterparty:SetHeight(hasLootDetails and 7 or 10)
+        local detail = source or counterparty
+        row.counterparty:SetText(detail or "")
+        row.counterparty:SetShown(detail ~= nil and detail ~= false)
+        row.lootLocation:SetText(location or "")
+        row.lootLocation:SetShown(location ~= nil and location ~= false)
       end
     end
   end
