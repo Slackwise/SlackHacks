@@ -1,5 +1,10 @@
 # SlackHacks Changelog
 
+## v38
+
+### ListviewBag
+- Renamed "Default View" to "General View" and expanded the width to fit the text.
+
 ## v37
 
 ### ListviewBag
