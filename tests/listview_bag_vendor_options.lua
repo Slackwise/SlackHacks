@@ -164,13 +164,8 @@ local list = profile.trashItems
 args.clear.func()
 assert(next(list) == nil and profile.trashItems == list and profile.protectedItems.keep)
 assert(refreshes == 3 and getOptions().args.inventory.args.listviewBag.args.autoVendorItems.args.clear.disabled())
-local onceKey = junkVariantKey(link, 3, 10, nil)
-profile.trashItemsOnce[onceKey] = { name = "Marked Item", link = link, icon = 123 }
-local onceArgs = getOptions().args.inventory.args.listviewBag.args.autoVendorItemsOnce.args
-assert(onceArgs.clear.confirm and onceArgs[optionKey(onceKey)].args.item.name == "|T123:18:18|t " .. link .. " (one-time)")
-onceArgs[optionKey(onceKey)].args.remove.func()
-assert(not profile.trashItemsOnce[onceKey] and refreshes == 4,
-  "One-time Junk entries must be removable from their separate options list.")
+assert(getOptions().args.inventory.args.listviewBag.args.autoVendorItemsOnce == nil,
+  "One-time Junk marks must not have an options list.")
 
 local auctionKey = "Auction Item\0313\03110\031"
 local auctionLink = "|cff0070dd|Hitem:43:0:0:0|h[Auction Item]|h|r"
@@ -183,7 +178,7 @@ assert(auctionGroup.inline and auctionArgs.clear.confirm
   and auctionArgs[optionKey(auctionKey)].args.item.tooltipHyperlink == auctionLink,
   "Auction Always marks must appear in their own options group.")
 auctionArgs[optionKey(auctionKey)].args.remove.func()
-assert(not profile.auctionItems[auctionKey] and refreshes == 5,
+assert(not profile.auctionItems[auctionKey] and refreshes == 4,
   "Auction Always marks must be removable from Options.")
 
 local bankKey = "Bank Item\0313\03110\031"
@@ -195,7 +190,7 @@ assert(bankGroup.inline and bankArgs.clear.confirm
   and bankArgs[optionKey(bankKey)].args.item.tooltipHyperlink == bankLink,
   "Bank Always marks must appear in their own options group.")
 bankArgs.clear.func()
-assert(not next(profile.bankItems) and refreshes == 6,
+assert(not next(profile.bankItems) and refreshes == 5,
   "The Bank Always list must support clearing from Options.")
 
 -- Essentials settings preserve the existing defaults and allow inventory-backed custom items.
@@ -208,7 +203,7 @@ assert(profile.autoDepositBankItems)
 autoDeposit.set(nil, false)
 local essentials = bagOptions.essentials
 assert(essentials.inline and essentials.name == '"Essentials" Filter Items'
-  and essentials.order > bagOptions.autoVendorItemsOnce.order)
+  and essentials.order > bagOptions.autoBankItems.order)
 assert(essentials.args.description.name == "These items are common to all players but you usually don't interact with them directly.")
 for _, item in ipairs(module.ESSENTIAL_ITEMS) do
   assert(essentials.args["item:" .. item.id].get(), item.name .. " must be checked by default")
