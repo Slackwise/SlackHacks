@@ -1062,15 +1062,14 @@ end
 --- Build the marked-item controls from the current profile.
 ---@param itemsField string Saved Listview Bag field containing flagged items.
 ---@param flagName string User-facing flag name.
----@param oneTime boolean Whether these marks are temporary.
 ---@return table args AceConfig controls for clearing or removing marked items.
-local function listviewFlagItemOptions(itemsField, flagName, oneTime)
+local function listviewFlagItemOptions(itemsField, flagName)
   local items = db.profile.listviewBag[itemsField] or {}
-  local listName = oneTime and "one-time " .. flagName .. " list" or flagName .. " list"
+  local listName = flagName .. " list"
   local args = {
     clear = {
       type = "execute",
-      name = oneTime and "Clear One-Time List" or "Clear List",
+      name = "Clear List",
       desc = "Remove all items from the " .. listName .. ".",
       confirm = true,
       confirmText = "Remove all items from the " .. listName .. "?",
@@ -1114,8 +1113,7 @@ local function listviewFlagItemOptions(itemsField, flagName, oneTime)
       name = (type(entry) == "table" and entry.name) or tostring(itemKey),
       link = link,
       icon = itemIcon,
-      suffix = (oneTime and "(one-time)" or nil)
-        or tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
+      suffix = tostring(itemKey):find("\031soulbound", 1, true) and "(soulbound)"
         or tostring(itemKey):find("\031auction-ineligible", 1, true) and "(not auctionable)" or nil,
       desc = type(entry) == "table" and not entry.link
         and "Older entries show the base item until the exact item is seen in your bags." or nil,
@@ -1123,8 +1121,7 @@ local function listviewFlagItemOptions(itemsField, flagName, oneTime)
       local target = db.profile.listviewBag[itemsField]
       if type(target) == "table" then target[itemKey] = nil end
       if Self.ListviewBag then Self.ListviewBag:Refresh() end
-    end, oneTime and "Remove this one-time " .. flagName .. " mark."
-      or "Remove this item from the " .. flagName .. " list.", 1)
+    end, "Remove this item from the " .. flagName .. " list.", 1)
   end
   return args
 end
@@ -1382,13 +1379,11 @@ end
 ---@return table options The shared addon options table.
 local function getOptions()
   options.args.inventory.args.listviewBag.args.autoVendorItems.args =
-    listviewFlagItemOptions("trashItems", "Junk", false)
-  options.args.inventory.args.listviewBag.args.autoVendorItemsOnce.args =
-    listviewFlagItemOptions("trashItemsOnce", "Junk", true)
+    listviewFlagItemOptions("trashItems", "Junk")
   options.args.inventory.args.listviewBag.args.autoAuctionItems.args =
-    listviewFlagItemOptions("auctionItems", "Auction", false)
+    listviewFlagItemOptions("auctionItems", "Auction")
   options.args.inventory.args.listviewBag.args.autoBankItems.args =
-    listviewFlagItemOptions("bankItems", "Bank", false)
+    listviewFlagItemOptions("bankItems", "Bank")
   options.args.inventory.args.listviewBag.args.essentials.args = essentialItemOptions()
   return options
 end
@@ -2132,14 +2127,6 @@ options = {
               inline = true,
               args = {},
               order = 6
-            },
-            autoVendorItemsOnce = {
-              name = "One-Time Junk Items",
-              desc = "These exact item variants are forgotten when they leave your bags.",
-              type = "group",
-              inline = true,
-              args = {},
-              order = 7
             }
           }
         },
