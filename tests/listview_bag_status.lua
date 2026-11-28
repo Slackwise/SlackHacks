@@ -619,28 +619,27 @@ assert(openedPicker > 0 and profile.mailAssignments.other == 1)
 legacy[2].func()
 assert(not getStatus("other"))
 
--- Build the actual window as on reload, including its status header atlas.
+-- Build the actual window as on reload, including its flag header icon.
 local buildFrame = upvalue(module.OnEnable, "buildFrame")
 local createFooter = upvalue(buildFrame, "createFooter", function() end)
 UISpecialFrames, ITEM_SEARCHBAR_LIST, tinsert = {}, {}, table.insert
 --- Supply the player name for the window title.
 ---@return string name
 function UnitName() return "Player" end
-local headerAtlas
---- Validate the atlas argument passed while building the status header.
+--- Validate atlas arguments used by the window.
 ---@param atlas string Atlas name.
 ---@return string markup
 function CreateAtlasMarkup(atlas)
   assert(type(atlas) == "string", "The status header must have a valid atlas name")
-  headerAtlas = atlas
   return atlas
 end
 buildFrame()
-assert(headerAtlas == "ui-castingbar-shield", "Reload must construct the status header")
 
 -- The pinned flag header sorts grouped items in both directions and reports its direction.
 local content = upvalue(buildFrame, "content")
 local statusHeader = content.statusHeaderButton
+assert(statusHeader.text == "Flag-outline",
+  "The sortable flag header must use Blizzard's simple flag outline.")
 local headerFrame = upvalue(buildFrame, "headerFrame")
 local layoutHeaders = upvalue(renderRows, "layoutHeaders")
 local scrollChild = upvalue(upvalue(layoutHeaders, "computeLayout"), "scrollChild")
@@ -1077,6 +1076,17 @@ assert(profile.mailQueues.single[1].remaining == 1 and not profile.mailAssignmen
   "Once must immediately enqueue one non-stackable item without a quantity prompt")
 
 pickerStackSize = 20
+local openAmount = upvalue(openPicker, "openMailAmountPrompt")
+local inventoryQuantity, extraQuantity = 30, 3
+local originalQuantityGroups = upvalue(openAmount, "collectGroups", function(includeAllItems)
+  assert(includeAllItems, "The quantity default must include stacks hidden by display filters.")
+  return {
+    { hyperlink = row.statusInfo.link, count = inventoryQuantity },
+    { hyperlink = row.statusInfo.link, count = extraQuantity },
+    { hyperlink = row.statusInfo.link, count = 99, soulbound = true },
+    { hyperlink = "different-variant", count = 7 },
+  }
+end)
 profile.trashItems.stack = row.statusInfo
 openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
@@ -1092,8 +1102,8 @@ assert(amountLabels[1].text == "Queue Mail Item"
 assert(amountLabels[2].font == "GameFontHighlightSmall" and amountLabels[2].textColor[1] == 0.65
   and amountLabels[3].font == "GameFontNormalLarge",
   "The recipient nickname must be larger and visually distinct from the muted Send to label.")
-assert(amountPrompt.amount:GetText() == "1" and amountPrompt.amount.focused and amountPrompt.amount.highlighted,
-  "The quantity must default to one and be focused and selected for immediate editing.")
+assert(amountPrompt.amount:GetText() == "33" and amountPrompt.amount.focused and amountPrompt.amount.highlighted,
+  "The quantity must total all matching mail-eligible stacks and be focused and selected.")
 assert(amountPrompt.item.text.text:find(":24:24|t " .. row.statusInfo.link, 1, true)
   and amountPrompt.points.TOPLEFT[1] == picker.points.TOPLEFT[1]
   and amountPrompt.points.TOPLEFT[2] == picker.points.TOPLEFT[2]
@@ -1108,9 +1118,17 @@ amountButtons[1].scripts.OnClick()
 assert(amountPrompt.shown and not profile.mailItems.stack, "Invalid amounts must not change the flag")
 amountPrompt:Hide()
 assert(profile.trashItems.stack and not profile.mailItems.stack, "Canceling must preserve the previous flag")
+inventoryQuantity, extraQuantity = 0, 0
 openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
+assert(picker.shown and not amountPrompt.shown and profile.trashItems.stack,
+  "If no matching mail-eligible items remain, the picker must preserve the flag and not open a quantity prompt.")
+inventoryQuantity, extraQuantity = 14, 3
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+assert(amountPrompt.amount:GetText() == "17", "Reopening the prompt must recount the current inventory.")
 amountPrompt.amount:SetText("25")
 amountPrompt.amount.scripts.OnEnterPressed()
 assert(profile.mailItems.stack and not profile.mailAssignments.stack
@@ -1274,6 +1292,7 @@ newRecipient.scripts.OnClick()
 assert(popup.shown, "Retail's new-recipient button must open the popup")
 
 -- Exercise sending, batching, draft replacement, and native send-tab lifecycle.
+upvalue(openAmount, "collectGroups", originalQuantityGroups)
 local timers, globalHooks, bagSlots, reagentBagSlots, attachments = {}, {}, {}, {}, {}
 local visibilityDelay, delayNextAttachment = {}, true
 C_Timer = { After = function(_, callback) timers[#timers + 1] = callback end }
@@ -1921,6 +1940,7 @@ recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 drainMailTimers()
 assert(attachments[1].stackCount == 10 and SendMailMailButton.enabled)
+bagSlots[2] = { itemID = 1, itemName = "Sword", hyperlink = "sword-link", quality = 1, stackCount = 5 }
 pickerStackSize = 20
 openPicker(button, swordKey, { name = "Sword", quality = 1, itemLevel = 10, link = "sword-link" },
   nil, nil, "once")

@@ -57,6 +57,7 @@ end
 ---@return table frame Mock frame.
 function CreateFrame(frameType, name, parent, template)
   local frame = widget()
+  frame.shown = true
   frame.frameType, frame.name, frame.parent, frame.template = frameType, name, parent, template
   if template == "SimplePanelTemplate" then frame.Inset, frame.Bg = widget(), widget() end
   if template == "ObjectiveTrackerProgressBarTemplate" then
@@ -402,10 +403,10 @@ end
 assert(postWindow and postWindow.template == "SimplePanelTemplate"
   and postWindow.title.text == "Posting Auction Items"
   and postWindow.barFrame.template == "ObjectiveTrackerProgressBarTemplate"
-  and postWindow.cancel.template == "SharedButtonSmallTemplate"
+  and not postWindow.cancel.shown
   and postWindow.post.template == "SharedButtonSmallTemplate" and postWindow.post.text == "Post Next"
   and postWindow.text.text == "0 / 2 items",
-  "Quick Sell must use a separate native-style progress window with Post Next and Cancel")
+  "Quick Sell must show Post Next without a separate Cancel button")
 assert(#commodityPosts == 0 and #itemPosts == 0 and timers[1] and timers[1].delay == 0.1
   and not postWindow.post.enabled,
   "Quick Sell must wait progressively while Blizzard's auction throttle is not ready")
@@ -449,11 +450,11 @@ inventory = {
 }
 local postCountBeforeCancel = #commodityPosts + #itemPosts
 foreverAuction.QuickSell(quickSellItems, function() quickSellRefreshes = quickSellRefreshes + 1 end)
-postWindow.cancel.scripts.OnClick()
+postWindow.CloseButton.scripts.OnClick()
 local postedBeforeLateTimer = #commodityPosts + #itemPosts
 assert(not postWindow.shown and postedBeforeLateTimer == postCountBeforeCancel + 1
   and warnings[#warnings]:find("active auction request may still complete", 1, true),
-  "Quick Sell must post the first item within its click, and Cancel must stop the remaining queue")
+  "Quick Sell must post the first item within its click, and closing must stop the remaining queue")
 runNextTimer()
 assert(#commodityPosts + #itemPosts == postedBeforeLateTimer and #timers == 0,
   "A cancelled Quick Sell must ignore pending timer callbacks")

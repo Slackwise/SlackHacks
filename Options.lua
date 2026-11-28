@@ -2084,12 +2084,7 @@ options = {
               descStyle = "inline",
               width = "full",
               get = function() return db.profile.listviewBag.autoDepositBankItems end,
-              set = function(_, value)
-                db.profile.listviewBag.autoDepositBankItems = value
-                if value and BankFrame and BankFrame:IsShown() then
-                  Self.ListviewBag:DepositBankFlaggedItems()
-                end
-              end,
+              set = function(_, value) Self.ListviewBag:SetAutoDepositBankItems(value) end,
               disabled = function() return not db.profile.listviewBag.enabled end,
               order = 2.75
             },

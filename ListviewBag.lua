@@ -2033,6 +2033,16 @@ end
 ---@param picker table Recipient picker.
 ---@param choice table Recipient and original flag state.
 local function openMailAmountPrompt(picker, choice)
+  local quantity = 0
+  for _, group in ipairs(collectGroups(true)) do
+    if group.hyperlink == choice.statusInfo.link and not group.soulbound then
+      quantity = quantity + group.count
+    end
+  end
+  if quantity == 0 then
+    prn("This item is no longer available for mailing in your bags; select the item again.")
+    return
+  end
   if not mailAmountPrompt then
     local prompt = CreateFrame("Frame", "SlackHacksMailAmountPrompt", frame, "SimplePanelTemplate")
     prompt:SetSize(350, 300)
@@ -2136,7 +2146,7 @@ local function openMailAmountPrompt(picker, choice)
   local itemIcon = choice.statusInfo.icon
     or select(10, C_Item.GetItemInfo(choice.statusInfo.link)) or "Interface\\Icons\\INV_Misc_QuestionMark"
   mailAmountPrompt.item.text:SetText("|T" .. itemIcon .. ":24:24|t " .. choice.statusInfo.link)
-  mailAmountPrompt.amount:SetText("1")
+  mailAmountPrompt.amount:SetText(tostring(quantity))
   picker:Hide()
   mailAmountPrompt:Show()
   mailAmountPrompt.amount:SetFocus()
@@ -4274,6 +4284,17 @@ function module:SetShowListviewBag(show)
   setShowListviewBag(show)
 end
 
+--- Set automatic bank depositing and deposit immediately if the bank is open.
+---@param enabled boolean Whether to automatically deposit Bank-flagged items.
+function module:SetAutoDepositBankItems(enabled)
+  settings().autoDepositBankItems = enabled
+  if enabled and BankFrame and BankFrame:IsShown() then
+    self:DepositBankFlaggedItems()
+  end
+  local registry = LibStub("AceConfigRegistry-3.0", true)
+  if registry then registry:NotifyChange("SlackHacks") end
+end
+
 --- Set automatic junk selling and offer to disable Blizzard's separate grey-item option.
 ---@param enabled boolean Whether to automatically sell unprotected junk.
 function module:SetAutoSellJunk(enabled)
@@ -4307,8 +4328,8 @@ function module:SetAutoSellJunk(enabled)
   if registry then registry:NotifyChange("SlackHacks") end
 end
 
---- Open settings for the list-view bag from its portrait.
----@param anchor table Portrait button.
+--- Open the shared list-view bag settings menu from its portrait or cog.
+---@param anchor table Portrait or cog button.
 local function openBagSettingsMenu(anchor)
   if not isModuleEnabled() then return end
   GameTooltip:Hide()
@@ -4323,6 +4344,13 @@ local function openBagSettingsMenu(anchor)
   local function toggleAutoSell()
     if isModuleEnabled() then module:SetAutoSellJunk(not settings().autoSellMarkedItems) end
   end
+  --- Report whether automatic bank depositing is enabled.
+  ---@return boolean enabled Whether automatic bank depositing is enabled.
+  local function autoDeposit() return settings().autoDepositBankItems end
+  --- Toggle automatic depositing of Bank-flagged items.
+  local function toggleAutoDeposit()
+    if isModuleEnabled() then module:SetAutoDepositBankItems(not settings().autoDepositBankItems) end
+  end
   --- Open the Listview Bag options.
   local function openBagOptions()
     if isModuleEnabled() then openOptions("inventory", "listviewBag") end
@@ -4330,6 +4358,7 @@ local function openBagSettingsMenu(anchor)
   if MenuUtil and MenuUtil.CreateContextMenu then
     MenuUtil.CreateContextMenu(anchor, function(_, root)
       root:CreateButton("Switch back to default bags", switchToDefault)
+      root:CreateCheckbox("Auto-Deposit Bank Items", autoDeposit, toggleAutoDeposit)
       root:CreateCheckbox("Auto-Sell Junk", autoSell, toggleAutoSell)
       root:CreateButton("Open Settings", openBagOptions)
     end)
@@ -4337,6 +4366,8 @@ local function openBagSettingsMenu(anchor)
     local menu = {
       { text = "Switch back to default bags", notCheckable = true, func = switchToDefault },
     }
+    menu[#menu + 1] = { text = "Auto-Deposit Bank Items", isNotRadio = true, keepShownOnClick = true,
+      checked = autoDeposit, func = toggleAutoDeposit }
     menu[#menu + 1] = { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
       checked = autoSell, func = toggleAutoSell }
     menu[#menu + 1] = { text = "Open Settings", notCheckable = true, func = openBagOptions }
@@ -4609,7 +4640,7 @@ local function buildFrame()
   content.statusHeaderButton = CreateFrame("Button", nil, headerFrame, "ColumnDisplayButtonNoScriptsTemplate")
   content.statusHeaderButton:SetSize(24, 24)
   content.statusHeaderButton:SetPoint("BOTTOM", headerFrame, "BOTTOMRIGHT", -30, 1)
-  content.statusHeaderButton:SetText(CreateAtlasMarkup(PROTECT_ICON_ATLAS, 14, 14))
+  content.statusHeaderButton:SetText(CreateAtlasMarkup("Flag-outline", 14, 14))
   content.statusHeaderButton.sortIcon = content.statusHeaderButton:CreateTexture(nil, "OVERLAY")
   content.statusHeaderButton.sortIcon:SetTexture(SORT_ARROW_TEXTURE)
   content.statusHeaderButton.sortIcon:SetSize(8, 8)

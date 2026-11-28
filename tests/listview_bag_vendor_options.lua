@@ -438,6 +438,26 @@ upvalue(openBagSettings, "setShowListviewBag", function(value) switched = value 
 openBagSettings({})
 assert(menuEntries["Switch back to default bags"] and menuEntries["Auto-Sell Junk"].checked()
   and not menuEntries["Footer Display"] and not menuEntries.Crests and not menuEntries.Supplies)
+local depositMenu = menuEntries["Auto-Deposit Bank Items"]
+assert(depositMenu and not depositMenu.checked())
+depositMenu.select()
+assert(profile.autoDepositBankItems and autoDeposit.get(),
+  "The menu must enable the existing auto-deposit option.")
+local originalBankFrame, originalDeposit = BankFrame, module.DepositBankFlaggedItems
+local deposits = 0
+BankFrame = { IsShown = function() return true end }
+module.DepositBankFlaggedItems = function() deposits = deposits + 1 end
+depositMenu.select()
+assert(not profile.autoDepositBankItems and deposits == 0)
+autoDeposit.set(nil, true)
+assert(depositMenu.checked() and deposits == 1,
+  "Enabling auto-deposit through Options must update the menu and deposit at an open bank.")
+depositMenu.select()
+depositMenu.select()
+assert(profile.autoDepositBankItems and deposits == 2,
+  "Enabling auto-deposit through the menu must also deposit at an open bank.")
+autoDeposit.set(nil, false)
+BankFrame, module.DepositBankFlaggedItems = originalBankFrame, originalDeposit
 menuEntries["Open Settings"].select()
 assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 menuEntries["Switch back to default bags"].select()
@@ -469,19 +489,28 @@ MenuUtil = nil
 function EasyMenu(entries) legacy = entries end
 openBagSettings({})
 assert(legacy[1].text == "Switch back to default bags"
-  and legacy[2].text == "Auto-Sell Junk" and legacy[3].text == "Open Settings" and not legacy[4])
+  and legacy[2].text == "Auto-Deposit Bank Items"
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Settings" and not legacy[5])
+assert(legacy[2].isNotRadio and legacy[2].keepShownOnClick and not legacy[2].checked())
+legacy[2].func()
+assert(profile.autoDepositBankItems and autoDeposit.get(),
+  "The legacy menu must toggle the same auto-deposit setting.")
 openedGroup = nil
-legacy[3].func()
+legacy[4].func()
 assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 profile.enabled = false
 openedGroup = nil
-legacy[3].func()
+legacy[4].func()
+legacy[2].func()
 assert(not openedGroup, "A disabled module must not open settings from a stale menu")
+assert(profile.autoDepositBankItems, "A disabled module must not toggle auto-deposit from a stale menu")
 profile.enabled = true
+autoDeposit.set(nil, false)
 SlackHacks.openOptions = originalOpenOptions
 SlackHacks.isRetail = function() return false end
 openBagSettings({})
-assert(legacy[2].text == "Auto-Sell Junk" and legacy[3].text == "Open Settings",
+assert(legacy[2].text == "Auto-Deposit Bank Items"
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Settings",
   "Other clients must not offer the removed footer choice")
 assert(profile.trackCrestCurrencies, "Removing the footer choice must not alter saved preferences")
 
