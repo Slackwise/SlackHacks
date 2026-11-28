@@ -638,8 +638,8 @@ buildFrame()
 -- The pinned flag header sorts grouped items in both directions and reports its direction.
 local content = upvalue(buildFrame, "content")
 local statusHeader = content.statusHeaderButton
-assert(statusHeader.text == "Flag-outline",
-  "The sortable flag header must use Blizzard's simple flag outline.")
+assert(statusHeader.text == "Flag-2",
+  "The sortable flag header must use Blizzard's filled flag variant.")
 local headerFrame = upvalue(buildFrame, "headerFrame")
 local layoutHeaders = upvalue(renderRows, "layoutHeaders")
 local scrollChild = upvalue(upvalue(layoutHeaders, "computeLayout"), "scrollChild")

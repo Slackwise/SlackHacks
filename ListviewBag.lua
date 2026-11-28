@@ -40,7 +40,7 @@ local COLUMN_DEFS = {
   auction =   { label = "Auction", width = 105 },
   armorType = { label = "Type",  width = 70 },
   armorSlot = { label = "Slot",  width = 70 },
-  bind =      { label = "|TInterface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture:18:18:0:0:128:64:6:26:7:28|t", width = 24 },
+  bind =      { label = "|TInterface\\AddOns\\SlackHacks\\Assets\\bind-icons-texture:18:18:0:0:128:64:38:58:7:28|t", width = 24 },
 }
 local DEFAULT_COLUMN_ORDER = { "quantity", "name", "ilvl", "armorType", "armorSlot", "bind" }
 local VIEWS = {
@@ -4640,7 +4640,7 @@ local function buildFrame()
   content.statusHeaderButton = CreateFrame("Button", nil, headerFrame, "ColumnDisplayButtonNoScriptsTemplate")
   content.statusHeaderButton:SetSize(24, 24)
   content.statusHeaderButton:SetPoint("BOTTOM", headerFrame, "BOTTOMRIGHT", -30, 1)
-  content.statusHeaderButton:SetText(CreateAtlasMarkup("Flag-outline", 14, 14))
+  content.statusHeaderButton:SetText(CreateAtlasMarkup("Flag-2", 14, 14))
   content.statusHeaderButton.sortIcon = content.statusHeaderButton:CreateTexture(nil, "OVERLAY")
   content.statusHeaderButton.sortIcon:SetTexture(SORT_ARROW_TEXTURE)
   content.statusHeaderButton.sortIcon:SetSize(8, 8)
