@@ -253,8 +253,8 @@ local protected = upvalue(visitSlots, "isProtectedItem")
 local entries = {}
 local function chooseFlag(index, choice)
   local submenu = entries[index].subentries
-  assert(submenu and #submenu == 2 and submenu[1].label == "One time" and submenu[2].label == "Always",
-    "Junk, Auction, and Bank must expose One time and Always submenu choices.")
+  assert(submenu and #submenu == 2 and submenu[1].label == "Once" and submenu[2].label == "Always",
+    "Junk, Auction, and Bank must expose Once and Always submenu choices.")
   submenu[choice == "once" and 1 or 2].selectStatus()
 end
 local button = row.statusBtn
@@ -263,7 +263,7 @@ updateStatusButton(button, getStatus("item"))
 assert(button.text.shown and button.text.text == "..." and not button.icon.shown)
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Click to Flag:" and #GameTooltip.lines == 1
-  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick-flag as Junk this one time.")
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick-flag as Junk this once.")
 
 local menuTitle
 MenuUtil = {
@@ -293,9 +293,9 @@ assert(menuTitle == "Flag item for:" and #entries == 6 and entries[1].checked())
 for index, expected in ipairs({
   { "Junk", "|A:bags-junkcoin:" },
   { "Auction", "|TInterface\\Minimap\\Tracking\\Auctioneer:" },
-  { "Protect", "|A:ui-castingbar-shield:" },
   { "Bank", "|TInterface\\Minimap\\Tracking\\Banker:" },
   { "Mail", "|TInterface\\Minimap\\Tracking\\Mailbox:" },
+  { "Protect", "|A:ui-castingbar-shield:" },
 }) do
   local label = entries[index + 1].label
   assert(label:find(expected[1], 1, true) and label:find(expected[2], 1, true))
@@ -317,16 +317,16 @@ assert(not getStatus("item", 1, "|Hitem:1:99:0:0|h[Item]|h", 10, nil),
   "A Junk mark must not match another item-link variation.")
 chooseFlag(2, "once")
 assert(profile.trashItemsOnce[junkKey] == row.statusInfo and not profile.trashItems[junkKey],
-  "The Junk submenu's One time choice must store a temporary mark.")
+  "The Junk submenu's Once choice must store a temporary mark.")
 entries[1].selectStatus()
 
 for _, case in ipairs({
   { index = 3, field = "auctionItems" },
-  { index = 4, field = "protectedItems" },
-  { index = 5, field = "bankItems" },
-  { index = 6, field = "mailItems" },
+  { index = 4, field = "bankItems" },
+  { index = 5, field = "mailItems" },
+  { index = 6, field = "protectedItems" },
 }) do
-  if case.index == 3 or case.index == 5 then
+  if case.index == 3 or case.index == 4 then
     chooseFlag(case.index, "always")
   else
     entries[case.index].selectStatus()
@@ -348,7 +348,7 @@ chooseFlag(2, "always")
 assert(profile.trashItems[junkKey] and not profile.mailItems.item,
   "The menu must still allow changing a flag to remembered Junk.")
 
-entries[4].selectStatus()
+entries[6].selectStatus()
 assert(profile.protectedItems.item and not profile.trashItems[junkKey])
 updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.atlas == "ui-castingbar-shield")
@@ -357,13 +357,13 @@ assert(profile.auctionItems.item and not profile.protectedItems.item and not pro
 updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Auctioneer"
   and table.concat(button.icon.texCoord, ",") == "0,1,0,1")
-chooseFlag(5, "always")
+chooseFlag(4, "always")
 assert(profile.bankItems.item and not profile.auctionItems.item)
 updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Banker")
 assert(protected("item"), "Bank marks must use existing protection")
 button.scripts.OnEnter(button)
-assert(GameTooltip.text == "Flagged for: Bank" and #GameTooltip.lines == 1
+assert(GameTooltip.text == "Flagged for: Bank (Always)" and #GameTooltip.lines == 1
   and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.")
 assert(GameTooltip.lineColors[1][1] == 1 and GameTooltip.lineColors[1][2] == 1
   and GameTooltip.lineColors[1][3] == 1, "Other flag instructions should remain white")
@@ -390,10 +390,12 @@ assert(not junk.reconcileOneTimeFlags(profile), "One-time Auction must remain wh
 upvalue(junk.reconcileOneTimeFlags, "collectGroups", function() return {} end)
 assert(junk.reconcileOneTimeFlags(profile) and not profile.auctionItemsOnce.item,
   "One-time Auction must be removed after its item leaves the bags.")
-chooseFlag(5, "once")
+chooseFlag(4, "once")
 assert(profile.bankItemsOnce.item and not profile.bankItems.item
   and getStatus("item", 1, row.statusInfo.link, 10, nil).id == "bank" and protected("item"),
   "One-time Bank must display as flagged and prevent vendor sales.")
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flagged for: Bank (Once)", "One-time flags must be labeled in the tooltip.")
 local originalAuctionOpen = upvalue(blockedItemAction, "auctionOpen")
 upvalue(blockedItemAction, "auctionOpen", true)
 assert(blockedItemAction("item", 1) == "auctioning",
@@ -405,17 +407,17 @@ upvalue(junk.reconcileOneTimeFlags, "collectGroups", function() return {} end)
 assert(junk.reconcileOneTimeFlags(profile) and not profile.bankItemsOnce.item,
   "One-time Bank must be removed after its item leaves the bags.")
 upvalue(junk.reconcileOneTimeFlags, "collectGroups", originalCollectGroups)
-chooseFlag(5, "always")
+chooseFlag(4, "always")
 assert(profile.bankItems.item, "The Bank Always choice must be remembered separately.")
 
 button.scripts.OnClick(button, "RightButton")
 assert(not profile.trashItems.item and not profile.trashItems[junkKey]
   and profile.bankItems.item and protected("item"))
 chooseRecipient = false
-entries[6].selectStatus()
+entries[5].selectStatus()
 assert(profile.bankItems.item and not profile.mailItems.item, "Canceling recipient selection must preserve the flag")
 chooseRecipient = true
-entries[6].selectStatus()
+entries[5].selectStatus()
 assert(profile.mailItems.item and not profile.trashItems.item and not profile.trashItems[junkKey])
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
@@ -431,7 +433,7 @@ assert(profile.mailItems.item and not profile.mailAssignments.item, "Deleting a 
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[2] == "  None")
 profile.mailRecipients[1] = { nickname = "Bank Alt", character = "Example" }
-entries[6].selectStatus()
+entries[5].selectStatus()
 updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Mailbox")
 entries[1].selectStatus()
@@ -593,7 +595,7 @@ profile.protectedItems.item = nil
 -- A menu must act on the original item even if the row is recycled before selection.
 button.scripts.OnClick(button, "LeftButton")
 row.statusKey = "other"
-chooseFlag(5, "always")
+chooseFlag(4, "always")
 assert(profile.bankItems.item and not profile.bankItems.other)
 
 -- The legacy dropdown exposes the same selectable statuses.
@@ -602,14 +604,14 @@ local legacy
 function EasyMenu(menu) legacy = menu end
 button.scripts.OnClick(button, "LeftButton")
 assert(#legacy == 7 and legacy[1].text == "Flag item for:" and legacy[3].text:find("Junk", 1, true))
-assert(legacy[4].text:find("Auction", 1, true) and legacy[5].text:find("Protect", 1, true))
+assert(legacy[4].text:find("Auction", 1, true) and legacy[7].text:find("Protect", 1, true))
 assert(legacy[3].text:find("|A:bags-junkcoin:", 1, true)
-  and legacy[6].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))
-assert(legacy[3].menuList[1].text == "One time" and legacy[3].menuList[2].text == "Always"
-  and legacy[4].menuList[1].text == "One time" and legacy[4].menuList[2].text == "Always"
-  and legacy[6].menuList[1].text == "One time" and legacy[6].menuList[2].text == "Always",
+  and legacy[5].text:find("|TInterface\\Minimap\\Tracking\\Banker:", 1, true))
+assert(legacy[3].menuList[1].text == "Once" and legacy[3].menuList[2].text == "Always"
+  and legacy[4].menuList[1].text == "Once" and legacy[4].menuList[2].text == "Always"
+  and legacy[5].menuList[1].text == "Once" and legacy[5].menuList[2].text == "Always",
   "The legacy menu must expose duration submenus for Junk, Auction, and Bank.")
-legacy[7].func()
+legacy[6].func()
 assert(profile.mailItems.other and not profile.trashItems.other)
 assert(openedPicker > 0 and profile.mailAssignments.other == 1)
 legacy[2].func()

@@ -84,6 +84,12 @@ local ITEM_STATUSES = {
   { id = "bank", name = "Bank", field = "bankItems", onceField = "bankItemsOnce", icon = "Interface\\Minimap\\Tracking\\Banker", sortOrder = 4 },
   { id = "mail", name = "Mail", field = "mailItems", icon = "Interface\\Minimap\\Tracking\\Mailbox", sortOrder = 3 },
 }
+-- The flag menu lists Protect last; ITEM_STATUSES keeps its order because code indexes it positionally.
+local ITEM_STATUS_MENU_ORDER = {}
+for _, status in ipairs(ITEM_STATUSES) do
+  if status ~= PROTECT_STATUS then ITEM_STATUS_MENU_ORDER[#ITEM_STATUS_MENU_ORDER + 1] = status end
+end
+ITEM_STATUS_MENU_ORDER[#ITEM_STATUS_MENU_ORDER + 1] = PROTECT_STATUS
 local ITEM_CATEGORIES = {
   { id = "equipment", name = "Equipment" },
   { id = "consumables", name = "Consumables" },
@@ -2586,7 +2592,7 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
           statusInfo.itemLevel, statusInfo.upgradeTrack)
       end,
         function() setItemStatus(key, statusInfo, nil, context) end)
-      for _, entry in ipairs(ITEM_STATUSES) do
+      for _, entry in ipairs(ITEM_STATUS_MENU_ORDER) do
         local status = entry
         if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
           local label = statusMenuLabel(status)
@@ -2594,7 +2600,7 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
             local submenu = root:CreateButton(label)
             for _, mode in ipairs({ "once", "always" }) do
               local flagMode = mode
-              local modeLabel = flagMode == "once" and "One time" or "Always"
+              local modeLabel = flagMode == "once" and "Once" or "Always"
               submenu:CreateRadio(modeLabel,
                 function()
                   return getItemStatus(key, statusInfo.quality, statusInfo.link,
@@ -2622,7 +2628,7 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
       end,
         func = function() setItemStatus(key, statusInfo, nil, context) end },
     }
-    for _, entry in ipairs(ITEM_STATUSES) do
+    for _, entry in ipairs(ITEM_STATUS_MENU_ORDER) do
       local status = entry
       if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
         if status.onceField then
@@ -2630,7 +2636,7 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
           for _, mode in ipairs({ "once", "always" }) do
             local flagMode = mode
             submenu[#submenu + 1] = {
-              text = flagMode == "once" and "One time" or "Always",
+              text = flagMode == "once" and "Once" or "Always",
               checked = function()
                 return getItemStatus(key, statusInfo.quality, statusInfo.link,
                   statusInfo.itemLevel, statusInfo.upgradeTrack) == status
@@ -2807,6 +2813,8 @@ local function createRow(index)
       GameTooltip:SetText("Item quality is not yet available.")
     else
       local label = status and status.name
+      local mode = status and status.onceField and junk.flagMode(status, row.statusKey, row.statusInfo)
+      if mode then label = label .. (mode == "once" and " (Once)" or " (Always)") end
       GameTooltip:SetText(status and ("Flagged for: " .. label) or "Click to Flag:")
       if status and status.id == "mail" then
         local bag = settings()
@@ -2833,7 +2841,7 @@ local function createRow(index)
       end
       local rightClick = row.statusInfo.quality == 0 and "Grey items can only be protected."
         or status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
-        or "Right-click to quick-flag as Junk this one time."
+        or "Right-click to quick-flag as Junk this once."
       local instructionColor = status and status.id == "mail" and 0.6 or 1
       GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick,
         instructionColor, instructionColor, instructionColor, true)
