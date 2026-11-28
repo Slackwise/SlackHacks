@@ -63,6 +63,7 @@ dbDefaults = {
       auctionIneligibleOverrides = {},
       bankItems = {},
       mailItems = {},
+      autoDepositBankItems = false,
       mailRecipients = {},
       mailAssignments = {},
       mailQueues = {},
@@ -2056,7 +2057,23 @@ options = {
               name = "\"Essentials\" Filter Items",
               inline = true,
               args = {},
-              order = 2.75,
+              order = 5
+            },
+            autoDepositBankItems = {
+              name = "Auto-Deposit Bank Flagged Items",
+              desc = "Automatically deposit eligible items flagged for Bank when opening the bank. Items that cannot be deposited remain flagged.",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              get = function() return db.profile.listviewBag.autoDepositBankItems end,
+              set = function(_, value)
+                db.profile.listviewBag.autoDepositBankItems = value
+                if value and BankFrame and BankFrame:IsShown() then
+                  Self.ListviewBag:DepositBankFlaggedItems()
+                end
+              end,
+              disabled = function() return not db.profile.listviewBag.enabled end,
+              order = 2.75
             },
             autoSellMarkedItems = {
               name = "Auto-Sell Junk",

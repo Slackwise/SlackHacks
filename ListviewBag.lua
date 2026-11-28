@@ -533,14 +533,15 @@ end
 -- same way the default UI's "combined bags" view merges stacks together. Each group remembers every
 -- underlying bagID/slot ("entries") so actions (locking, dragging, splitting) can still reach the real
 -- item(s) once expanded.
-local function collectGroups()
+local function collectGroups(includeAllItems)
   local groups, order = {}, {}
   local selling = selectedView() == "selling"
   for _, bagID in ipairs(bagIDs()) do
     local numSlots = C_Container.GetContainerNumSlots(bagID)
     for slot = 1, numSlots do
       local info = C_Container.GetContainerItemInfo(bagID, slot)
-      if info and info.itemID and not info.isFiltered and (not selling or not info.hasNoValue) then
+      if info and info.itemID and (includeAllItems or not info.isFiltered)
+        and (includeAllItems or not selling or not info.hasNoValue) then
         local bindLabel, bindType, accountBound, isBound = getBindInfo(bagID, slot, info.hyperlink)
         local auctionEligible = auctionFlagEligibility(bagID, slot, info, accountBound)
         local binding = accountBound and isRetail() and "warbound"
@@ -683,6 +684,7 @@ end
 --=====================================================================
 
 local frame, content, scrollFrame, scrollChild, headerFrame, footer, searchBox
+local bankDeposit = { generation = 0 }
 local headerButtons = {}
 local columnLayout = {}
 local rowPool = {}
@@ -699,6 +701,171 @@ local auctionOpen = false
 local bankOpen = false
 local guildBankOpen = false
 local trackedCursorItem
+
+--- Verify that deposited items have left the player's bags before removing their Bank flags.
+---@param bag table Profile settings captured when the deposit began.
+---@param pendingKeys table Status keys awaiting verification.
+function bankDeposit.Verify(bag, pendingKeys)
+  local startedAt = GetTime()
+  local delay = 0.1
+  local generation = bankDeposit.generation
+
+  --- Recheck remaining stacks and remove only flags for fully deposited items.
+  local function check()
+    if generation ~= bankDeposit.generation or settings() ~= bag then
+      bankDeposit.inProgress = false
+      if bankDeposit.button then bankDeposit.button:Enable() end
+      return
+    end
+
+    local present = {}
+    for _, group in ipairs(collectGroups(true)) do
+      present[group.statusKey] = true
+      present[group.hyperlink or ("item:" .. group.itemID)] = true
+    end
+
+    for key, identities in pairs(pendingKeys) do
+      local remaining = present[key]
+      for identity in pairs(identities) do
+        if present[identity] then remaining = true; break end
+      end
+      if not remaining and bag.bankItems[key] ~= nil then
+        bag.bankItems[key] = nil
+        pendingKeys[key] = nil
+      end
+    end
+
+    if next(pendingKeys) and GetTime() - startedAt < 3 then
+      delay = math.min(delay + 0.1, 0.5)
+      C_Timer.After(delay, check)
+      return
+    end
+
+    bankDeposit.inProgress = false
+    if bankDeposit.button then bankDeposit.button:Enable() end
+    module:Refresh()
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange("SlackHacks") end
+  end
+
+  C_Timer.After(delay, check)
+end
+
+--- Deposit carried items that have the Bank flag into the currently selected bank.
+---@param bankType number|nil Optional bank type, defaulting to the active BankFrame tab.
+function module:DepositBankFlaggedItems(bankType)
+  if not isModuleEnabled() then return end
+  if not C_Bank or not C_Container.UseContainerItem or not BankFrame or not BankFrame:IsShown() then
+    prn("the bank is not available for depositing items.")
+    return
+  end
+
+  bankType = bankType or (BankFrame.GetActiveBankType and BankFrame:GetActiveBankType())
+  if bankType == nil or (C_Bank.CanUseBank and not C_Bank.CanUseBank(bankType)) then
+    prn("the selected bank is not available.")
+    return
+  end
+  if bankDeposit.inProgress then return end
+
+  local bag = settings()
+  local targets, pendingKeys, skipped = {}, {}, 0
+  for _, group in ipairs(collectGroups(true)) do
+    local key = group.statusKey
+    if bag.bankItems[key] ~= nil then
+      for _, entry in ipairs(group.entries) do
+        local info = C_Container.GetContainerItemInfo(entry.bagID, entry.slot)
+        if info and not info.isLocked then
+          local location = ItemLocation:CreateFromBagAndSlot(entry.bagID, entry.slot)
+          local allowed = location and location:IsValid()
+            and (not C_Bank.IsItemAllowedInBankType or C_Bank.IsItemAllowedInBankType(bankType, location))
+          local refundable = allowed and Enum.BankType and bankType == Enum.BankType.Account
+            and C_Item.CanBeRefunded and C_Item.CanBeRefunded(location)
+          if allowed and not refundable then
+            targets[#targets + 1] = { bagID = entry.bagID, slot = entry.slot }
+            pendingKeys[key] = pendingKeys[key] or {}
+            pendingKeys[key][group.hyperlink or ("item:" .. group.itemID)] = true
+          else
+            skipped = skipped + 1
+          end
+        elseif info then
+          skipped = skipped + 1
+        end
+      end
+    end
+  end
+
+  if #targets == 0 then
+    prn(skipped > 0 and "some Bank-flagged items cannot be deposited into this bank."
+      or "no eligible Bank-flagged items were found in your bags.")
+    return
+  end
+
+  bankDeposit.inProgress = true
+  bankDeposit.generation = bankDeposit.generation + 1
+  if bankDeposit.button then bankDeposit.button:Disable() end
+  for _, target in ipairs(targets) do
+    C_Container.UseContainerItem(target.bagID, target.slot, nil, bankType, false)
+  end
+  if skipped > 0 then
+    prn("some Bank-flagged items cannot be deposited into this bank.")
+  end
+  bankDeposit.Verify(bag, pendingKeys)
+end
+
+--- Start a manual deposit from the BankFrame button.
+---@return nil
+function bankDeposit.OnClick()
+  module:DepositBankFlaggedItems()
+end
+
+--- Show a short explanation of the selective bank deposit.
+---@param button table Deposit button.
+function bankDeposit.OnEnter(button)
+  GameTooltip:SetOwner(button, "ANCHOR_TOP")
+  GameTooltip:SetText("Deposits eligible items flagged for Bank.")
+  GameTooltip:AddLine("Items that cannot be deposited remain flagged.", 1, 1, 1, true)
+  GameTooltip:Show()
+end
+
+--- Hide the bank deposit button tooltip.
+function bankDeposit.OnLeave()
+  GameTooltip:Hide()
+end
+
+--- Run a deferred automatic deposit after Blizzard finishes opening the bank panel.
+---@return nil
+function bankDeposit.RunScheduled()
+  local bag = bankDeposit.scheduledProfile
+  bankDeposit.scheduledProfile = nil
+  if bag and bankOpen and isModuleEnabled() and settings() == bag and bag.autoDepositBankItems
+    and BankFrame and BankFrame:IsShown() then
+    module:DepositBankFlaggedItems()
+  end
+end
+
+--- Schedule an automatic deposit for the current profile when the bank opens.
+function bankDeposit.ScheduleAuto()
+  local bag = settings()
+  if not bag.autoDepositBankItems or not C_Timer then return end
+  bankDeposit.scheduledProfile = bag
+  C_Timer.After(0.2, bankDeposit.RunScheduled)
+end
+
+--- Add the flagged-item deposit button beside Blizzard's bank search field.
+function bankDeposit.InstallButton()
+  if not BankFrame or not BankItemSearchBox then return end
+  if not bankDeposit.button then
+    bankDeposit.button = CreateFrame("Button", "SlackHacksBankDepositFlaggedItemsButton",
+      BankFrame, "UIPanelButtonTemplate")
+    bankDeposit.button:SetSize(185, 22)
+    bankDeposit.button:SetPoint("RIGHT", BankItemSearchBox, "LEFT", -8, 0)
+    bankDeposit.button:SetText("Deposit Bank Flagged Items")
+    bankDeposit.button:SetScript("OnClick", bankDeposit.OnClick)
+    bankDeposit.button:SetScript("OnEnter", bankDeposit.OnEnter)
+    bankDeposit.button:SetScript("OnLeave", bankDeposit.OnLeave)
+  end
+  bankDeposit.button:Show()
+end
 
 --- Return the fixed width for a column in the selected client and view.
 ---@param colID string Column identifier.
@@ -4319,6 +4486,10 @@ function module:OnEnable()
   end
   bankOpen = BankFrame and BankFrame:IsShown() or false
   guildBankOpen = GuildBankFrame and GuildBankFrame:IsShown() or false
+  if bankOpen then
+    bankDeposit.InstallButton()
+    bankDeposit.ScheduleAuto()
+  end
   hookMerchantJunkButton()
   installMailHooks()
   if MailFrame and SendMailFrame and SendMailFrame:IsShown() then
@@ -4360,6 +4531,7 @@ end
 function module:OnDisable()
   slotItemLoads = {}
   trackedCursorItem = nil
+  if bankDeposit.button then bankDeposit.button:Hide() end
   if Self.ListviewBagAuction then Self.ListviewBagAuction.Cancel() end
   endAuctionMode()
   auctionOpen = false
@@ -4412,7 +4584,11 @@ function module:OnBagInteractionOpen(event)
     beginAuctionMode()
     selectView("selling", true)
   end
-  if event == "BANKFRAME_OPENED" then bankOpen = true end
+  if event == "BANKFRAME_OPENED" then
+    bankOpen = true
+    bankDeposit.InstallButton()
+    bankDeposit.ScheduleAuto()
+  end
   if event == "GUILDBANKFRAME_OPENED" then guildBankOpen = true end
   returnBlockedCursorItem()
   self:OnNativeBagOpen()

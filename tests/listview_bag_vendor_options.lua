@@ -1,6 +1,9 @@
 -- Run with Lua 5.1 from the addon root: lua tests/listview_bag_vendor_options.lua
 
-local profile = { enabled = true, showReagentBagContents = true, protectedItems = {}, trashItems = {} }
+local profile = {
+  enabled = true, showReagentBagContents = true, autoDepositBankItems = false,
+  protectedItems = {}, trashItems = {}, bankItems = {},
+}
 SlackHacks = setmetatable({ db = { profile = { listviewBag = profile } } }, { __index = _G })
 SlackHacks.Self = SlackHacks
 Enum = { ItemClass = {}, ItemQuality = { Common = 1 } }
@@ -158,9 +161,15 @@ assert(refreshes == 3 and getOptions().args.inventory.args.listviewBag.args.auto
 
 -- Essentials settings preserve the existing defaults and allow inventory-backed custom items.
 local bagOptions = getOptions().args.inventory.args.listviewBag.args
+local autoDeposit = bagOptions.autoDepositBankItems
+assert(autoDeposit.name == "Auto-Deposit Bank Flagged Items" and autoDeposit.get() == false
+  and autoDeposit.order < bagOptions.autoSellMarkedItems.order)
+autoDeposit.set(nil, true)
+assert(profile.autoDepositBankItems)
+autoDeposit.set(nil, false)
 local essentials = bagOptions.essentials
 assert(essentials.inline and essentials.name == '"Essentials" Filter Items'
-  and essentials.order < bagOptions.autoSellMarkedItems.order)
+  and essentials.order > bagOptions.autoVendorItems.order)
 assert(essentials.args.description.name == "These items are common to all players but you usually don't interact with them directly.")
 for _, item in ipairs(module.ESSENTIAL_ITEMS) do
   assert(essentials.args["item:" .. item.id].get(), item.name .. " must be checked by default")
@@ -338,6 +347,8 @@ assert(getOptions().args.inventory.args.listviewBag.args.essentials.args.customI
   "The empty-list message must return after removing the last item")
 customArgs.search.set(nil, "absent")
 assert(customArgs.results.disabled() and customArgs.add.disabled())
+
+SlackHacks.db.profile.listviewBag = profile
 SlackHacks.db.profile.listviewBag = otherProfile
 assert(customArgs.search.get() == "", "Search state must not leak between profiles")
 SlackHacks.db.profile.listviewBag = profile
@@ -530,7 +541,9 @@ local oldDB = SlackHacks.db
 SlackHacks.db = aceDB:New(saved, SlackHacks.dbDefaults, true)
 local savedBag = SlackHacks.db.profile.listviewBag
 assert(not savedBag.categoryFilters.special and savedBag.trashItems.retained
-  and not savedBag.essentialItems.arrows and not savedBag.essentialItems.soulShards)
+  and not savedBag.essentialItems.arrows and not savedBag.essentialItems.soulShards
+  and not savedBag.autoDepositBankItems,
+  "Existing profiles must keep auto-deposit disabled by default")
 local persistedOptions = getOptions().args.inventory.args.listviewBag.args.essentials.args
 assert(persistedOptions["item:6948"].get(), "Existing profiles must keep built-in Essentials enabled")
 persistedOptions["item:6948"].set(nil, false)
