@@ -240,6 +240,12 @@ local function bagIDs()
   return ids
 end
 
+--- Share the actual player containers with independent inventory observers.
+---@return table containers Backpack, equipped bags, and the supported reagent bag.
+function module:GetInventoryBagIDs()
+  return bagIDs()
+end
+
 --- Find distinct inventory items whose names contain the entered text.
 ---@param query string Search text.
 ---@return table items Matching item metadata, keyed by item ID.
@@ -1185,6 +1191,38 @@ local function itemCategory(group, bag)
     return "professionGoods"
   end
   return "other"
+end
+
+--- Capture ledger metadata using the bag's existing binding and category classification.
+---@param bagID number|nil Container identifier; nil for equipped or cached items.
+---@param slot number|nil Container slot.
+---@param info table Container item information or a cached hyperlink.
+---@return table item Serializable metadata for a ledger entry.
+function module:GetInventoryLogMetadata(bagID, slot, info)
+  local name, _, quality, _, _, _, _, _, equipLoc, icon, sellPrice, classID, subclassID,
+    bindType, _, _, isCraftingReagent = C_Item.GetItemInfo(info.hyperlink)
+  local accountBound, bound = false, info.isBound
+  if bagID ~= nil then
+    local label
+    label, bindType, accountBound, bound = getBindInfo(bagID, slot, info.hyperlink)
+    bound = bound or label == "Soulbound"
+  end
+  local item = { link = info.hyperlink, name = name,
+    itemID = info.itemID or tonumber(info.hyperlink:match("item:(%d+)")),
+    quality = info.quality or quality, equipLoc = equipLoc, icon = info.iconFileID or icon,
+    sellPrice = sellPrice, classID = classID, subclassID = subclassID, bindType = bindType,
+    isCraftingReagent = isCraftingReagent }
+  item.binding = accountBound and isRetail() and "warbound"
+    or (bound or accountBound) and "soulbound" or "unbound"
+  if name then item.category = itemCategory(item) end
+  return item
+end
+
+--- Reclassify cached item metadata at the time of an action, including changed Essentials preferences.
+---@param item table Cached static item metadata.
+---@return string category Current item category identifier.
+function module:GetInventoryLogCategory(item)
+  return itemCategory(item)
 end
 
 --- Check an item against the selected flag, binding, and item-category filters.
@@ -3320,11 +3358,16 @@ local function sizeCurrencyFrame(currencyFrame)
 end
 
 --- Update the dropdown label to count filters that restrict the displayed items.
-local function updateFiltersLabel()
-  local bag = settings()
+---@param button table|nil Target dropdown; defaults to the bag's dropdown.
+---@param log table|nil Inventory Log module when updating its separate filters.
+local function updateFiltersLabel(button, log)
+  local data = log and Self.db.char.inventoryLog
+  local bag = data and { flagFilters = data.actions, bindingFilters = data.bindings, categoryFilters = data.categories }
+    or settings()
+  button = button or footer.filtersButton
   local count = 0
-  if bag.flagFilters.unflagged == false then count = count + 1 end
-  for _, status in ipairs(ITEM_STATUSES) do
+  if not log and bag.flagFilters.unflagged == false then count = count + 1 end
+  for _, status in ipairs(log and log.ACTIONS or ITEM_STATUSES) do
     if bag.flagFilters[status.id] == false then count = count + 1 end
   end
   for _, binding in ipairs(BINDING_FILTERS) do
@@ -3334,11 +3377,18 @@ local function updateFiltersLabel()
     if bag.categoryFilters[category.id] == false then count = count + 1 end
   end
   local label = ("Filters (%s)"):format(count == 0 and "None" or count)
-  if footer.filtersButton.legacy then
-    UIDropDownMenu_SetText(footer.filtersButton, label)
+  if button.legacy then
+    UIDropDownMenu_SetText(button, label)
   else
-    footer.filtersButton:OverrideText(label)
+    button:OverrideText(label)
   end
+end
+
+--- Reuse the bag's filtered-count label for the ledger dropdown.
+---@param button table Ledger filter dropdown.
+---@param log table Inventory Log module.
+function module:UpdateInventoryLogFiltersLabel(button, log)
+  updateFiltersLabel(button, log)
 end
 
 --- Choose a white-to-red color based on the proportion of remaining warning-range slots.
@@ -3790,34 +3840,42 @@ end
 --- Populate the native filters dropdown or open its legacy menu.
 ---@param anchor table Filters dropdown.
 ---@param root table|nil Modern menu description, absent for the legacy menu.
-local function openFiltersMenu(anchor, root)
-  local bag = settings()
+---@param log table|nil Ledger owner; defaults to the Listview Bag.
+local function openFiltersMenu(anchor, root, log)
+  local data = log and Self.db.char.inventoryLog
+  local bag = data and { flagFilters = data.actions, bindingFilters = data.bindings, categoryFilters = data.categories }
+    or settings()
+  local statuses = log and log.ACTIONS or ITEM_STATUSES
+  --- Refresh the owning view without sharing its filter state with the other window.
+  local function refresh()
+    if log then log:Refresh() else updateFiltersLabel(); renderRows() end
+  end
   --- Enable every visible filter without changing other bag settings.
   local function checkAll()
-    bag.flagFilters.unflagged = true
-    for _, status in ipairs(ITEM_STATUSES) do bag.flagFilters[status.id] = true end
+    if not log then bag.flagFilters.unflagged = true end
+    for _, status in ipairs(statuses) do bag.flagFilters[status.id] = true end
     for _, binding in ipairs(BINDING_FILTERS) do
       if not binding.retailOnly or isRetail() then bag.bindingFilters[binding.id] = true end
     end
     for _, category in ipairs(ITEM_CATEGORIES) do bag.categoryFilters[category.id] = true end
-    updateFiltersLabel()
-    renderRows()
+    refresh()
   end
   --- Toggle a filter and refresh the displayed rows.
   ---@param filters table Saved filter values.
   ---@param key string Filter key.
   local function toggle(filters, key)
     filters[key] = filters[key] == false
-    updateFiltersLabel()
-    renderRows()
+    refresh()
   end
   if root then
     local checkAllButton = root:CreateButton("Show All", checkAll)
     checkAllButton:SetResponse(MenuResponse.Refresh)
-    root:CreateTitle("Flags")
-    root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
-      function() toggle(bag.flagFilters, "unflagged") end)
-    for _, entry in ipairs(ITEM_STATUSES) do
+    root:CreateTitle(log and "Actions" or "Flags")
+    if not log then
+      root:CreateCheckbox("Unflagged", function() return bag.flagFilters.unflagged ~= false end,
+        function() toggle(bag.flagFilters, "unflagged") end)
+    end
+    for _, entry in ipairs(statuses) do
       local status = entry
       root:CreateCheckbox(status.name, function() return bag.flagFilters[status.id] ~= false end,
         function() toggle(bag.flagFilters, status.id) end)
@@ -3842,11 +3900,13 @@ local function openFiltersMenu(anchor, root)
     local menu = {
       { text = "Show All", notCheckable = true, keepShownOnClick = true, func = checkAll },
     }
-    menu[#menu + 1] = { text = "Flags", isTitle = true, notCheckable = true }
-    menu[#menu + 1] = { text = "Unflagged", isNotRadio = true, keepShownOnClick = true,
-      checked = function() return bag.flagFilters.unflagged ~= false end,
-      func = function() toggle(bag.flagFilters, "unflagged") end }
-    for _, entry in ipairs(ITEM_STATUSES) do
+    menu[#menu + 1] = { text = log and "Actions" or "Flags", isTitle = true, notCheckable = true }
+    if not log then
+      menu[#menu + 1] = { text = "Unflagged", isNotRadio = true, keepShownOnClick = true,
+        checked = function() return bag.flagFilters.unflagged ~= false end,
+        func = function() toggle(bag.flagFilters, "unflagged") end }
+    end
+    for _, entry in ipairs(statuses) do
       local status = entry
       menu[#menu + 1] = { text = status.name, isNotRadio = true, keepShownOnClick = true,
         checked = function() return bag.flagFilters[status.id] ~= false end,
@@ -3868,11 +3928,21 @@ local function openFiltersMenu(anchor, root)
         checked = function() return bag.categoryFilters[category.id] ~= false end,
         func = function() toggle(bag.categoryFilters, category.id) end }
     end
-    if not module.filtersMenu then
-      module.filtersMenu = CreateFrame("Frame", "SlackHacksListviewBagFiltersMenu", UIParent, "UIDropDownMenuTemplate")
+    local owner = log or module
+    if not owner.filtersMenu then
+      owner.filtersMenu = CreateFrame("Frame", log and "SlackHacksInventoryLogFiltersMenu"
+        or "SlackHacksListviewBagFiltersMenu", UIParent, "UIDropDownMenuTemplate")
     end
-    EasyMenu(menu, module.filtersMenu, "cursor", 0, 0, "MENU")
+    EasyMenu(menu, owner.filtersMenu, "cursor", 0, 0, "MENU")
   end
+end
+
+--- Reuse the bag's filter presentation for the ledger without sharing saved selections.
+---@param anchor table Filter dropdown.
+---@param root table|nil Modern menu root.
+---@param log table Inventory Log module.
+function module:OpenInventoryLogFilters(anchor, root, log)
+  openFiltersMenu(anchor, root, log)
 end
 
 --- Update view controls and the space available to the search box.
@@ -4070,8 +4140,8 @@ local function createFooter()
   footer.slotCount = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   footer.slotCount:SetPoint("LEFT", footer, "LEFT", 4, 0)
   footer.slotFont, footer.slotFontSize, footer.slotFontFlags = footer.slotCount:GetFont()
-  footer.slotIcon = footer:CreateTexture(nil, "ARTWORK")
-  footer.slotIcon:SetTexture("Interface\\Buttons\\Button-Backpack-Up")
+  footer.slotIcon = CreateFrame("Button", nil, footer)
+  Self.InventoryLog:ConfigureButton(footer.slotIcon)
 
   footer.slotHover = CreateFrame("Frame", nil, footer)
   footer.slotHover:SetPoint("LEFT", footer.slotCount, "LEFT")
@@ -4079,6 +4149,8 @@ local function createFooter()
   footer.slotHover:EnableMouse(true)
   footer.slotHover:SetScript("OnEnter", showSlotTooltip)
   footer.slotHover:SetScript("OnLeave", GameTooltip_Hide)
+  -- Capacity hover includes the icon's space; put the ledger button above that mouse region.
+  footer.slotIcon:SetFrameLevel(footer.slotHover:GetFrameLevel() + 1)
 
   footer.balances = CreateFrame("Frame", nil, footer)
   footer.balances:SetSize(168, 20)
@@ -4360,6 +4432,7 @@ local function openBagSettingsMenu(anchor)
       root:CreateButton("Switch back to default bags", switchToDefault)
       root:CreateCheckbox("Auto-Deposit Bank Items", autoDeposit, toggleAutoDeposit)
       root:CreateCheckbox("Auto-Sell Junk", autoSell, toggleAutoSell)
+      Self.InventoryLog:AddMenu(root)
       root:CreateButton("Open Settings", openBagOptions)
     end)
   else
@@ -4370,6 +4443,7 @@ local function openBagSettingsMenu(anchor)
       checked = autoDeposit, func = toggleAutoDeposit }
     menu[#menu + 1] = { text = "Auto-Sell Junk", isNotRadio = true, keepShownOnClick = true,
       checked = autoSell, func = toggleAutoSell }
+    Self.InventoryLog:AddMenu(nil, menu)
     menu[#menu + 1] = { text = "Open Settings", notCheckable = true, func = openBagOptions }
     if not module.bagSettingsMenu then
       module.bagSettingsMenu = CreateFrame("Frame", "SlackHacksListviewBagSettingsMenu", UIParent, "UIDropDownMenuTemplate")
@@ -4427,13 +4501,13 @@ end
 
 local bagMenuHooksInstalled = false
 local function installBagMenuOptions()
-  if bagMenuHooksInstalled or not isModuleEnabled() or not Menu or not Menu.ModifyMenu then return end
+  if bagMenuHooksInstalled or not Menu or not Menu.ModifyMenu then return end
   bagMenuHooksInstalled = true
   for _, menuTag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }) do
     Menu.ModifyMenu(menuTag, function(_, rootDescription)
-      if not isModuleEnabled() then return end
       rootDescription:CreateDivider()
-      rootDescription:CreateButton("Switch to SlackHacks' Listview Bag", function()
+      rootDescription:CreateTitle("|cffffd100SlackHacks|r")
+      rootDescription:CreateButton("Switch to Listview Bag", function()
         settings().enabled = true
         settings().showListviewBag = true
         if module:IsEnabled() then
@@ -4442,6 +4516,7 @@ local function installBagMenuOptions()
           module:Enable()
         end
       end)
+      Self.InventoryLog:AddMenu(rootDescription)
     end)
   end
 end

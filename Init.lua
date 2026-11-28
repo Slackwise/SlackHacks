@@ -19,7 +19,7 @@ addonName, addonTable = ...
 
 SLACKHACKS_ICON = "Interface\\AddOns\\SlackHacks\\Assets\\SlackHacks.png"
 
-CONFIG_VERSION = 17
+CONFIG_VERSION = 18
 
 -- The addon release (`## Version` in SlackHacks.toc) that first ships each config version, so any addon at or
 -- above that release requires the matching CONFIG_MIGRATIONS entry. Development bookkeeping only; nothing reads
@@ -42,6 +42,7 @@ CONFIG_VERSION_RELEASES = {
   [15] = 30,
   [16] = 34,
   [17] = 35,
+  [18] = 38,
 }
 
 function getAddonVersion()
@@ -755,6 +756,27 @@ CONFIG_MIGRATIONS = {
       migrateProfile(Self.db.profile)
     end
   end,
+  -- Config v18, ships in addon v38.
+  --- Initialize the opt-in inventory ledger without changing existing inventory preferences.
+  [18] = function()
+    --- Preserve the former Inventory checkbox when moving to standalone module settings.
+    ---@param profile table Saved profile.
+    local function migrateProfile(profile)
+      Self.InventoryLog:MigrateProfileSettings(profile)
+    end
+    for _, profile in pairs(Self.db.profiles or {}) do migrateProfile(profile) end
+    migrateProfile(Self.db.profile)
+    --- Add empty ledger fields without overwriting any existing character history.
+    ---@param character table Saved character data.
+    local function migrateCharacter(character)
+      character.inventoryLog = character.inventoryLog or {}
+      for _, field in ipairs({ "entries", "actions", "bindings", "categories" }) do
+        character.inventoryLog[field] = character.inventoryLog[field] or {}
+      end
+    end
+    for _, character in pairs(Self.db.sv and Self.db.sv.char or {}) do migrateCharacter(character) end
+    migrateCharacter(Self.db.char)
+  end,
 }
 
 -- Version 1 predates this migration system entirely (no data shape changed getting to it), so it's the
@@ -902,9 +924,14 @@ function checkAddonVersionUpdate()
 end
 
 --Event Handlers
+--- Initialize saved settings, options, and native integrations.
 function Self:OnInitialize()
   -- true = share one "Default" profile across all characters instead of a per-character profile
   local ok, err = pcall(function()
+    -- Convert legacy opt-in before AceDB materializes enabled=false, so saved choices remain distinguishable.
+    for _, profile in pairs(_G.SlackHacksDB and _G.SlackHacksDB.profiles or {}) do
+      Self.InventoryLog:MigrateProfileSettings(profile)
+    end
     Self.db = LibStub("AceDB-3.0"):New("SlackHacksDB", dbDefaults, true)
   end)
   if not ok or not Self.db then

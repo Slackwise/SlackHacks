@@ -16,6 +16,7 @@ function CreateFrame() return { SetOwner = function() end, SetAllPoints = functi
 Enum, StaticPopupDialogs = { ItemClass = {} }, {}
 assert(loadfile("Init.lua"))()
 assert(loadfile("ListviewBag.lua"))()
+assert(loadfile("InventoryLog.lua"))()
 --- Reject any migration that resets the user's configuration.
 ---@param reason string Reset reason.
 function addon.resetConfig(reason) error(reason) end
@@ -71,10 +72,11 @@ local function checkProfile(profile)
   end
 end
 
-assert(addon.CONFIG_VERSION == 17 and addon.CONFIG_VERSION_RELEASES[17] == 35)
+assert(addon.CONFIG_VERSION == 18 and addon.CONFIG_VERSION_RELEASES[18] == 38)
 for _, version in ipairs({ 0, 15 }) do
   local active, other, detached = makeProfile(), makeProfile(), makeProfile()
   addon.db = {
+    char = {},
     global = { configVersion = version },
     profiles = { Default = active, Other = other },
     profile = detached,
@@ -84,7 +86,9 @@ for _, version in ipairs({ 0, 15 }) do
   for _, profile in ipairs({ active, other, detached }) do
     addon.ListviewBag:MigrateLegacyMailAmounts(profile.listviewBag)
   end
-  assert(addon.db.global.configVersion == 17)
+  assert(addon.db.global.configVersion == 18)
+  assert(detached.inventoryLog.enabled == false and detached.inventoryLog.entriesToKeep == 3000
+    and #addon.db.char.inventoryLog.entries == 0)
   checkProfile(active)
   checkProfile(other)
   checkProfile(detached)
@@ -93,12 +97,12 @@ for _, version in ipairs({ 0, 15 }) do
 end
 local existing = makeProfile()
 existing.listviewBag.auctionIneligibleOverrides = { existing = true }
-addon.db = { global = { configVersion = 15 }, profile = existing }
+addon.db = { global = { configVersion = 15 }, profile = existing, char = {} }
 addon.migrateConfig()
 assert(existing.listviewBag.auctionIneligibleOverrides.existing,
   "Repeating migration must preserve existing overrides")
 local alreadyCurrent = makeProfile()
-addon.db = { global = { configVersion = 16 }, profile = alreadyCurrent }
+addon.db = { global = { configVersion = 16 }, profile = alreadyCurrent, char = {} }
 addon.migrateConfig()
 assert(alreadyCurrent.listviewBag.mailAmounts[pending])
 addon.ListviewBag:MigrateLegacyMailAmounts(alreadyCurrent.listviewBag)
@@ -107,6 +111,40 @@ assert(alreadyCurrent.listviewBag.mailAssignments[common] == 3
   and not alreadyCurrent.listviewBag.mailAssignments[pending])
 assert(type(alreadyCurrent.listviewBag.trashItemsOnce) == "table",
   "Config v17 must initialize the one-time Junk list.")
+
+local history = { { link = "item:101", action = "Sold", quantity = 2 } }
+local activeCharacter = { inventoryLog = { entries = history, actions = { Sold = false } } }
+local otherCharacter = { reminders = { keep = true } }
+local oldProfile = { inventory = { autoRepair = true, autoSellGreyItems = true } }
+local optedIn = { inventory = { inventoryLogEnabled = true } }
+addon.db = { global = { configVersion = 17 }, char = activeCharacter, profile = oldProfile,
+  profiles = { Default = oldProfile, Other = optedIn }, sv = { char = { One = activeCharacter, Two = otherCharacter } } }
+addon.migrateConfig()
+assert(addon.db.global.configVersion == 18 and oldProfile.inventoryLog.enabled == false
+  and oldProfile.inventory.autoRepair and oldProfile.inventory.autoSellGreyItems and optedIn.inventoryLog.enabled
+  and optedIn.inventory.inventoryLogEnabled == nil,
+  "The ledger migration must preserve existing inventory preferences and explicit opt-in")
+assert(activeCharacter.inventoryLog.entries == history and activeCharacter.inventoryLog.actions.Sold == false
+  and type(activeCharacter.inventoryLog.bindings) == "table" and #otherCharacter.inventoryLog.entries == 0
+  and otherCharacter.reminders.keep, "Ledger initialization must preserve every character's existing data")
+local developmentProfile = {
+  inventory = { inventoryLogEnabled = true, autoRepair = true },
+  inventoryLog = setmetatable({}, { __index = { enabled = false, entriesToKeep = 3000 } }),
+}
+addon.db.profile, addon.db.global.configVersion = developmentProfile, 18
+addon.migrateConfig()
+assert(developmentProfile.inventory.inventoryLogEnabled, "An already-current config does not rerun migration 18")
+assert(addon.InventoryLog:GetSettings().enabled and developmentProfile.inventory.inventoryLogEnabled == nil
+  and developmentProfile.inventory.autoRepair,
+  "Runtime migration must preserve v18 opt-in even when AceDB inherits a disabled default")
+developmentProfile.inventory.inventoryLogEnabled = true
+developmentProfile.inventoryLog.enabled = false
+developmentProfile.inventoryLog.entriesToKeep = 17
+developmentProfile.inventoryLog.actionsToLog = { Sold = false }
+local recording = developmentProfile.inventoryLog.actionsToLog
+assert(not addon.InventoryLog:GetSettings().enabled and developmentProfile.inventoryLog.entriesToKeep == 17
+  and developmentProfile.inventoryLog.actionsToLog == recording,
+  "Explicit standalone module choices must win over legacy settings")
 assert(type(alreadyCurrent.listviewBag.auctionItemsOnce) == "table"
   and type(alreadyCurrent.listviewBag.bankItemsOnce) == "table",
   "Config v17 must initialize the one-time Auction and Bank lists.")

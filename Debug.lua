@@ -150,8 +150,9 @@ function purgeLogTable(logTable, cutoff)
   return kept
 end
 
---- Removes debug and error entries older than the configured retention period.
+--- Prune inventory history and remove debug/error entries older than their configured retention period.
 function purgeOldLogs()
+  if Self.InventoryLog then Self.InventoryLog:Purge() end
   if not Self.db.global.logs or not Self.db.global.logs.logPurgeEnabled then
     return
   end

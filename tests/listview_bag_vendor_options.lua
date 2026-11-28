@@ -13,6 +13,7 @@ UIParent = {}
 --- Supply the bag module.
 ---@return table module
 function SlackHacks:NewModule() return { IsEnabled = function() return true end } end
+assert(loadfile("InventoryLog.lua"))()
 --- Include the modern reagent bag.
 ---@return boolean modern
 function SlackHacks.isRetailOrForever() return true end
@@ -99,6 +100,36 @@ local getOptions = upvalue(SlackHacks.registerOptions, "getOptions")
 local bagOptions = getOptions().args.inventory.args.listviewBag.args
 assert(not bagOptions.autoAHMode and SlackHacks.dbDefaults.profile.listviewBag.autoAHMode == nil,
   "Selling View's Auction House behavior must not require a saved mode option")
+local inventoryOptions = getOptions().args.inventory.args
+local logGroup = inventoryOptions.inventoryLog
+local logOption = logGroup.args.enabled
+SlackHacks.db.profile.inventory = { inventoryLogEnabled = false }
+assert(logGroup.name == "Inventory Log" and logGroup.order < inventoryOptions.listviewBag.order
+  and logOption.name == "Enable Inventory Log Module" and not logOption.get()
+  and SlackHacks.dbDefaults.profile.inventoryLog.enabled == false)
+assert(logGroup.args.entriesToKeep.get() == "3000" and logGroup.args.entriesToKeep.validate(nil, "12") == true
+  and logGroup.args.entriesToKeep.validate(nil, "1.5") ~= true and logGroup.args.entriesToKeep.disabled())
+for _, action in ipairs(SlackHacks.InventoryLog.ACTIONS) do
+  assert(logGroup.args.actionsToLog.args[action.id].get())
+end
+logGroup.args.actionsToLog.args.Sold.set(nil, false)
+assert(not logGroup.args.actionsToLog.args.Sold.get() and logGroup.args.actionsToLog.args.Looted.get(),
+  "Recording checkboxes must capture independent action keys")
+local originalRequestClear, requestedClear = SlackHacks.InventoryLog.RequestClearLog, false
+--- Capture the clear action without creating native frames.
+function SlackHacks.InventoryLog:RequestClearLog() requestedClear = true end
+logGroup.args.clearLog.func()
+assert(requestedClear and not logGroup.args.clearLog.disabled, "Clear Log must remain available while disabled")
+SlackHacks.InventoryLog.RequestClearLog = originalRequestClear
+local originalSetLogging = SlackHacks.InventoryLog.SetLoggingEnabled
+--- Record the Options toggle's delegation without initializing the inventory fixture.
+---@param enabled boolean Logging preference.
+function SlackHacks.InventoryLog:SetLoggingEnabled(enabled)
+  SlackHacks.InventoryLog:GetSettings().enabled = enabled
+end
+logOption.set(nil, true)
+assert(logOption.get(), "Options must delegate to the same logging preference used by bag menus")
+SlackHacks.InventoryLog.SetLoggingEnabled = originalSetLogging
 profile.trashItems.old = { name = "Marked Item", quality = 2, itemLevel = 1 }
 profile.trashItems.uncached = { name = "Uncached" }
 profile.trashItems.clear = true
@@ -490,17 +521,18 @@ function EasyMenu(entries) legacy = entries end
 openBagSettings({})
 assert(legacy[1].text == "Switch back to default bags"
   and legacy[2].text == "Auto-Deposit Bank Items"
-  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Settings" and not legacy[5])
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Inventory Log"
+  and legacy[5].text == "Open Inventory Log" and legacy[6].text == "Open Settings" and not legacy[7])
 assert(legacy[2].isNotRadio and legacy[2].keepShownOnClick and not legacy[2].checked())
 legacy[2].func()
 assert(profile.autoDepositBankItems and autoDeposit.get(),
   "The legacy menu must toggle the same auto-deposit setting.")
 openedGroup = nil
-legacy[4].func()
+legacy[6].func()
 assert(openedGroup[1] == "inventory" and openedGroup[2] == "listviewBag")
 profile.enabled = false
 openedGroup = nil
-legacy[4].func()
+legacy[6].func()
 legacy[2].func()
 assert(not openedGroup, "A disabled module must not open settings from a stale menu")
 assert(profile.autoDepositBankItems, "A disabled module must not toggle auto-deposit from a stale menu")
@@ -510,7 +542,8 @@ SlackHacks.openOptions = originalOpenOptions
 SlackHacks.isRetail = function() return false end
 openBagSettings({})
 assert(legacy[2].text == "Auto-Deposit Bank Items"
-  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Open Settings",
+  and legacy[3].text == "Auto-Sell Junk" and legacy[4].text == "Inventory Log"
+  and legacy[5].text == "Open Inventory Log" and legacy[6].text == "Open Settings",
   "Other clients must not offer the removed footer choice")
 assert(profile.trackCrestCurrencies, "Removing the footer choice must not alter saved preferences")
 
@@ -522,14 +555,16 @@ for _, tag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }
   local label
   local root = {
     CreateDivider = function() end,
-    CreateButton = function(_, text) label = text end,
+    CreateTitle = function(_, text) assert(text == "|cffffd100SlackHacks|r") end,
+    CreateCheckbox = function(_, text) assert(text == "Inventory Log") end,
+    CreateButton = function(_, text) if text ~= "Open Inventory Log" then label = text end end,
   }
   nativeMenus[tag](nil, root)
-  assert(label == "Switch to SlackHacks' Listview Bag")
+  assert(label == "Switch to Listview Bag")
   profile.enabled = false
   label = nil
   nativeMenus[tag](nil, root)
-  assert(not label, "Disabled modules must not add native bag menu actions")
+  assert(label == "Switch to Listview Bag", "Blizzard's menu must remain available without replacement bags")
   profile.enabled = true
 end
 
@@ -620,4 +655,39 @@ assert(savedBag.essentialItems[6948] == false and savedBag.essentialItems.arrows
   and not savedBag.categoryFilters.special and savedBag.trashItems.retained,
   "Custom settings must persist across logout without changing existing profile settings")
 SlackHacks.db = oldDB
+
+-- Exercise the production startup block before AceDB fills defaults, including already-current v18 saves.
+local startupFile = assert(io.open("Init.lua"))
+local startupSource = startupFile:read("*a")
+startupFile:close()
+local startupStart = assert(startupSource:find("function Self:OnInitialize()", 1, true))
+local startupEnd = assert(startupSource:find("  -- One-time nudge", startupStart, true))
+local initializeSavedSettings = assert(loadstring(startupSource:sub(startupStart, startupEnd - 1) .. "\nend"))
+setfenv(initializeSavedSettings, SlackHacks)
+initializeSavedSettings()
+local oldSaved = _G.SlackHacksDB
+_G.SlackHacksDB = {
+  global = { configVersion = 18 },
+  profiles = {
+    Default = { inventory = { inventoryLogEnabled = true, autoRepair = true } },
+    Explicit = { inventory = { inventoryLogEnabled = true },
+      inventoryLog = { enabled = false, entriesToKeep = 17, actionsToLog = { Sold = false } } },
+    Other = { inventory = { inventoryLogEnabled = true } },
+  },
+}
+SlackHacks:OnInitialize()
+assert(SlackHacks.InventoryLog:IsLoggingEnabled() and SlackHacks.db.profile.inventory.autoRepair
+  and SlackHacks.db.profile.inventory.inventoryLogEnabled == nil,
+  "Materialized AceDB defaults must not erase a saved v18 opt-in")
+SlackHacks.db:SetProfile("Explicit")
+assert(not SlackHacks.InventoryLog:IsLoggingEnabled() and SlackHacks.InventoryLog:GetSettings().entriesToKeep == 17
+  and SlackHacks.InventoryLog:GetSettings().actionsToLog.Sold == false
+  and SlackHacks.InventoryLog:GetSettings().actionsToLog.Looted == true,
+  "Explicit new settings and wildcard action defaults must survive startup")
+SlackHacks.db:SetProfile("Other")
+assert(SlackHacks.InventoryLog:IsLoggingEnabled(), "Inactive profiles must also preserve legacy opt-in")
+dbFrame.scripts.OnEvent(dbFrame, "PLAYER_LOGOUT")
+SlackHacks:OnInitialize()
+assert(SlackHacks.InventoryLog:IsLoggingEnabled(), "Migrated opt-in must persist across logout/reload")
+SlackHacks.db, _G.SlackHacksDB = oldDB, oldSaved
 print("Listview bag vendor options tests passed")

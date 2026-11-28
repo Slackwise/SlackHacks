@@ -7,6 +7,7 @@
 
 ### ListviewBag
 - Renamed "Default View" to "General View" and expanded the width to fit the text.
+- Added an Inventory Log module with configurable retention and recorded actions, confirmed log clearing, and a searchable, mail-styled quantity/item/action/timestamp ledger accessible from either bag interface. Mail and trade entries include the recipient or trade partner.
 
 ## v37
 

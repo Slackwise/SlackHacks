@@ -22,6 +22,7 @@ end
 --- Supply the bag module.
 ---@return table module
 function SlackHacks:NewModule() return { IsEnabled = function() return true end } end
+assert(loadfile("InventoryLog.lua"))()
 --- Include the modern reagent bag.
 ---@return boolean modern
 function SlackHacks.isRetailOrForever() return true end
@@ -2284,7 +2285,7 @@ assert(footer.slotCount.text == "|cffffffff30 / 81|r",
   "An equipped reagent bag with free space must count as one free slot")
 assert(footer.slotCount.points.LEFT[1] == footer and footer.slotCount.points.LEFT[2] == "LEFT"
   and footer.slotCount.points.LEFT[3] == 4 and footer.slotCount.points.LEFT[4] == 0
-  and footer.slotIcon.texture == "Interface\\Buttons\\Button-Backpack-Up"
+  and footer.slotIcon.normalTexture == "Interface\\Icons\\INV_Scroll_03"
   and footer.slotIcon.width == 16 and footer.slotIcon.height == 16
   and footer.slotIcon.points.LEFT[1] == footer.slotCount and footer.slotIcon.points.LEFT[2] == "RIGHT"
   and footer.slotIcon.points.LEFT[3] == 2

@@ -29,6 +29,7 @@ IconNames.lua
 IconNamePopup.lua
 ListviewBagGear.lua
 ListviewBagAuction.lua
+InventoryLog.lua
 ListviewBag.lua
 Minimap.lua
 Windows.lua

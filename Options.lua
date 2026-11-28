@@ -17,6 +17,7 @@ dbDefaults = {
     },
   },
   char = {
+    inventoryLog = { entries = {}, actions = {}, bindings = {}, categories = {} },
     cache = {
       lastKnownGildedStashesRemaining = nil,
       lastKnownGildedStashesResetAt = nil
@@ -48,6 +49,11 @@ dbDefaults = {
       autoRepair = false,
       autoRepairMode = "personal",
       hideBagsFrame = false
+    },
+    inventoryLog = {
+      enabled = false,
+      entriesToKeep = 3000,
+      actionsToLog = { ["*"] = true },
     },
     listviewBag = {
       enabled = false,
@@ -1375,9 +1381,33 @@ local function essentialItemOptions()
   return args
 end
 
---- Refresh dynamic bag-item controls whenever AceConfig requests the options table.
+--- Build independent logging preferences for every supported inventory action.
+---@return table options Action checkboxes, separate from the ledger's display filters.
+local function inventoryLogActionOptions()
+  local actions = {}
+  for index, action in ipairs(Self.InventoryLog.ACTIONS) do
+    local id = action.id
+    actions[id] = {
+      type = "toggle",
+      name = action.name,
+      width = "half",
+      order = index,
+      --- Read whether this action should be recorded.
+      ---@return boolean enabled Recording preference.
+      get = function() return Self.InventoryLog:GetSettings().actionsToLog[id] ~= false end,
+      --- Change recording without invalidating transaction correlation.
+      ---@param _ table AceConfig option path.
+      ---@param value boolean Recording preference.
+      set = function(_, value) Self.InventoryLog:GetSettings().actionsToLog[id] = value end,
+    }
+  end
+  return actions
+end
+
+--- Refresh dynamic inventory controls whenever AceConfig requests the options table.
 ---@return table options The shared addon options table.
 local function getOptions()
+  options.args.inventory.args.inventoryLog.args.actionsToLog.args = inventoryLogActionOptions()
   options.args.inventory.args.listviewBag.args.autoVendorItems.args =
     listviewFlagItemOptions("trashItems", "Junk")
   options.args.inventory.args.listviewBag.args.autoAuctionItems.args =
@@ -2031,6 +2061,68 @@ options = {
             applyHideBagsFrame()
           end,
           order = 4.5
+        },
+        inventoryLog = {
+          type = "group",
+          name = "Inventory Log",
+          desc = "A searchable history of this character's item activity, including when using Blizzard's bags.",
+          order = 4.75,
+          args = {
+            overview = goldModuleOverview("A searchable history of this character's item activity."),
+            enabled = {
+              name = "Enable Inventory Log Module",
+              type = "toggle",
+              descStyle = "inline",
+              width = "full",
+              order = 1,
+              --- Read the module preference.
+              ---@return boolean enabled Whether the module is selected.
+              get = function() return Self.InventoryLog:IsLoggingEnabled() end,
+              --- Enable/disable the Ace3 module and offer to clear existing history.
+              ---@param _ table AceConfig option path.
+              ---@param value boolean Module preference.
+              set = function(_, value) Self.InventoryLog:SetLoggingEnabled(value) end,
+            },
+            entriesToKeep = {
+              name = "Log entries to keep: ",
+              desc = "Keep the newest entries. Cleanup runs periodically; lowering this limit also cleans up immediately.",
+              type = "input",
+              width = "full",
+              order = 2,
+              --- Show the numeric retention limit.
+              ---@return string count Retention input.
+              get = function() return tostring(Self.InventoryLog:GetSettings().entriesToKeep) end,
+              --- Apply a validated retention limit.
+              ---@param _ table AceConfig option path.
+              ---@param value string Retention input.
+              set = function(_, value) Self.InventoryLog:SetEntriesToKeep(value) end,
+              --- Reject nonpositive, fractional, and nonnumeric limits.
+              ---@param _ table AceConfig option path.
+              ---@param value string Retention input.
+              ---@return boolean|string valid Validation result.
+              validate = function(_, value) return Self.InventoryLog:ValidateEntriesToKeep(value) end,
+              --- Follow the module's enabled state.
+              ---@return boolean disabled Whether the input is disabled.
+              disabled = function() return not Self.InventoryLog:IsLoggingEnabled() end,
+            },
+            actionsToLog = {
+              type = "group",
+              name = "Actions to Log",
+              inline = true,
+              order = 3,
+              args = {},
+              --- Follow the module's enabled state.
+              ---@return boolean disabled Whether recording preferences are disabled.
+              disabled = function() return not Self.InventoryLog:IsLoggingEnabled() end,
+            },
+            clearLog = {
+              type = "execute",
+              name = "Clear Log",
+              order = 4,
+              --- Confirm before clearing this character's history, including while disabled.
+              func = function() Self.InventoryLog:RequestClearLog() end,
+            },
+          },
         },
         listviewBag = {
           type = "group",
