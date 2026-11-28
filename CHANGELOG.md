@@ -1,5 +1,11 @@
 # SlackHacks Changelog
 
+## v37
+
+### ListviewBag
+- Refactored the Mail flag workflow to match the other flags.
+- Redesigned the Mail Queue Quantity window.
+
 ## v36
 
 ### ListviewBag
