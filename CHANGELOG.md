@@ -6,6 +6,7 @@
 - Hide unavailable realm information in WoW Forever friend tooltips.
 
 ### ListviewBag
+- Right-click toggles Junk (Once) on or off without changing remembered Junk or other flags.
 - Renamed "Default View" to "General View" and expanded the width to fit the text.
 - Switching to a disabled Listview Bag or opening a disabled Inventory Log asks before enabling the module; the Inventory Log window opens only after acceptance.
 - Inventory Log's Qty. column keeps signed single-digit quantities visible with wider native fonts, using green for gains and red for losses.

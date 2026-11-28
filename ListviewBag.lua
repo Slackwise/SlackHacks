@@ -2895,6 +2895,9 @@ local function createRow(index)
   row.statusBtn.text:SetAllPoints()
   row.statusBtn.text:SetJustifyH("CENTER")
   row.statusBtn.text:SetText("...")
+  --- Choose flags with left-click or toggle a one-time Junk flag with right-click.
+  ---@param self table Native flag button.
+  ---@param button string Clicked mouse button.
   row.statusBtn:SetScript("OnClick", function(self, button)
     if not isModuleEnabled() then return end
     if row.statusInfo.quality == nil then
@@ -2909,7 +2912,11 @@ local function createRow(index)
       local status = getItemStatus(row.statusKey, row.statusInfo.quality, row.statusInfo.link,
         row.statusInfo.itemLevel, row.statusInfo.upgradeTrack)
       if status == ITEM_STATUSES[1] then
-        prn("This item is already marked as Junk.")
+        if junk.flagMode(status, row.statusKey, row.statusInfo) == "once" then
+          setItemStatus(row.statusKey, row.statusInfo, nil, row.statusContext)
+        else
+          prn("This item is already marked as Junk.")
+        end
       elseif not status then
         setItemStatus(row.statusKey, row.statusInfo, ITEM_STATUSES[1], row.statusContext, "once")
       else
@@ -2919,6 +2926,8 @@ local function createRow(index)
       openItemStatusMenu(self, row.statusKey, row.statusInfo, row.statusContext)
     end
   end)
+  --- Explain the current flag and the available mouse actions.
+  ---@param self table Native flag button.
   row.statusBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local status = getItemStatus(row.statusKey, row.statusInfo.quality, row.statusInfo.link,
@@ -2954,8 +2963,8 @@ local function createRow(index)
         end
       end
       local rightClick = row.statusInfo.quality == 0 and "Grey items can only be protected."
-        or status and status ~= ITEM_STATUSES[1] and "Right-click cannot change this flag."
-        or "Right-click to quick-flag as Junk this once."
+        or status and (status ~= ITEM_STATUSES[1] or mode ~= "once") and "Right-click cannot change this flag."
+        or "Right-click to toggle Junk (Once) flag."
       local instructionColor = status and status.id == "mail" and 0.6 or 1
       GameTooltip:AddLine("Left-click to choose flag.\n" .. rightClick,
         instructionColor, instructionColor, instructionColor, true)

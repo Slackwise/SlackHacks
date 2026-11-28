@@ -264,7 +264,7 @@ updateStatusButton(button, getStatus("item"))
 assert(button.text.shown and button.text.text == "..." and not button.icon.shown)
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Click to Flag:" and #GameTooltip.lines == 1
-  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to quick-flag as Junk this once.")
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to toggle Junk (Once) flag.")
 
 local menuTitle
 MenuUtil = {
@@ -308,12 +308,25 @@ assert(button.icon.shown and button.icon.atlas == "bags-junkcoin" and not button
 button.scripts.OnClick(button, "RightButton")
 assert(getStatus("item", 1, row.statusInfo.link, 10, nil).id == "vendor",
   "Right-click must not remove a remembered Junk mark.")
+button.scripts.OnEnter(button)
+assert(GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click cannot change this flag.",
+  "Remembered Junk must not advertise a one-time toggle")
 entries[1].selectStatus()
 assert(not getStatus("item", 1, row.statusInfo.link, 10, nil), "The menu must clear a Junk mark.")
 button.scripts.OnClick(button, "RightButton")
 assert(getStatus("item", 1, row.statusInfo.link, 10, nil).id == "vendor"
   and profile.trashItemsOnce[junkKey] == row.statusInfo,
   "Right-click must create a one-time Junk mark.")
+button.scripts.OnEnter(button)
+assert(GameTooltip.text == "Flagged for: Junk (Once)"
+  and GameTooltip.lines[1] == "Left-click to choose flag.\nRight-click to toggle Junk (Once) flag.")
+button.scripts.OnClick(button, "RightButton")
+assert(not getStatus("item", 1, row.statusInfo.link, 10, nil)
+  and not profile.trashItemsOnce[junkKey] and not profile.trashItems[junkKey],
+  "A second right-click must clear the one-time Junk flag")
+button.scripts.OnClick(button, "RightButton")
+assert(profile.trashItemsOnce[junkKey] == row.statusInfo and not profile.trashItems[junkKey],
+  "Right-click must be able to enable the one-time Junk flag again")
 assert(not getStatus("item", 1, "|Hitem:1:99:0:0|h[Item]|h", 10, nil),
   "A Junk mark must not match another item-link variation.")
 chooseFlag(2, "once")
