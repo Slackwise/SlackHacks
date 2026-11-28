@@ -1984,7 +1984,7 @@ local function deleteMailRecipient(bag, id)
 end
 
 --- Apply a recipient and optional one-time quantity after validating the open selection.
----@param picker table Recipient picker.
+---@param picker table Visible recipient picker or quantity prompt.
 ---@param choice table Recipient and original flag state.
 ---@param amount number|nil One-time quantity, or nil to remember all.
 local function applyMailChoice(picker, choice, amount)
@@ -2020,7 +2020,7 @@ local function applyMailChoice(picker, choice, amount)
   end
   if amount then
     bag.mailQueues[key] = bag.mailQueues[key] or {}
-    table.insert(bag.mailQueues[key], { recipient = choice.id, remaining = amount })
+    table.insert(bag.mailQueues[key], 1, { recipient = choice.id, remaining = amount })
   else
     bag.mailAssignments[key] = choice.id
   end
@@ -2029,13 +2029,13 @@ local function applyMailChoice(picker, choice, amount)
   picker:Hide()
 end
 
---- Show the one-time quantity or remembered-recipient choice.
+--- Replace the recipient picker with a quantity prompt at the same anchor.
 ---@param picker table Recipient picker.
 ---@param choice table Recipient and original flag state.
 local function openMailAmountPrompt(picker, choice)
   if not mailAmountPrompt then
-    local prompt = CreateFrame("Frame", "SlackHacksMailAmountPrompt", picker, "SimplePanelTemplate")
-    prompt:SetSize(310, 232)
+    local prompt = CreateFrame("Frame", "SlackHacksMailAmountPrompt", frame, "SimplePanelTemplate")
+    prompt:SetSize(350, 260)
     prompt:SetFrameStrata("DIALOG")
     prompt:SetToplevel(true)
     prompt:SetClampedToScreen(true)
@@ -2061,10 +2061,27 @@ local function openMailAmountPrompt(picker, choice)
     title:SetPoint("TOPRIGHT", -14, -21)
     title:SetHeight(26)
     title:SetJustifyH("CENTER")
-    title:SetText("Mail Item")
+    title:SetText("Mail Queue Quantity")
+    prompt.recipient = prompt:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    prompt.recipient:SetPoint("TOPLEFT", 16, -56)
+    prompt.recipient:SetPoint("TOPRIGHT", -16, -56)
+    prompt.item = CreateFrame("Button", nil, prompt)
+    prompt.item:SetSize(318, 32)
+    prompt.item:SetPoint("TOP", prompt.recipient, "BOTTOM", 0, -8)
+    prompt.item.text = prompt.item:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    prompt.item.text:SetAllPoints()
+    --- Show the selected item's tooltip before its quantity is queued.
+    ---@param self table Item preview button.
+    prompt.item:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      GameTooltip:SetHyperlink(prompt.choice.statusInfo.link)
+      GameTooltip:Show()
+    end)
+    prompt.item:SetScript("OnLeave", GameTooltip_Hide)
     local onceLabel = prompt:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    onceLabel:SetPoint("TOP", 0, -56)
-    onceLabel:SetText("Send only a specific amount one time?")
+    onceLabel:SetPoint("TOP", prompt.item, "BOTTOM", 0, -12)
+    onceLabel:SetWidth(318)
+    onceLabel:SetText("How many of this item should be added to the front of the Mail Queue?")
     prompt.amount = CreateFrame("EditBox", nil, prompt, "InputBoxTemplate")
     prompt.amount:SetSize(100, 20)
     prompt.amount:SetPoint("TOP", onceLabel, "BOTTOM", 0, -8)
@@ -2073,7 +2090,7 @@ local function openMailAmountPrompt(picker, choice)
     local once = CreateFrame("Button", nil, prompt, "SharedButtonSmallTemplate")
     once:SetSize(120, 22)
     once:SetPoint("TOP", prompt.amount, "BOTTOM", 0, -8)
-    once:SetText("Send Once")
+    once:SetText("Enqueue")
     --- Validate and save the requested one-time quantity.
     once:SetScript("OnClick", function()
       local text = prompt.amount:GetText()
@@ -2083,27 +2100,22 @@ local function openMailAmountPrompt(picker, choice)
         prompt.amount:SetFocus()
         return
       end
-      applyMailChoice(prompt.picker, prompt.choice, value)
+      applyMailChoice(prompt, prompt.choice, value)
     end)
-    local rememberLabel = prompt:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    rememberLabel:SetPoint("TOP", once, "BOTTOM", 0, -13)
-    rememberLabel:SetText("Or, send all and remember this recipient?")
-    local remember = CreateFrame("Button", nil, prompt, "SharedButtonSmallTemplate")
-    remember:SetSize(120, 22)
-    remember:SetPoint("TOP", rememberLabel, "BOTTOM", 0, -8)
-    remember:SetText("Remember")
-    --- Save the recipient for all matching items.
-    remember:SetScript("OnClick", function() applyMailChoice(prompt.picker, prompt.choice) end)
     CreateFrame("Button", nil, prompt, "UIPanelCloseButtonDefaultAnchors")
     mailAmountPrompt = prompt
   end
   mailAmountPrompt:Hide()
-  mailAmountPrompt:SetParent(picker)
-  mailAmountPrompt.picker = picker
+  mailAmountPrompt:SetParent(picker:GetParent())
+  mailAmountPrompt.bag = choice.bag
   mailAmountPrompt.choice = choice
   mailAmountPrompt:ClearAllPoints()
-  mailAmountPrompt:SetPoint("TOPLEFT", picker, "TOPRIGHT", 4, 0)
+  mailAmountPrompt:SetPoint(picker:GetPoint(1))
+  mailAmountPrompt.recipient:SetText("Send to: " .. choice.recipient.nickname .. " ("
+    .. choice.recipient.character .. ")")
+  mailAmountPrompt.item.text:SetText(choice.statusInfo.link)
   mailAmountPrompt.amount:SetText("")
+  picker:Hide()
   mailAmountPrompt:Show()
 end
 
@@ -2113,7 +2125,8 @@ end
 ---@param statusInfo table Item metadata.
 ---@param mailMode boolean|nil Whether the picker is opened from the Send Mail tab.
 ---@param context table|nil Captured row and bag slots.
-local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, context)
+---@param flagMode string|nil "once" for a queued quantity or "always" for a default recipient.
+local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, context, flagMode)
   if mailMode and not next(collectRecipientMailItems(settings())) then return end
   if not recipientPicker then
     local forever = isForever()
@@ -2452,7 +2465,20 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
             previousRecipient = picker.bag.mailAssignments[picker.key],
             previousHead = picker.bag.mailQueues[picker.key] and picker.bag.mailQueues[picker.key][1],
           }
-          openMailAmountPrompt(picker, choice)
+          if picker.flagMode == "always" then
+            applyMailChoice(picker, choice)
+          elseif not info.link then
+            prn("Item information is not yet available; select the recipient again.")
+          else
+            local stackSize = select(8, C_Item.GetItemInfo(info.link))
+            if type(stackSize) ~= "number" then
+              prn("Item stack information is not yet available; select the recipient again.")
+            elseif stackSize > 1 then
+              openMailAmountPrompt(picker, choice)
+            else
+              applyMailChoice(picker, choice, 1)
+            end
+          end
         end
       end)
       row.DeleteButton:SetScript("OnClick", function()
@@ -2472,6 +2498,7 @@ local function openMailRecipientPicker(anchor, key, statusInfo, mailMode, contex
   recipientPicker.key = key
   recipientPicker.statusInfo = statusInfo
   recipientPicker.statusContext = context
+  recipientPicker.flagMode = flagMode or "always"
   recipientPicker:ClearAllPoints()
   recipientPicker:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 4, 0)
   recipientPicker.refreshRecipients()
@@ -2535,12 +2562,6 @@ local function installMailHooks()
   end)
 end
 
---- Select a flag, requesting a recipient before applying Mail.
----@param anchor table Flag button.
----@param key string Item status key.
----@param statusInfo table Item metadata.
----@param status table Selected flag.
----@param context table|nil Captured row and bag slots.
 --- Return whether a flag is currently marked Once or Always.
 ---@param status table Flag definition.
 ---@param key string Item status key.
@@ -2556,6 +2577,23 @@ junk.flagMode = function(status, key, statusInfo)
   if status == ITEM_STATUSES[1] and bag.trashItems[key] ~= nil then return "always" end
 end
 
+--- Check a duration choice, including Mail's independent queue and default recipient.
+---@param key string Item status key.
+---@param statusInfo table Item metadata.
+---@param status table Selected flag.
+---@param mode string "once" or "always".
+---@return boolean checked Whether this duration choice is active.
+local function isItemStatusMode(key, statusInfo, status, mode)
+  if getItemStatus(key, statusInfo.quality, statusInfo.link,
+    statusInfo.itemLevel, statusInfo.upgradeTrack) ~= status then return false end
+  if status.id == "mail" then
+    local bag = settings()
+    if mode == "always" then return bag.mailAssignments[key] ~= nil end
+    return bag.mailQueues[key] ~= nil and #bag.mailQueues[key] > 0
+  end
+  return junk.flagMode(status, key, statusInfo) == mode
+end
+
 --- Select a flag, requesting a recipient before applying Mail.
 ---@param anchor table Flag button.
 ---@param key string Item status key.
@@ -2568,7 +2606,7 @@ local function selectItemStatus(anchor, key, statusInfo, status, context, flagMo
     if statusInfo.quality == nil or statusInfo.quality == 0 then
       setItemStatus(key, statusInfo, status, context)
     elseif validateStatusContext(context, status) then
-      openMailRecipientPicker(anchor, key, statusInfo, nil, context)
+      openMailRecipientPicker(anchor, key, statusInfo, nil, context, flagMode)
     end
   elseif status.onceField then
     setItemStatus(key, statusInfo, status, context, flagMode)
@@ -2596,16 +2634,14 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
         local status = entry
         if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
           local label = statusMenuLabel(status)
-          if status.onceField then
+          if status.onceField or status.id == "mail" then
             local submenu = root:CreateButton(label)
             for _, mode in ipairs({ "once", "always" }) do
               local flagMode = mode
               local modeLabel = flagMode == "once" and "Once" or "Always"
               submenu:CreateRadio(modeLabel,
                 function()
-                  return getItemStatus(key, statusInfo.quality, statusInfo.link,
-                    statusInfo.itemLevel, statusInfo.upgradeTrack) == status
-                    and junk.flagMode(status, key, statusInfo) == flagMode
+                  return isItemStatusMode(key, statusInfo, status, flagMode)
                 end,
                 function() selectItemStatus(anchor, key, statusInfo, status, context, flagMode) end)
             end
@@ -2631,16 +2667,14 @@ local function openItemStatusMenu(anchor, key, statusInfo, context)
     for _, entry in ipairs(ITEM_STATUS_MENU_ORDER) do
       local status = entry
       if statusInfo.quality ~= 0 or status == PROTECT_STATUS then
-        if status.onceField then
+        if status.onceField or status.id == "mail" then
           local submenu = {}
           for _, mode in ipairs({ "once", "always" }) do
             local flagMode = mode
             submenu[#submenu + 1] = {
               text = flagMode == "once" and "Once" or "Always",
               checked = function()
-                return getItemStatus(key, statusInfo.quality, statusInfo.link,
-                  statusInfo.itemLevel, statusInfo.upgradeTrack) == status
-                  and junk.flagMode(status, key, statusInfo) == flagMode
+                return isItemStatusMode(key, statusInfo, status, flagMode)
               end,
               func = function() selectItemStatus(anchor, key, statusInfo, status, context, flagMode) end,
             }

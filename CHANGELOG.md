@@ -8,6 +8,7 @@
 ## v35
 
 ### Inventory
+- Mail now offers Once or Always: queue an item or quantity at the front of the Mail Queue, or choose a default recipient.
 - Junk, Auction, and Bank flags can be set Once or Always; one-time flags clear when the item leaves your bags, and remembered Auction and Bank items get their own Options lists.
 - Junk flags now distinguish item variants such as item level, quality, upgrade track, and enchants.
 - Added a Deposit Bank Flagged Items button to the bank and an optional Auto-Deposit Bank Flagged Items setting.
