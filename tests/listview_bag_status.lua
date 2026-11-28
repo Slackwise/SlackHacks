@@ -326,7 +326,7 @@ for _, case in ipairs({
   { index = 5, field = "mailItems" },
   { index = 6, field = "protectedItems" },
 }) do
-  if case.index == 3 or case.index == 4 then
+  if case.index == 3 or case.index == 4 or case.index == 5 then
     chooseFlag(case.index, "always")
   else
     entries[case.index].selectStatus()
@@ -414,10 +414,10 @@ button.scripts.OnClick(button, "RightButton")
 assert(not profile.trashItems.item and not profile.trashItems[junkKey]
   and profile.bankItems.item and protected("item"))
 chooseRecipient = false
-entries[5].selectStatus()
+chooseFlag(5, "always")
 assert(profile.bankItems.item and not profile.mailItems.item, "Canceling recipient selection must preserve the flag")
 chooseRecipient = true
-entries[5].selectStatus()
+chooseFlag(5, "always")
 assert(profile.mailItems.item and not profile.trashItems.item and not profile.trashItems[junkKey])
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[1] == "Mail Queue:"
@@ -433,7 +433,7 @@ assert(profile.mailItems.item and not profile.mailAssignments.item, "Deleting a 
 button.scripts.OnEnter(button)
 assert(GameTooltip.text == "Flagged for: Mail" and GameTooltip.lines[2] == "  None")
 profile.mailRecipients[1] = { nickname = "Bank Alt", character = "Example" }
-entries[5].selectStatus()
+chooseFlag(5, "always")
 updateStatusButton(button, getStatus("item", 1, row.statusInfo.link, 10, nil))
 assert(button.icon.texture == "Interface\\Minimap\\Tracking\\Mailbox")
 entries[1].selectStatus()
@@ -611,7 +611,9 @@ assert(legacy[3].menuList[1].text == "Once" and legacy[3].menuList[2].text == "A
   and legacy[4].menuList[1].text == "Once" and legacy[4].menuList[2].text == "Always"
   and legacy[5].menuList[1].text == "Once" and legacy[5].menuList[2].text == "Always",
   "The legacy menu must expose duration submenus for Junk, Auction, and Bank.")
-legacy[6].func()
+assert(legacy[6].menuList[1].text == "Once" and legacy[6].menuList[2].text == "Always",
+  "Mail must offer duration choices in the legacy menu.")
+legacy[6].menuList[2].func()
 assert(profile.mailItems.other and not profile.trashItems.other)
 assert(openedPicker > 0 and profile.mailAssignments.other == 1)
 legacy[2].func()
@@ -875,15 +877,20 @@ function CreateFrame(kind, name, parent, template)
   local result = originalCreateFrame(kind, name, parent, template)
   result.points = {}
   function result:GetText() return self.text or "" end
+  function result:SetFocus() self.focused = true end
+  function result:HighlightText() self.highlighted = true end
   function result:IsShown() return self.shown end
   function result:SetSize(width, height) self.width, self.height = width, height end
   function result:SetPoint(point, ...) self.points[point] = { ... } end
   function result:SetParent(parent) self.parent = parent end
+  function result:GetParent() return self.parent end
+  function result:GetPoint() return "TOPLEFT", unpack(self.points.TOPLEFT) end
   if name == "SlackHacksMailAmountPrompt" then
     amountPrompt, amountButtons, amountLabels = result, {}, {}
     result.Inset, result.Bg = widget(), widget()
-    function result:CreateFontString()
+    function result:CreateFontString(_, _, font)
       local label = widget()
+      label.font = font
       amountLabels[#amountLabels + 1] = label
       return label
     end
@@ -1058,32 +1065,54 @@ SlackHacks.db.profile.listviewBag = profile
 openPicker(button, "pick", row.statusInfo)
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
-assert(amountPrompt.shown and not profile.mailItems.pick,
-  "Non-stackable items must also show the amount prompt")
-assert(amountPrompt.Bg.texture == "Interface\\MailFrame\\UI-MailFrameBG"
-  and amountPrompt.Bg.texCoord[2] == 320 / 512 and amountPrompt.Bg.texCoord[4] == 224 / 512,
-  "The mail prompt must use the cropped inbox background")
-amountButtons[2].scripts.OnClick()
 assert(profile.mailItems.pick and not profile.trashItems.pick and profile.mailAssignments.pick == 1
-  and not profile.mailQueues.pick, "Remember must assign a default recipient")
+  and not profile.mailQueues.pick and not picker.shown,
+  "Always must assign a default recipient without a quantity prompt")
+
+openPicker(button, "single", row.statusInfo, nil, nil, "once")
+recipientRow = pickerRow(scroll.elements[1])
+recipientRow.scripts.OnClick()
+assert(profile.mailQueues.single[1].remaining == 1 and not profile.mailAssignments.single
+  and not picker.shown and not amountPrompt,
+  "Once must immediately enqueue one non-stackable item without a quantity prompt")
 
 pickerStackSize = 20
 profile.trashItems.stack = row.statusInfo
-openPicker(button, "stack", row.statusInfo)
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
-assert(amountPrompt.shown and profile.trashItems.stack and not profile.mailItems.stack)
-assert(amountLabels[2].text == "Send only a specific amount one time?"
-  and amountLabels[3].text == "Or, send all and remember this recipient?"
-  and amountButtons[1].text == "Send Once" and amountButtons[2].text == "Remember")
+assert(amountPrompt.shown and not picker.shown and profile.trashItems.stack and not profile.mailItems.stack)
+assert(amountLabels[1].text == "Queue Mail Item"
+  and amountLabels[2].text == "Send to:"
+  and amountLabels[3].text == "|T123:24:24|t Alt"
+  and amountLabels[4].text == "Example-Realm"
+  and amountLabels[5].text == "Quantity:"
+  and amountLabels[6].text == "Added to the front of this item's mail queue."
+  and amountButtons[1].text == "Enqueue" and #amountButtons == 1)
+assert(amountLabels[2].font == "GameFontHighlightSmall" and amountLabels[2].textColor[1] == 0.65
+  and amountLabels[3].font == "GameFontNormalLarge",
+  "The recipient nickname must be larger and visually distinct from the muted Send to label.")
+assert(amountPrompt.amount:GetText() == "1" and amountPrompt.amount.focused and amountPrompt.amount.highlighted,
+  "The quantity must default to one and be focused and selected for immediate editing.")
+assert(amountPrompt.item.text.text:find(":24:24|t " .. row.statusInfo.link, 1, true)
+  and amountPrompt.points.TOPLEFT[1] == picker.points.TOPLEFT[1]
+  and amountPrompt.points.TOPLEFT[2] == picker.points.TOPLEFT[2]
+  and amountPrompt.points.TOPLEFT[3] == picker.points.TOPLEFT[3]
+  and amountPrompt.parent == picker.parent, "The quantity prompt must replace the picker at its anchor")
+local setHyperlink = GameTooltip.SetHyperlink
+GameTooltip.SetHyperlink = function(_, link) assert(link == row.statusInfo.link) end
+amountPrompt.item.scripts.OnEnter(amountPrompt.item)
+GameTooltip.SetHyperlink = setHyperlink
 amountPrompt.amount:SetText("0")
 amountButtons[1].scripts.OnClick()
 assert(amountPrompt.shown and not profile.mailItems.stack, "Invalid amounts must not change the flag")
 amountPrompt:Hide()
 assert(profile.trashItems.stack and not profile.mailItems.stack, "Canceling must preserve the previous flag")
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
+recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 amountPrompt.amount:SetText("25")
-amountButtons[1].scripts.OnClick()
+amountPrompt.amount.scripts.OnEnterPressed()
 assert(profile.mailItems.stack and not profile.mailAssignments.stack
   and profile.mailQueues.stack[1].recipient == 1 and profile.mailQueues.stack[1].remaining == 25)
 row.statusKey = "stack"
@@ -1098,7 +1127,7 @@ assert(GameTooltip.lines[2] == "  - Alt (1 pending)" and GameTooltip.lines[3] ==
 profile.mailQueues.stack[1].remaining, profile.mailAssignments.stack = 25, nil
 row.statusKey = "item"
 profile.mailRecipients[2] = { nickname = "Other", character = "Other-Realm", icon = 1 }
-openPicker(button, "stack", row.statusInfo)
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow({ id = 2, recipient = profile.mailRecipients[2], enabled = true })
 recipientRow.scripts.OnClick()
 amountPrompt.amount:SetText("4")
@@ -1106,21 +1135,23 @@ amountButtons[1].scripts.OnClick()
 openPicker(button, "stack", row.statusInfo)
 recipientRow = pickerRow({ id = 2, recipient = profile.mailRecipients[2], enabled = true })
 recipientRow.scripts.OnClick()
-amountButtons[2].scripts.OnClick()
 assert(profile.mailAssignments.stack == 2 and #profile.mailQueues.stack == 2
-  and profile.mailQueues.stack[1].recipient == 1 and profile.mailQueues.stack[2].recipient == 2,
-  "Remember must preserve the FIFO queue")
+  and profile.mailQueues.stack[1].recipient == 2 and profile.mailQueues.stack[2].recipient == 1,
+  "Once must prepend the queue; Always must preserve the queue")
 row.statusKey = "stack"
+button.scripts.OnClick(button, "LeftButton")
+assert(legacy[6].menuList[1].checked() and legacy[6].menuList[2].checked(),
+  "Mail's queue and default recipient must both be reflected in the duration submenu.")
 button.scripts.OnEnter(button)
-assert(GameTooltip.lines[2] == "  - Alt (25 pending)"
-  and GameTooltip.lines[3] == "  - Other (4 pending)"
+assert(GameTooltip.lines[2] == "  - Other (4 pending)"
+  and GameTooltip.lines[3] == "  - Alt (25 pending)"
   and GameTooltip.lines[4] == "  - Other (default)")
 row.statusKey = "item"
 setStatus("stack", row.statusInfo, statuses[2])
 assert(not profile.mailQueues.stack and not profile.mailAssignments.stack,
   "Changing the flag must discard the queue and default recipient")
 profile.mailRecipients[2] = nil
-openPicker(button, "stack", row.statusInfo)
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 setStatus("stack", row.statusInfo, statuses[4])
@@ -1128,20 +1159,21 @@ amountPrompt.amount:SetText("5")
 amountButtons[1].scripts.OnClick()
 assert(profile.bankItems.stack and not profile.mailItems.stack and not profile.mailQueues.stack,
   "A stale quantity prompt must not overwrite a changed flag")
-openPicker(button, "stack", row.statusInfo)
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 local previousRecipient = profile.mailRecipients[1]
 profile.mailRecipients[1] = { nickname = "Replacement", character = "Other" }
-amountButtons[2].scripts.OnClick()
+amountPrompt.amount:SetText("5")
+amountButtons[1].scripts.OnClick()
 assert(profile.bankItems.stack and not profile.mailItems.stack, "A stale prompt must not use a replaced recipient")
 profile.mailRecipients[1] = previousRecipient
 pickerStackSize = nil
-openPicker(button, "stack", row.statusInfo)
+openPicker(button, "stack", row.statusInfo, nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
-assert(amountPrompt.shown and profile.bankItems.stack,
-  "The amount prompt must not depend on stack metadata being cached")
+assert(picker.shown and not amountPrompt.shown and profile.bankItems.stack,
+  "Unavailable stack metadata must preserve the flag and keep recipient selection open")
 amountPrompt:Hide()
 pickerStackSize = 1
 openPicker(button, "another", row.statusInfo)
@@ -1339,7 +1371,7 @@ function C_Item.GetItemInfo(link)
     return "Unrelated", link, 1, 10, nil, nil, nil, nil, "", nil, 1, 0, nil, 0, nil, nil, false
   end
   local reagent = link == "reagent-link"
-  return reagent and "Herb" or "Sword", link, 1, 10, nil, nil, nil, nil,
+  return reagent and "Herb" or "Sword", link, 1, 10, nil, nil, nil, pickerStackSize,
     reagent and "" or "INVTYPE_CHEST", nil, 1, reagent and 7 or 4, nil, 0, nil, nil, reagent
 end
 function C_Item.GetDetailedItemLevelInfo() return 10 end
@@ -1889,12 +1921,15 @@ recipientRow = pickerRow(scroll.elements[1])
 recipientRow.scripts.OnClick()
 drainMailTimers()
 assert(attachments[1].stackCount == 10 and SendMailMailButton.enabled)
-openPicker(button, swordKey, { name = "Sword", quality = 1, itemLevel = 10, link = "sword-link" })
+pickerStackSize = 20
+openPicker(button, swordKey, { name = "Sword", quality = 1, itemLevel = 10, link = "sword-link" },
+  nil, nil, "once")
 recipientRow = pickerRow(scroll.elements[2])
 recipientRow.scripts.OnClick()
 amountPrompt.amount:SetText("2")
 amountButtons[1].scripts.OnClick()
 assert(not SendMailMailButton.enabled, "A stale default draft must not bypass the new queue")
+pickerStackSize = 1
 attachments = {}
 SendMailFrame_CanSend()
 assert(SendMailMailButton.enabled, "Removing stale attachments must restore normal sending")
@@ -2096,17 +2131,17 @@ do
     "A stale Mail choice must not change its queue when the item becomes soulbound")
   bagSlots[1].accountBound = true
   applyChoice(picker, choice, 2)
-  assert(not profile.mailQueues[base] and profile.mailQueues[variant][1].remaining == 3
-    and profile.mailQueues[variant][2].remaining == 2 and profile.mailAssignments[variant] == 1
+  assert(not profile.mailQueues[base] and profile.mailQueues[variant][1].remaining == 2
+    and profile.mailQueues[variant][2].remaining == 3 and profile.mailAssignments[variant] == 1
     and profile.mailItems[base] and profile.mailItems[variant],
-    "Separating a Mail flag must move its existing queue before appending")
+    "Separating a Mail flag must move its existing queue before prepending")
   profile.auctionItems[base], profile.mailItems[base] = info, nil
 
   row.statusKey, row.statusContext = base, unbound
   button.scripts.OnClick(button, "LeftButton")
   bagSlots[2].isBound = true
   legacy[4].menuList[2].func()
-  assert(profile.auctionItems[base] and profile.mailQueues[variant][1].remaining == 3,
+  assert(profile.auctionItems[base] and profile.mailQueues[variant][1].remaining == 2,
     "A stale menu must not replace flags or queues after binding changes")
   bagSlots[2].isBound = nil
   C_AuctionHouse.IsSellItemValid = function() return false end
