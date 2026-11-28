@@ -902,6 +902,10 @@ local function renderViewport()
       row = CreateFrame("Button", nil, window.scrollChild)
       window.rows[index] = row
       row:SetHeight(ROW_HEIGHT)
+      row.shade = row:CreateTexture(nil, "BACKGROUND")
+      row.shade:SetPoint("TOPLEFT", 0, -1)
+      row.shade:SetPoint("BOTTOMRIGHT", 0, 1)
+      row.shade:SetColorTexture(1, 1, 1, 1)
       -- Inherit Send Mail's dark parchment text color, keeping the ledger's compact font sizes.
       local font = MailTextFontNormal:GetFont()
       row.quantity = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
@@ -971,6 +975,9 @@ local function renderViewport()
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", window.scrollChild, "TOPLEFT", 0, -(first + index - 2) * ROW_HEIGHT)
         row:SetPoint("TOPRIGHT", window.scrollChild, "TOPRIGHT", 0, -(first + index - 2) * ROW_HEIGHT)
+        -- Stripe by filtered entry position, not the recycled widget, so colors stay stable while scrolling.
+        local gradient = window.rowGradients[(first + index) % 2 + 1]
+        row.shade:SetGradient("HORIZONTAL", gradient[1], gradient[2])
         row.quantity:SetText(quantityText(entry))
         if entry.direction == 1 then
           row.quantity:SetTextColor(GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g, GREEN_FONT_COLOR.b)
@@ -1022,6 +1029,10 @@ end
 --- Reuse Send Mail's native chrome, input borders, stationery, and scrollbar for the ledger.
 local function createWindow()
   window = CreateFrame("Frame", "SlackHacksInventoryLogFrame", UIParent, "ButtonFrameTemplate")
+  window.rowGradients = {
+    { CreateColor(0, 0, 0, 0.28), CreateColor(0, 0, 0, 0.14) },
+    { CreateColor(0, 0, 0, 0.18), CreateColor(0, 0, 0, 0.08) },
+  }
   window:SetWidth(410)
   window:SetPoint("CENTER")
   window:SetFrameStrata("DIALOG")
@@ -1132,13 +1143,16 @@ local function createWindow()
   table.insert(UISpecialFrames, window:GetName())
 end
 
---- Open saved history and offer to enable disabled logging from every entry point.
+--- Open the ledger only after disabled logging is confirmed and enabled.
 function module:Open()
-  if not window then createWindow() end
-  window:Show()
-  window:Raise()
-  self:Refresh()
-  if self:IsLoggingEnabled() then return end
+  if self:IsLoggingEnabled() then
+    if not window then createWindow() end
+    window:Show()
+    window:Raise()
+    self:Refresh()
+    return
+  end
+  if window then window:Hide() end
   local id = "SLACKHACKS_ENABLE_INVENTORY_LOG"
   StaticPopupDialogs[id] = {
     text = "Inventory logging is disabled. Enable Inventory Log?",
@@ -1147,15 +1161,16 @@ function module:Open()
     timeout = 0,
     whileDead = true,
     hideOnEscape = true,
-    --- Enable only the profile for which the offer was shown.
+    --- Enable the confirmed profile, then open its ledger.
     ---@param _ table Confirmation dialog.
     ---@param data table Captured profile and settings.
     OnAccept = function(_, data)
       if Self.db.profile ~= data.profile or module:GetSettings() ~= data.settings then
-        prn("The profile changed; Inventory Log was not enabled.")
+        prn("The profile changed; Inventory Log was not enabled or opened.")
         return
       end
       if not module:IsLoggingEnabled() then module:SetLoggingEnabled(true) end
+      module:Open()
     end,
   }
   if not StaticPopup_Show(id, nil, nil, { profile = Self.db.profile, settings = self:GetSettings() }) then
@@ -1187,7 +1202,7 @@ function module:ConfigureButton(button)
     GameTooltip:SetText("Inventory Log")
     GameTooltip:AddLine("View recent item activity.", 1, 1, 1)
     if not module:IsLoggingEnabled() then
-      GameTooltip:AddLine("Logging is disabled. Opening the log offers to enable it, or use Inventory settings.",
+      GameTooltip:AddLine("Enable Inventory Log to open the window. You will be asked to confirm.",
         1, 0.82, 0, true)
     end
     GameTooltip:Show()

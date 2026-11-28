@@ -110,6 +110,11 @@ local function widget(frameType, name, parent)
   function object:SetNormalTexture(texture) self.normalTexture = texture end
   --- Record a row icon.
   function object:SetTexture(texture) self.texture = texture end
+  --- Capture a native gradient's orientation and endpoint colors.
+  ---@param orientation string Gradient direction.
+  ---@param first table Starting color.
+  ---@param last table Ending color.
+  function object:SetGradient(orientation, first, last) self.gradient = { orientation, first, last } end
   --- Record a native script.
   function object:SetScript(event, handler) self.scripts[event] = handler end
   --- Record a script hook without replacing native behavior.
@@ -206,6 +211,13 @@ GameFontHighlightSmall = widget()
 MailTextFontNormal, ChatFontNormal = widget(), widget()
 GREEN_FONT_COLOR = { r = 0, g = 1, b = 0 }
 RED_FONT_COLOR = { r = 1, g = 0.1, b = 0.1 }
+--- Supply native gradient colors without introducing a texture renderer.
+---@param r number Red component.
+---@param g number Green component.
+---@param b number Blue component.
+---@param a number Alpha component.
+---@return table color RGBA components.
+function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 GameTooltip = widget()
 --- Capture tooltip links and reset supplemental lines between hovered items.
 ---@param itemLink string Saved item link.
@@ -412,6 +424,10 @@ assert(loadfile("InventoryLog.lua"))()
 local log = SlackHacks.InventoryLog
 log:OnInitialize()
 assert(not log:IsEnabled() and not log.active, "The opt-in Ace3 module must start disabled")
+log:Open()
+assert(not frames.SlackHacksInventoryLogFrame and not log:IsLoggingEnabled()
+  and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
+  "Opening a disabled ledger must ask first without even creating its window")
 
 --- Make one stack.
 ---@param itemLink string Link.
@@ -1097,9 +1113,17 @@ assert(panel.scroll.template == "ScrollFrameTemplate"
 assert(panel.rows[1].quantity.fontTemplate == "MailTextFontNormal" and panel.rows[1].quantity.fontSize == 9
   and panel.rows[1].action.fontTemplate == "MailTextFontNormal" and panel.rows[1].timestamp.fontSize == 7
   and panel.rows[1].height == 28 - 5
-  and panel.rows[1].points.TOPLEFT[4] - panel.rows[2].points.TOPLEFT[4] == 28 - 5
-  and rawget(panel.rows[1], "shade") == nil and rawget(panel.rows[2], "shade") == nil,
+  and panel.rows[1].points.TOPLEFT[4] - panel.rows[2].points.TOPLEFT[4] == 28 - 5,
   "Ledger text must inherit mail's readable parchment color without enlarging the narrow columns")
+local darkGradient, lightGradient = panel.rows[1].shade.gradient, panel.rows[2].shade.gradient
+assert(darkGradient[1] == "HORIZONTAL" and lightGradient[1] == "HORIZONTAL"
+  and darkGradient[2].r < 0.5 and lightGradient[2].r < 0.5
+  and darkGradient[2].a > lightGradient[2].a and darkGradient[3].a > lightGradient[3].a
+  and lightGradient[2].a > 0.16 and lightGradient[3].a > 0.04
+  and darkGradient[2].a > darkGradient[3].a and lightGradient[2].a > lightGradient[3].a
+  and panel.rows[3].shade.gradient[2] == darkGradient[2]
+  and panel.rows[3].shade.gradient[3] == darkGradient[3],
+  "Gradients must be darker than the old gray overlay and alternate dark, light, dark")
 assert(panel.CloseButton.template == "UIPanelCloseButtonDefaultAnchors")
 panel.CloseButton.scripts.OnClick(panel.CloseButton)
 assert(not panel.shown and log.active and log:IsLoggingEnabled(), "Closing history must not disable logging")
@@ -1156,7 +1180,13 @@ for hour, expected in pairs({ [11] = "11/28 11:58am", [23] = "11/28 11:58pm" }) 
 end
 timestampEntry.timestamp = originalTimestamp
 log:Refresh()
+panel.scroll:SetVerticalScroll(23)
+assert(panel.rows[1].shade.gradient[2] == lightGradient[2]
+  and panel.rows[2].shade.gradient[2] == darkGradient[2],
+  "An odd-row scroll must preserve striping for the logical entries when widgets are reused")
 panel.scroll:SetVerticalScroll(23 * 100)
+assert(panel.rows[1].shade.gradient[2] == darkGradient[2],
+  "An even-row scroll must restore the dark stripe")
 assert(panel.rows[1].entry.quantity == 2907, "The viewport must render the scrolled entry, not the first one")
 panel.rows[1].scripts.OnEnter(panel.rows[1])
 assert(GameTooltip.link == link, "Tooltips must use the saved link after the item leaves inventory")
@@ -1181,11 +1211,12 @@ local menu = {}
 log:AddMenu(nil, menu)
 assert(#menu == 1 and menu[1].text == "Open Inventory Log" and menu[1].notCheckable)
 menu[1].func()
-assert(panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG"
+assert(not panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG"
   and StaticPopupDialogs[popup.id].button2 == NO,
-  "Opening disabled history must offer to enable logging without changing it before confirmation")
+  "Opening disabled history must wait for confirmation without showing the window")
 StaticPopupDialogs[popup.id].OnAccept(nil, popup.data)
-assert(log:IsLoggingEnabled() and log.active and #data.entries == 3000)
+assert(panel.shown and log:IsLoggingEnabled() and log.active and #data.entries == 3000,
+  "Accepting must enable logging and open the preserved history")
 local modernButtons = {}
 --- Capture modern open actions.
 function root:CreateButton(title, select) modernButtons[title] = select end
@@ -1193,28 +1224,29 @@ log:AddMenu(root)
 assert(not selections["Inventory Log"] and modernButtons["Open Inventory Log"],
   "The shared modern menu must not include an Inventory Log checkbox")
 popup = nil
+panel:Hide()
 modernButtons["Open Inventory Log"]()
-assert(not popup, "Enabled logging must open directly without an enable offer")
+assert(panel.shown and not popup, "Enabled logging must open directly without an enable offer")
 log:SetLoggingEnabled(false)
 popup = nil
 log:Open()
-assert(panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
-  "Direct Inventory Log opens must offer to enable the disabled module")
+assert(not panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
+  "Direct Inventory Log opens must wait for confirmation before showing the window")
 modernButtons["Open Inventory Log"]()
-assert(panel.shown and not log:IsLoggingEnabled() and #data.entries == 3000
+assert(not panel.shown and not log:IsLoggingEnabled() and #data.entries == 3000
   and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
-  "Declining the modern menu's enable offer must leave existing history readable and logging disabled")
+  "Declining the modern menu's enable offer must preserve history, leave the window closed, and keep logging disabled")
 local offeredProfile, enableOffer, noticeCount = SlackHacks.db.profile, popup.data, #notices
 SlackHacks.db.profile = { listviewBag = {}, inventoryLog = { enabled = false } }
 StaticPopupDialogs[popup.id].OnAccept(nil, enableOffer)
-assert(not log:IsLoggingEnabled() and #notices == noticeCount + 1,
-  "A stale enable offer must not enable a different profile")
+assert(not panel.shown and not log:IsLoggingEnabled() and #notices == noticeCount + 1,
+  "A stale enable offer must not enable a different profile or open the window")
 SlackHacks.db.profile = offeredProfile
 local offeredSettings = log:GetSettings()
 SlackHacks.db.profile.inventoryLog = { enabled = false }
 noticeCount = #notices
 StaticPopupDialogs[popup.id].OnAccept(nil, enableOffer)
-assert(not log:IsLoggingEnabled() and #notices == noticeCount + 1,
+assert(not panel.shown and not log:IsLoggingEnabled() and #notices == noticeCount + 1,
   "Resetting settings within the same profile must invalidate an older enable offer")
 SlackHacks.db.profile.inventoryLog = offeredSettings
 local showPopup = StaticPopup_Show
@@ -1222,8 +1254,8 @@ local showPopup = StaticPopup_Show
 function StaticPopup_Show() return nil end
 noticeCount = #notices
 log:Open()
-assert(panel.shown and not log:IsLoggingEnabled() and #notices == noticeCount + 1,
-  "A missing enable confirmation must report the failure without enabling logging")
+assert(not panel.shown and not log:IsLoggingEnabled() and #notices == noticeCount + 1,
+  "A missing enable confirmation must report the failure without enabling logging or showing the window")
 StaticPopup_Show = showPopup
 local ledgerButton = CreateFrame("Button")
 log:ConfigureButton(ledgerButton)
@@ -1233,13 +1265,15 @@ assert(GameTooltip.text == "Inventory Log")
 panel:Hide()
 popup = nil
 ledgerButton.scripts.OnClick()
-assert(panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
-  "The footer button must offer enable confirmation while leaving logging disabled until acceptance")
-menu[1].func()
+assert(not panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
+  "The footer button must leave the window closed until enable confirmation is accepted")
 StaticPopupDialogs[popup.id].OnAccept(nil, popup.data)
+assert(panel.shown and log:IsLoggingEnabled(), "Accepting the footer's confirmation must enable and open the ledger")
 popup = nil
+panel:Hide()
 ledgerButton.scripts.OnClick()
-assert(log:IsLoggingEnabled() and not popup, "An enabled ledger must also open directly from its footer button")
+assert(panel.shown and log:IsLoggingEnabled() and not popup,
+  "An enabled ledger must also open directly from its footer button")
 local legacyFilters
 --- Capture the shared legacy filter menu.
 function EasyMenu(entries) legacyFilters = entries end
