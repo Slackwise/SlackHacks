@@ -264,8 +264,8 @@ end
 
 --- Shows the friend's tooltip, modeled on the FriendsFrame's (FriendsListButtonMixin:OnEnter).
 --- Battle.net friends: Battle.net name with AFK/DND, then for a WoW character in this game version
---- "Name, Level N Race Class", faction and "zone - realm" (or region), otherwise their character/game name and
---- rich presence (e.g. "In Menus"), followed by the friend's note and broadcast message.
+--- "Name, Level N Race Class", faction and zone with realm (except on Forever) or region; otherwise their
+--- character/game name and rich presence (e.g. "In Menus"), followed by the friend's note and broadcast message.
 --- Character friends: name with AFK/DND, "Level N Race Class", faction, zone and note.
 ---@param owner Frame The hovered row the tooltip anchors to.
 ---@param friend table Friend entry built by buildFriends().
@@ -285,8 +285,12 @@ local function showFriendTooltip(owner, friend)
       GameTooltip:AddLine(character, (friend.classColor or white):GetRGB())
       addFactionLine(game.factionName)
       if game.isInCurrentRegion then
-        GameTooltip:AddLine(BNET_FRIEND_TOOLTIP_ZONE_AND_REALM:format(friend.zone, game.realmDisplayName or UNKNOWN),
-          white:GetRGB())
+        if isForever() then
+          GameTooltip:AddLine(friend.zone, white:GetRGB())
+        else
+          GameTooltip:AddLine(BNET_FRIEND_TOOLTIP_ZONE_AND_REALM:format(friend.zone, game.realmDisplayName or UNKNOWN),
+            white:GetRGB())
+        end
       else
         GameTooltip:AddLine(BNET_FRIEND_TOOLTIP_ZONE_AND_REGION:format(friend.zone,
           REGION_NAMES[game.regionID] or UNKNOWN), white:GetRGB())

@@ -2,6 +2,9 @@
 
 ## v38
 
+### Friends List
+- Hide unavailable realm information in WoW Forever friend tooltips.
+
 ### ListviewBag
 - Renamed "Default View" to "General View" and expanded the width to fit the text.
 

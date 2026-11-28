@@ -18,6 +18,10 @@ local foreverClient = false
 --- Report whether the test is simulating WoW Forever.
 ---@return boolean forever
 function addon.isForever() return foreverClient end
+--- Supply unused group-icon markup when Core.lua loads.
+---@return string markup
+function CreateAtlasMarkup() return "" end
+assert(loadfile("Core.lua"))()
 
 --- Copy a plain saved configuration for independent test cases.
 ---@param value any Original value.
@@ -175,6 +179,9 @@ end
 ---@param other string Comparison token.
 ---@return boolean same
 function UnitIsUnit(token, other) return unit(token).player or false end
+--- Reject connection checks; group membership alone determines tank eligibility.
+---@param token string Unit token.
+function UnitIsConnected(token) error("Tank selection must not check connection status") end
 --- Return a tank's name and realm.
 ---@param token string Unit token.
 ---@return string|nil name
@@ -229,14 +236,16 @@ end
 assert(loadfile("Combat.lua"))()
 module:OnInitialize()
 module:OnEnable()
-for _, event in ipairs({ "GROUP_JOINED", "GROUP_LEFT", "GROUP_ROSTER_UPDATE", "PLAYER_ROLES_ASSIGNED",
-  "ROLE_CHANGED_INFORM", "UNIT_NAME_UPDATE", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }) do assert(events[event]) end
-assert(events.UPDATE_BINDINGS == "UpdateBinding")
+assert(next(events) == nil)
 assert(creates == 0 and module:GetCommands() == DEFAULT)
 boundKeys = { "CTRL-E" }
 module:UpdateBinding()
 assert(next(overrides) == nil) -- The binding does nothing until the feature is enabled.
 module:SetOption("enabled", true)
+for _, event in ipairs({ "GROUP_JOINED", "GROUP_LEFT", "GROUP_ROSTER_UPDATE", "PLAYER_ROLES_ASSIGNED",
+  "ROLE_CHANGED_INFORM", "UNIT_NAME_UPDATE", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }) do assert(events[event]) end
+assert(not events.UNIT_CONNECTION)
+assert(events.UPDATE_BINDINGS == "UpdateBinding")
 assert(overrides["CTRL-E"] == "ASSIST_TANK")
 local clearCount = clears
 module:UpdateBinding()
@@ -256,14 +265,28 @@ p.macroName = "RENAMED"
 module:UpdateBinding()
 assert(overrides.F6 == "RENAMED") -- Renaming the macro retargets the binding.
 p.macroName = "ASSIST_TANK"
+combat = true
 module:SetOption("enabled", false)
-assert(next(overrides) == nil)
+assert(next(events) == nil and overrides.F6 == "RENAMED" and #afterCombat == 1)
+combat = false
+table.remove(afterCombat)()
+assert(next(overrides) == nil and next(events) == nil)
 boundKeys = {}
 module:UpdateBinding()
 module:SetOption("enabled", true)
 assert(creates == 1 and macros[1].body == "#showtooltip Attack\n/startattack")
 assert(macros[1].icon == "inv_misc_questionmark")
 assert(messages[#messages] == "Assist Tank Macro recreated targeting: (no tank/pet)")
+-- Event subscriptions follow the setting even when binding and macro changes must wait for combat.
+combat = true
+module:SetOption("enabled", false)
+assert(next(events) == nil)
+module:SetOption("enabled", true)
+assert(events.GROUP_ROSTER_UPDATE and events.PLAYER_REGEN_ENABLED and #afterCombat == 1)
+combat = false
+module[events.PLAYER_REGEN_ENABLED](module, "PLAYER_REGEN_ENABLED")
+table.remove(afterCombat)()
+assert(macros[1].body == "#showtooltip Attack\n/startattack")
 for _, class in ipairs({ "MAGE", "PRIEST", "WARLOCK" }) do
   playerClass = class
   module:Refresh()
@@ -409,6 +432,23 @@ assert(macros[1].body == "#showtooltip Attack\n/startattack")
 module:UNIT_NAME_UPDATE("UNIT_NAME_UPDATE", "party1")
 assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm"))
 
+-- A disconnected tank remains selected while in the group, even when another tank is available.
+units[1].connected = false
+units[2] = { name = "Backup", role = "TANK" }
+local previousEdits = edits
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm") and edits == previousEdits)
+combat = true
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+combat = false
+module:PLAYER_REGEN_ENABLED()
+assert(macros[1].body == renderTank(DEFAULT, "Other-OtherRealm") and edits == previousEdits)
+units = { units[2] }
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+assert(macros[1].body == renderTank(DEFAULT, "Backup"))
+units = { { name = "Other", realm = "Other Realm", role = "TANK" } }
+module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+
 -- Events in combat defer the write and resolve the current roster after combat.
 combat = true
 units[1].role = "DAMAGER"
@@ -427,7 +467,7 @@ module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
 module:SetOption("enabled", false)
 local disabledBody = macros[1].body
 units[1].name = "Ignored"
-module[events.GROUP_ROSTER_UPDATE](module, "GROUP_ROSTER_UPDATE")
+assert(not events.GROUP_ROSTER_UPDATE)
 assert(macros[1].body == disabledBody)
 units[1].name = "Other"
 module:SetOption("enabled", true)
@@ -586,6 +626,13 @@ p.enabled, p.macroName = false, "PROFILE_TWO"
 addon.db.profile = { combat = { assistTankMacro = p } }
 callbacks.OnProfileChanged()
 assert(module:GetDraft("macroName") == "PROFILE_TWO")
+assert(next(events) == nil)
+p.enabled = true
+callbacks.OnProfileCopied()
+assert(events.GROUP_ROSTER_UPDATE and not events.UNIT_CONNECTION)
+p.enabled = false
+callbacks.OnDatabaseReset()
+assert(next(events) == nil)
 module:SetDraft("macroName", "DISCARD")
 p.macroName = "PROFILE_TWO" -- Simulate the persisted name restored by a profile reset.
 callbacks.OnProfileReset()

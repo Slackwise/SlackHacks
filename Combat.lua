@@ -93,14 +93,8 @@ local function findTank()
     local role = UnitGroupRolesAssigned(unit)
     if not (_G.issecretvalue and _G.issecretvalue(role))
       and role == "TANK" and not UnitIsUnit(unit, "player") then
-      local name, realm = UnitFullName(unit)
-      if not (_G.issecretvalue and (_G.issecretvalue(name) or _G.issecretvalue(realm)))
-        and name and name ~= "" then
-        if realm and realm ~= "" then
-          return name .. (isForever() and (" " .. realm) or ("-" .. realm:gsub("%s", "")))
-        end
-        return name
-      end
+      local name = unitFullName(unit)
+      if name then return name end
     end
   end
 end
@@ -306,6 +300,25 @@ function module:SaveMacro(notify)
   return true
 end
 
+--- Keep assist-macro events registered only while the feature is active.
+---@return nil
+local function syncAssistEvents()
+  if not module:IsEnabled() or not settings().enabled then
+    module:UnregisterAllEvents()
+    return
+  end
+  for _, event in ipairs({
+    "PLAYER_ENTERING_WORLD", "GROUP_JOINED", "GROUP_LEFT", "GROUP_ROSTER_UPDATE",
+    "PLAYER_ROLES_ASSIGNED", "ROLE_CHANGED_INFORM",
+  }) do
+    module:RegisterEvent(event, "Refresh")
+  end
+  module:RegisterEvent("UNIT_NAME_UPDATE")
+  module:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
+  module:RegisterEvent("PLAYER_REGEN_ENABLED")
+  module:RegisterEvent("UPDATE_BINDINGS", "UpdateBinding")
+end
+
 --- Apply an immediate feature/mode preference while retaining saved custom commands.
 ---@param key string Setting name.
 ---@param value boolean Setting value.
@@ -313,6 +326,7 @@ end
 function module:SetOption(key, value)
   settings()[key] = value
   lastError = nil
+  if key == "enabled" then syncAssistEvents() end
   self:Refresh()
 end
 
@@ -383,22 +397,14 @@ end
 function module:OnProfileRefresh()
   drafts = setmetatable({}, { __mode = "k" })
   lastError = nil
+  syncAssistEvents()
   self:Refresh()
 end
 
---- Listen for joining, roster changes, role assignments, and reloads.
+--- Initialize feature-specific events and refresh the current configuration.
 ---@return nil
 function module:OnEnable()
-  for _, event in ipairs({
-    "PLAYER_ENTERING_WORLD", "GROUP_JOINED", "GROUP_LEFT", "GROUP_ROSTER_UPDATE",
-    "PLAYER_ROLES_ASSIGNED", "ROLE_CHANGED_INFORM",
-  }) do
-    self:RegisterEvent(event, "Refresh")
-  end
-  self:RegisterEvent("UNIT_NAME_UPDATE")
-  self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "Refresh")
-  self:RegisterEvent("PLAYER_REGEN_ENABLED")
-  self:RegisterEvent("UPDATE_BINDINGS", "UpdateBinding")
+  syncAssistEvents()
   self:Refresh()
 end
 

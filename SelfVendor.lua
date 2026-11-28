@@ -189,10 +189,9 @@ local function enhancementFlaskName(sourceKey, classKey, specKey)
   return specData and specData.Flask
 end
 
---- Case-insensitively look up a personal BIS override by "Character-Realm" key.
--- Case-insensitive because character/realm names typed in slash commands or read from
--- UnitFullName may not match the exact casing stored in ENHANCEMENTS_BIS_OVERRIDES.
--- @param key string|nil "Character-Realm" identifier to look up.
+--- Case-insensitively look up a personal BIS override by character and realm, or full name on Forever.
+-- Names typed in slash commands or read from a unit may differ in case from the stored keys.
+-- @param key string|nil "Character-Realm" or Forever full character name.
 -- @return table|nil override spec data, string|nil the exact key it was stored under.
 local function enhancementOverrideForKey(key)
   if not key or not ENHANCEMENTS_BIS_OVERRIDES then return nil end
@@ -201,19 +200,25 @@ local function enhancementOverrideForKey(key)
   end
 end
 
---- Look up a personal BIS override for a specific unit or a fallback "Name-Realm" string.
+--- Look up a personal BIS override for a specific unit or a fallback character name.
 -- Overrides are gated behind isSlackwise() because they encode one person's (Slackwise's)
 -- personal gear preferences that diverge from the generic class/spec guides, and shouldn't
 -- silently apply to other players running this addon.
 -- @param unit string|nil unit token (e.g. "target") to resolve a full name from.
--- @param fallbackName string|nil "Name-Realm" string to use if `unit` doesn't resolve.
+-- @param fallbackName string|nil "Name-Realm" or Forever full character name.
 -- @return table|nil override spec data if one exists for this character.
 local function enhancementOverride(unit, fallbackName)
   if not isSlackwise() or not ENHANCEMENTS_BIS_OVERRIDES then return nil end
-  local characterName, realmName = unit and UnitFullName(unit)
-  local key = characterFullName(characterName, realmName)
+  local key, hasSecondPart
+  if unit then key, hasSecondPart = unitFullName(unit) end
+  if isForever() then
+    local override, overrideKey = enhancementOverrideForKey(key)
+    if override then return override, overrideKey end
+    return enhancementOverrideForKey(fallbackName)
+  end
+  if not hasSecondPart then key = nil end
   if not key and fallbackName then
-    characterName, realmName = fallbackName:match("^(.+)%-(.+)$")
+    local characterName, realmName = fallbackName:match("^(.+)%-(.+)$")
     key = characterFullName(characterName, realmName)
   end
   return enhancementOverrideForKey(key)
@@ -376,7 +381,7 @@ end
 -- loadout should always win over generic guide data.
 -- @param unit string|nil unit token to inspect (defaults to "player").
 -- @param sourceKey string|nil requested/validated enhancement data source.
--- @param characterName string|nil "Name-Realm" fallback used for override lookups.
+-- @param characterName string|nil "Name-Realm" or Forever full-name fallback for override lookups.
 -- @return table|nil recommendation (see buildBISEnhancementRecommendation), string|nil resolved sourceKey.
 local function currentRecommendation(unit, sourceKey, characterName)
   local _, classFile = UnitClass(unit or "player")
@@ -600,14 +605,14 @@ local function hasConsumableBuff(unit, buffName, auraSpellID)
   return false
 end
 
---- Handler for `/slack sendaugs <class> <spec> [source]` (and the Slackwise-only
--- `/slack sendaugs <character> <realm> [source]` override form). Mails BIS enchants/gems
+--- Handler for `/slack sendaugs <class> <spec> [source]` and the personal override form
+-- (`<character> <realm>` on Retail or `<first> <last>` on Forever). Mails BIS enchants/gems
 -- for a class/spec (or a saved personal override) rather than trading them directly, since
 -- this command is meant for prepping mail to alts/other players who aren't online/nearby to
 -- trade with — unlike the chat-trade flow, which requires the recipient to be in range.
 -- Gated to isSlackwise() because this is a personal bulk-mailing tool, not a general feature.
 -- @param input string command text after "sendaugs", e.g. "shaman enhancement wowhead" or
---   "Charname Realmname" for a personal override lookup.
+--   "Charname Realmname" or "First Last" for a personal override lookup.
 function module:SendAugsForClassSpec(input)
   if InCombatLockdown() then
     prn("Self Vendor is paused during combat.")
@@ -656,7 +661,10 @@ function module:SendAugsForClassSpec(input)
   if not classKey or not resolvedSpec then
     prn("unknown class/spec for sendaugs: " .. strtrim(input or ""))
     print("Usage: /slack sendaugs <class> <spec> [wowhead|icyveins|murlok]")
-    if isSlackwise() then prn("personal overrides use /slack sendaugs <character> <realm> [wowhead|icyveins|murlok]") end
+    if isSlackwise() then
+      local nameArgs = isForever() and "<first> <last>" or "<character> <realm>"
+      prn("personal overrides use /slack sendaugs " .. nameArgs .. " [wowhead|icyveins|murlok]")
+    end
     return
   end
 
@@ -947,7 +955,7 @@ function module:OnInitialize()
   -- TRADE_SHOW fires for trades we open too; remember who we last opened one with so Automatic
   -- Trade Response only answers trades other players open with us, not our own manual trades.
   hooksecurefunc("InitiateTrade", function(unitOrName)
-    if InCombatLockdown() then return end
+    if not module:IsEnabled() or InCombatLockdown() then return end
     module.selfInitiatedTradeName = unitOrName and UnitName(unitOrName) or unitOrName
   end)
   if not moduleShouldBeActive() then self:Disable() end
@@ -1465,7 +1473,10 @@ function module:GetRequiredItems()
     or modeIncludesConsumable(mode, "augmentRune")
     or modeIncludesConsumable(mode, "vantusRune")
   if not needsRecommendation then return required end
-  local recommendationData, sourceKey = currentRecommendation(self.pendingUnit or "player", db.profile.selfVendor.source, self.pendingName)
+  -- The player's class can be the fallback, but their name must not identify an unresolved trade partner.
+  local recommendationUnit = self.pendingUnit
+  if not recommendationUnit and not self.pendingName then recommendationUnit = "player" end
+  local recommendationData, sourceKey = currentRecommendation(recommendationUnit, db.profile.selfVendor.source, self.pendingName)
   if not recommendationData then
     return nil, sourceKey
   end

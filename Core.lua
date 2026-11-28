@@ -232,9 +232,29 @@ function sameName(left, right)
   return ok and isSame
 end
 
-function characterFullName(characterName, realmName)
-  if not characterName or not realmName then return nil end
-  return characterName .. "-" .. realmName:gsub("%s+", "")
+--- Formats character name parts for the current client.
+--- The second part is a last name on Forever and a realm on other clients.
+---@param characterName string|nil Character name, or first name on Forever.
+---@param secondPart string|nil Realm, or last name on Forever.
+---@return string|nil name Formatted name, or nil if either part is missing or secret.
+function characterFullName(characterName, secondPart)
+  if _G.issecretvalue and (_G.issecretvalue(characterName) or _G.issecretvalue(secondPart)) then return nil end
+  if not characterName or not secondPart then return nil end
+  if isForever() then return characterName .. " " .. secondPart end
+  return characterName .. "-" .. secondPart:gsub("%s+", "")
+end
+
+--- Returns a unit's full character name in the format used by the current client.
+--- UnitFullName's second return is a last name on Forever, but a realm on other clients.
+---@param unit string Unit token.
+---@return string|nil name Formatted name (or first part alone), or nil if unavailable or secret.
+---@return boolean|nil hasSecondPart Whether the last name or realm was available.
+function unitFullName(unit)
+  local name, secondPart = UnitFullName(unit)
+  if _G.issecretvalue and (_G.issecretvalue(name) or _G.issecretvalue(secondPart)) then return nil end
+  if not name or name == "" then return nil end
+  if not secondPart or secondPart == "" then return name, false end
+  return characterFullName(name, secondPart), true
 end
 
 function groupUnitFor(name)

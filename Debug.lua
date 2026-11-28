@@ -562,6 +562,14 @@ local function isEligibleToReportErrorLogs()
   return isRetail() or isForever()
 end
 
+--- Returns the reporting player's full name using the current client's name format.
+---@return string|nil name Character and realm, or first and last name on Forever.
+local function reportPlayerName()
+  if isForever() then return unitFullName("player") end
+  local name = UnitName("player")
+  return characterFullName(name, GetRealmName()) or name
+end
+
 --- Looks for Slack currently online, either as a Battle.net (real-ID) friend playing WoW, or as a
 --- character named "Slack" online in our shared guild. Battle.net is checked for both retail and Forever;
 --- the guild check only ever matches if the local player is also in "Pulling Aggro IRL".
@@ -643,7 +651,7 @@ function module:ReportErrorLogs(kind, target, onComplete)
   end
 
   local payload = Self:Serialize({
-    sender = characterFullName(UnitName("player"), GetRealmName()) or UnitName("player"),
+    sender = reportPlayerName(),
     entries = list,
   })
 
@@ -876,7 +884,7 @@ function module:BuildMarkdown()
   local gameType = (isRetail and isRetail()) and "RETAIL" or "FOREVER"
   table.insert(lines, ("- **Client Version**: `%s` (`%s`)"):format(tostring(clientVersion), gameType))
   table.insert(lines, ("- **Date**: `%s`"):format(date("%Y-%m-%d %H:%M:%S")))
-  table.insert(lines, ("- **Player**: `%s`"):format(characterFullName(UnitName("player"), GetRealmName()) or UnitName("player") or "Unknown"))
+  table.insert(lines, ("- **Player**: `%s`"):format(reportPlayerName() or "Unknown"))
   table.insert(lines, "")
 
   if #list == 0 then
