@@ -1,6 +1,7 @@
 -- Run from the addon root with Lua 5.1: lua tests\inventory_log.lua
 
 local now, bags, equipped, mail, offered, received, hooks = 100, {}, {}, {}, {}, {}, {}
+local inbox = {}
 local cursor, lootItems, lootSources, rewards, choices = nil, {}, {}, {}, {}
 local frames, callbacks, modules = {}, {}, {}
 local popup, notices = nil, {}
@@ -89,6 +90,18 @@ local function widget(frameType, name, parent)
   ---@param font string Font file.
   ---@param size number Font size.
   function object:SetFont(font, size) self.font, self.fontSize = font, size end
+  --- Capture explicit font colors on reusable rows.
+  ---@param r number Red component.
+  ---@param g number Green component.
+  ---@param b number Blue component.
+  ---@param a number|nil Alpha component.
+  function object:SetTextColor(r, g, b, a) self.textColor = { r, g, b, a or 1 } end
+  --- Supply the inherited mail color or the most recently assigned color.
+  ---@return number r Red component.
+  ---@return number g Green component.
+  ---@return number b Blue component.
+  ---@return number a Alpha component.
+  function object:GetTextColor() return unpack(rawget(self, "textColor") or { 0.2, 0.2, 0.2, 1 }) end
   --- Record text.
   function object:SetText(text) self.text = text end
   --- Return text.
@@ -97,11 +110,6 @@ local function widget(frameType, name, parent)
   function object:SetNormalTexture(texture) self.normalTexture = texture end
   --- Record a row icon.
   function object:SetTexture(texture) self.texture = texture end
-  --- Capture a native gradient's orientation and endpoint colors.
-  ---@param orientation string Gradient direction.
-  ---@param first table Starting color.
-  ---@param last table Ending color.
-  function object:SetGradient(orientation, first, last) self.gradient = { orientation, first, last } end
   --- Record a native script.
   function object:SetScript(event, handler) self.scripts[event] = handler end
   --- Record a script hook without replacing native behavior.
@@ -120,13 +128,6 @@ local function widget(frameType, name, parent)
     self.shown = true
     if not wasShown and self.scripts.OnShow then self.scripts.OnShow(self) end
   end
-  --- Supply native gradient colors without introducing a texture renderer.
-  ---@param r number Red component.
-  ---@param g number Green component.
-  ---@param b number Blue component.
-  ---@param a number Alpha component.
-  ---@return table color RGBA components.
-  function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
   --- Record conditional visibility.
   function object:SetShown(shown) self.shown = shown end
   --- Record a scroll child.
@@ -203,6 +204,8 @@ UIParent = widget(); UIParent:SetSize(1200, 1200)
 MerchantFrame, BankFrame, GuildBankFrame, TradeFrame = widget(), widget(), widget(), widget()
 GameFontHighlightSmall = widget()
 MailTextFontNormal, ChatFontNormal = widget(), widget()
+GREEN_FONT_COLOR = { r = 0, g = 1, b = 0 }
+RED_FONT_COLOR = { r = 1, g = 0.1, b = 0.1 }
 GameTooltip = widget()
 --- Capture tooltip links and reset supplemental lines between hovered items.
 ---@param itemLink string Saved item link.
@@ -338,6 +341,29 @@ function SlackHacks.unitFullName(unit) assert(unit == "NPC"); return tradePartne
 --- Supply cursor ownership.
 function GetCursorInfo() if cursor then return "item", 101, cursor end end
 DeleteCursorItem, SendMail, GetQuestReward, PostAuction, BuyMerchantItem = noop, noop, noop, noop, noop
+TakeInboxItem, AutoLootMailItem = noop, noop
+--- Supply the visible inbox message count.
+---@return number count Messages in the mailbox.
+function GetInboxNumItems() return #inbox end
+--- Supply exact attachment links before a native pickup request.
+---@param index number Message index.
+---@param slot number Attachment slot.
+---@return string|nil link Attachment link.
+function GetInboxItemLink(index, slot)
+  local item = inbox[index] and inbox[index][slot]
+  return item and item.link
+end
+--- Supply native inbox attachment quantities.
+---@param index number Message index.
+---@param slot number Attachment slot.
+---@return string|nil name Attachment name.
+---@return number|nil itemID Item identity.
+---@return string|nil icon Item icon.
+---@return number|nil count Attachment quantity.
+function GetInboxItem(index, slot)
+  local item = inbox[index] and inbox[index][slot]
+  if item then return "Inbox item", 101, "icon", item.count end
+end
 --- Supply the catalog link after a native vendor purchase request.
 ---@param index number Merchant item index.
 ---@return string link Merchant item.
@@ -398,6 +424,8 @@ end
 ---@param count number Initial quantity.
 local function reset(count)
   bags, equipped, mail, offered, received = { [0] = { stack(link, count) } }, {}, {}, {}, {}
+  inbox = {}
+  if MailFrame then MailFrame:Hide() end
   cursor = nil
   tradePartner = "Trade Partner-Realm"
   data.entries, data.actions, data.bindings, data.categories = {}, {}, {}, {}
@@ -638,6 +666,104 @@ check(1, "Mailed", 5, -1)
 assert(data.entries[1].category == "consumables", "Staging must preserve captured filtering metadata")
 assert(data.entries[1].counterparty == "Mail Recipient-Realm",
   "Confirmed mail must retain the recipient submitted with its attachments, not the failed draft")
+
+reset(5)
+MailFrame = widget()
+MailFrame:SetHeight(424)
+inbox = { { { link = link, count = 5 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+assert(#data.entries == 0, "Opening mail must not count unclaimed attachments as received")
+hooks.TakeInboxItem(1)
+log:OnInboxUpdate("MAIL_INBOX_UPDATE")
+hooks.TakeInboxItem(1, 1)
+assert(#data.entries == 0, "Repeated pickup requests must wait for an actual inventory gain")
+inbox[1][1] = nil
+log:OnInboxUpdate("MAIL_INBOX_UPDATE")
+bags[0][1].stackCount = 10
+log:OnAcquiredBagUpdate()
+check(1, "Mailed", 5, 1)
+assert(not data.entries[1].counterparty, "Received mail must not store a fake outgoing recipient")
+bags[0][1].stackCount = 15
+log:Reconcile()
+assert(#data.entries == 1, "Repeated pickup clicks must not leave duplicate mail correlations")
+
+reset(5)
+MailFrame:Show()
+inbox = { { { link = link, count = 5 } }, { { link = link, count = 5 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+hooks.AutoLootMailItem(1)
+table.remove(inbox, 1)
+log:OnInboxUpdate("MAIL_INBOX_UPDATE")
+hooks.AutoLootMailItem(1)
+bags[0][1].stackCount = 15
+log:OnAcquiredBagUpdate()
+check(1, "Mailed", 5, 1)
+check(2, "Mailed", 5, 1)
+assert(#data.entries == 2, "Reindexed identical messages must retain separate pickup requests")
+
+reset(5)
+MailFrame:Show()
+inbox = { { { link = variant, count = 2 }, { link = other, count = 3 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+hooks.AutoLootMailItem(1)
+inbox[1] = {}
+log:OnInboxUpdate("MAIL_INBOX_UPDATE")
+bags[0][2], bags[0][3] = stack(variant, 2), stack(other, 3)
+log:OnAcquiredBagUpdate()
+local claimed = {}
+for _, entry in ipairs(data.entries) do claimed[entry.link] = entry end
+assert(#data.entries == 2 and claimed[variant].action == "Mailed" and claimed[variant].quantity == 2
+  and claimed[other].action == "Mailed" and claimed[other].quantity == 3,
+  "Bulk mail pickup must attribute each exact attachment and its quantity")
+
+reset(5)
+MailFrame:Show()
+inbox = { { { link = link, count = 1 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+hooks.TakeInboxItem(1, 1)
+log:Reconcile()
+assert(#data.entries == 0, "A failed pickup must not record received mail")
+now = now + 6
+bags[0][1].stackCount = 6
+log:Reconcile()
+assert(#data.entries == 0, "An expired pickup must not label a later unrelated gain as received mail")
+
+reset(5)
+MailFrame:Show()
+inbox = { { { link = link, count = 1 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+inbox = {}
+log:OnInboxUpdate("MAIL_INBOX_UPDATE")
+bags[0][1].stackCount = 6
+log:Reconcile()
+assert(#data.entries == 0, "Removing mail without requesting a pickup must not create a received entry")
+
+reset(5)
+MailFrame:Show()
+inbox = { { { link = link, count = 1 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+log:GetSettings().actionsToLog.Mailed = false
+hooks.TakeInboxItem(1, 1)
+bags[0][1].stackCount = 6
+log:OnAcquiredBagUpdate()
+assert(#data.entries == 0, "Disabling Mailed recording must also suppress received attachments")
+
+reset(5)
+MailFrame:Show()
+inbox = { { { link = link, count = 1 } } }
+log:OnInboxUpdate("MAIL_SHOW")
+hooks.TakeInboxItem(1, 1)
+log:OnInboxUpdate("MAIL_CLOSED")
+bags[0][1].stackCount = 6
+log:OnAcquiredBagUpdate()
+check(1, "Mailed", 1, 1)
+MerchantFrame:Show()
+hooks[C_Container].UseContainerItem(0, 1)
+bags[0] = {}
+log:Reconcile()
+check(2, "Sold", 6, -1)
+assert(#data.entries == 2, "Received mail must be captured before an immediate resale hides its gain")
+MailFrame = nil
 
 reset(5)
 tradePartner = "Cancelled Partner-Realm"
@@ -970,16 +1096,16 @@ assert(panel.scroll.template == "ScrollFrameTemplate"
   "The ledger must use Send Mail's per-client native scrollbar and offsets")
 assert(panel.rows[1].quantity.fontTemplate == "MailTextFontNormal" and panel.rows[1].quantity.fontSize == 9
   and panel.rows[1].action.fontTemplate == "MailTextFontNormal" and panel.rows[1].timestamp.fontSize == 7
-  and panel.rows[1].height == 28 and panel.rows[1].shade.shown and panel.rows[2].shade.shown
-  and panel.rows[1].shade.gradient[1] == "HORIZONTAL"
-  and panel.rows[1].shade.gradient[2].a > panel.rows[1].shade.gradient[3].a,
+  and panel.rows[1].height == 28 - 5
+  and panel.rows[1].points.TOPLEFT[4] - panel.rows[2].points.TOPLEFT[4] == 28 - 5
+  and rawget(panel.rows[1], "shade") == nil and rawget(panel.rows[2], "shade") == nil,
   "Ledger text must inherit mail's readable parchment color without enlarging the narrow columns")
 assert(panel.CloseButton.template == "UIPanelCloseButtonDefaultAnchors")
 panel.CloseButton.scripts.OnClick(panel.CloseButton)
 assert(not panel.shown and log.active and log:IsLoggingEnabled(), "Closing history must not disable logging")
 log:Open()
 assert(panel.search.template == "SearchBoxTemplate" and panel.filters.text == "Filters (None)")
-assert(#panel.filtered == 3000 and #panel.rows <= math.ceil(panel.scroll:GetHeight() / 28) + 1)
+assert(#panel.filtered == 3000 and #panel.rows <= math.ceil(panel.scroll:GetHeight() / 23) + 1)
 panel.CloseButton.scripts.OnClick(panel.CloseButton)
 UIParent:SetHeight(2000)
 MailFrame = widget()
@@ -997,9 +1123,10 @@ MailFrame = nil
 log:Open()
 assert(panel.columns.labels[1].text == "Qty." and panel.columns.labels[2].text == "Item"
   and panel.columns.labels[3].text == "Action" and panel.columns.labels[4].text == "Timestamp")
-assert(panel.rows[1].quantity.width == 48 / 4 and panel.rows[1].icon.points.LEFT[1] == 18
+assert(panel.rows[1].quantity:GetWidth() <= 48 / 2
+  and panel.rows[1].icon.points.LEFT[1] >= panel.rows[1].quantity:GetWidth() + 6
   and panel.rows[1].item.points.LEFT[1] == panel.columns.labels[2].points.BOTTOMLEFT[1],
-  "The 75-percent narrower quantity column must reclaim space for the aligned item link")
+  "The compact quantity column must leave a gap before the icon and keep the item heading aligned")
 assert(panel.rows[1].quantity.text == "" and panel.rows[1].item.text == link
   and panel.rows[1].action.text == "Created", "Quantity must have its own column without item/action suffixes")
 assert(panel.rows[2].quantity.text == "" and panel.rows[2].action.text == "Sold",
@@ -1011,7 +1138,7 @@ local viewportWidth = panel.width + panel.scroll.points.BOTTOMRIGHT[1] - panel.s
 local timestampLeft = panel.columns.labels[4].points.BOTTOMLEFT[1]
 assert(panel.scrollChild:GetWidth() <= viewportWidth - 24
   and panel.rows[1].points.TOPRIGHT[1] == panel.scrollChild and panel.rows[1].points.TOPRIGHT[3] == 0,
-  "Rows and their backgrounds must stop before the stationery's transparent right margin")
+  "Rows must stop before the stationery's transparent right margin")
 assert(timestampLeft + panel.rows[1].timestamp:GetWidth() == panel.scrollChild:GetWidth()
   and panel.rows[1].timestamp:GetWidth() == 54 + 5
   and panel.rows[1].action:GetWidth() == 74 - 5
@@ -1029,12 +1156,12 @@ for hour, expected in pairs({ [11] = "11/28 11:58am", [23] = "11/28 11:58pm" }) 
 end
 timestampEntry.timestamp = originalTimestamp
 log:Refresh()
-panel.scroll:SetVerticalScroll(28 * 100)
+panel.scroll:SetVerticalScroll(23 * 100)
 assert(panel.rows[1].entry.quantity == 2907, "The viewport must render the scrolled entry, not the first one")
 panel.rows[1].scripts.OnEnter(panel.rows[1])
 assert(GameTooltip.link == link, "Tooltips must use the saved link after the item leaves inventory")
-assert(GameTooltip.lines[1] == "Quantity: 2907",
-  "The full quantity must remain readable when the narrow column clips it")
+assert(GameTooltip.lines[1] == "Quantity: +2907",
+  "The full signed quantity must remain readable when the narrow column clips it")
 panel.search:SetText("not present")
 panel.search.scripts.OnTextChanged(panel.search)
 assert(#panel.filtered == 0 and panel.empty.shown)
@@ -1069,6 +1196,10 @@ popup = nil
 modernButtons["Open Inventory Log"]()
 assert(not popup, "Enabled logging must open directly without an enable offer")
 log:SetLoggingEnabled(false)
+popup = nil
+log:Open()
+assert(panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
+  "Direct Inventory Log opens must offer to enable the disabled module")
 modernButtons["Open Inventory Log"]()
 assert(panel.shown and not log:IsLoggingEnabled() and #data.entries == 3000
   and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
@@ -1079,11 +1210,18 @@ StaticPopupDialogs[popup.id].OnAccept(nil, enableOffer)
 assert(not log:IsLoggingEnabled() and #notices == noticeCount + 1,
   "A stale enable offer must not enable a different profile")
 SlackHacks.db.profile = offeredProfile
+local offeredSettings = log:GetSettings()
+SlackHacks.db.profile.inventoryLog = { enabled = false }
+noticeCount = #notices
+StaticPopupDialogs[popup.id].OnAccept(nil, enableOffer)
+assert(not log:IsLoggingEnabled() and #notices == noticeCount + 1,
+  "Resetting settings within the same profile must invalidate an older enable offer")
+SlackHacks.db.profile.inventoryLog = offeredSettings
 local showPopup = StaticPopup_Show
 --- Simulate a native popup failing to open.
 function StaticPopup_Show() return nil end
 noticeCount = #notices
-log:RequestOpen()
+log:Open()
 assert(panel.shown and not log:IsLoggingEnabled() and #notices == noticeCount + 1,
   "A missing enable confirmation must report the failure without enabling logging")
 StaticPopup_Show = showPopup
@@ -1093,10 +1231,15 @@ assert(ledgerButton.normalTexture == "Interface\\Icons\\INV_Scroll_03")
 ledgerButton.scripts.OnEnter(ledgerButton)
 assert(GameTooltip.text == "Inventory Log")
 panel:Hide()
+popup = nil
 ledgerButton.scripts.OnClick()
-assert(panel.shown and not log:IsLoggingEnabled(), "The footer button must open history without enabling logging")
+assert(panel.shown and not log:IsLoggingEnabled() and popup.id == "SLACKHACKS_ENABLE_INVENTORY_LOG",
+  "The footer button must offer enable confirmation while leaving logging disabled until acceptance")
 menu[1].func()
 StaticPopupDialogs[popup.id].OnAccept(nil, popup.data)
+popup = nil
+ledgerButton.scripts.OnClick()
+assert(log:IsLoggingEnabled() and not popup, "An enabled ledger must also open directly from its footer button")
 local legacyFilters
 --- Capture the shared legacy filter menu.
 function EasyMenu(entries) legacyFilters = entries end
@@ -1175,17 +1318,47 @@ assert(panel.rows[1].action.text == "Traded" and panel.rows[1].counterparty.text
   and panel.rows[1].counterparty.fontSize < panel.rows[1].action.fontSize
   and panel.rows[1].counterparty.points.LEFT[2] < panel.rows[1].action.points.LEFT[2],
   "Transfer counterparties must appear beneath the action without changing its filter key")
+assert(panel.rows[1].action.points.LEFT[2] + panel.rows[1].action:GetHeight() / 2
+    <= panel.rows[1]:GetHeight() / 2
+  and panel.rows[1].counterparty.points.LEFT[2] - panel.rows[1].counterparty:GetHeight() / 2
+    >= -panel.rows[1]:GetHeight() / 2,
+  "Both transfer text lines must fit within the reduced row spacing")
+assert(panel.rows[1].quantity.text == "+1" and panel.rows[2].quantity.text == "-1",
+  "Known transaction quantities must show plus for gains and minus for losses")
+assert(panel.rows[1].quantity.textColor[1] == GREEN_FONT_COLOR.r
+  and panel.rows[1].quantity.textColor[2] == GREEN_FONT_COLOR.g
+  and panel.rows[1].quantity.textColor[3] == GREEN_FONT_COLOR.b
+  and panel.rows[2].quantity.textColor[1] == RED_FONT_COLOR.r
+  and panel.rows[2].quantity.textColor[2] == RED_FONT_COLOR.g
+  and panel.rows[2].quantity.textColor[3] == RED_FONT_COLOR.b,
+  "Gains must use Blizzard's green font color and losses its red font color")
 panel.rows[1].scripts.OnEnter(panel.rows[1])
 assert(GameTooltip.lines[2] == "Traded from: Trade Partner-Realm")
 panel.rows[2].scripts.OnEnter(panel.rows[2])
 assert(GameTooltip.lines[2] == "Mailed to: Long Mail Recipient-Realm")
 panel.rows[3].scripts.OnEnter(panel.rows[3])
-assert(#GameTooltip.lines == 1 and GameTooltip.lines[1] == "Quantity: 2",
+assert(#GameTooltip.lines == 1 and GameTooltip.lines[1] == "Quantity: -2",
   "Entries without counterparty metadata must show their quantity without stale transfer details")
 log:Record({ link = link }, "Traded", 1, -1, "Trade Partner-Realm")
 log:Refresh()
+assert(panel.rows[1].quantity.textColor[1] == RED_FONT_COLOR.r
+  and panel.rows[1].quantity.textColor[2] == RED_FONT_COLOR.g,
+  "Reusing a formerly positive row for a loss must replace its green color")
 panel.rows[1].scripts.OnEnter(panel.rows[1])
 assert(GameTooltip.lines[2] == "Traded to: Trade Partner-Realm")
+log:Record({ link = link }, "Mailed", 5, 1, "Legacy Name-Realm")
+log:Refresh()
+assert(panel.rows[1].action.text == "Mailed" and panel.rows[1].counterparty.text == "(Received)"
+  and panel.rows[1].counterparty.shown
+  and panel.rows[1].counterparty.points.LEFT[2] < panel.rows[1].action.points.LEFT[2],
+  "Incoming mail must show (Received) beneath Mailed, not an outgoing recipient name")
+panel.rows[1].scripts.OnEnter(panel.rows[1])
+assert(GameTooltip.lines[1] == "Quantity: +5" and GameTooltip.lines[2] == "Mail received"
+  and #GameTooltip.lines == 2, "Incoming mail tooltips must not describe a recipient")
+log:Record({ link = link }, "Mailed", 1, 1)
+log:Refresh()
+assert(panel.rows[1].counterparty.text == "(Received)" and panel.rows[1].counterparty.shown,
+  "Incoming mail without counterparty metadata must still show its received label")
 log:Record({ link = other }, "Looted", 1, 1)
 log:Refresh()
 assert(panel.rows[1].entry.stackSize == 1 and panel.rows[1].quantity.text == ""
@@ -1193,7 +1366,21 @@ assert(panel.rows[1].entry.stackSize == 1 and panel.rows[1].quantity.text == ""
   "Nonstackable singletons must not show 1 or a recycled transfer recipient")
 log:Record({ link = link, stackSize = 20 }, "Looted", 1, 1)
 log:Refresh()
-assert(panel.rows[1].quantity.text == "1", "A single unit of a stackable item must retain its count")
+assert(panel.rows[1].quantity.text == "+1", "A single unit of a stackable item must retain its signed count")
+local quantityLabel = panel.rows[1].quantity
+local measureQuantity = quantityLabel.GetStringWidth
+--- Simulate a native font whose signed single-digit count is wider than the former 12-pixel column.
+---@return number width Natural text width.
+function quantityLabel:GetStringWidth()
+  if self.text == "+5" then return 13 end
+  return measureQuantity(self)
+end
+log:Record({ link = link, stackSize = 20 }, "Purchased", 5, 1)
+log:Refresh()
+assert(panel.rows[1].quantity.text == "+5"
+  and quantityLabel:GetStringWidth() <= quantityLabel:GetWidth(),
+  "A five-unit vendor bundle must display +5 even with wider native font glyphs")
+quantityLabel.GetStringWidth = measureQuantity
 log:Record({ link = link }, "Created", 1, 1)
 data.entries[#data.entries].quantity = nil
 log:Refresh()
@@ -1204,11 +1391,21 @@ log:Record({ link = link }, "Looted", 1000, 1)
 log:Refresh()
 assert(panel.rows[1].quantity.text == "")
 panel.rows[1].scripts.OnEnter(panel.rows[1])
-assert(GameTooltip.lines[1] == "Quantity: 1000", "Clipped known quantities must remain available in tooltips")
+assert(GameTooltip.lines[1] == "Quantity: +1000", "Clipped signed quantities must remain available in tooltips")
 log:Record({ link = other, stackSize = 1 }, "Looted", 2, 1)
 log:Refresh()
-assert(panel.rows[1].quantity.text == "2", "Multiple nonstackable copies must still show their actual quantity")
+assert(panel.rows[1].quantity.text == "+2", "Multiple nonstackable copies must still show their signed quantity")
 local savedEntry, itemInfo = data.entries[#data.entries], C_Item.GetItemInfo
+savedEntry.direction = nil
+log:Refresh()
+assert(panel.rows[1].quantity.text == "2", "Older entries without a direction must not invent a gain or loss sign")
+local mailRed, mailGreen, mailBlue, mailAlpha = MailTextFontNormal:GetTextColor()
+assert(panel.rows[1].quantity.textColor[1] == mailRed
+  and panel.rows[1].quantity.textColor[2] == mailGreen
+  and panel.rows[1].quantity.textColor[3] == mailBlue
+  and panel.rows[1].quantity.textColor[4] == mailAlpha,
+  "Unsigned historical quantities must reset recycled rows to the normal mail-text color")
+savedEntry.direction = 1
 savedEntry.stackSize, savedEntry.name, savedEntry.category = nil, "Saved item name", "equipment"
 --- Simulate an unavailable item cache while refreshing older saved entries.
 function C_Item.GetItemInfo() return nil end

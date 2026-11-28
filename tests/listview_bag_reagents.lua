@@ -754,7 +754,7 @@ local cases = {
   { "special", makeItem(2901, 2, "INVTYPE_WEAPONMAINHAND", 1) },
   { "special", makeItem(7005, 2, "INVTYPE_WEAPON", 1) },
   { "special", makeItem(5956, 2, "INVTYPE_WEAPONMAINHAND", 1) },
-  { "professionGoods", makeItem(4471, 7, "", 1) },
+  { "special", makeItem(4471, 7, "", 1) },
   { "special", makeItem(6218, 15, "", 1) },
   { "special", makeItem(16207, 15, "", 1) },
   { "special", makeItem(7005, 12, "INVTYPE_WEAPON", 0, true, 4) },
@@ -765,9 +765,15 @@ local cases = {
 }
 local categoryNames = { "equipment", "consumables", "special", "reagents", "professionGoods", "junk", "quest", "other" }
 local classify = upvalue(matchesFilters, "itemCategory")
+local tinder = makeItem(4471, 7, "", 1)
+assert(classify(tinder) == "special"
+  and SlackHacks.ListviewBag:GetInventoryLogCategory(tinder) == "professionGoods",
+  "Flint and Tinder must be an Essential by default without changing its Inventory Log category")
+profile.essentialItems[4471] = false
+assert(classify(tinder) == "professionGoods",
+  "A saved opt-out for Flint and Tinder must retain its normal category")
 profile.essentialItems[4471] = true
-assert(classify(makeItem(4471, 0, "", 1)) == "consumables",
-  "An older built-in preference must not keep Flint and Tinder in Essentials")
+assert(classify(tinder) == "special", "A saved opt-in for Flint and Tinder must remain enabled")
 profile.essentialItems[4471] = nil
 for _, item in ipairs(SlackHacks.ListviewBag.ESSENTIAL_ITEMS) do
   assert(classify(makeItem(item.id, 15, "", 1)) == "special",

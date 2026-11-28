@@ -9,12 +9,13 @@ for _, action in ipairs({ "Quest", "Looted", "Gathered", "Created", "Purchased",
 end
 
 local CORRELATION_SECONDS = 5
-local ROW_HEIGHT = 28
+local ROW_HEIGHT = 23
 local PAPER_ICON = "Interface\\Icons\\INV_Scroll_03"
 local snapshot, pending, metadataCache = nil, {}, {}
 local auctionRequests = {}
 local bankOpen, guildBankOpen, tradeOpen = false, false, false
 local loot, questRewards, tradeItems, outgoingMail = {}, {}, {}, {}
+local inbox = {}
 local questChoice, legacyAuctionLink, legacyAuctionRequest, outgoingMailRecipient
 local lastCursorLink, gatheringUntil, gatheringKind, reconcileTimer
 local window
@@ -293,12 +294,13 @@ function module:QueueReconcile()
   end
 end
 
---- Capture purchases and creations before immediate consumption or resale can hide a net-zero delta.
+--- Capture acquisitions before immediate consumption or resale can hide a net-zero delta.
 function module:OnAcquiredBagUpdate()
   if not observing or not self:IsLoggingEnabled() or not snapshot then return end
   local current
   for _, candidate in ipairs(pending) do
-    if (candidate.action == "Purchased" or candidate.action == "Created")
+    if (candidate.action == "Purchased" or candidate.action == "Created"
+      or (candidate.action == "Mailed" and candidate.direction == 1))
       and candidate.remaining > 0 and candidate.expires >= GetTime() then
       current = current or readInventory()
       local before, after = snapshot.items[candidate.link], current.items[candidate.link]
@@ -316,6 +318,7 @@ function module:ResetTracking()
   if reconcileTimer then self:CancelTimer(reconcileTimer); reconcileTimer = nil end
   pending, metadataCache, snapshot, auctionRequests = {}, {}, nil, {}
   loot, questRewards, tradeItems, outgoingMail = {}, {}, {}, {}
+  inbox = {}
   questChoice, legacyAuctionLink, legacyAuctionRequest, outgoingMailRecipient = nil, nil, nil, nil
   lastCursorLink, gatheringUntil, gatheringKind = nil, nil, nil
   bankOpen = BankFrame and BankFrame:IsShown() or false
@@ -324,6 +327,7 @@ function module:ResetTracking()
   if self:IsLoggingEnabled() and (not GetCursorInfo or GetCursorInfo() ~= "item") then
     snapshot = readInventory()
   end
+  self:OnInboxUpdate()
   self:Refresh()
 end
 
@@ -596,6 +600,32 @@ function module:OnMailFailed()
   self:QueueReconcile()
 end
 
+--- Cache inbox attachments before native pickup requests can remove their item information.
+---@param event string|nil Native mailbox event, or nil when establishing a baseline.
+function module:OnInboxUpdate(event)
+  local previous = inbox
+  inbox = {}
+  if not observing or event == "MAIL_CLOSED" or not GetInboxNumItems or not GetInboxItemLink
+    or not GetInboxItem then return end
+  if event ~= "MAIL_SHOW" and not (MailFrame and MailFrame:IsShown()) then return end
+  local messageCount = GetInboxNumItems()
+  -- Removing a message shifts inbox indices; its request token must not belong to the next message.
+  if messageCount < #previous then previous = {} end
+  for index = 1, messageCount do
+    inbox[index] = {}
+    for slot = 1, (ATTACHMENTS_MAX_RECEIVE or 12) do
+      local link = GetInboxItemLink(index, slot)
+      local count = link and select(4, GetInboxItem(index, slot))
+      if link and count and count > 0 then
+        local old = previous[index] and previous[index][slot]
+        -- Keep the request token across refreshes so repeated pickup clicks cannot double-count a gain.
+        inbox[index][slot] = old and old.link == link and old.count == count and old
+          or { link = link, count = count }
+      end
+    end
+  end
+end
+
 --- Refresh accessible bank/trade holdings at native interaction boundaries.
 ---@param event string Native open/close event.
 function module:OnInteraction(event)
@@ -693,6 +723,32 @@ function module:InstallHooks()
       end
     end)
   end
+  --- Correlate requested inbox attachments with actual gains, not merely opening or returning mail.
+  ---@param index number Inbox message index.
+  ---@param slot number|nil Attachment index; nil requests all attachments.
+  local function receivedMail(index, slot)
+    if not observing or not module:IsLoggingEnabled() then return end
+    local items = inbox[index]
+    if not items or (slot and not items[slot]) then
+      prn("Could not identify the requested mail attachments; their inventory changes will remain unattributed.")
+      return
+    end
+    for attachment, item in pairs(items) do
+      if not slot or attachment == slot then
+        if not item.request or item.request.remaining == 0 or item.request.expires < GetTime() then
+          item.request = module:Expect("Mailed", item.link, item.count, 1)
+        end
+      end
+    end
+    module:OnAcquiredBagUpdate()
+  end
+  if TakeInboxItem then
+    --- Observe a single native attachment pickup, including the legacy default attachment.
+    ---@param index number Inbox message index.
+    ---@param slot number|nil Attachment index.
+    hooksecurefunc("TakeInboxItem", function(index, slot) receivedMail(index, slot or 1) end)
+  end
+  if AutoLootMailItem then hooksecurefunc("AutoLootMailItem", receivedMail) end
   if GetQuestReward then
     --- Remember the chosen reward, rather than attributing every available choice.
     ---@param choice number Selected reward index.
@@ -786,6 +842,9 @@ function module:OnEnable()
   self:RegisterEvent("UI_INFO_MESSAGE", "OnInfoMessage")
   self:RegisterEvent("MAIL_SEND_SUCCESS", "OnMailSuccess")
   self:RegisterEvent("MAIL_FAILED", "OnMailFailed")
+  for _, event in ipairs({ "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MAIL_CLOSED" }) do
+    self:RegisterEvent(event, "OnInboxUpdate")
+  end
   self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "Refresh")
   if GetAuctionSellItemInfo then self:RegisterEvent("NEW_AUCTION_UPDATE", "OnAuctionSellChanged") end
   observing = true
@@ -800,7 +859,7 @@ function module:OnDisable()
   observing = false
   self:UnregisterAllEvents()
   self:CancelAllTimers()
-  reconcileTimer, snapshot = nil, nil
+  reconcileTimer, snapshot, inbox = nil, nil, {}
   if window then window:Hide() end
 end
 
@@ -821,7 +880,7 @@ function module:GetFilteredEntries(query)
   return entries
 end
 
---- Format a known quantity without guessing missing counts or displaying redundant singleton counts.
+--- Format signed quantities without guessing missing counts or displaying redundant singleton counts.
 ---@param entry table Saved ledger entry.
 ---@param includeSingle boolean|nil Include nonstackable singletons in detailed tooltips.
 ---@return string text Quantity, or empty when unknown or redundant.
@@ -829,9 +888,8 @@ local function quantityText(entry, includeSingle)
   local count = entry.quantity
   if type(count) ~= "number" or count < 1 or count >= math.huge or count ~= math.floor(count) then return "" end
   if not includeSingle and count == 1 and entry.stackSize == 1 then return "" end
-  -- Historical Unknown entries keep their original gain/loss direction.
-  local sign = entry.action == "Unknown" and (entry.direction == 1 and "+" or entry.direction == -1 and "-") or ""
-  return (sign or "") .. count
+  local sign = entry.direction == 1 and "+" or entry.direction == -1 and "-" or ""
+  return sign .. count
 end
 
 --- Populate only viewport rows; thousands of saved records do not create thousands of widgets.
@@ -846,15 +904,11 @@ local function renderViewport()
       row:SetHeight(ROW_HEIGHT)
       -- Inherit Send Mail's dark parchment text color, keeping the ledger's compact font sizes.
       local font = MailTextFontNormal:GetFont()
-      row.shade = row:CreateTexture(nil, "BACKGROUND")
-      row.shade:SetPoint("TOPLEFT", 0, -1)
-      row.shade:SetPoint("BOTTOMRIGHT", 0, 1)
-      row.shade:SetColorTexture(1, 1, 1, 1)
-      row.shade:SetGradient("HORIZONTAL", CreateColor(0.5, 0.5, 0.5, 0.16), CreateColor(0.5, 0.5, 0.5, 0.04))
       row.quantity = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
       row.quantity:SetFont(font, 9)
       row.quantity:SetPoint("LEFT", 0, 0)
-      row.quantity:SetWidth(12)
+      -- Leave room for a sign and digit in native fonts without sacrificing a compact column.
+      row.quantity:SetWidth(18)
       row.quantity:SetWordWrap(false)
       row.quantity:SetJustifyH("RIGHT")
       row.timestamp = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
@@ -865,10 +919,10 @@ local function renderViewport()
       row.timestamp:SetJustifyH("LEFT")
       row.icon = row:CreateTexture(nil, "ARTWORK")
       row.icon:SetSize(16, 16)
-      row.icon:SetPoint("LEFT", 18, 0)
+      row.icon:SetPoint("LEFT", 24, 0)
       row.item = row:CreateFontString(nil, "ARTWORK", "MailTextFontNormal")
       row.item:SetFont(font, 9)
-      row.item:SetPoint("LEFT", 38, 0)
+      row.item:SetPoint("LEFT", 44, 0)
       row.item:SetPoint("RIGHT", -140, 0)
       row.item:SetHeight(ROW_HEIGHT - 2)
       row.item:SetJustifyH("LEFT")
@@ -894,7 +948,9 @@ local function renderViewport()
         GameTooltip:SetHyperlink(entry.link)
         local quantity = quantityText(entry, true)
         if quantity ~= "" then GameTooltip:AddLine("Quantity: " .. quantity, 1, 1, 1) end
-        if entry.counterparty then
+        if entry.action == "Mailed" and entry.direction == 1 then
+          GameTooltip:AddLine("Mail received", 1, 1, 1, true)
+        elseif entry.counterparty then
           local label = entry.action == "Mailed" and "Mailed to: "
             or (entry.direction < 0 and "Traded to: " or "Traded from: ")
           GameTooltip:AddLine(label .. entry.counterparty, 1, 1, 1, true)
@@ -915,14 +971,21 @@ local function renderViewport()
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", window.scrollChild, "TOPLEFT", 0, -(first + index - 2) * ROW_HEIGHT)
         row:SetPoint("TOPRIGHT", window.scrollChild, "TOPRIGHT", 0, -(first + index - 2) * ROW_HEIGHT)
-        row.shade:Show()
         row.quantity:SetText(quantityText(entry))
+        if entry.direction == 1 then
+          row.quantity:SetTextColor(GREEN_FONT_COLOR.r, GREEN_FONT_COLOR.g, GREEN_FONT_COLOR.b)
+        elseif entry.direction == -1 then
+          row.quantity:SetTextColor(RED_FONT_COLOR.r, RED_FONT_COLOR.g, RED_FONT_COLOR.b)
+        else
+          row.quantity:SetTextColor(MailTextFontNormal:GetTextColor())
+        end
         -- A deliberately narrow Qty. column must not turn larger known counts into misleading ellipses.
         if row.quantity:GetStringWidth() > row.quantity:GetWidth() then row.quantity:SetText("") end
         row.timestamp:SetText(date("%m/%d %I:%M%p", entry.timestamp):lower())
         row.icon:SetTexture(entry.icon or PAPER_ICON)
         row.item:SetText(entry.link)
-        local counterparty = (entry.action == "Mailed" or entry.action == "Traded") and entry.counterparty
+        local counterparty = entry.action == "Mailed" and entry.direction == 1 and "(Received)"
+          or (entry.action == "Mailed" or entry.action == "Traded") and entry.counterparty
         row.action:ClearAllPoints()
         row.action:SetPoint("LEFT", 208, counterparty and 5 or 0)
         row.action:SetText(entry.action)
@@ -1027,7 +1090,7 @@ local function createWindow()
   window.columns:SetPoint("TOPRIGHT", -32, -64)
   window.columns:SetHeight(16)
   -- Align Item with its link text, leaving the icon's header space for the wider Qty. label.
-  local positions = { 0, 38, 208, 283 }
+  local positions = { 0, 44, 208, 283 }
   for index, label in ipairs({ "Qty.", "Item", "Action", "Timestamp" }) do
     local heading = window.columns:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     heading:SetPoint("BOTTOMLEFT", positions[index], 0)
@@ -1069,17 +1132,12 @@ local function createWindow()
   table.insert(UISpecialFrames, window:GetName())
 end
 
---- Open the ledger even if logging or the Listview Bag replacement is currently disabled.
+--- Open saved history and offer to enable disabled logging from every entry point.
 function module:Open()
   if not window then createWindow() end
   window:Show()
   window:Raise()
   self:Refresh()
-end
-
---- Open saved history and offer to enable logging when the menu is used while disabled.
-function module:RequestOpen()
-  self:Open()
   if self:IsLoggingEnabled() then return end
   local id = "SLACKHACKS_ENABLE_INVENTORY_LOG"
   StaticPopupDialogs[id] = {
@@ -1091,16 +1149,16 @@ function module:RequestOpen()
     hideOnEscape = true,
     --- Enable only the profile for which the offer was shown.
     ---@param _ table Confirmation dialog.
-    ---@param data table Captured profile.
+    ---@param data table Captured profile and settings.
     OnAccept = function(_, data)
-      if Self.db.profile ~= data.profile then
+      if Self.db.profile ~= data.profile or module:GetSettings() ~= data.settings then
         prn("The profile changed; Inventory Log was not enabled.")
         return
       end
       if not module:IsLoggingEnabled() then module:SetLoggingEnabled(true) end
     end,
   }
-  if not StaticPopup_Show(id, nil, nil, { profile = Self.db.profile }) then
+  if not StaticPopup_Show(id, nil, nil, { profile = Self.db.profile, settings = self:GetSettings() }) then
     prn("The Inventory Log enable confirmation could not be shown; logging remains disabled.")
   end
 end
@@ -1110,7 +1168,7 @@ end
 ---@param menu table|nil Legacy menu entries.
 function module:AddMenu(root, menu)
   --- Open this character's ledger and offer to enable disabled logging.
-  local function open() module:RequestOpen() end
+  local function open() module:Open() end
   if root then
     root:CreateButton("Open Inventory Log", open)
   else
@@ -1129,12 +1187,12 @@ function module:ConfigureButton(button)
     GameTooltip:SetText("Inventory Log")
     GameTooltip:AddLine("View recent item activity.", 1, 1, 1)
     if not module:IsLoggingEnabled() then
-      GameTooltip:AddLine("Logging is disabled. Use Open Inventory Log in the bag menu or enable it in Inventory settings.",
+      GameTooltip:AddLine("Logging is disabled. Opening the log offers to enable it, or use Inventory settings.",
         1, 0.82, 0, true)
     end
     GameTooltip:Show()
   end)
   button:SetScript("OnLeave", GameTooltip_Hide)
-  --- Open the ledger without altering the logging preference.
+  --- Open the ledger and offer to enable disabled logging.
   button:SetScript("OnClick", function() module:Open() end)
 end

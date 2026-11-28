@@ -145,6 +145,7 @@ module.ESSENTIAL_ITEMS = {
   { id = 2901, name = "Mining Pick" },
   { id = 7005, name = "Skinning Knife" },
   { id = 5956, name = "Blacksmith Hammer" },
+  { id = 4471, name = "Flint and Tinder" },
   { id = 6219, name = "Arclight Spanner" },
   { id = 10498, name = "Gyromatic Micro-Adjustor" },
   { id = 6256, name = "Fishing Pole" },
@@ -4365,6 +4366,41 @@ function module:SetShowListviewBag(show)
   setShowListviewBag(show)
 end
 
+--- Switch to replacement bags, asking before enabling a disabled Listview Bag module.
+function module:RequestShowListviewBag()
+  --- Enable the module and show the replacement view without changing unrelated settings.
+  local function switch()
+    local config = settings()
+    config.enabled, config.showListviewBag = true, true
+    if module:IsEnabled() then setShowListviewBag(true) else module:Enable() end
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange("SlackHacks") end
+  end
+  if isModuleEnabled() then switch(); return end
+  local id = "SLACKHACKS_ENABLE_LISTVIEW_BAG"
+  StaticPopupDialogs[id] = {
+    text = "Listview Bag is disabled. Enable the module and switch to Listview Bag?",
+    button1 = YES,
+    button2 = NO,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    --- Apply only to the profile and bag settings for which confirmation was requested.
+    ---@param _ table Confirmation dialog.
+    ---@param data table Captured profile and settings.
+    OnAccept = function(_, data)
+      if db.profile ~= data.profile or settings() ~= data.settings then
+        prn("The profile changed; Listview Bag was not enabled or opened.")
+        return
+      end
+      switch()
+    end,
+  }
+  if not StaticPopup_Show(id, nil, nil, { profile = db.profile, settings = settings() }) then
+    prn("The Listview Bag enable confirmation could not be shown; the bag view was not changed.")
+  end
+end
+
 --- Set automatic bank depositing and deposit immediately if the bank is open.
 ---@param enabled boolean Whether to automatically deposit Bank-flagged items.
 function module:SetAutoDepositBankItems(enabled)
@@ -4516,14 +4552,9 @@ local function installBagMenuOptions()
     Menu.ModifyMenu(menuTag, function(_, rootDescription)
       rootDescription:CreateDivider()
       rootDescription:CreateTitle("|cffffd100SlackHacks|r")
+      --- Ask before enabling replacement bags from Blizzard's menu.
       rootDescription:CreateButton("Switch to Listview Bag", function()
-        settings().enabled = true
-        settings().showListviewBag = true
-        if module:IsEnabled() then
-          setShowListviewBag(true)
-        else
-          module:Enable()
-        end
+        module:RequestShowListviewBag()
       end)
       Self.InventoryLog:AddMenu(rootDescription)
     end)

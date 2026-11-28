@@ -98,10 +98,14 @@ end
 assert(loadfile("Options.lua"))()
 local getOptions = upvalue(SlackHacks.registerOptions, "getOptions")
 local bagOptions = getOptions().args.inventory.args.listviewBag.args
-assert(not bagOptions.essentials.args["item:4471"]
+local tinderOption = bagOptions.essentials.args["item:4471"]
+assert(tinderOption and tinderOption.get()
   and not SlackHacks.dbDefaults.profile.listviewBag.essentialItems.arrows
   and not SlackHacks.dbDefaults.profile.listviewBag.essentialItems.soulShards,
-  "Built-in Essentials must omit Flint and Tinder and keep consumed exceptions disabled by default")
+  "Built-in Essentials must include Flint and Tinder and keep consumed exceptions disabled by default")
+SlackHacks.db.profile.listviewBag.essentialItems[4471] = false
+assert(not tinderOption.get(), "The restored Essentials option must preserve an existing saved opt-out")
+SlackHacks.db.profile.listviewBag.essentialItems[4471] = nil
 assert(not bagOptions.autoAHMode and SlackHacks.dbDefaults.profile.listviewBag.autoAHMode == nil,
   "Selling View's Auction House behavior must not require a saved mode option")
 local inventoryOptions = getOptions().args.inventory.args
@@ -559,22 +563,83 @@ local nativeMenus = {}
 Menu = { ModifyMenu = function(tag, builder) nativeMenus[tag] = builder end }
 local installBagMenuOptions = upvalue(module.OnEnable, "installBagMenuOptions")
 installBagMenuOptions()
+YES, NO = "Yes", "No"
+local originalEnabled, originalEnable, originalNotice = module.IsEnabled, module.Enable, SlackHacks.prn
+local active, enableCalls, notices = true, 0, {}
+--- Track actual module state independently of saved settings.
+---@return boolean enabled Module state.
+function module:IsEnabled() return active end
+--- Capture confirmed module activation and its normal view-opening lifecycle.
+function module:Enable() active = true; enableCalls = enableCalls + 1; switched = true end
+--- Capture rejected confirmations and unavailable native popups.
+---@param message string Failure message.
+function SlackHacks.prn(message) notices[#notices + 1] = message end
 for _, tag in ipairs({ "MENU_CONTAINER_FRAME", "MENU_CONTAINER_FRAME_COMBINED" }) do
-  local label
+  local label, actions = nil, {}
   local root = {
     CreateDivider = function() end,
     CreateTitle = function(_, text) assert(text == "|cffffd100SlackHacks|r") end,
     CreateCheckbox = function() error("The Inventory Log menu must not add a checkbox") end,
-    CreateButton = function(_, text) if text ~= "Open Inventory Log" then label = text end end,
+    --- Capture both bag and ledger entry points.
+    ---@param text string Button label.
+    ---@param select function Click callback.
+    CreateButton = function(_, text, select)
+      actions[text] = select
+      if text ~= "Open Inventory Log" then label = text end
+    end,
   }
   nativeMenus[tag](nil, root)
   assert(label == "Switch to Listview Bag")
+  profile.enabled, profile.showListviewBag, active, switched, popup = true, false, true, false, nil
+  actions[label]()
+  assert(switched and profile.showListviewBag and not popup,
+    "An enabled Listview Bag must switch views without an enable confirmation")
   profile.enabled = false
+  profile.showListviewBag, active, switched, popup = false, false, false, nil
   label = nil
   nativeMenus[tag](nil, root)
   assert(label == "Switch to Listview Bag", "Blizzard's menu must remain available without replacement bags")
-  profile.enabled = true
+  actions[label]()
+  assert(popup.kind == "SLACKHACKS_ENABLE_LISTVIEW_BAG"
+    and StaticPopupDialogs[popup.kind].button2 == NO
+    and not profile.enabled and not profile.showListviewBag and not active and not switched,
+    "Declining an enable offer must leave the module and Blizzard bag view unchanged")
+  local callsBefore = enableCalls
+  StaticPopupDialogs[popup.kind].OnAccept(nil, popup.data)
+  assert(profile.enabled and profile.showListviewBag and active and switched and enableCalls == callsBefore + 1,
+    "Accepting must enable Listview Bag and open its view")
+  profile.enabled, profile.showListviewBag, switched, popup = false, false, false, nil
+  actions[label]()
+  assert(popup and not profile.enabled and not switched,
+    "A disabled saved setting must require confirmation even if the module is still active")
+  StaticPopupDialogs[popup.kind].OnAccept(nil, popup.data)
+  assert(profile.enabled and profile.showListviewBag and switched and enableCalls == callsBefore + 1,
+    "Confirming an already active module must show its view without restarting it")
+  profile.enabled, profile.showListviewBag, active = false, false, false
+  actions[label]()
+  local offer, oldProfile, noticeCount = popup.data, SlackHacks.db.profile, #notices
+  SlackHacks.db.profile = { listviewBag = { enabled = false, showListviewBag = false } }
+  StaticPopupDialogs[popup.kind].OnAccept(nil, offer)
+  assert(not SlackHacks.db.profile.listviewBag.enabled and enableCalls == callsBefore + 1
+    and #notices == noticeCount + 1, "A stale offer must not enable replacement bags in a new profile")
+  SlackHacks.db.profile = oldProfile
+  oldProfile.listviewBag = { enabled = false, showListviewBag = false }
+  noticeCount = #notices
+  StaticPopupDialogs[popup.kind].OnAccept(nil, offer)
+  assert(not oldProfile.listviewBag.enabled and enableCalls == callsBefore + 1
+    and #notices == noticeCount + 1, "Replacing settings within the same profile must invalidate a prior enable offer")
+  oldProfile.listviewBag = profile
+  local showPopup = StaticPopup_Show
+  --- Simulate failure to display the native enable confirmation.
+  function StaticPopup_Show() return nil end
+  noticeCount = #notices
+  actions[label]()
+  assert(not profile.enabled and not profile.showListviewBag and enableCalls == callsBefore + 1
+    and #notices == noticeCount + 1, "A missing confirmation must report failure without enabling or switching bags")
+  StaticPopup_Show = showPopup
+  profile.enabled, active = true, true
 end
+module.IsEnabled, module.Enable, SlackHacks.prn = originalEnabled, originalEnable, originalNotice
 
 -- Group navigation must open rather than toggle closed on every settings backend.
 local selected, openedCategory, hiddenPanel, openedDialog, closedDialog
