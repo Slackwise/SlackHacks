@@ -1333,6 +1333,16 @@ local function getOptions()
   return options
 end
 
+--- Restore the Mouse Ring's scale, opacity, and color to their profile defaults.
+local function resetMouseRingAppearance()
+  local defaults = dbDefaults.profile.mouseRing
+  local settings = db.profile.mouseRing
+  settings.scale = defaults.scale
+  settings.opacity = defaults.opacity
+  settings.color = { r = defaults.color.r, g = defaults.color.g, b = defaults.color.b }
+  Self.MouseRing:Refresh()
+end
+
 local function selfVendorModeOptions()
   local args = {}
   args.requestDescription = {
@@ -2692,6 +2702,14 @@ options = {
             Self.MouseRing:Refresh()
           end,
           order = 4
+        },
+        resetAppearance = {
+          name = "Reset Appearance",
+          desc = "Restore Scale, Opacity, and Color to their defaults.",
+          type = "execute",
+          disabled = function() return not db.profile.mouseRing.enabled end,
+          func = resetMouseRingAppearance,
+          order = 5
         }
       }
     },

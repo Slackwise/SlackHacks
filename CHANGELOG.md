@@ -1,5 +1,11 @@
 # SlackHacks Changelog
 
+## v35
+
+### Mouse Ring
+- Added a Reset Appearance button for the scale, opacity, and color controls.
+
+
 ## v34
 
 ### Utilities
